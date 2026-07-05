@@ -1,0 +1,9 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- Activity-bar icons are single-color; VSCode tints via `fill: currentColor`. -->
+  <g fill="currentColor">
+    <!-- 字 (character/letter): roof stroke + child radical, simplified for legibility at 24px -->
+    <path d="M11 2h2v2h6v2H5V4h6V2z"/>
+    <path d="M8 8h8a1 1 0 0 1 1 1v3h-2v-2H9v2H7V9a1 1 0 0 1 1-1z"/>
+    <path d="M11 12h2v6h4v2h-4v2h-2v-2H7v-2h4v-6z"/>
+  </g>
+</svg>

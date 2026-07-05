@@ -1,24 +1,41 @@
 import { defineConfig } from "vite-plus";
 import { lint, fmt } from "@saeris/configs";
+import react from "@vitejs/plugin-react";
 import manifest from "./package.json" with { type: "json" };
 
 export default defineConfig({
   lint,
   fmt,
-  // ── Builds (tsdown) ─────────────────────────────────────────────────
+  // ── Webview app build (Vite / Rolldown, via `vp build`) ──────────────
+  // The React sidebar UI runs in a webview (a browser context), so it is a
+  // Vite *application* build — separate from the extension-host bundle below.
+  // Stable, hash-free output names let extension.ts reference them directly.
+  plugins: [react()],
+  build: {
+    outDir: "dist/webview",
+    emptyOutDir: true,
+    rollupOptions: {
+      input: "src/webview/index.tsx",
+      output: {
+        entryFileNames: "index.js",
+        assetFileNames: "index.[ext]"
+      }
+    }
+  },
+  // ── Extension host bundle (tsdown, via `vp pack`) ────────────────────
   // VSCode loads extensions as CommonJS in its extension host, so we emit a
   // single bundled .cjs (no .d.ts — extensions aren't consumed as a library).
-  // `alwaysBundle` pulls runtime deps into the artifact so the packaged .vsix
-  // is self-contained; add matchers here for anything the extension imports.
   pack: {
-    entry: ["src/index.ts"],
-    clean: true,
+    entry: ["src/extension.ts"],
+    clean: false, // don't wipe dist/webview (built separately by `vp build`)
     format: [`cjs`],
     dts: false,
     outDir: `./dist`,
     deps: {
       // `vscode` is provided by the host at runtime — never bundle it.
-      neverBundle: ["vscode"],
+      // `@tursodatabase/database` loads a platform-specific native .node addon via
+      // its own resolver; it must stay unbundled and ship in node_modules.
+      neverBundle: ["vscode", /^@tursodatabase\//],
       alwaysBundle: []
     }
   },

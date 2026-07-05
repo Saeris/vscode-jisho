@@ -6,8 +6,10 @@
 .yarnrc.yml
 .gitattributes
 .gitignore
-node_modules/**
+scripts/**
 src/**
+media/**
+!media/jisho.svg
 **/__tests__/**
 **/*.spec.*
 **/*.test.*
@@ -18,3 +20,11 @@ vite.config.*
 tsconfig.json
 yarn.lock
 CLAUDE.md
+
+# The dictionary DB is delivered by download on first activation, not bundled.
+assets/**
+
+# Exclude node_modules by default, but the Turso native runtime must ship in the .vsix
+# (it is `neverBundle`d, so it is loaded from node_modules at runtime).
+node_modules/**
+!node_modules/@tursodatabase/**

@@ -1,10 +1,17 @@
 {
   "extends": "@saeris/configs/tsconfig",
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"],
   "compilerOptions": {
     // project-local paths live here, not in the shared base
     "outDir": "./dist",
-    "rootDir": "."
+    "rootDir": ".",
+    // The webview is browser code (window/document/postMessage) rendered with React.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vitest/globals"],
+    // Typed CSS Module imports in the editor (per-file class names). The CLI typecheck falls
+    // back to the ambient `*.module.css` declaration in src/webview/css-modules.d.ts.
+    "plugins": [{ "name": "typescript-plugin-css-modules" }]
   }
 }

@@ -1,76 +1,76 @@
 <div align="center">
 
-# 🔌 VSCode Extension Template
+# 📖 Jisho — Japanese Dictionary for VSCode
 
 [![CI status][ci_badge]][ci]
 
-A minimal repo configured with modern JavaScript tooling to scaffold new Visual Studio Code extensions
+An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up unfamiliar vocabulary without leaving your editor or reaching for the internet — inspired by [Shirabe Jisho][shirabe].
 
 </div>
 
 ---
 
-## 🚀 Getting Started
+## ✨ Features
 
-1. Use this template to create a new repository.
-2. Search-and-replace `vscode-extension-template` with your extension's id and update the `publisher`, `displayName`, and `description` fields in [package.json](./package.json).
-3. Update the `contributes` block and command ids to match your extension.
-4. Implement your extension in [src/index.ts](./src/index.ts) (`activate` / `deactivate`).
+- **Vocabulary search** — search by Japanese (kanji or kana) _or_ English, with common words ranked first. Exact matches beat prefix matches beat substring matches.
+- **Rich word detail** — every reading and kanji writing, senses grouped by part of speech, common-word badges, and cross-references.
+- **Offline** — all lookups run against a local database bundled from open dictionary data. No network, no account, no context switch.
+- **Theme-aware** — the UI is built on VSCode's own theme variables, so it matches whatever color theme you use (light, dark, or high-contrast) automatically.
 
-## 🔧 Usage
+Planned for later milestones: kanji detail with radical breakdown and stroke-order animation, pitch-accent notation, example sentences, JLPT word lists, and handwriting-based kanji search.
 
-The scaffold ships a single `Hello World` command. Run the extension with `F5` in VSCode (or `vp pack` then load the built `.vsix`) and invoke it from the Command Palette.
+## 🚀 Development (running the extension)
 
-## 📦 Building & Publishing
+This extension has three build targets: the **extension host** bundle (`vp pack` → a CommonJS `.cjs` VSCode loads in its Node extension host), the **webview** app (`vp build` → the React UI that renders in the sidebar), and a one-off **data build** (`vp run build:data` → the SQLite dictionary). The first two are wired into the F5 debug flow; the data build you run occasionally.
 
-Extensions are bundled to a self-contained CommonJS artifact and packaged into a `.vsix`. Publishing is handled automatically on merge to `main` by [Bumpy][bumpy] via the release workflow, targeting both the [VS Code Marketplace][vsce] and [Open VSX][ovsx].
+### 1. Install dependencies and build the dictionary
 
 ```bash
-vp pack                              # bundle src → dist/index.cjs
-vp exec vsce package --no-dependencies   # build the .vsix locally
+vp install          # install dependencies
+vp run build:data   # download JMdict → build assets/jisho.db (a one-off, ~8s)
 ```
 
-### One-time setup
+`build:data` downloads the latest [`jmdict-eng-common`][jmdict-simplified] release and compiles it into `assets/jisho.db`. You only need to re-run it to refresh the dictionary data. The database is **not** committed (it's a build artifact) and is **not** bundled into the published `.vsix` — see [Dictionary delivery](#-dictionary-delivery) below.
 
-Publishing is automated, but each marketplace needs an account, a publisher, and an access token before your first release. Do this once, then the release workflow handles every publish after.
+### 2. Run it with F5
 
-#### 1. VS Code Marketplace (`VSCE_PAT`)
+Press **`F5`** (Run → Start Debugging) in this project. VSCode will:
 
-The Marketplace is backed by Azure DevOps, so the token is an Azure DevOps Personal Access Token — not a Marketplace-specific one.
+1. Run the `build` task (builds `dist/extension.cjs` and `dist/webview/`).
+2. Open a second window titled **`[Extension Development Host]`** with the extension loaded from this folder.
 
-1. Create an [Azure DevOps organization](https://dev.azure.com/) if you don't have one (a free personal account is fine).
-2. Create your **publisher** at <https://marketplace.visualstudio.com/manage/createpublisher>. The publisher **ID** you choose here must match the `publisher` field in [package.json](./package.json).
-3. Mint a token at <https://dev.azure.com/> → **User settings** (top-right avatar) → **Personal access tokens** → **New Token**:
-   - **Organization:** set to **All accessible organizations** (required — a single-org token will fail with a 401).
-   - **Scopes:** click **Show all scopes**, then grant **Marketplace → Manage**.
-   - **Expiration:** set as long as allowed; you'll need to rotate the secret when it expires.
-4. Copy the token (shown only once) and save it as the `VSCE_PAT` repository secret (see below).
+In that window, click the **Jisho** icon in the activity bar and search (`たべる`, `eat`, `食べる`…). Because F5 runs from your workspace folder, the extension finds `assets/jisho.db` directly.
 
-#### 2. Open VSX (`OVSX_PAT`)
+### 3. Iterate
 
-Open VSX is the vendor-neutral registry used by VSCodium, Cursor, Gitpod, and other non-Microsoft editors.
+- Run the **`watch`** task once (Terminal → Run Task → `watch`) to rebuild the host and webview on every change.
+- In the Extension Development Host window, press **`Ctrl+R`** (Reload Window) to load the latest build. Stop debugging with **`Shift+F5`**.
 
-1. Sign in at <https://open-vsx.org/> with your GitHub account.
-2. Open **Settings → Access Tokens**, click **Generate New Token**, and copy it.
-3. Create a **namespace** matching your `publisher` id, then claim it: `vp exec ovsx create-namespace <publisher> -p <token>`.
-4. Sign the [Eclipse Publisher Agreement](https://open-vsx.org/user-settings/extensions) — Open VSX blocks your first publish until this is accepted.
-5. Save the token as the `OVSX_PAT` repository secret.
+> **Note:** F5 works because `context.extensionUri` points at this folder (where `assets/jisho.db` lives). The _installed_ `.vsix` does not yet contain the database — implementing first-run download is a pending task (see below).
 
-#### 3. Bumpy release token (`BUMPY_GH_TOKEN`)
+## 📦 Building & packaging
 
-Bumpy opens release PRs and creates GitHub Releases. Create a [fine-grained personal access token](https://github.com/settings/tokens?type=beta) scoped to this repository with **Contents: Read and write** and **Pull requests: Read and write**, then save it as `BUMPY_GH_TOKEN`.
+```bash
+vp check            # format + lint + typecheck
+vp test             # run the test suite
+vp run build        # build both targets and package a .vsix
+```
 
-#### 4. Add the secrets
+The native SQLite engine ([`@tursodatabase/database`][turso]) ships a platform-specific `.node` addon that cannot be bundled, so it is packaged into the `.vsix` from `node_modules` (this is why packaging uses `vsce package --no-yarn` rather than `--no-dependencies`).
 
-In your repository, go to **Settings → Secrets and variables → Actions → New repository secret** and add each of:
+> **Platform note:** a locally-built `.vsix` only contains the native binary for _your_ platform. A marketplace release will need per-platform `.vsix` files (`vsce package --target …`).
 
-| Secret           | Purpose                                                    |
-| ---------------- | ---------------------------------------------------------- |
-| `VSCE_PAT`       | VS Code Marketplace personal access token (`vsce publish`) |
-| `OVSX_PAT`       | Open VSX personal access token (`ovsx publish`)            |
-| `BUMPY_GH_TOKEN` | Token Bumpy uses to open release PRs / GitHub Releases     |
+## 🗄️ Dictionary delivery
 
-To publish only to one marketplace, drop the other's `publishCommand` from the `bumpy` block in [package.json](./package.json) and remove its secret.
+The full dictionary is large, so the plan is to **download it on first activation** into the extension's global storage (keeping the `.vsix` small). That download backend is not implemented yet — for now, develop via F5, where the workspace copy of `assets/jisho.db` is used directly. The `ensureDatabase` seam is designed so the call site won't change when the downloader lands.
+
+## 📚 Data sources & attribution
+
+This extension is built on the work of several open dictionary projects. Their licenses require attribution, which is reproduced here (and will be surfaced in-app):
+
+- **[JMdict / EDICT][jmdict]** — Japanese-English dictionary data, © the [Electronic Dictionary Research and Development Group (EDRDG)][edrdg], used under the [EDRDG License][edrdg-license]. Sourced via [jmdict-simplified][jmdict-simplified].
+
+Additional sources (Kanjidic, Kradfile/Radkfile, Tatoeba example sentences, Kanjium pitch accent, JLPT lists, and AnimCJK stroke data) will be added and credited as their features are implemented.
 
 ## 🤝 Contributing
 
@@ -80,18 +80,22 @@ The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdo
 vp install           # install dependencies
 vp check --fix       # format + lint + typecheck (with autofixes)
 vp test              # run Vitest
-yarn bumpy add       # create a bump file for your PR
+yarn bumpy add       # create a bump file describing your change
 ```
 
 ## 🥂 License
 
-Released under the [MIT license][license] © [Drake Costa][personal-website].
+Extension source released under the [MIT license][license] © [Drake Costa][personal-website]. Bundled dictionary data remains under its respective upstream licenses (see [Data sources & attribution](#-data-sources--attribution)).
 
-[ci_badge]: https://github.com/Saeris/vscode-extension-template/actions/workflows/ci.yml/badge.svg
-[ci]: https://github.com/Saeris/vscode-extension-template/actions/workflows/ci.yml
+[ci_badge]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml/badge.svg
+[ci]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml
+[shirabe]: https://ricoapps.com/
+[jmdict]: http://www.edrdg.org/jmdict/j_jmdict.html
+[jmdict-simplified]: https://github.com/scriptin/jmdict-simplified
+[edrdg]: https://www.edrdg.org/
+[edrdg-license]: https://www.edrdg.org/edrdg/licence.html
+[turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/
 [bumpy]: https://bumpy.varlock.dev/
-[vsce]: https://marketplace.visualstudio.com/
-[ovsx]: https://open-vsx.org/
 [license]: ./LICENSE.md
 [personal-website]: https://saeris.gg

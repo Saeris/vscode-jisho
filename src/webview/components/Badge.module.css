@@ -1,0 +1,29 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--jisho-radius);
+  font-size: 0.75em;
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* common: a word most learners will encounter — use the accent badge color */
+.common {
+  background: var(--jisho-badge-bg);
+  color: var(--jisho-badge-fg);
+}
+
+/* pos: grammatical part-of-speech — subdued, outlined */
+.pos {
+  color: var(--jisho-muted);
+  border-color: var(--jisho-border);
+}
+
+/* misc: usage notes / fields — same subdued treatment, italicized to distinguish */
+.misc {
+  color: var(--jisho-muted);
+  border-color: var(--jisho-border);
+  font-style: italic;
+}

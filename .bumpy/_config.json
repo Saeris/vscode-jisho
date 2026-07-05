@@ -5,8 +5,8 @@
   "githubRelease": true,
   "allowCustomCommands": true,
   "packages": {
-    "vscode-extension-template": {
-      "buildCommand": "vp pack && vp exec vsce package --no-dependencies",
+    "vscode-jisho": {
+      "buildCommand": "vp pack && vp build && vp exec vsce package --no-yarn",
       "skipNpmPublish": true
     }
   }

@@ -1,48 +1,73 @@
 {
-  "name": "vscode-extension-template",
-  "displayName": "VSCode Extension Template",
+  "name": "vscode-jisho",
+  "displayName": "Jisho — Japanese Dictionary",
   "version": "0.0.0",
-  "description": "A minimal repo configured with modern JavaScript tooling to scaffold new Visual Studio Code extensions",
+  "description": "An offline Japanese dictionary in your sidebar: vocabulary and kanji search powered by JMdict, Kanjidic, and friends.",
   "categories": [
+    "Education",
     "Other"
   ],
-  "keywords": [],
-  "homepage": "https://github.com/Saeris/vscode-extension-template#readme",
+  "keywords": [
+    "japanese",
+    "dictionary",
+    "jisho",
+    "jmdict",
+    "kanji"
+  ],
+  "homepage": "https://github.com/Saeris/vscode-jisho#readme",
   "license": "MIT",
   "author": "Drake Costa <drake@saeris.io> (https://saeris.gg)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Saeris/vscode-extension-template.git"
+    "url": "git+https://github.com/Saeris/vscode-jisho.git"
   },
   "publisher": "saeris",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "browser": "./dist/index.cjs",
+  "main": "./dist/extension.cjs",
   "scripts": {
     "ci": "vp check && vp test",
-    "build": "vp pack && vp exec vsce package --no-dependencies",
+    "build": "vp pack && vp build && vp exec vsce package --no-yarn",
+    "build:data": "vp exec node scripts/build-data.ts",
     "check": "vp check",
     "format": "vp check --fix",
     "test": "vp test --fileParallelism"
   },
   "contributes": {
-    "commands": [
-      {
-        "command": "vscode-extension-template.helloWorld",
-        "title": "Hello World"
-      }
-    ]
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vscode-jisho",
+          "title": "Jisho",
+          "icon": "media/jisho.svg"
+        }
+      ]
+    },
+    "views": {
+      "vscode-jisho": [
+        {
+          "id": "vscode-jisho.searchView",
+          "name": "Dictionary",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "activationEvents": [],
   "devDependencies": {
     "@saeris/configs": "^1.6.1",
+    "@scriptin/jmdict-simplified-types": "^3.6.1",
     "@types/node": "^26.0.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.85.0",
     "@varlock/bumpy": "^1.18.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
     "@vscode/vsce": "^3.2.0",
     "ovsx": "^0.10.0",
     "typescript": "6.0.3",
+    "typescript-plugin-css-modules": "^5.2.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vite-plus": "latest",
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
@@ -56,8 +81,21 @@
   },
   "packageManager": "yarn@4.17.0",
   "bumpy": {
-    "buildCommand": "vp pack && vp exec vsce package --no-dependencies",
-    "publishCommand": "vp exec vsce publish --no-dependencies && vp exec ovsx publish --no-dependencies",
+    "buildCommand": "vp pack && vp build && vp exec vsce package --no-yarn",
+    "publishCommand": "vp exec vsce publish --no-yarn && vp exec ovsx publish",
     "skipNpmPublish": true
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@tursodatabase/database": "^0.6.1",
+    "@xstate/react": "^6.1.0",
+    "class-variance-authority": "^0.7.1",
+    "react": "^19.2.7",
+    "react-aria-components": "^1.19.0",
+    "react-dom": "^19.2.7",
+    "react-hook-form": "^7.80.0",
+    "valibot": "^1.4.2",
+    "xstate": "^5.32.3"
   }
 }

@@ -1,0 +1,50 @@
+/*
+ * Theme bridge: map VSCode's injected `--vscode-*` variables onto a small set of local design
+ * tokens the components use. VSCode restyles these variables live when the user changes color
+ * theme, so the UI follows for free — no `prefers-color-scheme`, no JS.
+ */
+:root {
+  --jisho-bg: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --jisho-fg: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+  --jisho-muted: var(--vscode-descriptionForeground);
+  --jisho-border: var(--vscode-panel-border, var(--vscode-editorWidget-border));
+  --jisho-focus: var(--vscode-focusBorder);
+  --jisho-link: var(--vscode-textLink-foreground);
+  --jisho-hover-bg: var(--vscode-list-hoverBackground);
+  --jisho-active-bg: var(--vscode-list-activeSelectionBackground);
+  --jisho-active-fg: var(--vscode-list-activeSelectionForeground);
+
+  --jisho-input-bg: var(--vscode-input-background);
+  --jisho-input-fg: var(--vscode-input-foreground);
+  --jisho-input-border: var(--vscode-input-border, transparent);
+
+  --jisho-badge-bg: var(--vscode-badge-background);
+  --jisho-badge-fg: var(--vscode-badge-foreground);
+
+  --jisho-radius: 4px;
+  --jisho-gap: 8px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--jisho-bg);
+  color: var(--jisho-fg);
+  /* Inherit VSCode's configured UI font so the panel matches the editor chrome. */
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size, 13px);
+}
+
+#root {
+  height: 100%;
+}
+
+*:focus-visible {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}

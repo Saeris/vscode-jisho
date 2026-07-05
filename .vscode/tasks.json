@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "detail": "Build the extension host bundle and the webview app",
+      "type": "shell",
+      "command": "vp pack && vp build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "watch",
+      "detail": "Rebuild the extension host and webview on change",
+      "dependsOn": ["watch:host", "watch:webview"],
+      "dependsOrder": "parallel",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "watch:host",
+      "type": "shell",
+      "command": "vp pack --watch",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "watch", "panel": "dedicated" }
+    },
+    {
+      "label": "watch:webview",
+      "type": "shell",
+      "command": "vp build --watch",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "group": "watch", "panel": "dedicated" }
+    }
+  ]
+}
