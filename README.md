@@ -12,7 +12,7 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 
 ## ✨ Features
 
-- **Vocabulary search** — search by Japanese (kanji or kana) _or_ English, with common words ranked first. Exact matches beat prefix matches beat substring matches.
+- **Vocabulary search** — search by Japanese (kanji or kana), Hepburn romaji, _or_ English, with common words ranked first. Exact matches beat prefix matches beat substring matches.
 - **Rich word detail** — every reading and kanji writing, senses grouped by part of speech, common-word badges, and cross-references.
 - **Offline** — all lookups run against a local database bundled from open dictionary data. No network, no account, no context switch.
 - **Theme-aware** — the UI is built on VSCode's own theme variables, so it matches whatever color theme you use (light, dark, or high-contrast) automatically.

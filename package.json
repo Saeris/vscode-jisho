@@ -69,7 +69,8 @@
     "typescript-plugin-css-modules": "^5.2.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vite-plus": "latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
+    "wanakana": "^5.3.1"
   },
   "resolutions": {
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",

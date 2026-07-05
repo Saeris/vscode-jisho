@@ -13,6 +13,7 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
+import { toRomaji } from "wanakana";
 import type { JMdict, JMdictWord } from "@scriptin/jmdict-simplified-types";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -225,6 +226,18 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
       k.text.toLowerCase(),
       k.common ? 1 : 0
     );
+    // Hepburn romaji of the reading, so learners can search by transliteration ("taberu").
+    // Romaji is latin, so it matches via the query layer's case-insensitive `term_lower` path.
+    const romaji = toRomaji(k.text);
+    if (romaji !== "" && romaji !== k.text) {
+      await s.insTerm.run(
+        word.id,
+        "romaji",
+        romaji,
+        romaji.toLowerCase(),
+        k.common ? 1 : 0
+      );
+    }
   }
   for (let i = 0; i < word.sense.length; i++) {
     const sense = word.sense[i];

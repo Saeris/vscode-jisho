@@ -74,9 +74,9 @@ CREATE TABLE tags (
 );
 
 -- Denormalized, indexed search surface. One row per searchable term of a word so a single
--- indexed lookup covers Japanese (kanji/kana) and English (gloss) input.
---   kind ∈ ('kanji', 'kana', 'gloss')
--- `term` holds the raw term; `term_lower` is a lowercased copy for case-insensitive gloss
+-- indexed lookup covers Japanese (kanji/kana), English (gloss), and Hepburn romaji input.
+--   kind ∈ ('kanji', 'kana', 'gloss', 'romaji')
+-- `term` holds the raw term; `term_lower` is a lowercased copy for case-insensitive gloss/romaji
 -- matching (kanji/kana are unaffected by lowering).
 CREATE TABLE search_terms (
   word_id    TEXT NOT NULL REFERENCES words(id),

@@ -5420,9 +5420,17 @@ __metadata:
     vite: "npm:@voidzero-dev/vite-plus-core@latest"
     vite-plus: "npm:latest"
     vitest: "npm:@voidzero-dev/vite-plus-test@latest"
+    wanakana: "npm:^5.3.1"
     xstate: "npm:^5.32.3"
   languageName: unknown
   linkType: soft
+
+"wanakana@npm:^5.3.1":
+  version: 5.3.1
+  resolution: "wanakana@npm:5.3.1"
+  checksum: 10/401c46ac51135d7a97315750af1b95cf7e1a8c6612b28c9c26d86983f967ca5f2c59def77a6ccfa85028dae383a92b4897c905b581cceb1f22928f4986d8db6c
+  languageName: node
+  linkType: hard
 
 "whatwg-encoding@npm:^3.1.1":
   version: 3.1.1

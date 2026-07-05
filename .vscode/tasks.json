@@ -4,9 +4,24 @@
     {
       "label": "build",
       "detail": "Build the extension host bundle and the webview app",
-      "type": "shell",
-      "command": "vp pack && vp build",
+      "dependsOn": ["build:host", "build:webview"],
+      "dependsOrder": "sequence",
       "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "build:host",
+      "type": "shell",
+      "command": "vp",
+      "args": ["pack"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "build:webview",
+      "type": "shell",
+      "command": "vp",
+      "args": ["build"],
       "problemMatcher": [],
       "presentation": { "reveal": "silent", "panel": "shared" }
     },
@@ -21,7 +36,8 @@
     {
       "label": "watch:host",
       "type": "shell",
-      "command": "vp pack --watch",
+      "command": "vp",
+      "args": ["pack", "--watch"],
       "isBackground": true,
       "problemMatcher": [],
       "presentation": { "group": "watch", "panel": "dedicated" }
@@ -29,7 +45,8 @@
     {
       "label": "watch:webview",
       "type": "shell",
-      "command": "vp build --watch",
+      "command": "vp",
+      "args": ["build", "--watch"],
       "isBackground": true,
       "problemMatcher": [],
       "presentation": { "group": "watch", "panel": "dedicated" }

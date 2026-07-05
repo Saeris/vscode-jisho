@@ -38,6 +38,13 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(results.some((r) => r.headword === "食べる")).toBe(true);
   });
 
+  test("finds words by Hepburn romaji", async () => {
+    // WHY: learners who can't type kana search by transliteration ("taberu"); the build derives
+    // romaji terms from each reading, and this guards that path from silently regressing.
+    const results = await dict.search("taberu");
+    expect(results.some((r) => r.headword === "食べる")).toBe(true);
+  });
+
   test("returns an empty list for a blank query", async () => {
     // WHY: an empty query must not scan the whole table or return noise while the user is typing.
     await expect(dict.search("   ")).resolves.toEqual([]);
