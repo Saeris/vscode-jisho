@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Publish
+    # Guard against forks running the publish flow. Update to your repo slug.
+    if: github.repository == 'Saeris/vscode-extension-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "lts"
+          cache: true
+
+      # Bumpy runs the per-package build/publish commands from package.json's
+      # `bumpy` block: `vsce package` to build the .vsix, then `vsce publish`
+      # (VS Code Marketplace) and `ovsx publish` (Open VSX).
+      - run: vp dlx @varlock/bumpy ci release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
+          # Personal access token for the VS Code Marketplace publisher.
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          # Personal access token for Open VSX (open-vsx.org).
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          # Yarn 4 corrupts the tarball path Bumpy captures from stdout if
+          # color codes are enabled. NO_COLOR alone is not enough for Yarn 4.
+          NO_COLOR: "1"
+          YARN_ENABLE_COLORS: "false"

@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/@varlock/bumpy/config-schema.json",
+  "baseBranch": "main",
+  "changelog": "github",
+  "githubRelease": true,
+  "allowCustomCommands": true,
+  "packages": {
+    "vscode-extension-template": {
+      "buildCommand": "vp pack && vp exec vsce package --no-dependencies",
+      "skipNpmPublish": true
+    }
+  }
+}

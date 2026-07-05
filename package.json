@@ -1,0 +1,63 @@
+{
+  "name": "vscode-extension-template",
+  "displayName": "VSCode Extension Template",
+  "version": "0.0.0",
+  "description": "A minimal repo configured with modern JavaScript tooling to scaffold new Visual Studio Code extensions",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [],
+  "homepage": "https://github.com/Saeris/vscode-extension-template#readme",
+  "license": "MIT",
+  "author": "Drake Costa <drake@saeris.io> (https://saeris.gg)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Saeris/vscode-extension-template.git"
+  },
+  "publisher": "saeris",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.cjs",
+  "scripts": {
+    "ci": "vp check && vp test",
+    "build": "vp pack && vp exec vsce package --no-dependencies",
+    "check": "vp check",
+    "format": "vp check --fix",
+    "test": "vp test --fileParallelism"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "vscode-extension-template.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "activationEvents": [],
+  "devDependencies": {
+    "@saeris/configs": "^1.6.1",
+    "@types/node": "^26.0.1",
+    "@types/vscode": "^1.85.0",
+    "@varlock/bumpy": "^1.18.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "@vscode/vsce": "^3.2.0",
+    "ovsx": "^0.10.0",
+    "typescript": "6.0.3",
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "resolutions": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "engines": {
+    "node": ">=22",
+    "vscode": "^1.85.0"
+  },
+  "packageManager": "yarn@4.17.0",
+  "bumpy": {
+    "buildCommand": "vp pack && vp exec vsce package --no-dependencies",
+    "publishCommand": "vp exec vsce publish --no-dependencies && vp exec ovsx publish --no-dependencies",
+    "skipNpmPublish": true
+  }
+}
