@@ -9,7 +9,7 @@
  * or system tools. Node 26 executes this .ts file directly via type-stripping.
  */
 import { gunzipSync } from "node:zlib";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
@@ -163,13 +163,18 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
     "license",
     "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
   );
+  const builtAt = new Date().toISOString();
   await insMeta.run("wordCount", String(total));
-  await insMeta.run("builtAt", new Date().toISOString());
+  await insMeta.run("builtAt", builtAt);
 
   // Fold the WAL back into the main file so `jisho.db` is a self-contained, shippable artifact
   // (we deliver only the single .db; a leftover -wal would be required at read time otherwise).
   await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
   await db.close();
+
+  // Emit a tiny version sidecar so `ensureDatabase` can detect a newer build and refresh the copy
+  // it caches in globalStorage — without having to open (and lock) the database to read its meta.
+  writeFileSync(`${OUT_DB}.version`, `${dict.dictDate} ${builtAt}`, "utf8");
   console.log(`\nWrote ${OUT_DB} — ${total} entries.`);
 };
 

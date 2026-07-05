@@ -70,11 +70,13 @@ export const SearchResults = ({
             textValue={item.headword}
             className={styles.item}
           >
-            <span className={styles.headword}>{item.headword}</span>
-            {item.reading ? (
-              <span className={styles.reading}>{item.reading}</span>
-            ) : null}
-            {item.common ? <Badge kind="common">common</Badge> : null}
+            <span className={styles.itemTop}>
+              <span className={styles.headword}>{item.headword}</span>
+              {item.reading ? (
+                <span className={styles.reading}>{item.reading}</span>
+              ) : null}
+              {item.common ? <Badge kind="common">common</Badge> : null}
+            </span>
             <span className={styles.gloss}>{item.glossPreview}</span>
           </ListBoxItem>
         )}

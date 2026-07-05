@@ -55,6 +55,7 @@ jspm_packages/
 /assets/jisho.db
 /assets/jisho.db-wal
 /assets/jisho.db-shm
+/assets/jisho.db.version
 
 # Typescript
 *.tsbuildinfo

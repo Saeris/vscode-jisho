@@ -31,10 +31,13 @@
   outline: none;
 }
 
+/* Stacked layout: a top line (headword · reading · badge) with the gloss beneath. Stacking keeps
+   rows readable at any sidebar width — nothing competes for horizontal space, so Japanese text
+   never wraps mid-word. */
 .item {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
   padding: 6px var(--jisho-gap);
   cursor: pointer;
   border-bottom: 1px solid var(--jisho-border);
@@ -50,6 +53,13 @@
   color: var(--jisho-active-fg);
 }
 
+.itemTop {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
 .headword {
   font-size: 1.15em;
   font-weight: 600;
@@ -58,14 +68,15 @@
 .reading {
   color: var(--jisho-muted);
   font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gloss {
-  margin-left: auto;
   color: var(--jisho-muted);
   font-size: 0.9em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 45%;
 }
