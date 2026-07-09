@@ -17,7 +17,7 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 - **Offline** — all lookups run against a local database bundled from open dictionary data. No network, no account, no context switch.
 - **Theme-aware** — the UI is built on VSCode's own theme variables, so it matches whatever color theme you use (light, dark, or high-contrast) automatically.
 
-Planned for later milestones: kanji detail with radical breakdown and stroke-order animation, pitch-accent notation, example sentences, JLPT word lists, and handwriting-based kanji search.
+Planned for later milestones: kanji detail with radical breakdown and stroke-order animation, pitch-accent notation, example sentences, JLPT word lists, names dictionary, and handwriting-based kanji search — see the [roadmap](./docs/ROADMAP.md) for the full sequence.
 
 ## 🚀 Development (running the extension)
 

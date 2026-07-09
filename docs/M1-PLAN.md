@@ -31,11 +31,11 @@ The webview is a single-page app. Deliberate anti-`useEffect` posture — each l
 
 VSCode runs extension code in a **Node/CommonJS extension host**, but a React UI runs in a separate **webview** (browser context). They talk over `postMessage`. Vite+ gives us the right tool for each:
 
-| Target | Tool | Output | Purpose |
-|--------|------|--------|---------|
-| Extension host | `vp pack` (tsdown) | `dist/extension.cjs` | activate/deactivate, sidebar registration, SQLite queries, message router |
-| Webview UI | `vp build` (Vite/Rolldown) | `dist/webview/*` | React app, VSCode-themed, search + detail views |
-| Data build | `vp run build:data` (Node script) | `jisho.db` | one-off: JSON → SQLite. NOT run per-compile |
+| Target         | Tool                              | Output               | Purpose                                                                   |
+| -------------- | --------------------------------- | -------------------- | ------------------------------------------------------------------------- |
+| Extension host | `vp pack` (tsdown)                | `dist/extension.cjs` | activate/deactivate, sidebar registration, SQLite queries, message router |
+| Webview UI     | `vp build` (Vite/Rolldown)        | `dist/webview/*`     | React app, VSCode-themed, search + detail views                           |
+| Data build     | `vp run build:data` (Node script) | `jisho.db`           | one-off: JSON → SQLite. NOT run per-compile                               |
 
 The native Turso addon must stay unbundled and ship in `node_modules` (a `.node` binary can't be bundled), so it is `neverBundle`d and packaged into the `.vsix`.
 
