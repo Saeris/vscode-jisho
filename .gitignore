@@ -114,3 +114,6 @@ profiles/
 
 # Temp vsix extraction for packaging verification
 .vsix-verify.tmp/
+/assets/jisho-full.db.gz
+/assets/jisho-full.db.gz.sha256
+/assets/jisho-full.db.version

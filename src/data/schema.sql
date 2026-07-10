@@ -74,8 +74,11 @@ CREATE TABLE tags (
 );
 
 -- Denormalized, indexed search surface. One row per searchable term of a word so a single
--- indexed lookup covers Japanese (kanji/kana), English (gloss), and Hepburn romaji input.
---   kind ∈ ('kanji', 'kana', 'gloss', 'romaji')
+-- indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji input.
+--   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char')
+-- 'word' rows index each word of each gloss ("eat" from "to eat") and 'char' rows index each CJK
+-- character of each kanji writing (強 from 勉強), so whole-word and containment matches are exact
+-- index hits — unanchored LIKE scans are too slow at full-dictionary scale (~3M rows).
 -- `term` holds the raw term; `term_lower` is a lowercased copy for case-insensitive gloss/romaji
 -- matching (kanji/kana are unaffected by lowering).
 CREATE TABLE search_terms (

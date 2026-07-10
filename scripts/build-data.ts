@@ -8,8 +8,17 @@
  * Pure Node (fetch + zlib + a minimal tar reader) so it runs anywhere without extra deps
  * or system tools. Node 26 executes this .ts file directly via type-stripping.
  */
-import { gunzipSync } from "node:zlib";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createGzip, gunzipSync } from "node:zlib";
+import {
+  createReadStream,
+  createWriteStream,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
+import { createHash } from "node:crypto";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
@@ -21,6 +30,16 @@ const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
 const RELEASE_API =
   "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
+
+// `--full` builds the complete JMdict (~217k entries) — the variant delivered to users via the
+// dictionary-latest GitHub Release. The default common-only subset (~22k) stays the dev/test
+// fixture. The variant is recorded in `meta` and the version sidecar, so switching variants
+// triggers ensureDatabase's refresh.
+const FULL = process.argv.includes("--full");
+const VARIANT = FULL ? "full" : "common";
+const ASSET_PATTERN = FULL
+  ? /^jmdict-eng-\d.*\.json\.tgz$/
+  : /^jmdict-eng-common-.*\.json\.tgz$/;
 
 /** Extract the single JSON file from a gzipped tar (one-member archive). */
 const extractSingleJsonFromTgz = (tgz: Uint8Array): string => {
@@ -73,11 +92,9 @@ interface GithubRelease {
 const downloadDictionary = async (): Promise<JMdict> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
-  const asset = release.assets.find((a) =>
-    /^jmdict-eng-common-.*\.json\.tgz$/.test(a.name)
-  );
+  const asset = release.assets.find((a) => ASSET_PATTERN.test(a.name));
   if (!asset)
-    throw new Error("Could not find a jmdict-eng-common .json.tgz asset");
+    throw new Error(`Could not find a jmdict-eng (${VARIANT}) .json.tgz asset`);
   console.log(`Downloading ${asset.name} (release ${release.tag_name})…`);
   const res = await fetch(asset.browser_download_url, {
     headers: { "User-Agent": "vscode-jisho-build" }
@@ -136,6 +153,10 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
 
+  // Commit in batches and checkpoint between them: a single giant transaction can never fold its
+  // pages back into the main file, so the WAL balloons unboundedly (the full build's WAL passed
+  // 5GB before this fix). Checkpointing per batch keeps the WAL at roughly one batch's size.
+  const BATCH = 5000;
   const total = dict.words.length;
   let done = 0;
   for (const word of dict.words) {
@@ -147,7 +168,13 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
       insGloss,
       insTerm
     });
-    if (++done % 2000 === 0) console.log(`  …${done}/${total} entries`);
+    done++;
+    if (done % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+      console.log(`  …${done}/${total} entries`);
+    }
   }
 
   await db.exec("COMMIT");
@@ -156,7 +183,7 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
   const insMeta = await db.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)"
   );
-  await insMeta.run("source", "JMdict (jmdict-simplified, eng-common)");
+  await insMeta.run("source", `JMdict (jmdict-simplified, eng-${VARIANT})`);
   await insMeta.run("dictDate", dict.dictDate);
   await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
   await insMeta.run(
@@ -164,6 +191,7 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
     "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
   );
   const builtAt = new Date().toISOString();
+  await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
   await insMeta.run("builtAt", builtAt);
 
@@ -172,10 +200,33 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
   await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
   await db.close();
 
-  // Emit a tiny version sidecar so `ensureDatabase` can detect a newer build and refresh the copy
-  // it caches in globalStorage — without having to open (and lock) the database to read its meta.
-  writeFileSync(`${OUT_DB}.version`, `${dict.dictDate} ${builtAt}`, "utf8");
-  console.log(`\nWrote ${OUT_DB} — ${total} entries.`);
+  // Emit a tiny version sidecar so `ensureDatabase` can detect a newer build (or a variant
+  // switch) and refresh the copy it caches in globalStorage — without having to open (and lock)
+  // the database to read its meta.
+  const version = `${VARIANT} ${dict.dictDate} ${builtAt}`;
+  writeFileSync(`${OUT_DB}.version`, version, "utf8");
+  console.log(`\nWrote ${OUT_DB} — ${total} entries (${VARIANT}).`);
+
+  // The full variant is delivered via the dictionary-latest GitHub Release: emit the gzipped
+  // asset, its sha256, and the version string the downloader compares against its sidecar.
+  if (FULL) {
+    console.log("Compressing release asset…");
+    const gzPath = join(dirname(OUT_DB), "jisho-full.db.gz");
+    await pipeline(
+      createReadStream(OUT_DB),
+      createGzip({ level: 9 }),
+      createWriteStream(gzPath)
+    );
+    const hash = createHash("sha256");
+    await pipeline(createReadStream(gzPath), hash);
+    writeFileSync(`${gzPath}.sha256`, hash.digest("hex"), "utf8");
+    writeFileSync(
+      join(dirname(OUT_DB), "jisho-full.db.version"),
+      version,
+      "utf8"
+    );
+    console.log(`Wrote ${gzPath} (+ .sha256, .version)`);
+  }
 };
 
 // A prepared statement, as returned by the (async) `prepare` once awaited.
@@ -214,6 +265,14 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
       k.common ? 1 : 0,
       i === 0 ? 1 : 0
     );
+    // Index each distinct CJK character of the writing so a single-kanji query (強) finds words
+    // containing it (勉強) via an *exact* char-row match — substring LIKE scans are too slow at
+    // full-dictionary scale, so containment is precomputed here instead.
+    for (const char of new Set(k.text)) {
+      if (/[㐀-鿿豈-﫿]/.test(char)) {
+        await s.insTerm.run(word.id, "char", char, char, k.common ? 1 : 0, 0);
+      }
+    }
   }
   for (let i = 0; i < word.kana.length; i++) {
     const k = word.kana[i];
@@ -290,6 +349,17 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
           wordCommon,
           isPrimary
         );
+      }
+      // Index each word of the gloss so "eat" finds "to eat" via an *exact* word-row match —
+      // the index-friendly replacement for word-boundary LIKE scans over whole glosses.
+      const words = new Set(
+        (stripped === "" ? gloss.text : stripped)
+          .toLowerCase()
+          .split(/[^a-z0-9']+/)
+          .filter((w) => w.length > 1)
+      );
+      for (const w of words) {
+        await s.insTerm.run(word.id, "word", w, w, wordCommon, isPrimary);
       }
     }
   }

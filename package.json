@@ -28,6 +28,7 @@
     "ci": "vp check && vp test",
     "build": "vp pack && vp build && vp exec vsce package --no-yarn",
     "build:data": "vp exec node scripts/build-data.ts",
+    "build:data:full": "vp exec node scripts/build-data.ts --full",
     "check": "vp check",
     "format": "vp check --fix",
     "test": "vp test --fileParallelism"

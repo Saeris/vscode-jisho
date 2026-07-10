@@ -15,6 +15,14 @@ vi.mock("vscode", () => ({
     joinPath: (base: { fsPath: string }, ...parts: string[]) =>
       uri([base.fsPath, ...parts].join("/"))
   },
+  ProgressLocation: { Notification: 15 },
+  window: {
+    // Run the task immediately with an inert progress reporter.
+    withProgress: async (
+      _opts: unknown,
+      task: (progress: { report: () => void }) => Promise<unknown>
+    ) => task({ report: () => undefined })
+  },
   workspace: {
     fs: {
       createDirectory: async () => undefined,
@@ -38,6 +46,17 @@ vi.mock("vscode", () => ({
   }
 }));
 
+// The download module is exercised by its own spec; here it just marks the file "downloaded".
+const downloadMock = vi.fn<(destPath: string) => Promise<string>>(
+  async (destPath) => {
+    files.set(destPath, "downloaded-db");
+    return "full v1";
+  }
+);
+vi.mock("../download", () => ({
+  downloadDatabase: async (destPath: string) => downloadMock(destPath)
+}));
+
 const { ensureDatabase } = await import("../ensureDatabase");
 
 const context = {
@@ -53,6 +72,7 @@ describe("ensureDatabase", () => {
   beforeEach(() => {
     files.clear();
     copyCount = 0;
+    downloadMock.mockClear();
     // A bundled DB + version always exists (the dev backend).
     files.set(BUNDLED_DB, "db-v1");
     files.set(BUNDLED_VERSION, "version-1");
@@ -90,11 +110,24 @@ describe("ensureDatabase", () => {
     expect(files.get(CACHED_DB)).toBe("db-v2");
   });
 
-  it("throws a helpful error when no bundled DB and no cached copy exist", async () => {
-    // WHY: a missing database is a setup problem; the message must tell the developer how to fix it
-    // rather than failing with an opaque open error later.
+  it("downloads the dictionary when no bundled DB and no cached copy exist", async () => {
+    // WHY: this is the installed-user first run — no assets/ folder ships in the .vsix, so the
+    // download backend must provision the database.
     files.delete(BUNDLED_DB);
     files.delete(BUNDLED_VERSION);
-    await expect(ensureDatabase(context)).rejects.toThrow(/build:data/);
+    const path = await ensureDatabase(context);
+    expect(path).toBe(CACHED_DB);
+    expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
+    expect(files.get(CACHED_DB)).toBe("downloaded-db");
+  });
+
+  it("does not re-download when a downloaded copy already exists", async () => {
+    // WHY: offline-first — after the first download, activation must never require network.
+    files.delete(BUNDLED_DB);
+    files.delete(BUNDLED_VERSION);
+    await ensureDatabase(context);
+    downloadMock.mockClear();
+    await ensureDatabase(context);
+    expect(downloadMock).not.toHaveBeenCalled();
   });
 });

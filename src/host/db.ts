@@ -83,15 +83,23 @@ export class Dictionary {
     const column = isLatin ? "term_lower" : "term";
     const needle = isLatin ? query.toLowerCase() : query;
 
-    // Composite relevance score, best-scoring term per word. Signals, strongest first:
-    //   - match tier: exact > whole-word gloss match (word-boundary LIKEs; only ever fire on
-    //     spaced latin glosses) > plain prefix > bare substring. This is what lifts 食べる
-    //     ("to eat" ends with the word "eat") above compounds whose glosses merely contain "eat".
-    //   - kind: a headword match (kanji/kana/romaji) outranks a gloss match at the same tier.
+    // Composite relevance score, best-scoring term per word. Every tier is index-friendly — a
+    // single range scan over [needle, needle+￿) — because unanchored LIKE full-scans took
+    // 400ms–3s at full-dictionary scale (~3M term rows). Containment is precomputed at build time
+    // instead: 'word' rows make whole-word gloss matches ("eat" in "to eat") exact hits, and
+    // 'char' rows make kanji-containment (強 in 勉強) exact hits. Signals, strongest first:
+    //   - exact headword (kanji/kana/romaji) > exact whole gloss > exact gloss word > kanji char;
+    //     anything else in range is a prefix match, headwords boosted.
     //   - primary: the word's main surface (first writing/reading, or first gloss of the first
     //     sense) outranks the same match buried in a later gloss — this puts 水 first for "water".
     //   - common: a mild bonus, not the primary key.
     //   - length penalty (capped): shorter matched terms are closer matches, so 勉強 beats 勉強家.
+    // Single-character latin queries stay exact-only: an "e%" range spans a huge slice of the
+    // index and a 1-letter English prefix search is meaningless anyway.
+    const exactOnly = isLatin && needle.length < 2;
+    const where = exactOnly
+      ? `${column} = ?1`
+      : `${column} >= ?1 AND ${column} < ?2`;
     const rows = await this.#all<{
       word_id: string;
       score: number;
@@ -100,31 +108,27 @@ export class Dictionary {
       `SELECT word_id,
               MAX(
                 CASE
-                  WHEN ${column} = ?1 THEN 100
-                  WHEN ${column} LIKE ?2 THEN 75
-                  WHEN ${column} LIKE ?3 THEN 65
-                  WHEN ${column} LIKE ?4 THEN 60
-                  WHEN ${column} LIKE ?5 THEN 45
-                  ELSE 10
+                  WHEN ${column} = ?1 THEN
+                    CASE kind
+                      WHEN 'word' THEN 70
+                      WHEN 'char' THEN 40
+                      WHEN 'gloss' THEN 100
+                      ELSE 115
+                    END
+                  ELSE
+                    45 + CASE WHEN kind IN ('kanji', 'kana', 'romaji') THEN 15 ELSE 0 END
                 END
-                + CASE WHEN kind = 'gloss' THEN 0 ELSE 15 END
                 + CASE WHEN is_primary = 1 THEN 10 ELSE 0 END
                 + CASE WHEN is_common = 1 THEN 5 ELSE 0 END
                 - MIN(LENGTH(${column}) - LENGTH(?1), 15)
               ) AS score,
               MAX(is_common) AS common
          FROM search_terms
-        WHERE ${column} LIKE ?6
+        WHERE ${where}
         GROUP BY word_id
         ORDER BY score DESC, common DESC
-        LIMIT ?7`,
-      needle,
-      `${needle} %`,
-      `% ${needle}`,
-      `% ${needle} %`,
-      `${needle}%`,
-      `%${needle}%`,
-      limit
+        LIMIT ?3`,
+      ...(exactOnly ? [needle, needle, limit] : [needle, `${needle}￿`, limit])
     );
 
     // Deinflection pass: expand a conjugated query (はなします) into candidate dictionary forms
@@ -212,6 +216,16 @@ export class Dictionary {
       common,
       glossPreview: gloss?.text ?? ""
     };
+  }
+
+  /** Provenance/attribution key-values written by the data build (source, license, dictDate…). */
+  async getMeta(): Promise<Record<string, string>> {
+    const rows = await this.#all<{ key: string; value: string }>(
+      "SELECT key, value FROM meta"
+    );
+    const meta: Record<string, string> = {};
+    for (const { key, value } of rows) meta[key] = value;
+    return meta;
   }
 
   /** Full detail for one entry, or `null` if the id is unknown. */

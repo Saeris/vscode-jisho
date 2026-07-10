@@ -6,14 +6,13 @@
  * ready-to-open `jisho.db`, provisioning it if absent.
  *
  * Two backends behind one signature:
- *   - **dev (M1):** copy the locally-built `assets/jisho.db` (produced by `vp run build:data`)
- *     that ships alongside the extension during development.
- *   - **release (later):** download the prebuilt DB from a GitHub Release asset with progress.
- *
- * M1 implements the dev copy and leaves the download path as an explicit, clearly-marked TODO so
- * the call site never changes when we add it.
+ *   - **dev:** copy the locally-built `assets/jisho.db` (produced by `vp run build:data`) that
+ *     sits alongside the extension source when running via F5.
+ *   - **installed:** download the full dictionary from the rolling `dictionary-latest` GitHub
+ *     Release with a progress notification, sha256-verified (see `download.ts`).
  */
 import * as vscode from "vscode";
+import { downloadDatabase } from "./download";
 
 const DB_NAME = "jisho.db";
 const VERSION_NAME = "jisho.db.version";
@@ -50,15 +49,33 @@ export const ensureDatabase = async (
     return target.fsPath;
   }
 
-  // A previously-provisioned copy (e.g. downloaded) is fine even without a bundled source.
+  // A previously-downloaded copy is fine even without a bundled source; refreshes happen via a
+  // future "update dictionary" command, not per-activation network checks (offline-first).
   if (await exists(target)) return target.fsPath;
 
-  // release backend (TODO): download the prebuilt DB from the GitHub Release asset into
-  // `target` with a vscode.window.withProgress UI, then return target.fsPath.
-  throw new Error(
-    `Dictionary database not found. Run \`vp run build:data\` to generate assets/${DB_NAME}, ` +
-      `or (future) let the extension download it on first run.`
+  // Installed backend: first run, no database yet — download it with a progress notification.
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Jisho: downloading dictionary…",
+      cancellable: false
+    },
+    async (progress) => {
+      let lastPercent = 0;
+      await downloadDatabase(target.fsPath, (received, total) => {
+        if (total <= 0) return;
+        const percent = Math.floor((received / total) * 100);
+        if (percent > lastPercent) {
+          progress.report({
+            increment: percent - lastPercent,
+            message: `${percent}%`
+          });
+          lastPercent = percent;
+        }
+      });
+    }
   );
+  return target.fsPath;
 };
 
 const exists = async (uri: vscode.Uri): Promise<boolean> => {
