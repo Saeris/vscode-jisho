@@ -180,4 +180,21 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // WHY: kana queries (たべる) are word searches; they must not populate the Kanji section.
     await expect(dict.searchKanji("たべる")).resolves.toEqual([]);
   });
+
+  test("lists all radicals and no matches when nothing is selected", async () => {
+    // WHY: the picker opens with the full radical grid and an empty match set.
+    const result = await dict.lookupRadicals([]);
+    expect(result.radicals.length).toBeGreaterThan(200);
+    expect(result.matches).toEqual([]);
+    expect(result.enabled).toEqual([]); // empty = "all enabled"
+  });
+
+  test("intersects selected radicals to matching kanji", async () => {
+    // WHY: the whole feature is "narrow by components" — selecting 化 and 力 must find 働
+    // (which contains both), and both radicals must stay mutually enabled.
+    const result = await dict.lookupRadicals(["化", "力"]);
+    expect(result.matches.some((k) => k.literal === "働")).toBe(true);
+    expect(result.enabled).toContain("化");
+    expect(result.enabled).toContain("力");
+  });
 });

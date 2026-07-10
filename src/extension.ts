@@ -146,6 +146,12 @@ const respond = async (
         requestId: request.requestId,
         kanji: await dict.getKanji(request.literal)
       };
+    case "lookupRadicals":
+      return {
+        type: "lookupRadicals",
+        requestId: request.requestId,
+        result: await dict.lookupRadicals(request.selected)
+      };
     case "getAbout":
       return {
         type: "getAbout",

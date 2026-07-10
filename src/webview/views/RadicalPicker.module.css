@@ -1,0 +1,109 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.back,
+.clear {
+  background: transparent;
+  color: var(--jisho-link);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.back:hover,
+.clear:hover {
+  text-decoration: underline;
+}
+
+/* The radical grid takes the top ~55%; matches scroll beneath. */
+.picker {
+  flex: 1 1 55%;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.strokeLabel {
+  flex: 0 0 1.5em;
+  color: var(--jisho-muted);
+  font-size: 0.75em;
+  text-align: right;
+  margin-right: 4px;
+}
+
+.radical {
+  min-width: 1.9em;
+  height: 1.9em;
+  padding: 0 2px;
+  background: var(--jisho-input-bg);
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: var(--jisho-fg);
+  cursor: pointer;
+  font: inherit;
+}
+
+.radical:hover:not([disabled]) {
+  border-color: var(--jisho-focus);
+}
+
+.radical[data-selected] {
+  background: var(--jisho-active-bg);
+  color: var(--jisho-active-fg);
+  border-color: var(--jisho-active-bg);
+}
+
+.radical[disabled] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.matches {
+  flex: 1 1 45%;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+}
+
+.hint {
+  color: var(--jisho-muted);
+  margin: 0;
+}
+
+.match {
+  min-width: 2em;
+  height: 2em;
+  font-size: 1.1em;
+  background: transparent;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: var(--jisho-fg);
+  cursor: pointer;
+}
+
+.match:hover {
+  border-color: var(--jisho-focus);
+}

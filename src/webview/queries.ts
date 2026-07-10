@@ -6,10 +6,17 @@ import { queryOptions } from "@tanstack/react-query";
 import type {
   KanjiDetailDto,
   KanjiResultDto,
+  RadicalLookupDto,
   SearchResultDto,
   WordDetailDto
 } from "../shared/messages";
-import { getAbout, getKanji, getWord, searchWords } from "./bridge";
+import {
+  getAbout,
+  getKanji,
+  getWord,
+  lookupRadicals,
+  searchWords
+} from "./bridge";
 
 /** Search results grouped into the two sections the UI renders. */
 export interface SearchResults {
@@ -60,6 +67,22 @@ export const wordQuery = (
   queryOptions({
     queryKey: ["word", id],
     queryFn: async () => (await getWord(id)).word
+  });
+
+export const radicalQuery = (
+  selected: string[]
+): ReturnType<
+  typeof queryOptions<
+    RadicalLookupDto,
+    Error,
+    RadicalLookupDto,
+    [string, string]
+  >
+> =>
+  queryOptions({
+    // The selection order doesn't affect the result, so sort for a stable cache key.
+    queryKey: ["radicals", [...selected].sort().join("")],
+    queryFn: async () => (await lookupRadicals(selected)).result
   });
 
 export const aboutQuery = (): ReturnType<

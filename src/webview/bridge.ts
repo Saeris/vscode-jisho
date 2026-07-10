@@ -7,6 +7,7 @@ import type {
   GetAboutResponse,
   GetKanjiResponse,
   GetWordResponse,
+  LookupRadicalsResponse,
   Request,
   Response,
   SearchResponse
@@ -86,6 +87,19 @@ export const getKanji = async (literal: string): Promise<GetKanjiResponse> => {
   });
   if (response.type !== "getKanji")
     throw new Error("Unexpected response for getKanji");
+  return response;
+};
+
+export const lookupRadicals = async (
+  selected: string[]
+): Promise<LookupRadicalsResponse> => {
+  const response = await send({
+    type: "lookupRadicals",
+    requestId: nextRequestId(),
+    selected
+  });
+  if (response.type !== "lookupRadicals")
+    throw new Error("Unexpected response for lookupRadicals");
   return response;
 };
 

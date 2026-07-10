@@ -54,6 +54,18 @@ describe("navigationMachine", () => {
     });
   });
 
+  it("opening the radical picker pushes a radicals view", () => {
+    // WHY: the radical picker is the "I can see it but can't type it" entry point; it must be a
+    // stack entry so Back returns to search.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openRadicals" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "radicals"
+    });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
+  });
+
   it("back from a detail view restores the search view", () => {
     // WHY: the core navigation loop is search → word → back-to-search; if back didn't restore the
     // prior view the user would lose their results on every lookup.

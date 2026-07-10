@@ -91,6 +91,26 @@ export interface KanjiWordDto {
   glossPreview: string;
 }
 
+/** A selectable radical in the radical picker, and which selections it would still allow. */
+export interface RadicalDto {
+  radical: string;
+  strokeCount: number;
+}
+
+/** The radical picker's data: all radicals, plus the kanji matching the current selection. */
+export interface RadicalLookupDto {
+  /** All radicals, ordered by stroke count then radical. */
+  radicals: RadicalDto[];
+  /**
+   * Radicals still reachable given the current selection (their addition keeps the match set
+   * non-empty). Empty when nothing is selected — meaning "all enabled". Lets the UI grey out
+   * radicals that would yield no results.
+   */
+  enabled: string[];
+  /** Kanji containing every selected radical, ordered by frequency (common first). */
+  matches: KanjiResultDto[];
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -128,6 +148,13 @@ export interface GetKanjiRequest {
   literal: string;
 }
 
+/** Radical picker: the current selection (empty = show all radicals, no matches). */
+export interface LookupRadicalsRequest {
+  type: "lookupRadicals";
+  requestId: string;
+  selected: string[];
+}
+
 /** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
 export interface GetAboutRequest {
   type: "getAbout";
@@ -138,6 +165,7 @@ export type Request =
   | SearchRequest
   | GetWordRequest
   | GetKanjiRequest
+  | LookupRadicalsRequest
   | GetAboutRequest;
 
 export interface SearchResponse {
@@ -162,6 +190,12 @@ export interface GetKanjiResponse {
   kanji: KanjiDetailDto | null;
 }
 
+export interface LookupRadicalsResponse {
+  type: "lookupRadicals";
+  requestId: string;
+  result: RadicalLookupDto;
+}
+
 export interface GetAboutResponse {
   type: "getAbout";
   requestId: string;
@@ -179,5 +213,6 @@ export type Response =
   | SearchResponse
   | GetWordResponse
   | GetKanjiResponse
+  | LookupRadicalsResponse
   | GetAboutResponse
   | ErrorResponse;

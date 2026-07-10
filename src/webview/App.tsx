@@ -3,6 +3,7 @@ import { useMachine } from "@xstate/react";
 import { activeView, navigationMachine } from "./machines/navigation";
 import { About } from "./views/About";
 import { KanjiDetail } from "./views/KanjiDetail";
+import { RadicalPicker } from "./views/RadicalPicker";
 import { SearchResults } from "./views/SearchResults";
 import { WordDetail } from "./views/WordDetail";
 
@@ -23,6 +24,7 @@ export const App = (): React.ReactElement => {
           onQueryChange={(query) => send({ type: "setSearchQuery", query })}
           onOpenWord={(id) => send({ type: "openWord", id })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+          onOpenRadicals={() => send({ type: "openRadicals" })}
           onOpenAbout={() => send({ type: "openAbout" })}
         />
       </Activity>
@@ -40,6 +42,12 @@ export const App = (): React.ReactElement => {
           onBack={() => send({ type: "back" })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenWord={(id) => send({ type: "openWord", id })}
+        />
+      ) : null}
+      {view.name === "radicals" ? (
+        <RadicalPicker
+          onBack={() => send({ type: "back" })}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
       ) : null}
       {view.name === "about" ? (

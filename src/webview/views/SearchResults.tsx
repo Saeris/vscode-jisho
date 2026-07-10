@@ -18,6 +18,7 @@ interface SearchResultsProps {
   onQueryChange: (query: string) => void;
   onOpenWord: (id: string) => void;
   onOpenKanji: (literal: string) => void;
+  onOpenRadicals: () => void;
   onOpenAbout: () => void;
 }
 
@@ -26,6 +27,7 @@ export const SearchResults = ({
   onQueryChange,
   onOpenWord,
   onOpenKanji,
+  onOpenRadicals,
   onOpenAbout
 }: SearchResultsProps): React.ReactElement => {
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
@@ -56,7 +58,14 @@ export const SearchResults = ({
           />
         </SearchField>
         <Button
-          className={styles.aboutButton}
+          className={styles.iconButton}
+          onPress={onOpenRadicals}
+          aria-label="Look up kanji by radicals"
+        >
+          <span lang="ja">部</span>
+        </Button>
+        <Button
+          className={styles.iconButton}
           onPress={onOpenAbout}
           aria-label="About this extension and its dictionary data"
         >
