@@ -6,15 +6,15 @@ The single consolidated view of where vscode-jisho is going. Each milestone gets
 
 ## Milestone sequence
 
-| #   | Theme                          | Status     | Plan                     |
-| --- | ------------------------------ | ---------- | ------------------------ |
-| M1  | Vocabulary search + detail     | ✅ shipped | [M1-PLAN.md](M1-PLAN.md) |
-| M2  | Search quality                 | ✅ shipped | [M2-PLAN.md](M2-PLAN.md) |
-| M3  | Release — installable v0.1     | queued     | —                        |
-| M4  | Kanji as first-class           | queued     | —                        |
-| M5  | Morphology & multi-word search | queued     | —                        |
-| M6  | Enrichment datasets            | queued     | —                        |
-| M7  | Stroke order & handwriting     | queued     | —                        |
+| #   | Theme                          | Status         | Plan                     |
+| --- | ------------------------------ | -------------- | ------------------------ |
+| M1  | Vocabulary search + detail     | ✅ shipped     | [M1-PLAN.md](M1-PLAN.md) |
+| M2  | Search quality                 | ✅ shipped     | [M2-PLAN.md](M2-PLAN.md) |
+| M3  | Release — installable v0.1     | 🚧 in progress | [M3-PLAN.md](M3-PLAN.md) |
+| M4  | Kanji as first-class           | queued         | —                        |
+| M5  | Morphology & multi-word search | queued         | —                        |
+| M6  | Enrichment datasets            | queued         | —                        |
+| M7  | Stroke order & handwriting     | queued         | —                        |
 
 ## M1 — Vocabulary search + detail (shipped)
 
