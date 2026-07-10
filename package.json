@@ -27,6 +27,7 @@
   "scripts": {
     "ci": "vp check && vp test",
     "build": "vp pack && vp build && vp exec vsce package --no-yarn",
+    "build:platforms": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
     "build:data": "vp exec node scripts/build-data.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
     "check": "vp check",
@@ -83,8 +84,8 @@
   },
   "packageManager": "yarn@4.17.0",
   "bumpy": {
-    "buildCommand": "vp pack && vp build && vp exec vsce package --no-yarn",
-    "publishCommand": "vp exec vsce publish --no-yarn && vp exec ovsx publish",
+    "buildCommand": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
+    "publishCommand": "vp exec node scripts/publish-vsix.ts",
     "skipNpmPublish": true
   },
   "dependencies": {

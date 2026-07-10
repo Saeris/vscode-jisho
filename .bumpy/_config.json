@@ -6,7 +6,7 @@
   "allowCustomCommands": true,
   "packages": {
     "vscode-jisho": {
-      "buildCommand": "vp pack && vp build && vp exec vsce package --no-yarn",
+      "buildCommand": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
       "skipNpmPublish": true
     }
   }

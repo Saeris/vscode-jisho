@@ -14,8 +14,8 @@ permissions:
 jobs:
   release:
     name: Publish
-    # Guard against forks running the publish flow. Update to your repo slug.
-    if: github.repository == 'Saeris/vscode-extension-template'
+    # Guard against forks running the publish flow.
+    if: github.repository == 'Saeris/vscode-jisho'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -117,3 +117,7 @@ profiles/
 /assets/jisho-full.db.gz
 /assets/jisho-full.db.gz.sha256
 /assets/jisho-full.db.version
+
+# Per-platform packages built by scripts/package-platforms.ts
+dist-vsix/
+.platform-pkgs.tmp/
