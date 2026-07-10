@@ -9,7 +9,7 @@ The single consolidated view of where vscode-jisho is going. Each milestone gets
 | #   | Theme                          | Status     | Plan                     |
 | --- | ------------------------------ | ---------- | ------------------------ |
 | M1  | Vocabulary search + detail     | ✅ shipped | [M1-PLAN.md](M1-PLAN.md) |
-| M2  | Search quality                 | 📝 planned | [M2-PLAN.md](M2-PLAN.md) |
+| M2  | Search quality                 | ✅ shipped | [M2-PLAN.md](M2-PLAN.md) |
 | M3  | Release — installable v0.1     | queued     | —                        |
 | M4  | Kanji as first-class           | queued     | —                        |
 | M5  | Morphology & multi-word search | queued     | —                        |
@@ -20,9 +20,9 @@ The single consolidated view of where vscode-jisho is going. Each milestone gets
 
 Offline JMdict search (kanji / kana / Hepburn romaji / English) with ranked results and a full word-detail view (readings, writings, senses by part of speech, common badges, cross-references), in a React webview themed to VSCode. Data pipeline compiles jmdict-simplified into a local Turso/SQLite database. See [M1-PLAN.md](M1-PLAN.md) including its as-built deviations.
 
-## M2 — Search quality (planned)
+## M2 — Search quality (shipped)
 
-Make everyday queries behave the way learners expect, refining M1 with no new datasets. Four items, each independently shippable — full detail in [M2-PLAN.md](M2-PLAN.md):
+Make everyday queries behave the way learners expect, refining M1 with no new datasets. Four items, each shipped as its own commit — full detail and as-built deviations in [M2-PLAN.md](M2-PLAN.md):
 
 1. **Relevance ranking** — composite scoring so "to study" surfaces 勉強する, not substring noise.
 2. **Persist search state on back** — query + results survive detail-view navigation.

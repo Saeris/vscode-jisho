@@ -1,6 +1,6 @@
 # Milestone 2 Plan — Search quality
 
-> **Status:** planned. Theme chosen: make search behave the way users expect, refining M1 without adding new datasets or heavy dependencies. Draws items #1, #2, #6, #7 from [BACKLOG.md](BACKLOG.md).
+> **Status:** shipped. All four items landed as separate commits (relevance ranking, persist-on-back, deinflection, xref tap-through) — see [As-built deviations](#as-built-deviations) at the end for where reality diverged from the plan below.
 
 ## Context
 
@@ -93,3 +93,12 @@ Each lands as its own commit + bump file. None requires a new dataset or a rebui
 ## Verification
 
 Per item above, plus the standing gate: `vp check` clean and `vp test` green after each. Manual pass in F5 for the two UI items (persist-on-back, tap-through) and a spot-check of ranking quality on real queries ("to study", "eat", "water", conjugated verbs).
+
+## As-built deviations
+
+Where the shipped implementation differs from the plan above:
+
+- **Ranking needed a small schema change after all.** The plan said "no schema change needed", but two signals required build-time support: an `is_primary` column on `search_terms` (first writing/reading, first gloss of the first sense) and additionally-indexed parenthetical-stripped gloss variants — JMdict clarifications like "water (esp. cool or cold)" were blocking exact matches on bare words. Both are data-build changes; the DB rebuilds in ~10s.
+- **The 勉強する example maps to reality as 勉強.** Suru compounds aren't standalone JMdict entries (jisho.org merely displays the する form on `vs`-tagged entries). Tests encode the intent against real entries: "study" → 勉強 top-3, "eat" → 食べる above 飲食, "water" → 水 top-3, "cat" → 猫 first. Displaying する forms on vs entries is a possible future display enhancement.
+- **Deinflection needed a whole-word irregular table.** The empty-stem guard (correctly) blocks suffix rules from consuming an entire form, which silently broke bare します/きた/こない — する/くる conjugations are whole-word rewrites, handled by a separate `IRREGULAR` map. Romaji deinflection went the toKana-first route (guarded by `isKana` so English is never transliterated), which made wanakana a bundled runtime dependency of the host artifact (verified bundled; externals remain vscode + turso only).
+- **Tap-through always shows the result list** rather than auto-opening an unambiguous top result — one consistent behavior, and the searchFor machine event doubles as reusable "search for this term" navigation for future features. Hardening the deinflection rule table (type-level exhaustiveness / round-trip tests, modeled on typed-japanese) is tracked as [BACKLOG #8](BACKLOG.md#8-harden-the-deinflection-rule-table-refinement-of-2-as-shipped-in-m2).
