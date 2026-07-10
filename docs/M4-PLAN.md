@@ -1,6 +1,6 @@
 # Milestone 4 Plan — Kanji as first-class
 
-> **Status:** planned. Add the character half of the dictionary: kanji appear in search results as their own section, get a full detail view with radical breakdown, and cross-link with vocabulary. Read [CONVENTIONS.md](CONVENTIONS.md) first.
+> **Status:** shipped. All four items landed (kanji data, search section, detail view + cross-nav, radical lookup). See [As-built deviations](#as-built-deviations) at the end. Note for the maintainer: this changed the schema, so the rebuilt `jisho-full.db.gz` (in `assets/`) must be re-uploaded to the `dictionary-latest` release per [CONVENTIONS.md](CONVENTIONS.md).
 
 ## Context
 
@@ -45,3 +45,13 @@ Shirabe's "Radicals" search mode: a grid of radicals grouped by stroke count (fr
 ## Build order & verification
 
 1 (data) → 2 (results section) → 3 (detail + cross-nav) → 4 (radical lookup, optional). Per-item commits + bump files (item 1 is `minor`). Standing gates per CONVENTIONS; latency re-probe after item 1 (new rows change table size; expect no regression since all new lookups are exact/prefix). F5 pass for the UI items. Append as-built deviations + flip ROADMAP status when done.
+
+## As-built deviations
+
+Where the shipped implementation differs from the plan above:
+
+- **`search_terms` got a nullable `kanji` column, not a separate table.** A term row now references either a word (`word_id`) or a kanji (`kanji`) — both FKs nullable — so the existing indexed range-scan search covers kanji-meaning matches unchanged. The vocabulary-ranking CASE keys off `kind`, so `kanji_literal`/`kanji_meaning` rows don't perturb it.
+- **A latency regression surfaced and was fixed.** The first `searchKanji` draft matched CJK queries with `WHERE kanji IN (…)` — but the index is on `term`, not `kanji`, so it full-scanned (630ms on the full DB). Rewritten to look each character up directly against `kanji_characters` (PK on `literal`); the 1-char-latin exact-only guard from M3 was also applied to the `kanji_meaning` branch. Re-measured 3–45ms across CJK/latin/kana routes. The full DB grew 320→330MB.
+- **Kradfile components are finer-grained than the plan's "人/動" example.** Kradfile decomposes to primitive radicals (働 → ノ 一 力 化 日 ｜), not sub-kanji. This is correct Kradfile behavior and matches Shirabe/jisho; the kanji-detail "Components" section shows these radicals, and the radical picker (item 4) uses Radkfile's canonical 253 lookup radicals — a distinct dataset from Kradfile, verified compatible (化 ∩ 力 → 働).
+- **Item 4 (radical lookup) shipped, not deferred.** `lookupRadicals` caches the radical→kanji sets and does intersection + reachability in memory (no per-toggle SQL). Selection is local component state; the picker greys out radicals that can't extend the current selection.
+- **`getKanji`'s "words" query** uses `GROUP BY word_id … MAX(is_common)` (not `DISTINCT … ORDER BY is_common`) so common-first ordering is well-defined.
