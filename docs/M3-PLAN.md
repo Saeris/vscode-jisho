@@ -1,6 +1,6 @@
 # Milestone 3 Plan — Release: installable v0.1
 
-> **Status:** in progress. Turn "works via F5" into "anyone can install it": full dictionary delivered by download on first activation, per-platform packaging, in-app attribution, and the first marketplace publish. Scope approved in [ROADMAP.md](ROADMAP.md).
+> **Status:** code complete — items 1–4 shipped; item 5 (publish handoff) awaits the repo owner's actions listed below. See [As-built deviations](#as-built-deviations) at the end.
 
 ## Context
 
@@ -60,3 +60,13 @@ Things only the repo owner can do, in order:
 - Item 3: About view renders real meta in F5; EDRDG link + license text present.
 - Item 4: CI matrix produces 5 `.vsix` artifacts, each containing only its platform's turso binary (inspect the zips in CI logs).
 - Standing gate: `vp check` clean, `vp test` green after each item; one commit + bump file per item.
+
+## As-built deviations
+
+Where the shipped implementation differs from the plan above:
+
+- **The latency gate failed and forced a search rework.** At full scale (~3M term rows), unanchored `LIKE '%…%'` scans took 430–530ms typical and 3.2s worst-case. Rather than adopt Turso's experimental `fts_match`, matching became entirely index-backed: gloss _words_ and CJK _characters_ are indexed as their own term rows at build time, and the query is a single index range scan with CASE-tiered scoring. Re-measured at 2–75ms (20–60×). Trade-offs: mid-word kana substring matches dropped (prefix + deinflection cover real usage); the full DB grew 217→320MB (gz asset 91→132MB).
+- **The bulk import needed batched commits.** One giant transaction let the WAL balloon past 5GB (it can never checkpoint mid-transaction); committing every 5k words with per-batch `wal_checkpoint(TRUNCATE)` keeps it bounded. Full build: ~4m14s.
+- **No CI matrix after all.** The turso platform binaries are prebuilt npm packages, so `scripts/package-platforms.ts` builds all targets from one machine by swapping registry tarballs into node_modules — composing with Bumpy's single-runner flow unchanged (the plan's "main CI unknown" dissolved).
+- **darwin-x64 is unsupported:** turso 0.6.1 ships no Intel-Mac binary. Four targets ship: win32-x64, darwin-arm64, linux-x64, linux-arm64. The packaging script validates targets against turso's optionalDependencies so an upgrade that changes the lineup fails loudly.
+- **Download retry is lazy, not resumable:** a failed download deletes its `.part` file and surfaces a retryable error via the existing lazy-open path, as planned; no resume support.

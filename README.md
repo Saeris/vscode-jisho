@@ -46,7 +46,7 @@ In that window, click the **Jisho** icon in the activity bar and search (`たべ
 - Run the **`watch`** task once (Terminal → Run Task → `watch`) to rebuild the host and webview on every change.
 - In the Extension Development Host window, press **`Ctrl+R`** (Reload Window) to load the latest build. Stop debugging with **`Shift+F5`**.
 
-> **Note:** F5 works because `context.extensionUri` points at this folder (where `assets/jisho.db` lives). The _installed_ `.vsix` does not yet contain the database — implementing first-run download is a pending task (see below).
+> **Note:** F5 uses the workspace's `assets/jisho.db` directly (and picks up rebuilds automatically). Installed `.vsix` copies instead download the full dictionary on first activation — see [Dictionary delivery](#-dictionary-delivery).
 
 ## 📦 Building & packaging
 
@@ -58,11 +58,24 @@ vp run build        # build both targets and package a .vsix
 
 The native SQLite engine ([`@tursodatabase/database`][turso]) ships a platform-specific `.node` addon that cannot be bundled, so it is packaged into the `.vsix` from `node_modules` (this is why packaging uses `vsce package --no-yarn` rather than `--no-dependencies`).
 
-> **Platform note:** a locally-built `.vsix` only contains the native binary for _your_ platform. A marketplace release will need per-platform `.vsix` files (`vsce package --target …`).
+Marketplace releases are **per-platform packages**: `vp run build:platforms` builds one `.vsix` per target (Windows x64, macOS Apple Silicon, Linux x64/arm64) from a single machine by fetching each platform's prebuilt turso binary from npm — no cross-compilation or CI matrix needed. Bumpy's release flow runs this same script and publishes each package.
+
+> **Platform note:** Intel Macs (darwin-x64) are unsupported until turso ships that binary; `vp run build` still produces a current-platform-only `.vsix` for local testing.
 
 ## 🗄️ Dictionary delivery
 
-The full dictionary is large, so the plan is to **download it on first activation** into the extension's global storage (keeping the `.vsix` small). That download backend is not implemented yet — for now, develop via F5, where the workspace copy of `assets/jisho.db` is used directly. The `ensureDatabase` seam is designed so the call site won't change when the downloader lands.
+The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, gunzipped, sha256-verified, with a progress notification — then everything is offline. In F5 development the workspace copy of `assets/jisho.db` is used directly instead (and refreshes automatically when you rebuild it).
+
+The download comes from the rolling **`dictionary-latest`** GitHub Release, which is decoupled from extension releases so dictionary refreshes don't require publishing a new extension version. To create or refresh it (maintainer task):
+
+```bash
+vp run build:data:full   # builds assets/jisho.db + jisho-full.db.gz (+ .sha256, .version)
+gh release create dictionary-latest --title "Dictionary data" --notes "Rolling JMdict database" \
+  assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
+# or, to refresh an existing release:
+gh release upload dictionary-latest --clobber \
+  assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
+```
 
 ## 📚 Data sources & attribution
 
