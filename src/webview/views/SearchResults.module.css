@@ -100,3 +100,63 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Section divider between the Words and Kanji result lists. */
+.sectionHeader {
+  padding: 4px var(--jisho-gap);
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+  background: var(--jisho-input-bg);
+  border-top: 1px solid var(--jisho-border);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+/* Kanji result row: large character on the left, meaning + readings on the right. */
+.kanjiItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px var(--jisho-gap);
+  cursor: pointer;
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.kanjiItem[data-focused],
+.kanjiItem[data-hovered] {
+  background: var(--jisho-hover-bg);
+}
+
+.kanjiItem[data-selected] {
+  background: var(--jisho-active-bg);
+  color: var(--jisho-active-fg);
+}
+
+.kanjiLiteral {
+  font-size: 1.8em;
+  line-height: 1;
+}
+
+.kanjiInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kanjiMeaning {
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanjiReadings {
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

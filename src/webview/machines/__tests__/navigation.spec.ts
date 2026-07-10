@@ -21,6 +21,39 @@ describe("navigationMachine", () => {
     expect(canGoBack(ctx)).toBe(true);
   });
 
+  it("opening a kanji pushes a kanjiDetail view", () => {
+    // WHY: tapping a kanji (in the results section or a word's headword) must navigate to that
+    // character's detail — the M4 kanji-as-first-class entry point.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openKanji", literal: "食" });
+    const ctx = actor.getSnapshot().context;
+    expect(activeView(ctx)).toEqual({ name: "kanjiDetail", literal: "食" });
+    expect(canGoBack(ctx)).toBe(true);
+  });
+
+  it("unwinds a mixed word→kanji→word stack one level per back", () => {
+    // WHY: cross-navigation (word → its kanji → a word containing that kanji) builds a deep mixed
+    // stack; back must pop exactly one level, not jump home.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "w1" });
+    actor.send({ type: "openKanji", literal: "食" });
+    actor.send({ type: "openWord", id: "w2" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "wordDetail",
+      id: "w2"
+    });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "kanjiDetail",
+      literal: "食"
+    });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "wordDetail",
+      id: "w1"
+    });
+  });
+
   it("back from a detail view restores the search view", () => {
     // WHY: the core navigation loop is search → word → back-to-search; if back didn't restore the
     // prior view the user would lose their results on every lookup.

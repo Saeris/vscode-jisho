@@ -17,6 +17,7 @@ interface SearchResultsProps {
   query: string;
   onQueryChange: (query: string) => void;
   onOpenWord: (id: string) => void;
+  onOpenKanji: (literal: string) => void;
   onOpenAbout: () => void;
 }
 
@@ -24,6 +25,7 @@ export const SearchResults = ({
   query,
   onQueryChange,
   onOpenWord,
+  onOpenKanji,
   onOpenAbout
 }: SearchResultsProps): React.ReactElement => {
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
@@ -32,11 +34,11 @@ export const SearchResults = ({
   const { data, isFetching, isError, error } = useQuery(
     searchQuery(deferredQuery)
   );
+  const words = data?.words ?? [];
+  const kanji = data?.kanji ?? [];
+  const count = data ? words.length + kanji.length : undefined;
 
-  const handleAction = (key: React.Key): void => {
-    onOpenWord(String(key));
-  };
-  // ListBox in single-selection mode also opens on Enter via onAction; keep selection uncontrolled.
+  // ListBox in single-selection mode opens on Enter via onAction; keep selection uncontrolled.
   const noop = (_: Selection): void => {};
 
   return (
@@ -67,34 +69,72 @@ export const SearchResults = ({
         isFetching,
         isError,
         error,
-        count: data?.length
+        count
       })}
 
-      <ListBox
-        className={styles.list}
-        aria-label="Search results"
-        selectionMode="single"
-        onSelectionChange={noop}
-        onAction={handleAction}
-        items={data ?? []}
-      >
-        {(item) => (
-          <ListBoxItem
-            id={item.id}
-            textValue={item.headword}
-            className={styles.item}
+      <div className={styles.list}>
+        {words.length > 0 ? (
+          <ListBox
+            aria-label="Word results"
+            selectionMode="single"
+            onSelectionChange={noop}
+            onAction={(key) => onOpenWord(String(key))}
+            items={words}
           >
-            <span className={styles.itemTop}>
-              <span className={styles.headword}>{item.headword}</span>
-              {item.reading ? (
-                <span className={styles.reading}>{item.reading}</span>
-              ) : null}
-              {item.common ? <Badge kind="common">common</Badge> : null}
-            </span>
-            <span className={styles.gloss}>{item.glossPreview}</span>
-          </ListBoxItem>
-        )}
-      </ListBox>
+            {(item) => (
+              <ListBoxItem
+                id={item.id}
+                textValue={item.headword}
+                className={styles.item}
+              >
+                <span className={styles.itemTop}>
+                  <span className={styles.headword}>{item.headword}</span>
+                  {item.reading ? (
+                    <span className={styles.reading}>{item.reading}</span>
+                  ) : null}
+                  {item.common ? <Badge kind="common">common</Badge> : null}
+                </span>
+                <span className={styles.gloss}>{item.glossPreview}</span>
+              </ListBoxItem>
+            )}
+          </ListBox>
+        ) : null}
+
+        {kanji.length > 0 ? (
+          <>
+            <div className={styles.sectionHeader}>Kanji</div>
+            <ListBox
+              aria-label="Kanji results"
+              selectionMode="single"
+              onSelectionChange={noop}
+              onAction={(key) => onOpenKanji(String(key))}
+              items={kanji}
+            >
+              {(item) => (
+                <ListBoxItem
+                  id={item.literal}
+                  textValue={item.literal}
+                  className={styles.kanjiItem}
+                >
+                  <span className={styles.kanjiLiteral} lang="ja">
+                    {item.literal}
+                  </span>
+                  <span className={styles.kanjiInfo}>
+                    <span className={styles.kanjiMeaning}>
+                      {item.meaningPreview}
+                    </span>
+                    <span className={styles.kanjiReadings} lang="ja">
+                      {[item.onPreview, item.kunPreview]
+                        .filter(Boolean)
+                        .join("　")}
+                    </span>
+                  </span>
+                </ListBoxItem>
+              )}
+            </ListBox>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 };

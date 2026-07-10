@@ -9,6 +9,7 @@ import { assign, setup } from "xstate";
 export type View =
   | { name: "search" }
   | { name: "wordDetail"; id: string }
+  | { name: "kanjiDetail"; literal: string }
   | { name: "about" };
 
 export interface NavContext {
@@ -24,6 +25,7 @@ export interface NavContext {
 
 export type NavEvent =
   | { type: "openWord"; id: string }
+  | { type: "openKanji"; literal: string }
   | { type: "openAbout" }
   | { type: "back" }
   | { type: "home" }
@@ -47,6 +49,15 @@ export const navigationMachine = setup({
           ? [
               ...context.stack,
               { name: "wordDetail", id: event.id } satisfies View
+            ]
+          : context.stack
+    }),
+    pushKanji: assign({
+      stack: ({ context, event }) =>
+        event.type === "openKanji"
+          ? [
+              ...context.stack,
+              { name: "kanjiDetail", literal: event.literal } satisfies View
             ]
           : context.stack
     }),
@@ -77,6 +88,7 @@ export const navigationMachine = setup({
   context: { stack: [{ name: "search" }], searchQuery: "" },
   on: {
     openWord: { actions: "pushWord" },
+    openKanji: { actions: "pushKanji" },
     openAbout: { actions: "pushAbout" },
     back: { actions: "pop" },
     home: { actions: "reset" },

@@ -40,6 +40,22 @@
   line-height: 1.2;
 }
 
+/* Each CJK character of the headword is a button opening its kanji detail; keep it visually
+   identical to plain text but underline on hover to hint the affordance. */
+.kanjiChar {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.kanjiChar:hover {
+  text-decoration: underline;
+  color: var(--jisho-link);
+}
+
 .headwordAlt {
   font-size: 1.2em;
   color: var(--jisho-muted);

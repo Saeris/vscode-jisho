@@ -2,6 +2,7 @@ import { Activity } from "react";
 import { useMachine } from "@xstate/react";
 import { activeView, navigationMachine } from "./machines/navigation";
 import { About } from "./views/About";
+import { KanjiDetail } from "./views/KanjiDetail";
 import { SearchResults } from "./views/SearchResults";
 import { WordDetail } from "./views/WordDetail";
 
@@ -21,6 +22,7 @@ export const App = (): React.ReactElement => {
           query={state.context.searchQuery}
           onQueryChange={(query) => send({ type: "setSearchQuery", query })}
           onOpenWord={(id) => send({ type: "openWord", id })}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenAbout={() => send({ type: "openAbout" })}
         />
       </Activity>
@@ -29,6 +31,15 @@ export const App = (): React.ReactElement => {
           id={view.id}
           onBack={() => send({ type: "back" })}
           onSearchTerm={(term) => send({ type: "searchFor", term })}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+        />
+      ) : null}
+      {view.name === "kanjiDetail" ? (
+        <KanjiDetail
+          literal={view.literal}
+          onBack={() => send({ type: "back" })}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+          onOpenWord={(id) => send({ type: "openWord", id })}
         />
       ) : null}
       {view.name === "about" ? (

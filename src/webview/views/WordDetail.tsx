@@ -10,12 +10,15 @@ interface WordDetailProps {
   onBack: () => void;
   /** Tap-through: search for a referenced term (cross-references are surface strings, not ids). */
   onSearchTerm: (term: string) => void;
+  /** Tap a kanji character in the headword to open its detail. */
+  onOpenKanji: (literal: string) => void;
 }
 
 export const WordDetail = ({
   id,
   onBack,
-  onSearchTerm
+  onSearchTerm,
+  onOpenKanji
 }: WordDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(wordQuery(id));
 
@@ -38,7 +41,11 @@ export const WordDetail = ({
         ) : data === null ? (
           <p>Word not found.</p>
         ) : (
-          <WordBody word={data} onSearchTerm={onSearchTerm} />
+          <WordBody
+            word={data}
+            onSearchTerm={onSearchTerm}
+            onOpenKanji={onOpenKanji}
+          />
         )}
       </div>
     </div>
@@ -47,10 +54,12 @@ export const WordDetail = ({
 
 const WordBody = ({
   word,
-  onSearchTerm
+  onSearchTerm,
+  onOpenKanji
 }: {
   word: WordDetailDto;
   onSearchTerm: (term: string) => void;
+  onOpenKanji: (literal: string) => void;
 }): React.ReactElement => {
   // `word.kanji`/`word.kana` may be empty (kana-only words have no kanji); guard on length
   // rather than optional-chaining, which the array element type reports as always-present.
@@ -63,7 +72,7 @@ const WordBody = ({
     <>
       <div className={styles.writing}>
         <span className={styles.headword} lang="ja">
-          {headword}
+          <Headword text={headword} onOpenKanji={onOpenKanji} />
         </span>
         {word.common ? <Badge kind="common">common</Badge> : null}
         {altKanji.length > 0 ? (
@@ -86,6 +95,34 @@ const WordBody = ({
     </>
   );
 };
+
+const CJK = /[㐀-鿿豈-﫿]/u;
+
+/** The headword with each CJK character rendered as a button that opens its kanji detail. */
+const Headword = ({
+  text,
+  onOpenKanji
+}: {
+  text: string;
+  onOpenKanji: (literal: string) => void;
+}): React.ReactElement => (
+  <>
+    {Array.from(text).map((char, i) =>
+      CJK.test(char) ? (
+        <Button
+          key={i}
+          className={styles.kanjiChar}
+          onPress={() => onOpenKanji(char)}
+          aria-label={`Open kanji ${char}`}
+        >
+          {char}
+        </Button>
+      ) : (
+        <span key={i}>{char}</span>
+      )
+    )}
+  </>
+);
 
 const Sense = ({
   sense,

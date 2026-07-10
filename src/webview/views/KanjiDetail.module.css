@@ -1,0 +1,144 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.back {
+  background: transparent;
+  color: var(--jisho-link);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.literal {
+  font-size: 4em;
+  line-height: 1;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.meanings {
+  font-size: 1.1em;
+  margin: 0 0 12px;
+}
+
+.readingRow {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.readingLabel {
+  flex: 0 0 3.5em;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-top: 1px;
+}
+
+.section {
+  margin-top: 16px;
+}
+
+.section h2 {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+  margin: 0 0 6px;
+}
+
+.componentGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.component {
+  font-size: 1.4em;
+  line-height: 1;
+  padding: 4px 8px;
+  background: var(--jisho-input-bg);
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: var(--jisho-fg);
+  cursor: pointer;
+}
+
+.component:hover {
+  border-color: var(--jisho-focus);
+}
+
+.wordList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.word {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--jisho-fg);
+}
+
+.word:hover .wordHead {
+  text-decoration: underline;
+}
+
+.wordHead {
+  font-weight: 600;
+}
+
+.wordReading {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.wordGloss {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
