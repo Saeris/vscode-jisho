@@ -61,6 +61,8 @@ The riskiest single item, deliberately sequenced after kanji: integrate the auth
 - **POS breakdown UI** — the jisho.org-style segmented rendering of the query, each segment tappable to focus the search on it.
 - **Tokenizer-backed deinflection** — supersede/augment M2's rule table with real morphological analysis (します → する identified with POS context).
 
+**Study references** (different languages, each solving an adjacent problem — extract patterns, not code): [Sudachi](https://github.com/WorksApplications/Sudachi) (Java — its A/B/C split modes and normalized forms are the reference design for segmentation granularity, which matters for "focus search on this segment"); [Kagome](https://github.com/ikawaha/kagome) (Go — multiple dictionary backends behind one API, lattice visualization for debugging tokenization, and prior art on shipping an analyzer as WASM); [Konoha](https://github.com/himkt/konoha) (Python — a unified adapter interface over many tokenizers, the shape to copy if we ever support more than one analyzer); [Fudoki](https://github.com/iamcheyan/fudoki) (POS-based color-coding of Japanese text — the closest analogue to [@saeris/remark-ayaji](https://github.com/Saeris/remark-ayaji), which does the same as a markdown plugin via [@saeris/kuromoji](https://github.com/Saeris/kuromoji)). Ayaji's POS→color treatment is itself a candidate for the M5 breakdown UI: color-coded segments for enhanced readability.
+
 ## M6 — Enrichment datasets
 
 Layer the remaining reference data onto existing views. Each is a data-build addition plus a detail-view section — independent of each other, so this milestone can be split or reordered freely:
@@ -77,6 +79,15 @@ The drawing milestone, built on decisions reserved since M1:
 
 - **Stroke-order animation** (AnimCJK) — animated SVG stroke order on the kanji detail view, driven by an XState animation-player machine (play/pause/step/replay — the machine XState was chosen for).
 - **Handwriting search** — draw-to-search: **perfect-freehand** captures strokes (retaining raw `[x,y][][]` point data), **KanjiCanvas** (MIT, offline, stroke-order-and-count free) recognizes candidates, results feed the normal search. Recognition and display data are deliberately decoupled (KanjiCanvas ships its own reference patterns; AnimCJK is display-only).
+
+## M8 — Web extension (vscode.dev)
+
+Make the extension run in web-based VSCode (vscode.dev / github.dev), where the extension host is a Web Worker. Motivated by reach and by simplifying distribution (a web-compatible host is platform-independent). Key facts from the 2026-07 spike:
+
+- **[@tursodatabase/database-wasm](https://github.com/tursodatabase/turso/tree/main/bindings/javascript) is the vehicle, and it is browser-only.** Its entry fetches the .wasm asset (file:// fetch fails in Node) and its storage backend is OPFS — so it cannot replace the native Node packages; it _complements_ them for the web host. The Node-WASI build (`database-wasm32-wasi`) is abandoned upstream (0.1.4 vs 0.6.1) and not viable.
+- **Architecture:** one `Dictionary` API over an engine seam (package.json `imports`/build-condition maps `#turso` → native for the Node host, wasm for the web host); a second host bundle targeting webworker; re-add the manifest `browser` field. The webview is already browser code and needs nothing.
+- **Delivery on web:** `ensureDatabase` gains an OPFS backend — download the gzipped DB (browsers have `DecompressionStream`), verify sha256 (WebCrypto), write into OPFS. Storage quota for a ~320MB DB and SharedArrayBuffer/COOP-COEP availability inside the vscode.dev extension-host worker are the open risks to spike first.
+- **Perf gate:** re-run the latency probe under WASM; the index-backed search (2–75ms native) has headroom for WASM overhead, but measure before committing.
 
 ## Standing decisions (carried across milestones)
 
