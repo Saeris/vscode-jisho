@@ -73,16 +73,53 @@ CREATE TABLE tags (
   description TEXT NOT NULL
 );
 
--- Denormalized, indexed search surface. One row per searchable term of a word so a single
--- indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji input.
---   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char')
+-- ── Kanji (Kanjidic2 + Kradfile/Radkfile) ──────────────────────────────────
+-- Defined before `search_terms` because kanji-entry term rows FK-reference `kanji_characters`.
+-- One row per kanji character. Readings/meanings/nanori are JSON arrays read whole when
+-- rendering a single kanji's detail, never queried across characters.
+CREATE TABLE kanji_characters (
+  literal       TEXT PRIMARY KEY,             -- the character itself
+  grade         INTEGER,                      -- school grade (1-6, 8=secondary, 9-10=jinmeiyo)
+  stroke_count  INTEGER,                      -- accepted count (Kanjidic misc.strokeCounts[0])
+  frequency     INTEGER,                      -- newspaper frequency rank (1..2500), null otherwise
+  jlpt          INTEGER,                      -- old-scale JLPT level 1-4, null otherwise
+  on_json       TEXT NOT NULL DEFAULT '[]',   -- on'yomi readings (katakana)
+  kun_json      TEXT NOT NULL DEFAULT '[]',   -- kun'yomi readings (hiragana, with okurigana dots)
+  meanings_json TEXT NOT NULL DEFAULT '[]',   -- English meanings, in source order
+  nanori_json   TEXT NOT NULL DEFAULT '[]'    -- name-only readings
+);
+
+-- Kanji → its components/radicals (Kradfile). One row per component.
+CREATE TABLE kanji_components (
+  literal   TEXT NOT NULL REFERENCES kanji_characters(literal),
+  component TEXT NOT NULL,
+  PRIMARY KEY (literal, component)
+);
+
+CREATE INDEX idx_components_component ON kanji_components(component);
+
+-- Radical → the kanji built from it (Radkfile). Drives the radical picker; `kanji_json` is read
+-- whole (never joined), so a JSON array column is fine.
+CREATE TABLE radicals (
+  radical      TEXT PRIMARY KEY,
+  stroke_count INTEGER NOT NULL,
+  kanji_json   TEXT NOT NULL DEFAULT '[]'
+);
+
+-- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a
+-- single indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji.
+--   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char',  -- word entries
+--           'kanji_literal', 'kanji_meaning')                    -- kanji entries (M4)
 -- 'word' rows index each word of each gloss ("eat" from "to eat") and 'char' rows index each CJK
 -- character of each kanji writing (強 from 勉強), so whole-word and containment matches are exact
 -- index hits — unanchored LIKE scans are too slow at full-dictionary scale (~3M rows).
+-- A row references EITHER a word (`word_id`) or a kanji character (`kanji`), never both. The
+-- vocabulary-ranking CASE keys off `kind`, so the kanji kinds don't perturb word ranking.
 -- `term` holds the raw term; `term_lower` is a lowercased copy for case-insensitive gloss/romaji
 -- matching (kanji/kana are unaffected by lowering).
 CREATE TABLE search_terms (
-  word_id    TEXT NOT NULL REFERENCES words(id),
+  word_id    TEXT REFERENCES words(id),      -- null for kanji-entry rows
+  kanji      TEXT REFERENCES kanji_characters(literal), -- null for word-entry rows
   kind       TEXT NOT NULL,
   term       TEXT NOT NULL,
   term_lower TEXT NOT NULL,

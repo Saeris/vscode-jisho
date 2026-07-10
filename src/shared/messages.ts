@@ -71,6 +71,43 @@ export interface WordDetailDto {
   senses: SenseDto[];
 }
 
+/** A compact kanji result for the search list's "Kanji" section. */
+export interface KanjiResultDto {
+  literal: string;
+  strokeCount: number | null;
+  grade: number | null;
+  jlpt: number | null;
+  /** First meaning, on-reading, kun-reading for the preview row. */
+  meaningPreview: string;
+  onPreview: string;
+  kunPreview: string;
+}
+
+/** A word that contains a given kanji, for the kanji detail's "words" section. */
+export interface KanjiWordDto {
+  id: string;
+  headword: string;
+  reading: string;
+  glossPreview: string;
+}
+
+/** The full kanji detail. */
+export interface KanjiDetailDto {
+  literal: string;
+  grade: number | null;
+  strokeCount: number | null;
+  frequency: number | null;
+  jlpt: number | null;
+  on: string[];
+  kun: string[];
+  meanings: string[];
+  nanori: string[];
+  /** Component characters/radicals (Kradfile). */
+  components: string[];
+  /** Common words containing this kanji. */
+  words: KanjiWordDto[];
+}
+
 // ── Request / Response protocol ───────────────────────────────────────────────
 
 export interface SearchRequest {
@@ -85,18 +122,30 @@ export interface GetWordRequest {
   id: string;
 }
 
+export interface GetKanjiRequest {
+  type: "getKanji";
+  requestId: string;
+  literal: string;
+}
+
 /** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
 export interface GetAboutRequest {
   type: "getAbout";
   requestId: string;
 }
 
-export type Request = SearchRequest | GetWordRequest | GetAboutRequest;
+export type Request =
+  | SearchRequest
+  | GetWordRequest
+  | GetKanjiRequest
+  | GetAboutRequest;
 
 export interface SearchResponse {
   type: "search";
   requestId: string;
   results: SearchResultDto[];
+  /** Kanji matching the query, shown as a separate section. */
+  kanji: KanjiResultDto[];
 }
 
 export interface GetWordResponse {
@@ -104,6 +153,13 @@ export interface GetWordResponse {
   requestId: string;
   /** `null` when the id is unknown. */
   word: WordDetailDto | null;
+}
+
+export interface GetKanjiResponse {
+  type: "getKanji";
+  requestId: string;
+  /** `null` when the literal isn't in Kanjidic. */
+  kanji: KanjiDetailDto | null;
 }
 
 export interface GetAboutResponse {
@@ -122,5 +178,6 @@ export interface ErrorResponse {
 export type Response =
   | SearchResponse
   | GetWordResponse
+  | GetKanjiResponse
   | GetAboutResponse
   | ErrorResponse;

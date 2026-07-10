@@ -23,7 +23,14 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
 import { toRomaji } from "wanakana";
-import type { JMdict, JMdictWord } from "@scriptin/jmdict-simplified-types";
+import type {
+  JMdict,
+  JMdictWord,
+  Kanjidic2,
+  Kanjidic2Character,
+  Kradfile,
+  Radkfile
+} from "@scriptin/jmdict-simplified-types";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DB = join(root, "assets", "jisho.db");
@@ -89,27 +96,51 @@ interface GithubRelease {
   assets: Array<{ name: string; browser_download_url: string }>;
 }
 
-const downloadDictionary = async (): Promise<JMdict> => {
-  console.log("Resolving latest jmdict-simplified release…");
-  const release = await fetchJson<GithubRelease>(RELEASE_API);
-  const asset = release.assets.find((a) => ASSET_PATTERN.test(a.name));
-  if (!asset)
-    throw new Error(`Could not find a jmdict-eng (${VARIANT}) .json.tgz asset`);
-  console.log(`Downloading ${asset.name} (release ${release.tag_name})…`);
+// The kanji datasets are single-variant (not full/common), so their asset names are stable.
+const KANJIDIC_PATTERN = /^kanjidic2-en-.*\.json\.tgz$/;
+const KRADFILE_PATTERN = /^kradfile-.*\.json\.tgz$/;
+const RADKFILE_PATTERN = /^radkfile-.*\.json\.tgz$/;
+
+/** Download one .json.tgz asset matching `pattern` from the resolved release and parse it. */
+const fetchAssetJson = async <T>(
+  release: GithubRelease,
+  pattern: RegExp
+): Promise<T> => {
+  const asset = release.assets.find((a) => pattern.test(a.name));
+  if (!asset) throw new Error(`No release asset matching ${String(pattern)}`);
+  console.log(`Downloading ${asset.name}…`);
   const res = await fetch(asset.browser_download_url, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok)
     throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   const tgz = new Uint8Array(await res.arrayBuffer());
-  console.log(
-    `Extracting (${(tgz.length / 1024 / 1024).toFixed(1)} MB compressed)…`
-  );
-  const dict: JMdict = JSON.parse(extractSingleJsonFromTgz(tgz));
-  return dict;
+  const data: T = JSON.parse(extractSingleJsonFromTgz(tgz));
+  return data;
 };
 
-const buildDatabase = async (dict: JMdict): Promise<void> => {
+interface Sources {
+  dict: JMdict;
+  kanjidic: Kanjidic2;
+  kradfile: Kradfile;
+  radkfile: Radkfile;
+}
+
+const downloadSources = async (): Promise<Sources> => {
+  console.log("Resolving latest jmdict-simplified release…");
+  const release = await fetchJson<GithubRelease>(RELEASE_API);
+  console.log(`Release ${release.tag_name}`);
+  const [dict, kanjidic, kradfile, radkfile] = await Promise.all([
+    fetchAssetJson<JMdict>(release, ASSET_PATTERN),
+    fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
+    fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
+    fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN)
+  ]);
+  return { dict, kanjidic, kradfile, radkfile };
+};
+
+const buildDatabase = async (sources: Sources): Promise<void> => {
+  const { dict, kanjidic, kradfile, radkfile } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -152,6 +183,20 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
   const insTerm = await db.prepare(
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
+  const insKanjiChar = await db.prepare(
+    `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt,
+       on_json, kun_json, meanings_json, nanori_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insComponent = await db.prepare(
+    "INSERT INTO kanji_components(literal, component) VALUES (?, ?)"
+  );
+  const insRadical = await db.prepare(
+    "INSERT INTO radicals(radical, stroke_count, kanji_json) VALUES (?, ?, ?)"
+  );
+  const insKanjiTerm = await db.prepare(
+    "INSERT INTO search_terms(kanji, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
+  );
 
   // Commit in batches and checkpoint between them: a single giant transaction can never fold its
   // pages back into the main file, so the WAL balloons unboundedly (the full build's WAL passed
@@ -179,6 +224,35 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
 
   await db.exec("COMMIT");
 
+  // ── Kanji pass ────────────────────────────────────────────────────────────
+  // Import characters first (search_terms.kanji FK-references kanji_characters), then their
+  // Kradfile components, then Radkfile radicals. Same batched-checkpoint discipline.
+  await db.exec("BEGIN");
+  const kanjiSet = new Set<string>();
+  let kdone = 0;
+  for (const char of kanjidic.characters) {
+    await importKanji(char, { insKanjiChar, insKanjiTerm });
+    kanjiSet.add(char.literal);
+    if (++kdone % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+    }
+  }
+  // Kradfile components — only for kanji we have a character row for (FK).
+  for (const [literal, components] of Object.entries(kradfile.kanji)) {
+    if (!kanjiSet.has(literal)) continue;
+    for (const component of components) {
+      await insComponent.run(literal, component);
+    }
+  }
+  // Radkfile radicals.
+  for (const [radical, info] of Object.entries(radkfile.radicals)) {
+    await insRadical.run(radical, info.strokeCount, JSON.stringify(info.kanji));
+  }
+  await db.exec("COMMIT");
+  console.log(`  kanji: ${kanjiSet.size} characters`);
+
   // Attribution / provenance.
   const insMeta = await db.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)"
@@ -190,6 +264,9 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
     "license",
     "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
   );
+  await insMeta.run("kanjidicDate", kanjidic.dictDate);
+  await insMeta.run("kanjidicVersion", kanjidic.databaseVersion);
+  await insMeta.run("kanjiCount", String(kanjiSet.size));
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
@@ -365,7 +442,67 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
   }
 };
 
+interface KanjiStmts {
+  insKanjiChar: Statement;
+  insKanjiTerm: Statement;
+}
+
+const importKanji = async (
+  char: Kanjidic2Character,
+  s: KanjiStmts
+): Promise<void> => {
+  const groups = char.readingMeaning?.groups ?? [];
+  const on: string[] = [];
+  const kun: string[] = [];
+  const meanings: string[] = [];
+  for (const group of groups) {
+    for (const r of group.readings) {
+      if (r.type === "ja_on") on.push(r.value);
+      else if (r.type === "ja_kun") kun.push(r.value);
+    }
+    for (const m of group.meanings) {
+      if (m.lang === "en") meanings.push(m.value);
+    }
+  }
+  const nanori = char.readingMeaning?.nanori ?? [];
+  const isCommon = char.misc.frequency !== null ? 1 : 0;
+
+  await s.insKanjiChar.run(
+    char.literal,
+    char.misc.grade,
+    char.misc.strokeCounts[0] ?? null,
+    char.misc.frequency,
+    char.misc.jlptLevel,
+    JSON.stringify(on),
+    JSON.stringify(kun),
+    JSON.stringify(meanings),
+    JSON.stringify(nanori)
+  );
+
+  // The literal itself, matched exactly for a single-character CJK query.
+  await s.insKanjiTerm.run(
+    char.literal,
+    "kanji_literal",
+    char.literal,
+    char.literal,
+    isCommon,
+    1
+  );
+  // Each meaning word, so an English query ("eat") surfaces the character. Mirrors how word
+  // glosses are tokenized into `word` rows — exact/prefix index hits, no LIKE scan.
+  const words = new Set(
+    meanings
+      .join(" ")
+      .toLowerCase()
+      .split(/[^a-z0-9']+/)
+      .filter((w) => w.length > 1)
+  );
+  for (const w of words) {
+    await s.insKanjiTerm.run(char.literal, "kanji_meaning", w, w, isCommon, 0);
+  }
+};
+
 console.time("build-data");
-const dict = await downloadDictionary();
-await buildDatabase(dict);
+const sources = await downloadSources();
+await buildDatabase(sources);
 console.timeEnd("build-data");

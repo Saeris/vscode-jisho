@@ -42,12 +42,18 @@ describe("webview bridge", () => {
 
     const sent = posted[0] as { type: string; requestId: string };
     expect(sent.type).toBe("search");
-    deliver({ type: "search", requestId: sent.requestId, results: [] });
+    deliver({
+      type: "search",
+      requestId: sent.requestId,
+      results: [],
+      kanji: []
+    });
 
     await expect(promise).resolves.toEqual({
       type: "search",
       requestId: sent.requestId,
-      results: []
+      results: [],
+      kanji: []
     });
   });
 
@@ -63,7 +69,12 @@ describe("webview bridge", () => {
 
     // Deliver in reverse order.
     deliver({ type: "getWord", requestId: second.requestId, word: null });
-    deliver({ type: "search", requestId: first.requestId, results: [] });
+    deliver({
+      type: "search",
+      requestId: first.requestId,
+      results: [],
+      kanji: []
+    });
 
     await expect(word).resolves.toMatchObject({ type: "getWord", word: null });
     await expect(search).resolves.toMatchObject({

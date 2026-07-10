@@ -5,6 +5,7 @@
  */
 import type {
   GetAboutResponse,
+  GetKanjiResponse,
   GetWordResponse,
   Request,
   Response,
@@ -74,6 +75,17 @@ export const getWord = async (id: string): Promise<GetWordResponse> => {
   });
   if (response.type !== "getWord")
     throw new Error("Unexpected response for getWord");
+  return response;
+};
+
+export const getKanji = async (literal: string): Promise<GetKanjiResponse> => {
+  const response = await send({
+    type: "getKanji",
+    requestId: nextRequestId(),
+    literal
+  });
+  if (response.type !== "getKanji")
+    throw new Error("Unexpected response for getKanji");
   return response;
 };
 

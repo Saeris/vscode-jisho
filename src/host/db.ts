@@ -8,7 +8,10 @@ import { isKana, toKana } from "wanakana";
 import { deinflect } from "./deinflect";
 import type {
   KanaDto,
+  KanjiDetailDto,
   KanjiDto,
+  KanjiResultDto,
+  KanjiWordDto,
   SearchResultDto,
   SenseDto,
   TagDto,
@@ -185,6 +188,84 @@ export class Dictionary {
     return results;
   }
 
+  /**
+   * Kanji matching a query, for the search list's separate "Kanji" section. CJK input matches
+   * each distinct character exactly (kanji_literal); latin input matches meaning words
+   * (kanji_meaning) exactly, then by prefix. Index-friendly throughout (exact + range scan).
+   */
+  async searchKanji(rawQuery: string, limit = 8): Promise<KanjiResultDto[]> {
+    const query = rawQuery.trim();
+    if (query === "") return [];
+
+    const isLatin = !/[^ -~]/.test(query);
+    let literals: string[];
+    if (isLatin) {
+      const needle = query.toLowerCase();
+      // 1-char latin queries stay exact-only: an "e%" range spans a huge slice of the index and
+      // a 1-letter meaning prefix is meaningless (same guard as `search`).
+      const where =
+        needle.length < 2 ? "term = ?1" : "term >= ?1 AND term < ?2";
+      const rows = await this.#all<{ kanji: string; exact: number }>(
+        `SELECT kanji, MAX(CASE WHEN term = ?1 THEN 1 ELSE 0 END) AS exact
+           FROM search_terms
+          WHERE kind = 'kanji_meaning' AND ${where}
+          GROUP BY kanji
+          ORDER BY exact DESC, MAX(is_common) DESC
+          LIMIT ?3`,
+        ...(needle.length < 2
+          ? [needle, needle, limit]
+          : [needle, `${needle}￿`, limit])
+      );
+      literals = rows.map((r) => r.kanji);
+    } else {
+      // Each distinct CJK character of the query, in order, that is a known kanji. Look up the
+      // character directly against `kanji_characters` (PK on `literal`) — the search_terms index
+      // is on `term`, not `kanji`, so an IN-over-kanji query would full-scan.
+      // Array.from iterates by code point, so multi-unit characters stay intact.
+      const seen = new Set<string>();
+      const chars = Array.from(query)
+        .filter((c) => /[㐀-鿿豈-﫿]/.test(c) && !seen.has(c) && seen.add(c))
+        .slice(0, limit);
+      if (chars.length === 0) return [];
+      literals = [];
+      for (const c of chars) {
+        const hit = await this.#get<{ literal: string }>(
+          "SELECT literal FROM kanji_characters WHERE literal = ?",
+          c
+        );
+        if (hit) literals.push(hit.literal);
+      }
+    }
+
+    const out: KanjiResultDto[] = [];
+    for (const literal of literals) {
+      const row = await this.#get<{
+        literal: string;
+        stroke_count: number | null;
+        grade: number | null;
+        jlpt: number | null;
+        on_json: string;
+        kun_json: string;
+        meanings_json: string;
+      }>(
+        `SELECT literal, stroke_count, grade, jlpt, on_json, kun_json, meanings_json
+           FROM kanji_characters WHERE literal = ?`,
+        literal
+      );
+      if (!row) continue;
+      out.push({
+        literal: row.literal,
+        strokeCount: row.stroke_count,
+        grade: row.grade,
+        jlpt: row.jlpt,
+        meaningPreview: parseStrings(row.meanings_json).slice(0, 3).join(", "),
+        onPreview: parseStrings(row.on_json).join("、"),
+        kunPreview: parseStrings(row.kun_json).join("、")
+      });
+    }
+    return out;
+  }
+
   async #searchResult(
     id: string,
     common: boolean
@@ -306,6 +387,68 @@ export class Dictionary {
     }
 
     return { id: word.id, common: word.is_common === 1, kanji, kana, senses };
+  }
+
+  /** Full detail for one kanji character, or `null` if it isn't in Kanjidic. */
+  async getKanji(literal: string): Promise<KanjiDetailDto | null> {
+    const row = await this.#get<{
+      literal: string;
+      grade: number | null;
+      stroke_count: number | null;
+      frequency: number | null;
+      jlpt: number | null;
+      on_json: string;
+      kun_json: string;
+      meanings_json: string;
+      nanori_json: string;
+    }>(
+      `SELECT literal, grade, stroke_count, frequency, jlpt,
+              on_json, kun_json, meanings_json, nanori_json
+         FROM kanji_characters WHERE literal = ?`,
+      literal
+    );
+    if (!row) return null;
+
+    const componentRows = await this.#all<{ component: string }>(
+      "SELECT component FROM kanji_components WHERE literal = ? ORDER BY component",
+      literal
+    );
+
+    // Common words containing this kanji, via the precomputed `char` term rows (already indexed).
+    const wordRows = await this.#all<{ word_id: string; common: number }>(
+      `SELECT word_id, MAX(is_common) AS common FROM search_terms
+        WHERE kind = 'char' AND term = ?
+        GROUP BY word_id
+        ORDER BY common DESC
+        LIMIT 10`,
+      literal
+    );
+    const words: KanjiWordDto[] = [];
+    for (const { word_id, common } of wordRows) {
+      const preview = await this.#searchResult(word_id, common === 1);
+      if (preview) {
+        words.push({
+          id: preview.id,
+          headword: preview.headword,
+          reading: preview.reading,
+          glossPreview: preview.glossPreview
+        });
+      }
+    }
+
+    return {
+      literal: row.literal,
+      grade: row.grade,
+      strokeCount: row.stroke_count,
+      frequency: row.frequency,
+      jlpt: row.jlpt,
+      on: parseStrings(row.on_json),
+      kun: parseStrings(row.kun_json),
+      meanings: parseStrings(row.meanings_json),
+      nanori: parseStrings(row.nanori_json),
+      components: componentRows.map((c) => c.component),
+      words
+    };
   }
 }
 

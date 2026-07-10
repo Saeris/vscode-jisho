@@ -48,6 +48,21 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             </a>
             .
           </p>
+          <p>
+            Kanji data comes from{" "}
+            <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project">
+              KANJIDIC2
+            </a>{" "}
+            (© EDRDG,{" "}
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+              CC BY-SA 4.0
+            </a>
+            ) and radical breakdowns from{" "}
+            <a href="https://www.edrdg.org/krad/kradinf.html">
+              KRADFILE / RADKFILE
+            </a>{" "}
+            (© EDRDG; RADKFILE2/KRADFILE2 © Jim Rose).
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>
@@ -56,12 +71,20 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
                   <td>{meta["variant"] ?? "unknown"}</td>
                 </tr>
                 <tr>
-                  <td>Entries</td>
+                  <td>Words</td>
                   <td>{meta["wordCount"] ?? "unknown"}</td>
+                </tr>
+                <tr>
+                  <td>Kanji</td>
+                  <td>{meta["kanjiCount"] ?? "unknown"}</td>
                 </tr>
                 <tr>
                   <td>JMdict date</td>
                   <td>{meta["dictDate"] ?? "unknown"}</td>
+                </tr>
+                <tr>
+                  <td>Kanjidic date</td>
+                  <td>{meta["kanjidicDate"] ?? "unknown"}</td>
                 </tr>
                 <tr>
                   <td>Built</td>

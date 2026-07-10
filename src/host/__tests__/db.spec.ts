@@ -137,4 +137,47 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
   test("returns null for an unknown id", async () => {
     await expect(dict.getWord("no-such-id")).resolves.toBeNull();
   });
+
+  // ── Kanji (M4) ────────────────────────────────────────────────────────────
+
+  test("resolves a kanji character's Kanjidic data", async () => {
+    // WHY: kanji detail rests on this hydration — a broken column mapping would show wrong
+    // stroke counts or readings. 食 is grade 2, 9 strokes, on-reading ショク, meaning "eat".
+    const kanji = await dict.getKanji("食");
+    expect(kanji).not.toBeNull();
+    expect(kanji!.grade).toBe(2);
+    expect(kanji!.strokeCount).toBe(9);
+    expect(kanji!.on).toContain("ショク");
+    expect(kanji!.meanings).toContain("eat");
+  });
+
+  test("resolves a kanji's components and containing words", async () => {
+    // WHY: the components come from Kradfile and the words from the precomputed char index;
+    // both feed the detail view's navigation.
+    const kanji = await dict.getKanji("働");
+    expect(kanji!.components.length).toBeGreaterThan(0);
+    const eat = await dict.getKanji("食");
+    expect(eat!.words.some((w) => w.headword.includes("食"))).toBe(true);
+  });
+
+  test("returns null for a non-kanji literal", async () => {
+    await expect(dict.getKanji("x")).resolves.toBeNull();
+  });
+
+  test("finds kanji by a single-character CJK query", async () => {
+    // WHY: searching 食 must surface the character itself in the Kanji section, not only words.
+    const kanji = await dict.searchKanji("食");
+    expect(kanji.map((k) => k.literal)).toContain("食");
+  });
+
+  test("finds kanji by English meaning", async () => {
+    // WHY: "eat" should surface 食 in the Kanji section alongside word results.
+    const kanji = await dict.searchKanji("eat");
+    expect(kanji.map((k) => k.literal)).toContain("食");
+  });
+
+  test("returns no kanji section for a kana query", async () => {
+    // WHY: kana queries (たべる) are word searches; they must not populate the Kanji section.
+    await expect(dict.searchKanji("たべる")).resolves.toEqual([]);
+  });
 });

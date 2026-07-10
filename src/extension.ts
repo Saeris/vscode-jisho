@@ -127,17 +127,24 @@ const respond = async (
   request: Request
 ): Promise<Response> => {
   switch (request.type) {
-    case "search":
-      return {
-        type: "search",
-        requestId: request.requestId,
-        results: await dict.search(request.query)
-      };
+    case "search": {
+      const [results, kanji] = await Promise.all([
+        dict.search(request.query),
+        dict.searchKanji(request.query)
+      ]);
+      return { type: "search", requestId: request.requestId, results, kanji };
+    }
     case "getWord":
       return {
         type: "getWord",
         requestId: request.requestId,
         word: await dict.getWord(request.id)
+      };
+    case "getKanji":
+      return {
+        type: "getKanji",
+        requestId: request.requestId,
+        kanji: await dict.getKanji(request.literal)
       };
     case "getAbout":
       return {
