@@ -83,7 +83,11 @@ CREATE TABLE search_terms (
   kind       TEXT NOT NULL,
   term       TEXT NOT NULL,
   term_lower TEXT NOT NULL,
-  is_common  INTEGER NOT NULL DEFAULT 0
+  is_common  INTEGER NOT NULL DEFAULT 0,
+  -- 1 when this term is the word's primary surface: its first kanji writing, first kana reading
+  -- (and that reading's romaji), or the first gloss of the first sense. Ranking boosts primary
+  -- terms so a word whose *main* meaning matches outranks one where the match is buried.
+  is_primary INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_search_term       ON search_terms(term);

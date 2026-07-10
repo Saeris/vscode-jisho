@@ -133,7 +133,7 @@ const buildDatabase = async (dict: JMdict): Promise<void> => {
     "INSERT INTO glosses(sense_id, position, lang, text) VALUES (?, ?, ?, ?)"
   );
   const insTerm = await db.prepare(
-    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
 
   const total = dict.words.length;
@@ -211,7 +211,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
       "kanji",
       k.text,
       k.text.toLowerCase(),
-      k.common ? 1 : 0
+      k.common ? 1 : 0,
+      i === 0 ? 1 : 0
     );
   }
   for (let i = 0; i < word.kana.length; i++) {
@@ -229,7 +230,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
       "kana",
       k.text,
       k.text.toLowerCase(),
-      k.common ? 1 : 0
+      k.common ? 1 : 0,
+      i === 0 ? 1 : 0
     );
     // Hepburn romaji of the reading, so learners can search by transliteration ("taberu").
     // Romaji is latin, so it matches via the query layer's case-insensitive `term_lower` path.
@@ -240,7 +242,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
         "romaji",
         romaji,
         romaji.toLowerCase(),
-        k.common ? 1 : 0
+        k.common ? 1 : 0,
+        i === 0 ? 1 : 0
       );
     }
   }
@@ -261,14 +264,33 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
     );
     for (let g = 0; g < sense.gloss.length; g++) {
       const gloss = sense.gloss[g];
+      const isPrimary = i === 0 && g === 0 ? 1 : 0;
       await s.insGloss.run(senseId, g, gloss.lang, gloss.text);
       await s.insTerm.run(
         word.id,
         "gloss",
         gloss.text,
         gloss.text.toLowerCase(),
-        wordCommon
+        wordCommon,
+        isPrimary
       );
+      // Many JMdict glosses carry parenthetical clarifications — "water (esp. cool or cold)" —
+      // which block exact/whole-word matching on the bare word. Index a stripped variant too so
+      // "water" matches 水 exactly.
+      const stripped = gloss.text
+        .replace(/\s*\([^)]*\)/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (stripped !== "" && stripped !== gloss.text) {
+        await s.insTerm.run(
+          word.id,
+          "gloss",
+          stripped,
+          stripped.toLowerCase(),
+          wordCommon,
+          isPrimary
+        );
+      }
     }
   }
 };

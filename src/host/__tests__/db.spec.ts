@@ -50,6 +50,42 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await expect(dict.search("   ")).resolves.toEqual([]);
   });
 
+  // ── Relevance ranking (M2 #1) ─────────────────────────────────────────────
+  // These guard the composite score: whole-word gloss tiers, primary-surface bonus, kind bonus,
+  // and length penalty. Assertions use real entries; if a dictionary refresh shifts an exact
+  // position, the intent is "the obvious answer is near the top", so top-N checks are used.
+
+  test("ranks the plain word for an English gloss near the top", async () => {
+    // WHY: "study" must surface 勉強 (whose first gloss IS "study"), not bury it under words
+    // where "study" is a later or partial gloss. This was the headline M2 ranking bug.
+    const results = await dict.search("study");
+    const index = results.findIndex((r) => r.headword === "勉強");
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThan(3);
+  });
+
+  test("ranks eat-verbs above compounds that merely mention eating", async () => {
+    // WHY: whole-word gloss matching ("to eat" ends with the word "eat") must beat substring
+    // noise like 飲食 ("food and drink" / "eating and drinking").
+    const results = await dict.search("eat");
+    const taberu = results.findIndex((r) => r.headword === "食べる");
+    const inshoku = results.findIndex((r) => r.headword === "飲食");
+    expect(taberu).toBeGreaterThanOrEqual(0);
+    expect(taberu).toBeLessThan(5);
+    if (inshoku !== -1) expect(taberu).toBeLessThan(inshoku);
+  });
+
+  test("parenthetical gloss clarifications don't block exact matching", async () => {
+    // WHY: 水's first gloss is "water (esp. cool or cold)" and 猫's is "cat (esp. the domestic
+    // cat...)"; the build indexes a stripped variant so the bare word still matches exactly.
+    const water = await dict.search("water");
+    const mizu = water.findIndex((r) => r.headword === "水");
+    expect(mizu).toBeGreaterThanOrEqual(0);
+    expect(mizu).toBeLessThan(3);
+    const cat = await dict.search("cat");
+    expect(cat.findIndex((r) => r.headword === "猫")).toBe(0);
+  });
+
   test("hydrates full detail with resolved POS tag descriptions", async () => {
     // WHY: the detail view groups senses by part-of-speech and shows human-readable tags; a broken
     // tag join would render cryptic codes ("v1") instead of "Ichidan verb".

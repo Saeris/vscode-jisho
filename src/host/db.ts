@@ -65,41 +65,61 @@ export class Dictionary {
   }
 
   /**
-   * Search by Japanese (kanji/kana) or English (gloss) input. Ranking, best first:
-   *   1. exact match   2. prefix match   3. substring match
-   * with common entries preferred within each tier. Latin queries are lowercased and matched
-   * against `term_lower`; Japanese queries match `term` directly.
+   * Search by Japanese (kanji/kana), Hepburn romaji, or English (gloss) input. Results are ordered
+   * by a composite relevance score (best-scoring term per word) so obvious answers surface first —
+   * see the CASE tiers in the SQL. Latin queries are lowercased and matched against `term_lower`;
+   * Japanese queries match `term` directly.
    */
   async search(rawQuery: string, limit = 50): Promise<SearchResultDto[]> {
     const query = rawQuery.trim();
     if (query === "") return [];
 
-    // Latin (English) queries match case-insensitively against `term_lower`; any query containing
-    // non-ASCII (kana/kanji) matches `term` directly. Testing for a non-ASCII char avoids a
-    // control-character regex range.
+    // Latin (English/romaji) queries match case-insensitively against `term_lower`; any query
+    // containing non-ASCII (kana/kanji) matches `term` directly. Testing for a non-ASCII char
+    // avoids a control-character regex range.
     const isLatin = !/[^ -~]/.test(query);
     const column = isLatin ? "term_lower" : "term";
     const needle = isLatin ? query.toLowerCase() : query;
 
-    // Rank in SQL: 0 exact, 1 prefix, 2 substring. Distinct word_ids, best rank per word.
+    // Composite relevance score, best-scoring term per word. Signals, strongest first:
+    //   - match tier: exact > whole-word gloss match (word-boundary LIKEs; only ever fire on
+    //     spaced latin glosses) > plain prefix > bare substring. This is what lifts 食べる
+    //     ("to eat" ends with the word "eat") above compounds whose glosses merely contain "eat".
+    //   - kind: a headword match (kanji/kana/romaji) outranks a gloss match at the same tier.
+    //   - primary: the word's main surface (first writing/reading, or first gloss of the first
+    //     sense) outranks the same match buried in a later gloss — this puts 水 first for "water".
+    //   - common: a mild bonus, not the primary key.
+    //   - length penalty (capped): shorter matched terms are closer matches, so 勉強 beats 勉強家.
     const rows = await this.#all<{
       word_id: string;
-      rank: number;
+      score: number;
       common: number;
     }>(
       `SELECT word_id,
-              MIN(CASE
-                    WHEN ${column} = ?1 THEN 0
-                    WHEN ${column} LIKE ?2 THEN 1
-                    ELSE 2
-                  END) AS rank,
+              MAX(
+                CASE
+                  WHEN ${column} = ?1 THEN 100
+                  WHEN ${column} LIKE ?2 THEN 75
+                  WHEN ${column} LIKE ?3 THEN 65
+                  WHEN ${column} LIKE ?4 THEN 60
+                  WHEN ${column} LIKE ?5 THEN 45
+                  ELSE 10
+                END
+                + CASE WHEN kind = 'gloss' THEN 0 ELSE 15 END
+                + CASE WHEN is_primary = 1 THEN 10 ELSE 0 END
+                + CASE WHEN is_common = 1 THEN 5 ELSE 0 END
+                - MIN(LENGTH(${column}) - LENGTH(?1), 15)
+              ) AS score,
               MAX(is_common) AS common
          FROM search_terms
-        WHERE ${column} LIKE ?3
+        WHERE ${column} LIKE ?6
         GROUP BY word_id
-        ORDER BY rank ASC, common DESC
-        LIMIT ?4`,
+        ORDER BY score DESC, common DESC
+        LIMIT ?7`,
       needle,
+      `${needle} %`,
+      `% ${needle}`,
+      `% ${needle} %`,
       `${needle}%`,
       `%${needle}%`,
       limit
