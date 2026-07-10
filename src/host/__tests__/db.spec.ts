@@ -75,6 +75,32 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     if (inshoku !== -1) expect(taberu).toBeLessThan(inshoku);
   });
 
+  // ── Deinflection (M2 #3) ──────────────────────────────────────────────────
+
+  test("finds dictionary forms from conjugated input", async () => {
+    // WHY: learners constantly search inflected forms; JMdict only stores dictionary forms, so
+    // the deinflection pass must bridge them (はなします → 話す).
+    const polite = await dict.search("はなします");
+    expect(polite.some((r) => r.headword === "話す")).toBe(true);
+    const past = await dict.search("食べた");
+    expect(past.some((r) => r.headword === "食べる")).toBe(true);
+    const adjective = await dict.search("たかくない");
+    expect(adjective.some((r) => r.headword === "高い")).toBe(true);
+  });
+
+  test("deinflects romaji input via kana transliteration", async () => {
+    // WHY: "hanashimasu" should behave like はなします — romaji users conjugate too.
+    const results = await dict.search("hanashimasu");
+    expect(results.some((r) => r.headword === "話す")).toBe(true);
+  });
+
+  test("deinflection never displaces an exact match", async () => {
+    // WHY: a literal exact match of the typed text must always beat generated candidates —
+    // 食べる typed exactly stays first even though rules produce candidates from it.
+    const results = await dict.search("食べる");
+    expect(results[0]?.headword).toBe("食べる");
+  });
+
   test("parenthetical gloss clarifications don't block exact matching", async () => {
     // WHY: 水's first gloss is "water (esp. cool or cold)" and 猫's is "cat (esp. the domestic
     // cat...)"; the build indexes a stripped variant so the bare word still matches exactly.

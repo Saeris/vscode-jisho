@@ -4,6 +4,8 @@
  * SQL — it goes through the message protocol, which calls these.
  */
 import { connect } from "@tursodatabase/database";
+import { isKana, toKana } from "wanakana";
+import { deinflect } from "./deinflect";
 import type {
   KanaDto,
   KanjiDto,
@@ -125,9 +127,55 @@ export class Dictionary {
       limit
     );
 
-    const results: SearchResultDto[] = [];
+    // Deinflection pass: expand a conjugated query (はなします) into candidate dictionary forms
+    // (はなす) and merge their *exact headword* matches. Romaji input is transliterated to kana
+    // first ("hanashimasu" → はなします) — only when the transliteration is fully kana, so
+    // English queries ("study") are never mangled. Candidates score below a literal exact match
+    // (130) but above prefix/substring noise, so typing a real word exactly still wins.
+    const candidates = new Set<string>();
+    if (isLatin) {
+      const kana: string = toKana(needle);
+      if (isKana(kana)) {
+        candidates.add(kana);
+        for (const form of deinflect(kana)) candidates.add(form);
+      }
+    } else {
+      for (const form of deinflect(needle)) candidates.add(form);
+    }
+    candidates.delete(needle);
+
+    const merged = new Map<string, { score: number; common: number }>();
     for (const row of rows) {
-      const preview = await this.#searchResult(row.word_id, row.common === 1);
+      merged.set(row.word_id, { score: row.score, common: row.common });
+    }
+    if (candidates.size > 0) {
+      const list = [...candidates];
+      const deinflected = await this.#all<{ word_id: string; common: number }>(
+        `SELECT word_id, MAX(is_common) AS common
+           FROM search_terms
+          WHERE kind IN ('kanji', 'kana')
+            AND term IN (${list.map(() => "?").join(", ")})
+          GROUP BY word_id
+          LIMIT ?`,
+        ...list,
+        limit
+      );
+      for (const row of deinflected) {
+        const score = 90 + (row.common === 1 ? 5 : 0);
+        const existing = merged.get(row.word_id);
+        if (!existing || existing.score < score) {
+          merged.set(row.word_id, { score, common: row.common });
+        }
+      }
+    }
+
+    const ranked = [...merged.entries()]
+      .sort((a, b) => b[1].score - a[1].score || b[1].common - a[1].common)
+      .slice(0, limit);
+
+    const results: SearchResultDto[] = [];
+    for (const [wordId, { common }] of ranked) {
+      const preview = await this.#searchResult(wordId, common === 1);
       if (preview) results.push(preview);
     }
     return results;
