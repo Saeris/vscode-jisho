@@ -1,6 +1,11 @@
 import { createActor } from "xstate";
 import { describe, expect, it } from "vitest";
-import { activeView, canGoBack, navigationMachine } from "../navigation";
+import {
+  activeView,
+  canGoBack,
+  canGoHome,
+  navigationMachine
+} from "../navigation";
 
 describe("navigationMachine", () => {
   it("starts on the search view with no back available", () => {
@@ -52,6 +57,19 @@ describe("navigationMachine", () => {
       name: "wordDetail",
       id: "w1"
     });
+  });
+
+  it("offers home only when drilled more than one level deep, and collapses the stack", () => {
+    // WHY: Home is the escape hatch from deep link-driven drilling — at depth 2 it's redundant
+    // with Back (canGoHome false), but deeper it must jump straight to search in one step.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "w1" });
+    expect(canGoHome(actor.getSnapshot().context)).toBe(false); // one level = Back suffices
+    actor.send({ type: "openKanji", literal: "食" });
+    expect(canGoHome(actor.getSnapshot().context)).toBe(true);
+    actor.send({ type: "home" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
+    expect(canGoBack(actor.getSnapshot().context)).toBe(false);
   });
 
   it("opening the radical picker pushes a radicals view", () => {

@@ -3,11 +3,14 @@ import { Button } from "react-aria-components";
 import type { KanaDto, SenseDto, WordDetailDto } from "../../shared/messages";
 import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { DetailHeader } from "../components/DetailHeader";
+import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
 
 interface WordDetailProps {
   id: string;
   onBack: () => void;
+  onHome?: () => void;
   /** Tap-through: search for a referenced term (cross-references are surface strings, not ids). */
   onSearchTerm: (term: string) => void;
   /** Tap a kanji character in the headword to open its detail. */
@@ -17,6 +20,7 @@ interface WordDetailProps {
 export const WordDetail = ({
   id,
   onBack,
+  onHome,
   onSearchTerm,
   onOpenKanji
 }: WordDetailProps): React.ReactElement => {
@@ -24,15 +28,7 @@ export const WordDetail = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <Button
-          className={styles.back}
-          onPress={onBack}
-          aria-label="Back to results"
-        >
-          ← Back
-        </Button>
-      </div>
+      <DetailHeader onBack={onBack} onHome={onHome} />
       <div className={styles.body}>
         {isPending ? (
           <p>Loading…</p>
@@ -74,6 +70,10 @@ const WordBody = ({
         <span className={styles.headword} lang="ja">
           <Headword text={headword} onOpenKanji={onOpenKanji} />
         </span>
+        <PlayButton
+          text={primaryReading || headword}
+          label={`Play pronunciation of ${headword}`}
+        />
         {word.common ? <Badge kind="common">common</Badge> : null}
         {altKanji.length > 0 ? (
           <span className={styles.headwordAlt} lang="ja">

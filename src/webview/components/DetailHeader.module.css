@@ -1,0 +1,25 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.button {
+  background: transparent;
+  color: var(--jisho-link);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.button:hover {
+  text-decoration: underline;
+}
+
+/* Pushes any trailing children (e.g. Clear) to the right edge. */
+.spacer {
+  flex: 1;
+}

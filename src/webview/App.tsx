@@ -1,6 +1,10 @@
 import { Activity } from "react";
 import { useMachine } from "@xstate/react";
-import { activeView, navigationMachine } from "./machines/navigation";
+import {
+  activeView,
+  canGoHome,
+  navigationMachine
+} from "./machines/navigation";
 import { About } from "./views/About";
 import { KanjiDetail } from "./views/KanjiDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
@@ -10,6 +14,10 @@ import { WordDetail } from "./views/WordDetail";
 export const App = (): React.ReactElement => {
   const [state, send] = useMachine(navigationMachine);
   const view = activeView(state.context);
+  // The Home escape hatch is only offered when it differs from Back (drilled >1 level deep).
+  const onHome: (() => void) | undefined = canGoHome(state.context)
+    ? (): void => send({ type: "home" })
+    : undefined;
 
   return (
     <>
@@ -32,6 +40,7 @@ export const App = (): React.ReactElement => {
         <WordDetail
           id={view.id}
           onBack={() => send({ type: "back" })}
+          onHome={onHome}
           onSearchTerm={(term) => send({ type: "searchFor", term })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
@@ -40,6 +49,7 @@ export const App = (): React.ReactElement => {
         <KanjiDetail
           literal={view.literal}
           onBack={() => send({ type: "back" })}
+          onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenWord={(id) => send({ type: "openWord", id })}
         />

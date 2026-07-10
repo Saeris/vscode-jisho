@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import type { RadicalDto } from "../../shared/messages";
 import { radicalQuery } from "../queries";
+import { DetailHeader } from "../components/DetailHeader";
 import styles from "./RadicalPicker.module.css";
 
 interface RadicalPickerProps {
@@ -46,20 +47,13 @@ export const RadicalPicker = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <Button
-          className={styles.back}
-          onPress={onBack}
-          aria-label="Back to results"
-        >
-          ← Back
-        </Button>
+      <DetailHeader onBack={onBack}>
         {hasSelection ? (
           <Button className={styles.clear} onPress={() => setSelected([])}>
             Clear
           </Button>
         ) : null}
-      </div>
+      </DetailHeader>
 
       <div className={styles.picker} lang="ja">
         {groups.map(([strokeCount, radicals]) => (

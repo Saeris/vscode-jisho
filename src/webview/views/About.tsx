@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "react-aria-components";
 import { aboutQuery } from "../queries";
+import { DetailHeader } from "../components/DetailHeader";
 import styles from "./About.module.css";
 
 interface AboutProps {
@@ -17,11 +17,7 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <Button className={styles.back} onPress={onBack} aria-label="Back">
-          ← Back
-        </Button>
-      </div>
+      <DetailHeader onBack={onBack} />
       <div className={styles.body}>
         <div className={styles.section}>
           <h2>Jisho — Japanese Dictionary</h2>

@@ -59,6 +59,40 @@ The shipped `src/host/deinflect.ts` is a hand-maintained suffix-rewrite array �
 
 Caveat: typed-japanese self-reports LLM-generated rules with possible inaccuracies — use it as a structural model; Yomitan's tables stay the correctness reference. Superseded eventually by M5's tokenizer, so weigh effort accordingly.
 
+## Post-M4 UX feedback (from testing the kanji features)
+
+### 9. Escape hatch back to search root (fix — small)
+
+Link-driven navigation (word → kanji → component kanji → word → …) builds a deep stack that's tedious to Back out of. The navigation machine already has a `home`/`reset` action (collapses the stack to `search`) — it just needs a UI affordance. Add a persistent "home"/breadcrumb control in detail-view headers (a 🏠 or the app title as a button) dispatching `home`. Consider showing it only when `canGoBack` and stack depth > 1. Trivial; independent.
+
+### 10. Jargon tooltips (feature — small)
+
+Dictionary terminology is opaque to newcomers (the user hadn't seen "nanori"). Add hover tooltips to non-obvious labels — start with **on / kun / nanori** in `KanjiDetail`, apply sparingly elsewhere as more are found. Implementation: a small `<Term>` component (React Aria `Tooltip` + `TooltipTrigger`, which we already have via react-aria-components) wrapping the label with a definition string; theme-aware. A tiny glossary map keeps definitions in one place.
+
+### 11. Duolingo-style autocomplete suggestions (feature — large, design-heavy)
+
+A horizontal suggestion strip above/below the search field showing kana/romaji candidates with romaji ruby text, matching the Duolingo IME UX (see the reference screenshot in the conversation). Substantial interaction design:
+
+- **When it appears:** detect romaji vs kana vs English input; show suggestions only for romaji/kana, suppressing once the input reads as English (apparent by ~3rd–4th char). Underline the current "word" being suggested on (break on word boundaries); the suggestion replaces just that segment.
+- **Keyboard model:** ↑ from the search box moves focus into the strip; the user's exact input is item 1, suggestions follow. Entering the strip focuses **item 2** (best match), so ← goes to the exact input and → advances through suggestions. ↓ returns focus to the input unchanged. Esc returns to the input.
+- **Risks/unknowns:** interaction with the **host OS IME** (the on-screen candidate bar in the screenshot is the OS IME, not the app — in a desktop VSCode webview we're typing into a text field the OS IME already augments; clarify what value we add over it, and whether we suppress/coexist). Reserve vertical space to avoid layout shift. This likely wants its own mini plan doc before building. Note: overlaps conceptually with M5's tokenizer (word-boundary detection) — sequence after or alongside M5.
+
+### 12. Arrow-key navigation between search box and results (fix — medium)
+
+Complement #11's ↑-into-suggestions with **↓ from the search box moving focus into the results list** (today reaching results needs several Tabs past the 部/ⓘ buttons). In the results list, ↑/↓ move through items; ↑ at the top (or Esc) returns focus to the input. Pairs naturally with #11 as one keyboard-navigation model. React Aria's ListBox already handles intra-list arrows; the piece to add is the input↔list focus hand-off.
+
+### 13. Pronunciation text-to-speech (feature — medium) — scheduled for the M4.5 quick-wins pass
+
+A play button on word and kanji detail pages that speaks the reading aloud, like Shirabe, via the webview's **Web Speech API** (`speechSynthesis`). Requirements:
+
+- **Explicit Japanese voice.** Must select a `ja-JP` voice — a naive `speak()` can default to a Chinese reading for kanji. Set `utterance.lang = "ja-JP"` and pick a matching voice from `getVoices()`.
+- **Prefer natural voices.** Where the OS offers higher-quality/"natural"/"neural" voices, prefer them over the robotic default (heuristic match on voice name; `localService === false` often signals the better cloud/neural voices).
+- **Graceful degradation.** If no `ja-JP` voice exists in the webview, hide the button (feature-detect; `getVoices()` may populate async via `voiceschanged`).
+- **Word page:** one play button per reading.
+- **Kanji page:** a play button _per reading category_ (on / kun / nanori) that reads through that list with pauses between entries, and is **cancellable** (`speechSynthesis.cancel()`), with visible playing/stop state.
+
+No host/data changes; pure webview. Fallback to bundled/downloaded audio only if synthesis quality/availability disappoints (larger data effort — deferred).
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

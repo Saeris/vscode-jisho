@@ -3,11 +3,15 @@ import { Button } from "react-aria-components";
 import type { KanjiDetailDto } from "../../shared/messages";
 import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { DetailHeader } from "../components/DetailHeader";
+import { SequencePlayButton } from "../components/PlayButton";
+import { Term } from "../components/Term";
 import styles from "./KanjiDetail.module.css";
 
 interface KanjiDetailProps {
   literal: string;
   onBack: () => void;
+  onHome?: () => void;
   /** Tap a component to open that character's detail. */
   onOpenKanji: (literal: string) => void;
   /** Tap a containing word to open its detail. */
@@ -17,6 +21,7 @@ interface KanjiDetailProps {
 export const KanjiDetail = ({
   literal,
   onBack,
+  onHome,
   onOpenKanji,
   onOpenWord
 }: KanjiDetailProps): React.ReactElement => {
@@ -24,15 +29,7 @@ export const KanjiDetail = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <Button
-          className={styles.back}
-          onPress={onBack}
-          aria-label="Back to results"
-        >
-          ← Back
-        </Button>
-      </div>
+      <DetailHeader onBack={onBack} onHome={onHome} />
       <div className={styles.body}>
         {isPending ? (
           <p>Loading…</p>
@@ -151,8 +148,11 @@ const ReadingRow = ({
   if (readings.length === 0) return null;
   return (
     <p className={styles.readingRow}>
-      <span className={styles.readingLabel}>{label}</span>
+      <span className={styles.readingLabel}>
+        <Term>{label}</Term>
+      </span>
       <span lang="ja">{readings.join("、")}</span>
+      <SequencePlayButton readings={readings} label={`${label} readings`} />
     </p>
   );
 };

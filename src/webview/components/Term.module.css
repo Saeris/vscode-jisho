@@ -1,0 +1,22 @@
+/* The wrapped label looks like text but carries a dotted underline to hint the tooltip. */
+.term {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.tooltip {
+  max-width: 220px;
+  padding: 6px 8px;
+  font-size: 0.85em;
+  line-height: 1.4;
+  color: var(--vscode-editorHoverWidget-foreground, var(--jisho-fg));
+  background: var(--vscode-editorHoverWidget-background, var(--jisho-input-bg));
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--jisho-border));
+  border-radius: var(--jisho-radius);
+}

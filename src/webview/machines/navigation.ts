@@ -113,3 +113,10 @@ export const activeView = (context: NavContext): View =>
 /** Whether a back action is possible (there is something above the base view). */
 export const canGoBack = (context: NavContext): boolean =>
   context.stack.length > 1;
+
+/**
+ * Whether "home" is meaningfully distinct from "back" — i.e. more than one view sits above search,
+ * so link-driven drill-down can be escaped in one step. (At depth 2, Back already returns home.)
+ */
+export const canGoHome = (context: NavContext): boolean =>
+  context.stack.length > 2;

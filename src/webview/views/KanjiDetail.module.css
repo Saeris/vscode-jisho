@@ -4,27 +4,6 @@
   height: 100%;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: var(--jisho-gap);
-  border-bottom: 1px solid var(--jisho-border);
-}
-
-.back {
-  background: transparent;
-  color: var(--jisho-link);
-  border: none;
-  cursor: pointer;
-  font: inherit;
-  padding: 2px 4px;
-}
-
-.back:hover {
-  text-decoration: underline;
-}
-
 .body {
   flex: 1;
   overflow-y: auto;
