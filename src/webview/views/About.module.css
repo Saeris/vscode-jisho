@@ -1,0 +1,66 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.back {
+  background: transparent;
+  color: var(--jisho-link);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.section h2 {
+  font-size: 1em;
+  margin: 0 0 6px;
+}
+
+.section p {
+  margin: 4px 0;
+  color: var(--jisho-muted);
+}
+
+.section a {
+  color: var(--jisho-link);
+}
+
+.metaTable {
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.metaTable td {
+  padding: 2px 12px 2px 0;
+  color: var(--jisho-muted);
+  vertical-align: top;
+}
+
+.metaTable td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+}

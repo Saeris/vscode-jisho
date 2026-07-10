@@ -1,5 +1,6 @@
 import { useMachine } from "@xstate/react";
 import { activeView, navigationMachine } from "./machines/navigation";
+import { About } from "./views/About";
 import { SearchResults } from "./views/SearchResults";
 import { WordDetail } from "./views/WordDetail";
 
@@ -16,6 +17,7 @@ export const App = (): React.ReactElement => {
           query={state.context.searchQuery}
           onQueryChange={(query) => send({ type: "setSearchQuery", query })}
           onOpenWord={(id) => send({ type: "openWord", id })}
+          onOpenAbout={() => send({ type: "openAbout" })}
         />
       );
     case "wordDetail":
@@ -26,5 +28,7 @@ export const App = (): React.ReactElement => {
           onSearchTerm={(term) => send({ type: "searchFor", term })}
         />
       );
+    case "about":
+      return <About onBack={() => send({ type: "back" })} />;
   }
 };

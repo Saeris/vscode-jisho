@@ -4,7 +4,7 @@
  */
 import { queryOptions } from "@tanstack/react-query";
 import type { SearchResultDto, WordDetailDto } from "../shared/messages";
-import { getWord, searchWords } from "./bridge";
+import { getAbout, getWord, searchWords } from "./bridge";
 
 export const searchQuery = (
   query: string
@@ -31,4 +31,17 @@ export const wordQuery = (
   queryOptions({
     queryKey: ["word", id],
     queryFn: async () => (await getWord(id)).word
+  });
+
+export const aboutQuery = (): ReturnType<
+  typeof queryOptions<
+    Record<string, string>,
+    Error,
+    Record<string, string>,
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["about"],
+    queryFn: async () => (await getAbout()).meta
   });

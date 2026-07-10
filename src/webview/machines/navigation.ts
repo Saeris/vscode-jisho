@@ -6,7 +6,10 @@
  */
 import { assign, setup } from "xstate";
 
-export type View = { name: "search" } | { name: "wordDetail"; id: string };
+export type View =
+  | { name: "search" }
+  | { name: "wordDetail"; id: string }
+  | { name: "about" };
 
 export interface NavContext {
   /** The view stack; the last element is the active view. Never empty (search is the floor). */
@@ -21,6 +24,7 @@ export interface NavContext {
 
 export type NavEvent =
   | { type: "openWord"; id: string }
+  | { type: "openAbout" }
   | { type: "back" }
   | { type: "home" }
   | { type: "setSearchQuery"; query: string }
@@ -46,6 +50,12 @@ export const navigationMachine = setup({
             ]
           : context.stack
     }),
+    pushAbout: assign({
+      stack: ({ context }) => [
+        ...context.stack,
+        { name: "about" } satisfies View
+      ]
+    }),
     pop: assign({
       // Never pop past the base search view.
       stack: ({ context }) =>
@@ -67,6 +77,7 @@ export const navigationMachine = setup({
   context: { stack: [{ name: "search" }], searchQuery: "" },
   on: {
     openWord: { actions: "pushWord" },
+    openAbout: { actions: "pushAbout" },
     back: { actions: "pop" },
     home: { actions: "reset" },
     setSearchQuery: { actions: "setQuery" },

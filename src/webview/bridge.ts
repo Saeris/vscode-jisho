@@ -4,6 +4,7 @@
  * `queryFn`. This is the *only* place `postMessage`/`onmessage` is touched.
  */
 import type {
+  GetAboutResponse,
   GetWordResponse,
   Request,
   Response,
@@ -73,5 +74,12 @@ export const getWord = async (id: string): Promise<GetWordResponse> => {
   });
   if (response.type !== "getWord")
     throw new Error("Unexpected response for getWord");
+  return response;
+};
+
+export const getAbout = async (): Promise<GetAboutResponse> => {
+  const response = await send({ type: "getAbout", requestId: nextRequestId() });
+  if (response.type !== "getAbout")
+    throw new Error("Unexpected response for getAbout");
   return response;
 };

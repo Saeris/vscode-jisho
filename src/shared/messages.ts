@@ -85,7 +85,13 @@ export interface GetWordRequest {
   id: string;
 }
 
-export type Request = SearchRequest | GetWordRequest;
+/** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
+export interface GetAboutRequest {
+  type: "getAbout";
+  requestId: string;
+}
+
+export type Request = SearchRequest | GetWordRequest | GetAboutRequest;
 
 export interface SearchResponse {
   type: "search";
@@ -100,10 +106,21 @@ export interface GetWordResponse {
   word: WordDetailDto | null;
 }
 
+export interface GetAboutResponse {
+  type: "getAbout";
+  requestId: string;
+  /** Key/value provenance from the DB `meta` table (source, dictDate, license, wordCount, …). */
+  meta: Record<string, string>;
+}
+
 export interface ErrorResponse {
   type: "error";
   requestId: string;
   message: string;
 }
 
-export type Response = SearchResponse | GetWordResponse | ErrorResponse;
+export type Response =
+  | SearchResponse
+  | GetWordResponse
+  | GetAboutResponse
+  | ErrorResponse;

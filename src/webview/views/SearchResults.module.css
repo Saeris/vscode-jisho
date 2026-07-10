@@ -5,8 +5,28 @@
 }
 
 .searchBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: var(--jisho-gap);
   border-bottom: 1px solid var(--jisho-border);
+}
+
+.searchBar > :first-child {
+  flex: 1;
+}
+
+.aboutButton {
+  background: transparent;
+  border: none;
+  color: var(--jisho-muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.aboutButton:hover {
+  color: var(--jisho-link);
 }
 
 .input {

@@ -1,6 +1,7 @@
 import { useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Button,
   Input,
   ListBox,
   ListBoxItem,
@@ -16,12 +17,14 @@ interface SearchResultsProps {
   query: string;
   onQueryChange: (query: string) => void;
   onOpenWord: (id: string) => void;
+  onOpenAbout: () => void;
 }
 
 export const SearchResults = ({
   query,
   onQueryChange,
-  onOpenWord
+  onOpenWord,
+  onOpenAbout
 }: SearchResultsProps): React.ReactElement => {
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
@@ -50,6 +53,13 @@ export const SearchResults = ({
             placeholder="Search 日本語 or English…"
           />
         </SearchField>
+        <Button
+          className={styles.aboutButton}
+          onPress={onOpenAbout}
+          aria-label="About this extension and its dictionary data"
+        >
+          ⓘ
+        </Button>
       </div>
 
       {renderStatus({

@@ -139,6 +139,12 @@ const respond = async (
         requestId: request.requestId,
         word: await dict.getWord(request.id)
       };
+    case "getAbout":
+      return {
+        type: "getAbout",
+        requestId: request.requestId,
+        meta: await dict.getMeta()
+      };
   }
 };
 
