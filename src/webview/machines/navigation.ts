@@ -23,7 +23,9 @@ export type NavEvent =
   | { type: "openWord"; id: string }
   | { type: "back" }
   | { type: "home" }
-  | { type: "setSearchQuery"; query: string };
+  | { type: "setSearchQuery"; query: string }
+  /** Jump to the search view with a new query — the tap-through action for cross-references. */
+  | { type: "searchFor"; term: string };
 
 export const navigationMachine = setup({
   // `{} as T` is XState v5's documented idiom for declaring machine types — there is no
@@ -53,6 +55,11 @@ export const navigationMachine = setup({
     setQuery: assign({
       searchQuery: ({ context, event }) =>
         event.type === "setSearchQuery" ? event.query : context.searchQuery
+    }),
+    searchFor: assign({
+      stack: () => [{ name: "search" } satisfies View],
+      searchQuery: ({ context, event }) =>
+        event.type === "searchFor" ? event.term : context.searchQuery
     })
   }
 }).createMachine({
@@ -62,7 +69,8 @@ export const navigationMachine = setup({
     openWord: { actions: "pushWord" },
     back: { actions: "pop" },
     home: { actions: "reset" },
-    setSearchQuery: { actions: "setQuery" }
+    setSearchQuery: { actions: "setQuery" },
+    searchFor: { actions: "searchFor" }
   }
 });
 

@@ -19,6 +19,12 @@ export const App = (): React.ReactElement => {
         />
       );
     case "wordDetail":
-      return <WordDetail id={view.id} onBack={() => send({ type: "back" })} />;
+      return (
+        <WordDetail
+          id={view.id}
+          onBack={() => send({ type: "back" })}
+          onSearchTerm={(term) => send({ type: "searchFor", term })}
+        />
+      );
   }
 };

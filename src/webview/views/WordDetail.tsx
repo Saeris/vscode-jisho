@@ -8,11 +8,14 @@ import styles from "./WordDetail.module.css";
 interface WordDetailProps {
   id: string;
   onBack: () => void;
+  /** Tap-through: search for a referenced term (cross-references are surface strings, not ids). */
+  onSearchTerm: (term: string) => void;
 }
 
 export const WordDetail = ({
   id,
-  onBack
+  onBack,
+  onSearchTerm
 }: WordDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(wordQuery(id));
 
@@ -35,14 +38,20 @@ export const WordDetail = ({
         ) : data === null ? (
           <p>Word not found.</p>
         ) : (
-          <WordBody word={data} />
+          <WordBody word={data} onSearchTerm={onSearchTerm} />
         )}
       </div>
     </div>
   );
 };
 
-const WordBody = ({ word }: { word: WordDetailDto }): React.ReactElement => {
+const WordBody = ({
+  word,
+  onSearchTerm
+}: {
+  word: WordDetailDto;
+  onSearchTerm: (term: string) => void;
+}): React.ReactElement => {
   // `word.kanji`/`word.kana` may be empty (kana-only words have no kanji); guard on length
   // rather than optional-chaining, which the array element type reports as always-present.
   const primaryKanji = word.kanji.length > 0 ? word.kanji[0].text : undefined;
@@ -71,14 +80,20 @@ const WordBody = ({ word }: { word: WordDetailDto }): React.ReactElement => {
 
       <ol className={styles.senses}>
         {word.senses.map((sense, i) => (
-          <Sense key={i} sense={sense} />
+          <Sense key={i} sense={sense} onSearchTerm={onSearchTerm} />
         ))}
       </ol>
     </>
   );
 };
 
-const Sense = ({ sense }: { sense: SenseDto }): React.ReactElement => (
+const Sense = ({
+  sense,
+  onSearchTerm
+}: {
+  sense: SenseDto;
+  onSearchTerm: (term: string) => void;
+}): React.ReactElement => (
   <li className={styles.sense}>
     <div className={styles.senseHead}>
       {sense.partOfSpeech.map((t) => (
@@ -107,20 +122,48 @@ const Sense = ({ sense }: { sense: SenseDto }): React.ReactElement => (
     {sense.info.length > 0 ? (
       <p className={styles.info}>{sense.info.join("; ")}</p>
     ) : null}
-    {sense.related.length > 0 ? (
-      <p className={styles.xrefs} lang="ja">
-        <span className={styles.xrefLabel}>See also: </span>
-        {sense.related.join("、")}
-      </p>
-    ) : null}
-    {sense.antonym.length > 0 ? (
-      <p className={styles.xrefs} lang="ja">
-        <span className={styles.xrefLabel}>Antonym: </span>
-        {sense.antonym.join("、")}
-      </p>
-    ) : null}
+    <XrefLine
+      label="See also"
+      terms={sense.related}
+      onSearchTerm={onSearchTerm}
+    />
+    <XrefLine
+      label="Antonym"
+      terms={sense.antonym}
+      onSearchTerm={onSearchTerm}
+    />
   </li>
 );
+
+/** Cross-references as tappable links: clicking one searches for that term. */
+const XrefLine = ({
+  label,
+  terms,
+  onSearchTerm
+}: {
+  label: string;
+  terms: string[];
+  onSearchTerm: (term: string) => void;
+}): React.ReactElement | null => {
+  if (terms.length === 0) return null;
+  return (
+    <p className={styles.xrefs} lang="ja">
+      <span className={styles.xrefLabel}>{label}: </span>
+      {terms.map((term, i) => (
+        <span key={term}>
+          {i > 0 ? "、" : null}
+          <Button
+            className={styles.xrefLink}
+            onPress={() => onSearchTerm(term)}
+            aria-label={`Search for ${term}`}
+          >
+            {term}
+          </Button>
+        </span>
+      ))}
+    </p>
+  );
+};
 
 /** A reading, annotated with which kanji it applies to when it isn't universal. */
 const formatReading = (kana: KanaDto): string => {

@@ -102,3 +102,18 @@
 .xrefLabel {
   font-style: italic;
 }
+
+/* Tappable cross-reference: link-colored with hover underline so interactivity is visible —
+   an affordance Shirabe itself lacks. */
+.xrefLink {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--jisho-link);
+  cursor: pointer;
+}
+
+.xrefLink:hover {
+  text-decoration: underline;
+}

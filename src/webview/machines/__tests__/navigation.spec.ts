@@ -66,6 +66,18 @@ describe("navigationMachine", () => {
     expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
   });
 
+  it("searchFor jumps to the search view with the new query", () => {
+    // WHY: tapping a cross-reference in a word detail must land the user on the search view
+    // showing results for that term — this is the tap-through action's whole contract.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "setSearchQuery", query: "eat" });
+    actor.send({ type: "openWord", id: "1358280" });
+    actor.send({ type: "searchFor", term: "食う" });
+    const ctx = actor.getSnapshot().context;
+    expect(activeView(ctx)).toEqual({ name: "search" });
+    expect(ctx.searchQuery).toBe("食う");
+  });
+
   it("home resets the stack to just search", () => {
     // WHY: a "home" affordance must collapse arbitrary depth back to the search floor in one step.
     const actor = createActor(navigationMachine).start();
