@@ -55,6 +55,17 @@ describe("navigationMachine", () => {
     });
   });
 
+  it("preserves the search query across openWord → back", () => {
+    // WHY: returning from a word detail must restore the user's search, not dump them on an
+    // empty view — the query lives in machine context precisely so it survives the view switch.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "setSearchQuery", query: "たべる" });
+    actor.send({ type: "openWord", id: "1358280" });
+    actor.send({ type: "back" });
+    expect(actor.getSnapshot().context.searchQuery).toBe("たべる");
+    expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
+  });
+
   it("home resets the stack to just search", () => {
     // WHY: a "home" affordance must collapse arbitrary depth back to the search floor in one step.
     const actor = createActor(navigationMachine).start();

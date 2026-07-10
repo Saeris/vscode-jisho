@@ -10,7 +10,13 @@ export const App = (): React.ReactElement => {
   switch (view.name) {
     case "search":
       return (
-        <SearchResults onOpenWord={(id) => send({ type: "openWord", id })} />
+        <SearchResults
+          // The query lives in the machine context so it survives the detail view being pushed
+          // on top; Back restores it (and TanStack Query's cache restores the results).
+          query={state.context.searchQuery}
+          onQueryChange={(query) => send({ type: "setSearchQuery", query })}
+          onOpenWord={(id) => send({ type: "openWord", id })}
+        />
       );
     case "wordDetail":
       return <WordDetail id={view.id} onBack={() => send({ type: "back" })} />;

@@ -11,12 +11,19 @@ export type View = { name: "search" } | { name: "wordDetail"; id: string };
 export interface NavContext {
   /** The view stack; the last element is the active view. Never empty (search is the floor). */
   stack: View[];
+  /**
+   * The search view's query text. Held here (not in component state) so it survives the search
+   * view unmounting while a detail view is on top — Back restores the query, and TanStack Query's
+   * cache restores its results.
+   */
+  searchQuery: string;
 }
 
 export type NavEvent =
   | { type: "openWord"; id: string }
   | { type: "back" }
-  | { type: "home" };
+  | { type: "home" }
+  | { type: "setSearchQuery"; query: string };
 
 export const navigationMachine = setup({
   // `{} as T` is XState v5's documented idiom for declaring machine types — there is no
@@ -42,15 +49,20 @@ export const navigationMachine = setup({
       stack: ({ context }) =>
         context.stack.length > 1 ? context.stack.slice(0, -1) : context.stack
     }),
-    reset: assign({ stack: () => [{ name: "search" } satisfies View] })
+    reset: assign({ stack: () => [{ name: "search" } satisfies View] }),
+    setQuery: assign({
+      searchQuery: ({ context, event }) =>
+        event.type === "setSearchQuery" ? event.query : context.searchQuery
+    })
   }
 }).createMachine({
   id: "navigation",
-  context: { stack: [{ name: "search" }] },
+  context: { stack: [{ name: "search" }], searchQuery: "" },
   on: {
     openWord: { actions: "pushWord" },
     back: { actions: "pop" },
-    home: { actions: "reset" }
+    home: { actions: "reset" },
+    setSearchQuery: { actions: "setQuery" }
   }
 });
 

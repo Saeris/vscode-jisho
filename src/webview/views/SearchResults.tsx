@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Input,
@@ -12,13 +12,17 @@ import { Badge } from "../components/Badge";
 import styles from "./SearchResults.module.css";
 
 interface SearchResultsProps {
+  /** Controlled query text — owned by the navigation machine so it survives view changes. */
+  query: string;
+  onQueryChange: (query: string) => void;
   onOpenWord: (id: string) => void;
 }
 
 export const SearchResults = ({
+  query,
+  onQueryChange,
   onOpenWord
 }: SearchResultsProps): React.ReactElement => {
-  const [query, setQuery] = useState("");
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
   const deferredQuery = useDeferredValue(query);
@@ -38,7 +42,7 @@ export const SearchResults = ({
         <SearchField
           aria-label="Search the dictionary"
           value={query}
-          onChange={setQuery}
+          onChange={onQueryChange}
           autoFocus
         >
           <Input
