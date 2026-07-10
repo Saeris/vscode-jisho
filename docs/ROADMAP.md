@@ -1,6 +1,6 @@
 # Roadmap
 
-The single consolidated view of where vscode-jisho is going. Each milestone gets its own detailed plan doc when work starts (M1 and M2 already have them); this file tracks the sequence, scope boundaries, dependencies, and the standing decisions that shape them.
+The single consolidated view of where vscode-jisho is going. Every milestone has its own plan doc (linked below); implementers should read [CONVENTIONS.md](CONVENTIONS.md) first — it captures the workflow rules and engine gotchas learned in M1–M3. This file tracks the sequence, scope boundaries, dependencies, and the standing decisions that shape them.
 
 **Product goal:** an offline Japanese dictionary in the VSCode sidebar, functionally a clone of [Shirabe Jisho](https://ricoapps.com/)'s lookup experience — vocabulary, kanji, radicals, pitch accent, example sentences, JLPT levels, stroke order, and handwriting search. Explicitly **not** in scope, ever: flashcards, notes, cross-device sync.
 
