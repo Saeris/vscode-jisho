@@ -1,0 +1,67 @@
+<svg id="z185668" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z185668d1" d="M215 472C221 491 239 504 297 590C304 600 310 607 318 610C331 614 343 611 349 597C356 578 355 546 349 532C339 511 317 491 280 471C249 454 230 446 222 451C217 453 211 461 215 472Z"/>
+<path id="z185668d2" d="M433 381C433 381 476 453 498 490C502 497 505 502 509 506C521 516 534 516 544 502C550 491 553 473 551 452C547 419 509 390 492 378C464 357 443 344 435 349C424 355 427 371 433 381Z"/>
+<path id="z185668d3" d="M726 422C696 482 675 514 631 577C617 598 636 603 651 591C729 520 786 468 828 441C835 436 841 433 843 428C847 416 832 389 809 369C790 353 772 344 753 344C739 344 734 354 734 374C733 389 733 406 726 422Z"/>
+<defs>
+	<clipPath id="z185668c1"><use href="#z185668d1"/></clipPath>
+	<clipPath id="z185668c2"><use href="#z185668d2"/></clipPath>
+	<clipPath id="z185668c3"><use href="#z185668d3"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z185668c1)" d="M222 455L304 533L336 605"/>
+<path style="--d:2s;" pathLength="3333" clip-path="url(#z185668c2)" d="M436 359L507 437L531 506"/>
+<path style="--d:3s;" pathLength="3333" clip-path="url(#z185668c3)" d="M744 353L789 420L637 590"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="222" cy="455" r="16"/><path style="--d: 1s;" class="g1" d="M307.68,386.456 Q389.68,464.456 393.68,473.456 Q417.68,527.456 421.68,536.456"/><circle style="--d: 2s" class="g2" cx="436" cy="359" r="16"/><path style="--d: 2s;" class="g2" d="M521.68,290.456 Q592.68,368.456 595.68,377.081 Q613.68,428.831 616.68,437.456"/><circle style="--d: 3s" class="g3" cx="744" cy="353" r="16"/><path style="--d: 3s;" class="g3" d="M648,353 Q670.5,392.8607594936709 661,405.503164556962 Q604,481.3575949367089 594.5,494"/></g></svg>

@@ -217,6 +217,12 @@ const respond = async (
         requestId: request.requestId,
         kanji: await dict.getKanji(request.literal)
       };
+    case "getStrokeSvg":
+      return {
+        type: "getStrokeSvg",
+        requestId: request.requestId,
+        svg: await dict.getStrokeSvg(request.literal)
+      };
     case "lookupRadicals":
       return {
         type: "lookupRadicals",

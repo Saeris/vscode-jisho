@@ -5,6 +5,7 @@ import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { DetailHeader } from "../components/DetailHeader";
 import { SequencePlayButton } from "../components/PlayButton";
+import { StrokePlayer } from "../components/StrokePlayer";
 import { Term } from "../components/Term";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import styles from "./KanjiDetail.module.css";
@@ -84,6 +85,8 @@ const KanjiBody = ({
         <WaniKaniLink term={kanji.literal} />
       </div>
     </div>
+
+    <StrokePlayer literal={kanji.literal} />
 
     {kanji.meanings.length > 0 ? (
       <p className={styles.meanings}>{kanji.meanings.join(", ")}</p>

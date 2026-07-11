@@ -1,0 +1,61 @@
+<svg id="z12740" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12740d1" d="M472 833C405 830 333 811 319 745C311 710 313 519 310 383C308 317 303 271 275 235C245 196 312 193 361 222C381 233 394 255 390 276C384 300 379 315 376 357C369 432 368 688 373 720C379 768 429 773 466 776C553 781 644 758 713 737C739 728 788 751 801 765C809 775 809 791 798 798C785 806 747 814 713 820C647 829 545 835 472 833Z"/>
+<defs>
+	<clipPath id="z12740c1"><use href="#z12740d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12740c1)" d="M274 218L322 240L346 285L341 655L359 763L414 797L485 805L801 769"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="274" cy="218" r="16"/><path style="--d: 1s;" class="g1" d="M351.11199999999997,149.45600000000002 Q392.0885161290322,171.45600000000002 402.3326451612903,193.95600000000002 Q412.57677419354843,216.45600000000002 410.4425806451613,401.456 Q408.30838709677414,586.456 415.9914838709677,640.456 Q423.6745806451613,694.456 447.15070967741934,711.456 Q470.6268387096774,728.456 500.93238709677416,732.456 Q531.237935483871,736.456 666.1189677419354,718.456 Q666.1189677419354,718.456 801,700.456"/></g></svg>

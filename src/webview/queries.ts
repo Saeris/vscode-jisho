@@ -17,6 +17,7 @@ import {
   getAbout,
   getKanji,
   getName,
+  getStrokeSvg,
   getWord,
   lookupRadicals,
   searchNames,
@@ -90,6 +91,16 @@ export const kanjiQuery = (
   queryOptions({
     queryKey: ["kanji", literal],
     queryFn: async () => (await getKanji(literal)).kanji
+  });
+
+export const strokeSvgQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<string | null, Error, string | null, string[]>
+> =>
+  queryOptions({
+    queryKey: ["strokeSvg", literal],
+    queryFn: async () => (await getStrokeSvg(literal)).svg
   });
 
 export const wordQuery = (

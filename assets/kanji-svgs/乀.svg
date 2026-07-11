@@ -1,0 +1,61 @@
+<svg id="z20032" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z20032d1" d="M132 273C157 289 177 285 206 276C228 269 254 257 277 258C345 259 356 277 576 630C601 671 657 770 703 780C755 790 782 793 888 791C928 789 930 774 904 759C734 662 707 663 682 630C399 267 360 204 277 204C251 204 190 220 146 223C78 228 99 251 132 273Z"/>
+<defs>
+	<clipPath id="z20032c1"><use href="#z20032d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z20032c1)" d="M105 240L332 245L678 696L737 732L915 774"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="105" cy="240" r="16"/><path style="--d: 1s;" class="g1" d="M182.112,171.45600000000002 Q387.50159999999994,176.45600000000002 544.0319999999999,401.956 Q700.5623999999999,627.456 727.2539999999999,645.456 Q753.9456,663.456 834.4728,684.456 Q834.4728,684.456 915,705.456"/></g></svg>

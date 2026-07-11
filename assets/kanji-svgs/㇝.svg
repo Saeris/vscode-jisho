@@ -1,0 +1,61 @@
+<svg id="z12765" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12765d1" d="M261 231C227 221 210 217 184 200C172 192 164 195 160 204C156 213 160 229 171 250C179 265 193 275 214 279C410 317 497 487 575 619C597 655 621 729 659 743C698 757 766 764 843 757C877 754 880 740 857 726C724 652 676 609 661 592C502 404 449 286 261 231Z"/>
+<defs>
+	<clipPath id="z12765c1"><use href="#z12765d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12765c1)" d="M168 201L195 239L335 291L429 360L675 689L865 742"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="168" cy="201" r="16"/><path style="--d: 1s;" class="g1" d="M253.68,132.45600000000002 Q277.3609756097561,168.52748243992608 338.7560975609756,193.20797042513865 Q400.15121951219515,217.88845841035123 441.37365853658537,250.63756746765253 Q482.59609756097564,283.3866765249538 590.4760975609756,439.53822550831796 Q698.3560975609756,595.6897744916821 781.6780487804879,620.844887245841 Q781.6780487804879,620.844887245841 865,646"/></g></svg>

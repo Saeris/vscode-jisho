@@ -213,6 +213,13 @@ export interface GetKanjiRequest {
   literal: string;
 }
 
+/** Stroke-order animation SVG for a kanji (kanji detail's stroke player). */
+export interface GetStrokeSvgRequest {
+  type: "getStrokeSvg";
+  requestId: string;
+  literal: string;
+}
+
 /** Radical picker: the current selection (empty = show all radicals, no matches). */
 export interface LookupRadicalsRequest {
   type: "lookupRadicals";
@@ -246,6 +253,7 @@ export type Request =
   | SearchRequest
   | GetWordRequest
   | GetKanjiRequest
+  | GetStrokeSvgRequest
   | LookupRadicalsRequest
   | GetAboutRequest
   | SearchNamesRequest
@@ -277,6 +285,13 @@ export interface GetKanjiResponse {
   requestId: string;
   /** `null` when the literal isn't in Kanjidic. */
   kanji: KanjiDetailDto | null;
+}
+
+export interface GetStrokeSvgResponse {
+  type: "getStrokeSvg";
+  requestId: string;
+  /** Raw SVG markup, or `null` when no stroke animation exists for the literal. */
+  svg: string | null;
 }
 
 export interface LookupRadicalsResponse {
@@ -316,6 +331,7 @@ export type Response =
   | SearchResponse
   | GetWordResponse
   | GetKanjiResponse
+  | GetStrokeSvgResponse
   | LookupRadicalsResponse
   | GetAboutResponse
   | SearchNamesResponse

@@ -96,6 +96,7 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
 - **[Example sentences][tatoeba]** — the Tanaka corpus, maintained by the [Tatoeba][tatoeba] project, used under [CC BY 2.0 FR][cc-by-fr] (embedded in JMdict via jmdict-simplified).
 - **[JMnedict][jmnedict]** — the names dictionary (optional download), © [EDRDG][edrdg], used under the [EDRDG License][edrdg-license].
+- **[AnimCJK][animcjk]** — kanji stroke-order animations, © FM&SH; glyph paths adapt the Arphic PL KaitiM fonts and [Makemeahanzi][makemeahanzi], used under the [Arphic Public License][apl] (file-scoped copyleft; the license text ships with the SVG data in `assets/kanji-svgs/`).
 
 Additional sources (AnimCJK stroke data) will be added and credited as their features are implemented.
 
@@ -129,6 +130,9 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [tatoeba]: https://tatoeba.org/
 [cc-by-fr]: https://creativecommons.org/licenses/by/2.0/fr/deed.en
 [jmnedict]: https://www.edrdg.org/enamdict/enamdict_doc.html
+[animcjk]: https://github.com/parsimonhi/animCJK
+[makemeahanzi]: https://github.com/skishore/makemeahanzi
+[apl]: https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/

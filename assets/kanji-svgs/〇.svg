@@ -1,0 +1,61 @@
+<svg id="z12295" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12295d1" d="M645 160C596 142 559 132 512 132C314 131 134 311 132 511C129 720 312 891 512 891C709 892 894 707 891 511C890 418 874 344 798 274C722 205 693 198 770 314C822 393 819 456 819 511C820 699 655 820 512 819C348 819 203 676 204 511C204 342 371 207 512 204C546 203 581 210 616 225C652 241 682 234 695 227C715 217 732 192 719 173C702 150 694 154 686 160C673 170 657 165 645 160Z"/>
+<defs>
+	<clipPath id="z12295c1"><use href="#z12295d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12295c1)" d="M702 160L662 200L551 170L452 174L277 270L179 430L168 533L194 641L283 765L433 845L583 847L721 779L817 665L855 524L834 372L733 234"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="702" cy="160" r="16"/><path style="--d: 1s;" class="g1" d="M787.68,228.54399999999998 Q747.68,268.544 692.18,253.54399999999998 Q636.68,238.54399999999998 587.18,240.54399999999998 Q537.68,242.54399999999998 450.17999999999995,290.544 Q362.68,338.544 313.68,418.544 Q264.68,498.544 259.18,550.044 Q253.68,601.544 266.68,655.544 Q279.68,709.544 324.18,771.544 Q368.68,833.544 443.67999999999995,873.544 Q518.68,913.544 593.68,914.544 Q668.68,915.544 737.68,881.544 Q806.68,847.544 854.68,790.544 Q902.68,733.544 921.68,663.044 Q940.68,592.544 930.18,516.544 Q919.68,440.544 869.18,371.544 Q869.18,371.544 818.68,302.544"/></g></svg>

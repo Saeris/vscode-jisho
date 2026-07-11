@@ -7,6 +7,7 @@ import type {
   GetAboutResponse,
   GetKanjiResponse,
   GetNameResponse,
+  GetStrokeSvgResponse,
   GetWordResponse,
   LookupRadicalsResponse,
   Request,
@@ -89,6 +90,19 @@ export const getKanji = async (literal: string): Promise<GetKanjiResponse> => {
   });
   if (response.type !== "getKanji")
     throw new Error("Unexpected response for getKanji");
+  return response;
+};
+
+export const getStrokeSvg = async (
+  literal: string
+): Promise<GetStrokeSvgResponse> => {
+  const response = await send({
+    type: "getStrokeSvg",
+    requestId: nextRequestId(),
+    literal
+  });
+  if (response.type !== "getStrokeSvg")
+    throw new Error("Unexpected response for getStrokeSvg");
   return response;
 };
 

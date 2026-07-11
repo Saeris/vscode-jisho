@@ -1,0 +1,61 @@
+<svg id="z12762" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12762d1" d="M580 228C588 205 570 187 534 171C509 159 492 153 479 158C466 162 464 172 477 189C490 207 500 228 502 254C503 278 511 323 494 707C491 772 436 742 392 729C348 716 356 728 383 750C426 786 452 806 473 833C489 853 496 869 509 870C518 870 533 859 544 835C557 803 562 756 560 707C554 587 551 577 554 430C555 339 558 284 580 228Z"/>
+<defs>
+	<clipPath id="z12762c1"><use href="#z12762d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12762c1)" d="M475 169L540 225L525 740L494 817L370 728"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="475" cy="169" r="16"/><path style="--d: 1s;" class="g1" d="M379,169 Q411.5,216.7037037037037 407.75,436.05555555555554 Q404,655.4074074074074 396.25,688.2037037037037 Q388.5,721 357.5,683.0925925925926 Q357.5,683.0925925925926 326.5,645.1851851851852"/></g></svg>

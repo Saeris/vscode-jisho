@@ -1,0 +1,61 @@
+<svg id="z12755" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12755d1" d="M562 243C550 502 502 663 388 779C353 813 323 836 285 858C265 870 280 868 291 867C317 863 399 832 458 779C534 709 591 590 620 358C627 300 634 252 651 213C654 204 654 197 648 193C634 183 606 169 581 160C565 154 550 152 538 157C523 162 521 171 533 183C552 202 563 223 562 243Z"/>
+<defs>
+	<clipPath id="z12755c1"><use href="#z12755d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12755c1)" d="M531 169L607 222L539 586L445 755L285 862"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="531" cy="169" r="16"/><path style="--d: 1s;" class="g1" d="M435,169 Q488.3416149068323,214.65800865800867 464.47826086956525,371.4458874458875 Q440.6149068322982,528.2337662337662 407.6273291925466,601.0281385281385 Q374.639751552795,673.8225108225108 318.49068322981367,719.9112554112554 Q318.49068322981367,719.9112554112554 262.3416149068323,766"/></g></svg>

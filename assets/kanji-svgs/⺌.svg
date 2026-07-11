@@ -1,0 +1,67 @@
+<svg id="z11916" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z11916d1" d="M519 610C536 428 549 362 560 334C563 325 556 314 542 305C515 289 491 281 475 278C442 271 436 285 448 314C455 331 464 352 468 367C472 387 473 509 470 617C467 684 508 721 519 610Z"/>
+<path id="z11916d2" d="M278 516C304 551 327 580 355 593C363 597 374 592 382 583C388 574 391 562 389 550C382 514 349 491 296 475C272 467 258 462 261 486C261 494 267 503 278 516Z"/>
+<path id="z11916d3" d="M692 428C680 443 648 480 596 540C585 551 591 562 603 556C732 485 758 470 789 456C804 448 810 438 803 424C794 409 779 397 760 385C741 373 728 369 718 370C708 371 705 374 707 386C709 399 703 413 692 428Z"/>
+<defs>
+	<clipPath id="z11916c1"><use href="#z11916d1"/></clipPath>
+	<clipPath id="z11916c2"><use href="#z11916d2"/></clipPath>
+	<clipPath id="z11916c3"><use href="#z11916d3"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z11916c1)" d="M449 285L512 341L495 676"/>
+<path style="--d:2s;" pathLength="3333" clip-path="url(#z11916c2)" d="M269 476L372 588"/>
+<path style="--d:3s;" pathLength="3333" clip-path="url(#z11916c3)" d="M714 378L751 430L598 552"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="449" cy="285" r="16"/><path style="--d: 1s;" class="g1" d="M353,285 Q416,341 413.875,382.875 Q401.125,634.125 399,676"/><circle style="--d: 2s" class="g2" cx="269" cy="476" r="16"/><path style="--d: 2s;" class="g2" d="M354.68,407.456 L457.68,519.456"/><circle style="--d: 3s" class="g3" cx="714" cy="378" r="16"/><path style="--d: 3s;" class="g3" d="M618,378 Q636.5,404 626.9375,411.625 Q569.5625,457.375 560,465"/></g></svg>

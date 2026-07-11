@@ -143,6 +143,10 @@ Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied
 - **furigana in sentences** — see #15; Shirabe's sentences carry ruby readings over kanji. Fold into #15 when furigana lands.
 - TTS on sentences — a play button per sentence/page, reusing `speech.ts`. Trivial once the pages exist.
 
+### 21. Stroke-SVG transform script + sibling-index() CSS (refinement of M7 #1)
+
+M7 #1 vendored the customized AnimCJK SVGs from guide-to-japanese as-is (inline per-stroke `--d` delays). Two follow-ups: (a) a **build script that regenerates our SVG shape from the authoritative AnimCJK source** (inject the guides layer, our CSS), so we can re-sync from upstream instead of the author's uncommitted fork; (b) refactor the animation CSS to compute per-stroke delay from **`sibling-index()`/`sibling-count()`** (now available as CSS properties) instead of hardcoded `--d:1s…9s` — which needs wrapping the animated strokes in their own `<g>` so `sibling-index()` counts cleanly (a structural change the transform script should make). Together these make the SVGs reproducible and the CSS far simpler. Deferred from M7 #1 to keep the milestone moving.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

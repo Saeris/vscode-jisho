@@ -1,0 +1,61 @@
+<svg id="z12739" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12739d1" d="M836 550C795 512 758 472 680 393C674 387 669 385 665 385C663 386 661 390 664 396C681 436 696 471 716 528C723 547 722 563 709 575C680 602 573 612 476 592C331 563 257 450 226 337C221 316 205 291 188 278C150 250 149 276 162 308C174 338 184 360 203 412C251 550 331 632 442 663C589 704 742 680 855 605C885 585 858 570 836 550Z"/>
+<defs>
+	<clipPath id="z12739c1"><use href="#z12739d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12739c1)" d="M162 276L308 542L384 600L478 632L634 640L795 591L813 568L671 394"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="162" cy="276" r="16"/><path style="--d: 1s;" class="g1" d="M66,276 Q185.08755760368666,471.8461538461538 216.0829493087558,493.19780219780216 Q247.0783410138249,514.5494505494505 285.41474654377885,526.3296703296703 Q323.7511520737327,538.1098901098901 387.37327188940094,541.054945054945 Q450.9953917050691,544 516.6566820276498,525.9615384615385 Q582.3179723502304,507.9230769230769 589.6589861751152,499.4560439560439 Q597,490.989010989011 539.0875576036866,426.9340659340659 Q539.0875576036866,426.9340659340659 481.1751152073732,362.8791208791209"/></g></svg>

@@ -135,6 +135,14 @@ CREATE TABLE radicals (
   kanji_json   TEXT NOT NULL DEFAULT '[]'
 );
 
+-- Kanji stroke-order animation SVGs (AnimCJK, Arphic Public License — see assets/kanji-svgs/).
+-- One row per character; `svg` is the raw SVG markup, read whole (exact PK lookup) when the kanji
+-- detail view plays the stroke animation. Only present for characters we have an SVG for.
+CREATE TABLE stroke_svgs (
+  literal TEXT PRIMARY KEY,
+  svg     TEXT NOT NULL
+);
+
 -- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a
 -- single indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji.
 --   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char',  -- word entries

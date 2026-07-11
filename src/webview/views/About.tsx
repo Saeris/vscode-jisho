@@ -101,6 +101,16 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             <a href="https://www.edrdg.org/edrdg/licence.html">EDRDG licence</a>
             .
           </p>
+          <p>
+            Stroke-order animations are derived from{" "}
+            <a href="https://github.com/parsimonhi/animCJK">AnimCJK</a> (©
+            FM&amp;SH), whose kanji glyph paths adapt the Arphic PL KaitiM fonts
+            and Makemeahanzi under the{" "}
+            <a href="https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE">
+              Arphic Public License
+            </a>
+            .
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>

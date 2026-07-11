@@ -1,0 +1,61 @@
+<svg id="z12749" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12749d1" d="M448 281C471 274 498 282 498 305C495 381 484 500 481 532C461 686 504 744 577 764C636 779 709 774 826 750C855 743 858 731 829 706C808 688 785 680 763 688C724 704 671 718 617 711C519 698 531 611 536 532C538 479 551 330 582 280C588 268 597 260 597 254C596 244 558 223 524 209C506 201 483 216 463 227C403 257 331 292 206 294C194 294 191 295 194 309C195 314 203 325 224 337C242 348 267 348 293 339C336 322 375 301 448 281Z"/>
+<defs>
+	<clipPath id="z12749c1"><use href="#z12749d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12749c1)" d="M198 301L269 317L482 248L531 261L548 279L504 587L525 692L610 740L842 722"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="198" cy="301" r="16"/><path style="--d: 1s;" class="g1" d="M275.11199999999997,232.45600000000002 Q337.6105217391304,248.45600000000002 431.35830434782605,213.95600000000002 Q525.1060869565217,179.45600000000002 546.6724782608695,185.95600000000002 Q568.2388695652173,192.45600000000002 575.7210869565217,201.45600000000002 Q583.2033043478261,210.45600000000002 563.8375652173913,364.456 Q544.4718260869565,518.456 553.7145652173913,570.956 Q562.957304347826,623.456 600.3683913043478,647.456 Q637.7794782608695,671.456 739.8897391304347,662.456 Q739.8897391304347,662.456 842,653.456"/></g></svg>

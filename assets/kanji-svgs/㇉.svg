@@ -1,0 +1,61 @@
+<svg id="z12745" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style>
+
+@keyframes zk {
+	to {
+		stroke-dashoffset:0;
+	}
+}
+svg.acjk path[clip-path] {
+	--t:0.8s;
+	animation:zk var(--t) linear forwards var(--d);
+	stroke-dasharray:3337;
+	stroke-dashoffset:3339;
+	stroke-width:128;
+	stroke-linecap:round;
+	fill:none;
+	stroke:#000;
+}
+svg.acjk path[id] {fill:#ccc;}
+
+
+    @keyframes guide-fade {
+        0% { opacity: 0; }
+        3% { opacity: 1; }
+        95% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    svg.acjk #guide-arrow {
+        fill: #f77;
+    }
+
+    svg.acjk .guides {
+        circle {
+            fill: #0f6;
+        }
+
+        path {
+            opacity: 0;
+            animation: guide-fade var(--t) linear forwards var(--d);
+            stroke-width: 16px;
+            stroke-linecap: round;
+            stroke: #f77;
+            fill: none;
+            marker-end: url(#guide-arrow);
+        }
+
+        circle,
+        path {
+            --t: 0.8s;
+            opacity: 0;
+            animation: guide-fade calc(var(--t) + 0.4s) ease-in-out forwards calc(var(--d) - 0.2s);
+        }
+    }
+</style>
+<path id="z12745d1" d="M314 552C375 516 486 492 646 476C664 474 678 476 685 483C699 497 701 519 696 550C684 612 682 632 654 717C648 735 637 749 622 758C616 761 583 756 531 740C516 735 511 733 511 740C510 746 517 754 530 768C555 797 569 826 582 852C593 874 611 878 630 866C668 841 698 811 714 773C724 745 728 715 755 575C761 542 769 518 785 504C795 493 799 482 794 476C786 465 763 454 730 435C703 419 667 430 623 439C542 454 452 468 352 491C335 494 331 489 333 478C350 368 360 278 381 214C385 201 385 191 378 184C366 172 353 164 343 160C325 153 314 152 309 156C302 159 301 166 307 176C313 186 317 199 317 214C310 322 297 409 285 444C281 454 272 474 253 498C244 507 243 517 250 527C256 534 267 545 284 556C291 561 301 559 314 552Z"/>
+<defs>
+	<clipPath id="z12745c1"><use href="#z12745d1"/></clipPath>
+<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12745c1)" d="M310 161L350 204L299 515L664 453L745 491L666 776L602 817L518 743"/>
+<g class="guides"><circle style="--d: 1s" class="g1" cx="310" cy="161" r="16"/><path style="--d: 1s;" class="g1" d="M241.45600000000002,229.54399999999998 Q281.456,258.7074390243902 255.95600000000002,364.1705731707317 Q230.45600000000002,469.6337073170731 412.956,448.60890243902435 Q595.456,427.5840975609756 635.956,440.47026829268293 Q676.456,453.3564390243902 636.956,550.0027195121951 Q597.456,646.649 565.456,660.5525 Q533.456,674.456 491.456,649.3618780487805 Q491.456,649.3618780487805 449.456,624.2677560975609"/></g></svg>
