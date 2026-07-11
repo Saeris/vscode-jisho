@@ -148,6 +148,12 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             Romaji transliteration by{" "}
             <a href="https://github.com/WaniKani/WanaKana">WanaKana</a> (MIT).
           </p>
+          <p>
+            The <strong>WK</strong> links on word and kanji pages open a search
+            on <a href="https://www.wanikani.com/">WaniKani</a>, a
+            kanji-learning service by Tofugu. No WaniKani content is bundled;
+            the links are a convenience only.
+          </p>
         </div>
       </div>
     </div>

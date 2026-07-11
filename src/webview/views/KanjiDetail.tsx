@@ -6,6 +6,7 @@ import { Badge } from "../components/Badge";
 import { DetailHeader } from "../components/DetailHeader";
 import { SequencePlayButton } from "../components/PlayButton";
 import { Term } from "../components/Term";
+import { WaniKaniLink } from "../components/WaniKaniLink";
 import styles from "./KanjiDetail.module.css";
 
 interface KanjiDetailProps {
@@ -80,6 +81,7 @@ const KanjiBody = ({
             freq #{kanji.frequency}
           </Badge>
         ) : null}
+        <WaniKaniLink term={kanji.literal} />
       </div>
     </div>
 

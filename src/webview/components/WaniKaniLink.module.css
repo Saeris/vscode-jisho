@@ -1,0 +1,17 @@
+/* A small pill-style outbound citation link, sized to sit beside a headword like the badges. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--jisho-radius);
+  font-size: 0.75em;
+  line-height: 1.6;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--jisho-link);
+  border: 1px solid var(--jisho-border);
+}
+
+.link:hover {
+  text-decoration: underline;
+}

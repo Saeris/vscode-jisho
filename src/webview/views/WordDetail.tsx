@@ -15,6 +15,7 @@ import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
 import { PitchAccent } from "../components/PitchAccent";
+import { WaniKaniLink } from "../components/WaniKaniLink";
 import { DetailHeader } from "../components/DetailHeader";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
@@ -88,6 +89,7 @@ const WordBody = ({
         />
         {word.common ? <Badge kind="common">common</Badge> : null}
         <JlptBadge level={word.jlpt} />
+        <WaniKaniLink term={headword} />
         {/* Kana-only words show their reading as the headword, so surface pitch here. */}
         {!primaryKanji && word.kana.length > 0 ? (
           <PitchAccent

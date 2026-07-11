@@ -47,6 +47,8 @@ Each item is a data-build addition plus a detail-view section, independent of th
 
 No dataset ingestion (WK content requires an API key and its license doesn't permit redistribution): on `WordDetail`/`KanjiDetail`, render an outbound link `https://www.wanikani.com/search?query=<term>` (or the direct `/vocabulary/<slug>` and `/kanji/<char>` URL forms — verify slug format at implementation). A small "WK" affordance next to the headword; links open externally (webview anchors already do).
 
+**As-built:** used the **`/search?query=` endpoint, not direct `/vocabulary/`,`/kanji/` URLs** — verified WaniKani covers only a small curated subset of JMdict, so a direct URL 404s for ~most words while search degrades gracefully to "Nothing was found" for non-curriculum terms (one URL form works for every word and kanji). `WaniKaniLink.tsx` renders a small pill "WK" anchor beside the headword badges on `WordDetail` (links the headword) and in the `KanjiDetail` hero badges (links the literal). Search page is public (no login wall). Credited in About's "Other credits" as a citation-only convenience (no bundled WK content). No schema/build/data change.
+
 ## 5. JMnedict names dictionary
 
 **Source:** `jmnedict-all-*.json` from the same jmdict-simplified release (~743k name entries, ~146MB source JSON; types exist in the installed types package — `JMnedictWord` with `translation` instead of `sense`).
