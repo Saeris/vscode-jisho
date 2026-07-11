@@ -14,7 +14,7 @@ import type {
 import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
-import { PitchBadge } from "../components/PitchBadge";
+import { PitchAccent } from "../components/PitchAccent";
 import { DetailHeader } from "../components/DetailHeader";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
@@ -90,7 +90,10 @@ const WordBody = ({
         <JlptBadge level={word.jlpt} />
         {/* Kana-only words show their reading as the headword, so surface pitch here. */}
         {!primaryKanji && word.kana.length > 0 ? (
-          <PitchBadge accents={word.kana[0].pitchAccents} />
+          <PitchAccent
+            reading={word.kana[0].text}
+            accents={word.kana[0].pitchAccents}
+          />
         ) : null}
         {altKanji.length > 0 ? (
           <span className={styles.headwordAlt} lang="ja">
@@ -102,8 +105,7 @@ const WordBody = ({
             {word.kana.map((k, i) => (
               <span key={i} className={styles.reading}>
                 {i > 0 ? <span className={styles.readingSep}>、</span> : null}
-                {formatReading(k)}
-                <PitchBadge accents={k.pitchAccents} />
+                <Reading kana={k} />
               </span>
             ))}
           </div>
@@ -255,11 +257,21 @@ const XrefLine = ({
   );
 };
 
-/** A reading, annotated with which kanji it applies to when it isn't universal. */
-const formatReading = (kana: KanaDto): string => {
+/**
+ * A reading: the kana with its pitch-accent contour drawn over it when known (else plain kana),
+ * plus a "(applies to …)" note when the reading isn't universal across the word's kanji writings.
+ */
+const Reading = ({ kana }: { kana: KanaDto }): React.ReactElement => {
   const universal =
     kana.appliesToKanji.length === 0 || kana.appliesToKanji.includes("*");
-  return universal
-    ? kana.text
-    : `${kana.text} (${kana.appliesToKanji.join("、")})`;
+  return (
+    <>
+      {kana.pitchAccents.length > 0 ? (
+        <PitchAccent reading={kana.text} accents={kana.pitchAccents} />
+      ) : (
+        kana.text
+      )}
+      {universal ? null : ` (${kana.appliesToKanji.join("、")})`}
+    </>
+  );
 };

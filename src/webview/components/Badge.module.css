@@ -34,12 +34,3 @@
   color: var(--vscode-charts-purple, var(--jisho-muted));
   border-color: var(--vscode-charts-purple, var(--jisho-border));
 }
-
-/* pitch: pitch accent number(s) beside a reading — small, subdued, monospaced so the digits read
-   as notation rather than prose. */
-.pitch {
-  color: var(--vscode-charts-blue, var(--jisho-muted));
-  border-color: var(--vscode-charts-blue, var(--jisho-border));
-  font-family: var(--vscode-editor-font-family, monospace);
-  margin-inline-start: 2px;
-}

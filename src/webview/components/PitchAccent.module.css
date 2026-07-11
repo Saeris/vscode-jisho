@@ -1,0 +1,35 @@
+/* Pitch contour drawn over the kana: each mora is a cell; high moras get a top overline, and the
+   downstep mora gets a right edge so the line "drops" after it — the OJAD/Shirabe convention.
+   Uses currentColor via a chart color so it stays theme-aware. */
+
+.contour {
+  display: inline-flex;
+  align-items: flex-start;
+  /* Room above the glyphs for the overline. */
+  padding-top: 4px;
+  margin-inline-start: 6px;
+  color: var(--vscode-charts-blue, var(--jisho-fg));
+  font-size: 0.95em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.mora {
+  position: relative;
+  border-top: 2px solid transparent;
+}
+
+/* High-pitch mora: overline across the top. */
+.high {
+  border-top-color: currentColor;
+}
+
+/* Low-pitch mora: no overline (transparent top keeps baseline alignment). */
+.low {
+  border-top-color: transparent;
+}
+
+/* Downstep: a right edge on the accent mora draws the vertical drop after it. */
+.drop {
+  border-right: 2px solid currentColor;
+}

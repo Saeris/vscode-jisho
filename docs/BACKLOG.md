@@ -118,6 +118,31 @@ Optionally render furigana (kana reading ruby text) above kanji in headwords, an
 
 The M5 segment bar makes each content word a tappable chip, but tapping one **replaces** the search input with that lemma and re-searches — the original sentence is lost, and there's no way back to the previous fragment (it only survives word-detail back-navigation, not chip-to-chip). jisho.org's model is better: the breakdown is a **filter over the current sentence**, matching one segment at a time while the full sentence stays in the input, so you can move between fragments. Rework the chip action to select-a-segment (highlight the active fragment, drive the results filter) rather than overwrite the query. The navigation machine already reserves a selected-segment index in context for this. Deferred from M5 as polish.
 
+## Shirabe reference UX (from M6 word-page screenshots)
+
+Observed comparing our word detail against Shirabe Jisho's. Ordered small→large.
+
+### 17. Recent-search history on the empty search view (feature — small)
+
+When the search box is empty, Shirabe shows a list of the user's recent searches grouped by date ("Jul 10 / Jul 5 / Jun 30"), each tappable to re-run. Ours shows only a "Type to search" placeholder. Add a recent-search list: record each committed query (cap ~20, dedup, most-recent-first) and render it when the query is empty, each item re-running the search on tap. **Persistence** rides on the same host `Memento` (`context.globalState`) mechanism as BACKLOG #14 — a small `getState`/`setState` message pair, so pair it with or after #14. Independent of the rest; good small win.
+
+### 18. Graphical pitch accent rendering (feature — medium) — ✅ shipped as the M6 #1 follow-up
+
+Shirabe draws the pitch contour as an overline over the high-pitch moras with a downstep drop, strictly more legible than the numeric `[2]`. Shipped: `src/webview/pitch.ts` (mora segmentation + heiban/atamadaka/nakadaka/odaka contour) rendered by `PitchAccent.tsx` as per-mora CSS overline + downstep border over the kana, number in the tooltip. See M6 #1 as-built.
+
+### 19. Verb/adjective conjugation table (feature — large)
+
+Shirabe shows a full conjugation reference on the word page: Positive / Negative / Masu / Masu-negative groups, each covering present, past, -te, -eba/-tara conditionals, potential, passive, causative, imperative, volitional (screenshots show ~30 forms for 食べる). We have no conjugation display. This is **generation** logic — the inverse of `deinflect.ts` — so it pairs conceptually with BACKLOG #8's "forward conjugator" idea (a forward conjugator would both power this table _and_ give #8's round-trip deinflection tests). Scope: a conjugation engine keyed on the word's POS tags (v1/v5x/adj-i…), rendered as a labelled table on `WordDetail`, gated to conjugable POS. Large; a milestone candidate of its own or a big backlog item. Note colloquial variants Shirabe shows in parens (食べれる ら-nuki potential).
+
+### 20. Two-tier examples + dedicated example pages (feature — medium, depends on M6 #2)
+
+Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied to each sense, (b) a word-level "Examples" section aggregating across senses, (c) a "More…" link to a full **Example sentences** page, and (d) tapping a sentence opens an **example-sentence breakdown** page — the sentence with furigana, a play button, and a "Words" list (each word tokenized out with reading + gloss, tappable). We ship only (a) as a collapsed disclosure. Enhancements, each independent:
+
+- **(c) full examples page** — a new navigation-stack view listing all sentences for a word when it has more than the per-sense cap. Small once #2 exists.
+- **(d) sentence breakdown page** — tap a sentence → tokenize it with the **M5 tokenizer** (the M6 #2 "tap-through deferred until M5's tokenizer exists" note — M5 now exists) → list its words with readings/glosses, each tappable to its word detail. This is the SegmentBar treatment applied to a full sentence. Medium.
+- **furigana in sentences** — see #15; Shirabe's sentences carry ruby readings over kanji. Fold into #15 when furigana lands.
+- TTS on sentences — a play button per sentence/page, reusing `speech.ts`. Trivial once the pages exist.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
