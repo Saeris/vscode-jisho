@@ -1,4 +1,4 @@
-import { useDeferredValue } from "react";
+import { useDeferredValue, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
@@ -45,6 +45,40 @@ export const SearchResults = ({
   // ListBox in single-selection mode opens on Enter via onAction; keep selection uncontrolled.
   const noop = (_: Selection): void => {};
 
+  // Keyboard hand-off between the search input and the results list (BACKLOG #12): ↓ from the
+  // input focuses the first result option; ↑ at the top of the list or Esc returns to the input.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const focusFirstResult = (): void => {
+    const first =
+      listRef.current?.querySelector<HTMLElement>('[role="option"]');
+    first?.focus();
+  };
+
+  const onInputKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === "ArrowDown" && (words.length > 0 || kanji.length > 0)) {
+      e.preventDefault();
+      focusFirstResult();
+    }
+  };
+
+  const onListKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      inputRef.current?.focus();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      // Only intercept when at the very first option; otherwise let React Aria move up the list.
+      const options = listRef.current?.querySelectorAll('[role="option"]');
+      if (options && options[0] === document.activeElement) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.searchBar}>
@@ -55,8 +89,10 @@ export const SearchResults = ({
           autoFocus
         >
           <Input
+            ref={inputRef}
             className={styles.input}
             placeholder="Search 日本語 or English…"
+            onKeyDown={onInputKeyDown}
           />
         </SearchField>
         <Button
@@ -87,7 +123,7 @@ export const SearchResults = ({
         count
       })}
 
-      <div className={styles.list}>
+      <div className={styles.list} ref={listRef} onKeyDown={onListKeyDown}>
         {words.length > 0 ? (
           <ListBox
             aria-label="Word results"

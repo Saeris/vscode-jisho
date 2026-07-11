@@ -71,13 +71,13 @@ Link-driven navigation (word → kanji → component kanji → word → …) bui
 
 Dictionary terminology is opaque to newcomers (the user hadn't seen "nanori"). Add hover tooltips to non-obvious labels — start with **on / kun / nanori** in `KanjiDetail`, apply sparingly elsewhere as more are found. Implementation: a small `<Term>` component (React Aria `Tooltip` + `TooltipTrigger`, which we already have via react-aria-components) wrapping the label with a definition string; theme-aware. A tiny glossary map keeps definitions in one place.
 
-### 11. Duolingo-style autocomplete suggestions (feature — large, design-heavy)
+### 11. Duolingo-style autocomplete suggestions (feature — large) — DEFERRED; desktop feasibility ruled out (M5 research)
 
-A horizontal suggestion strip above/below the search field showing kana/romaji candidates with romaji ruby text, matching the Duolingo IME UX (see the reference screenshot in the conversation). Substantial interaction design:
+A horizontal suggestion strip above/below the search field showing kana/romaji candidates with romaji ruby text, matching the Duolingo IME UX (reference screenshot in the conversation): ↑ from the search box moves into the strip (exact input as item 1, focus starts on the best-match item 2 so ← → the exact input and → advances), ↓/Esc return to the input, underlining the current word being suggested-on (word boundaries), reserving space to avoid layout shift.
 
-- **When it appears:** detect romaji vs kana vs English input; show suggestions only for romaji/kana, suppressing once the input reads as English (apparent by ~3rd–4th char). Underline the current "word" being suggested on (break on word boundaries); the suggestion replaces just that segment.
-- **Keyboard model:** ↑ from the search box moves focus into the strip; the user's exact input is item 1, suggestions follow. Entering the strip focuses **item 2** (best match), so ← goes to the exact input and → advances through suggestions. ↓ returns focus to the input unchanged. Esc returns to the input.
-- **Risks/unknowns:** interaction with the **host OS IME** (the on-screen candidate bar in the screenshot is the OS IME, not the app — in a desktop VSCode webview we're typing into a text field the OS IME already augments; clarify what value we add over it, and whether we suppress/coexist). Reserve vertical space to avoid layout shift. This likely wants its own mini plan doc before building. Note: overlaps conceptually with M5's tokenizer (word-boundary detection) — sequence after or alongside M5.
+**Feasibility verdict (researched M5, 2026-07): not viable on desktop as designed.** The reference screenshot's candidate strip is a **custom in-app IME overriding the OS default** — Duolingo achieves this because it's a **native iOS app** using UIKit custom-input-view APIs. A VSCode webview is **web content**, and the web platform gives no supported way to override/suppress the OS IME candidate window: IME composition `beforeinput` events are **non-cancelable** per the [Input Events spec](https://w3c.github.io/input-events/) (`insertCompositionText` is not cancelable), and `chrome.input.ime` (the only "custom IME" API) is **ChromeOS-extension-only**, unavailable to web content. So an in-app strip would fight, not replace, the OS IME, which already does romaji→kana→kanji conversion before text reaches our field.
+
+Additionally the fallback value is thin: for romaji-typed-without-an-IME, our existing romaji search + tokenizer deinflection already resolve the word. **Revisit only** if a mobile-web target ever exists (different IME story), and even then weigh against the OS IME. Keeping deferred with this settled rationale.
 
 ### 12. Arrow-key navigation between search box and results (fix — medium)
 
