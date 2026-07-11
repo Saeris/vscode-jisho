@@ -46,14 +46,16 @@ describe("webview bridge", () => {
       type: "search",
       requestId: sent.requestId,
       results: [],
-      kanji: []
+      kanji: [],
+      segments: []
     });
 
     await expect(promise).resolves.toEqual({
       type: "search",
       requestId: sent.requestId,
       results: [],
-      kanji: []
+      kanji: [],
+      segments: []
     });
   });
 
@@ -73,7 +75,8 @@ describe("webview bridge", () => {
       type: "search",
       requestId: first.requestId,
       results: [],
-      kanji: []
+      kanji: [],
+      segments: []
     });
 
     await expect(word).resolves.toMatchObject({ type: "getWord", word: null });

@@ -8,6 +8,7 @@ import type {
   KanjiResultDto,
   RadicalLookupDto,
   SearchResultDto,
+  SegmentDto,
   WordDetailDto
 } from "../shared/messages";
 import {
@@ -18,10 +19,11 @@ import {
   searchWords
 } from "./bridge";
 
-/** Search results grouped into the two sections the UI renders. */
+/** Search results grouped into the sections the UI renders. */
 export interface SearchResults {
   words: SearchResultDto[];
   kanji: KanjiResultDto[];
+  segments: SegmentDto[];
 }
 
 export const searchQuery = (
@@ -33,7 +35,11 @@ export const searchQuery = (
     queryKey: ["search", query],
     queryFn: async () => {
       const response = await searchWords(query);
-      return { words: response.results, kanji: response.kanji };
+      return {
+        words: response.results,
+        kanji: response.kanji,
+        segments: response.segments
+      };
     },
     // An empty query has no results; don't round-trip to the host.
     enabled: query.trim().length > 0

@@ -1,0 +1,50 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+  align-items: baseline;
+}
+
+/* Content chips are tappable buttons; particles/auxiliaries are dimmed static text. */
+.chip {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--jisho-radius);
+  padding: 1px 6px;
+  background: var(--jisho-input-bg);
+  /* Colored by POS via the data-pos attribute below; the color tints text + border. */
+  color: var(--pos-color, var(--jisho-fg));
+  border-color: color-mix(
+    in srgb,
+    var(--pos-color, transparent) 40%,
+    transparent
+  );
+}
+
+.chip:hover {
+  border-color: var(--pos-color, var(--jisho-focus));
+}
+
+.chip[data-pos="noun"] {
+  --pos-color: var(--vscode-charts-blue, #4fc1ff);
+}
+.chip[data-pos="verb"] {
+  --pos-color: var(--vscode-charts-green, #73c991);
+}
+.chip[data-pos="adjective"] {
+  --pos-color: var(--vscode-charts-orange, #d7a25f);
+}
+.chip[data-pos="adverb"] {
+  --pos-color: var(--vscode-charts-purple, #b180d7);
+}
+
+/* Non-content segments (particles, auxiliaries): dimmed, not interactive. */
+.particle {
+  font: inherit;
+  color: var(--jisho-muted);
+  padding: 1px 4px;
+  opacity: 0.6;
+}

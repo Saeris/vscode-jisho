@@ -1,9 +1,23 @@
 import * as vscode from "vscode";
 import { Dictionary } from "./host/db";
 import { ensureDatabase } from "./host/ensureDatabase";
-import type { Request, Response } from "./shared/messages";
+import { contentSegmentCount, segment } from "./host/tokenizer";
+import type { Request, Response, SegmentDto } from "./shared/messages";
 
 const VIEW_ID = "vscode-jisho.searchView";
+
+const HAS_JAPANESE = /[぀-ヿ㐀-鿿豈-﫿]/;
+
+/**
+ * Morphological breakdown for the query — but only for Japanese input with more than one content
+ * word. Gating here keeps English/romaji queries from ever loading the tokenizer's dictionary.
+ */
+const breakdown = async (query: string): Promise<SegmentDto[]> => {
+  const trimmed = query.trim();
+  if (trimmed.length < 2 || !HAS_JAPANESE.test(trimmed)) return [];
+  const segments = await segment(trimmed);
+  return contentSegmentCount(segments) > 1 ? segments : [];
+};
 
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new JishoViewProvider(context);
@@ -128,11 +142,18 @@ const respond = async (
 ): Promise<Response> => {
   switch (request.type) {
     case "search": {
-      const [results, kanji] = await Promise.all([
+      const [results, kanji, segments] = await Promise.all([
         dict.search(request.query),
-        dict.searchKanji(request.query)
+        dict.searchKanji(request.query),
+        breakdown(request.query)
       ]);
-      return { type: "search", requestId: request.requestId, results, kanji };
+      return {
+        type: "search",
+        requestId: request.requestId,
+        results,
+        kanji,
+        segments
+      };
     }
     case "getWord":
       return {

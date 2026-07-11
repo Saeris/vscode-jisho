@@ -195,6 +195,12 @@ export interface SearchResponse {
   results: SearchResultDto[];
   /** Kanji matching the query, shown as a separate section. */
   kanji: KanjiResultDto[];
+  /**
+   * Morphological breakdown of the query — present only when a Japanese query tokenized into more
+   * than one content segment. The UI shows these as tappable chips; tapping re-searches a
+   * segment's lemma. Empty for single-word, English, or romaji queries.
+   */
+  segments: SegmentDto[];
 }
 
 export interface GetWordResponse {

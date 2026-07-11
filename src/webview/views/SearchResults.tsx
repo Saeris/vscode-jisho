@@ -10,6 +10,7 @@ import {
 import type { Selection } from "react-aria-components";
 import { searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { SegmentBar } from "../components/SegmentBar";
 import styles from "./SearchResults.module.css";
 
 interface SearchResultsProps {
@@ -38,6 +39,7 @@ export const SearchResults = ({
   );
   const words = data?.words ?? [];
   const kanji = data?.kanji ?? [];
+  const segments = data?.segments ?? [];
   const count = data ? words.length + kanji.length : undefined;
 
   // ListBox in single-selection mode opens on Enter via onAction; keep selection uncontrolled.
@@ -72,6 +74,10 @@ export const SearchResults = ({
           ⓘ
         </Button>
       </div>
+
+      {segments.length > 0 ? (
+        <SegmentBar segments={segments} onSelectSegment={onQueryChange} />
+      ) : null}
 
       {renderStatus({
         query: deferredQuery,
