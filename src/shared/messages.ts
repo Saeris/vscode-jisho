@@ -81,12 +81,16 @@ export interface SearchResultDto {
   common: boolean;
   /** A short gloss preview (first sense's first gloss). */
   glossPreview: string;
+  /** Word-level JLPT (5=N5 … 1=N1), or null. Unofficial community estimate (Waller/tanos). */
+  jlpt: number | null;
 }
 
 /** The full word detail. */
 export interface WordDetailDto {
   id: string;
   common: boolean;
+  /** Word-level JLPT (5=N5 … 1=N1), or null. Unofficial community estimate (Waller/tanos). */
+  jlpt: number | null;
   kanji: KanjiDto[];
   kana: KanaDto[];
   senses: SenseDto[];

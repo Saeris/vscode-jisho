@@ -15,8 +15,11 @@ PRAGMA foreign_keys = ON;
 
 -- One row per JMdict entry.
 CREATE TABLE words (
-  id        TEXT PRIMARY KEY,          -- JMdict entry id (e.g. "1358280")
-  is_common INTEGER NOT NULL DEFAULT 0 -- 1 if any kanji/kana writing is "common"
+  id        TEXT PRIMARY KEY,           -- JMdict entry id (e.g. "1358280")
+  is_common INTEGER NOT NULL DEFAULT 0, -- 1 if any kanji/kana writing is "common"
+  jlpt      INTEGER                     -- word-level JLPT (5=N5 … 1=N1), null otherwise.
+                                        -- Unofficial community estimate (Waller/tanos via
+                                        -- stephenmk/yomitan-jlpt-vocab), joined by JMdict id.
 );
 
 -- Kanji (non-kana-only) writings of a word.

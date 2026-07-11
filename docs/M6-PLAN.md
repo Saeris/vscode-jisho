@@ -26,11 +26,20 @@ Each item is a data-build addition plus a detail-view section, independent of th
 
 **License:** Tatoeba/Tanaka corpus is CC-BY 2.0 FR — attribution required.
 
-## 3. JLPT word lists (tanos.co.uk)
+## 3. JLPT word lists — source & join revised after M6 research
 
-**Source:** Jonathan Waller's JLPT N5–N1 vocab lists at tanos.co.uk (CC-BY). These are word-level JLPT (Kanjidic's `jlpt` is kanji-level and uses the old 4-level scale). Fetch the list pages/CSVs in the data build; join to JMdict by kanji+kana (fall back kana-only). Store as `words.jlpt` column (5–1, null otherwise).
+**Source (revised 2026-07):** [**stephenmk/yomitan-jlpt-vocab**](https://github.com/stephenmk/yomitan-jlpt-vocab) (CC-BY-SA-4.0), a curated modern reissue of Jonathan Waller's (tanos.co.uk) N5–N1 lists. Chosen over the original plan's "fetch tanos CSVs" because:
 
-**UI:** JLPT badge (new CVA badge kind) on result rows and `WordDetail`; a browsable "JLPT lists" view (new machine view; query words by level, common-first) reachable from the About/search area. Search filter (e.g. typing `#n5 water`) is out of scope.
+- **tanos.co.uk publishes no CSV** — only Word/PDF/Anki/Mnemosyne. Every machine-readable path is a derivative.
+- This source is **JMdict-ID-aligned**: `original_data/n{1..5}.csv` columns are `jmdict_seq,kana,kanji,waller_definition`, and `jmdict_seq` is the JMdict entry sequence number — i.e. **our `words.id`**. So the join is an exact PK match (`words.id = jmdict_seq`), not the plan's lossy kanji+kana text match. Verified against the built common DB: all sampled N5 ids (会う 1198180, 青 1381380, …) hit `words.id` exactly. This removes the plan's "expect imperfect join coverage" risk.
+- It **corrects** Waller's rare-spelling variants to common forms and picks representations via JMdict frequency (per its README).
+- Row counts: N5 684, N1 3,427 (per-level CSVs pinned to commit `b062d4e`).
+
+**On the unofficial nature (settled):** there is no official JLPT vocab list and never has been — the Japan Foundation stopped publishing lists after the 2010 redesign, so every N5–N1 list is a community reconstruction. **This is the industry norm, not a blocker:** [Jisho.org](https://jisho.org/about) ships Waller's lists and credits him ("Information about what word and kanji belong to which JLPT level comes from Jonathan Waller's JLPT Resources page") with no caveat. We'll do the same but add a **subtle "unofficial" affordance** (tooltip on the badge) since stephenmk's README is honest about it (even Waller's N1 list contained words that appeared on the N2 exam). Note we _also_ already ship Kanjidic2's per-_kanji_ `jlptLevel` (old 1–4 scale) on kanji results/detail — that's separate and stays.
+
+**Build:** fetch the five per-level CSVs, parse `jmdict_seq`+level, `UPDATE words SET jlpt = ?` by id (N5=5 … N1=1). Record the match rate (ids present in JMdict / total list rows) in `meta`; spot-check a few known words per level. Store as `words.jlpt` (5–1, null otherwise).
+
+**UI:** JLPT badge (new CVA badge kind) on result rows and `WordDetail`, with a tooltip noting it's an unofficial estimate (Waller/tanos). A browsable "JLPT lists" view (new machine view; query words by level, common-first) is **deferred to a follow-up** — the badge is the immediate value; the list view is separate chrome. Search filter (`#n5 water`) out of scope.
 
 ## 4. WaniKani citations (links only)
 
@@ -46,4 +55,4 @@ No dataset ingestion (WK content requires an API key and its license doesn't per
 
 ## Build order & verification
 
-Suggested: 3 (JLPT — smallest, immediate badge value) → 1 (pitch) → 2 (sentences) → 4 (WK links) → 5 (names — largest). Per-item commits + bump files (each user-facing item is `patch`; names is `minor`). Standing gates per CONVENTIONS: both build variants, `dictionary-latest` refresh per schema change, latency re-probe after items 2 and 5 (table growth), attribution extended per item. Append as-built + flip ROADMAP status.
+Suggested (revised): **3 (JLPT — starting here; source/join settled during research)** → 1 (pitch) → 2 (sentences) → 4 (WK links) → 5 (names — largest). Per-item commits + bump files (each user-facing item is `patch`; names is `minor`). Standing gates per CONVENTIONS: both build variants, `dictionary-latest` refresh per schema change, latency re-probe after items 2 and 5 (table growth), attribution extended per item. Append as-built + flip ROADMAP status.

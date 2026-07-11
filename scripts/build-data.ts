@@ -101,6 +101,21 @@ const KANJIDIC_PATTERN = /^kanjidic2-en-.*\.json\.tgz$/;
 const KRADFILE_PATTERN = /^kradfile-.*\.json\.tgz$/;
 const RADKFILE_PATTERN = /^radkfile-.*\.json\.tgz$/;
 
+// Word-level JLPT (unofficial): stephenmk/yomitan-jlpt-vocab is a curated reissue of Jonathan
+// Waller's (tanos.co.uk) N5–N1 lists, CC-BY-SA-4.0. Its per-level CSVs key each word by
+// `jmdict_seq` — the JMdict entry sequence number, i.e. our `words.id` — so the join is an exact
+// PK match, not a lossy kanji+kana text match. Pinned to a commit for reproducibility.
+const JLPT_REPO_SHA = "b062d4e38c4bdd0950ae1d4ec55f04b176182e03";
+const JLPT_RAW_BASE = `https://raw.githubusercontent.com/stephenmk/yomitan-jlpt-vocab/${JLPT_REPO_SHA}/original_data`;
+// N5 (easiest) → stored as 5, N1 (hardest) → 1, mirroring the kanji-level jlpt scale's direction.
+const JLPT_LEVELS: Array<{ file: string; level: number }> = [
+  { file: "n5.csv", level: 5 },
+  { file: "n4.csv", level: 4 },
+  { file: "n3.csv", level: 3 },
+  { file: "n2.csv", level: 2 },
+  { file: "n1.csv", level: 1 }
+];
+
 /** Download one .json.tgz asset matching `pattern` from the resolved release and parse it. */
 const fetchAssetJson = async <T>(
   release: GithubRelease,
@@ -119,28 +134,58 @@ const fetchAssetJson = async <T>(
   return data;
 };
 
+/**
+ * Fetch the yomitan-jlpt-vocab per-level CSVs and return a JMdict-id → level map. The CSV columns
+ * are `jmdict_seq,kana,kanji,waller_definition`; we need only the id (first column) and the level
+ * (from which file). Lower levels overwrite higher ones if a word appears in two lists (rare) so a
+ * word keeps its easiest listed level. Parsing is line-based: the id is always a bare integer at
+ * the start of the line, so we never need full CSV-quote handling (only later columns are quoted).
+ */
+const fetchJlptLevels = async (): Promise<Map<string, number>> => {
+  const byId = new Map<string, number>();
+  for (const { file, level } of JLPT_LEVELS) {
+    const res = await fetch(`${JLPT_RAW_BASE}/${file}`, {
+      headers: { "User-Agent": "vscode-jisho-build" }
+    });
+    if (!res.ok)
+      throw new Error(`JLPT ${file} → ${res.status} ${res.statusText}`);
+    const text = await res.text();
+    const lines = text.split(/\r?\n/);
+    for (const line of lines.slice(1)) {
+      const seq = line.slice(0, line.indexOf(","));
+      // Guard against blank lines / a stray header: ids are bare digit strings.
+      if (!/^\d+$/.test(seq)) continue;
+      // Easiest level wins; files are processed N5→N1, so only set if unseen.
+      if (!byId.has(seq)) byId.set(seq, level);
+    }
+  }
+  return byId;
+};
+
 interface Sources {
   dict: JMdict;
   kanjidic: Kanjidic2;
   kradfile: Kradfile;
   radkfile: Radkfile;
+  jlpt: Map<string, number>;
 }
 
 const downloadSources = async (): Promise<Sources> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
-  const [dict, kanjidic, kradfile, radkfile] = await Promise.all([
+  const [dict, kanjidic, kradfile, radkfile, jlpt] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
     fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
-    fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN)
+    fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
+    fetchJlptLevels()
   ]);
-  return { dict, kanjidic, kradfile, radkfile };
+  return { dict, kanjidic, kradfile, radkfile, jlpt };
 };
 
 const buildDatabase = async (sources: Sources): Promise<void> => {
-  const { dict, kanjidic, kradfile, radkfile } = sources;
+  const { dict, kanjidic, kradfile, radkfile, jlpt } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -253,6 +298,30 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   await db.exec("COMMIT");
   console.log(`  kanji: ${kanjiSet.size} characters`);
 
+  // ── JLPT pass ─────────────────────────────────────────────────────────────
+  // Join word-level JLPT by JMdict id (exact PK). Only ids present in this variant's JMdict get
+  // updated, so the common-only build naturally covers fewer list rows than the full build. Record
+  // the match rate so a poor join (a sign the source drifted from JMdict) is visible in `meta`.
+  await db.exec("BEGIN");
+  const updJlpt = await db.prepare("UPDATE words SET jlpt = ? WHERE id = ?");
+  let jlptMatched = 0;
+  let jdone = 0;
+  for (const [id, level] of jlpt) {
+    const { changes } = await updJlpt.run(level, id);
+    if (changes > 0) jlptMatched++;
+    if (++jdone % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+    }
+  }
+  await db.exec("COMMIT");
+  const jlptRate =
+    jlpt.size > 0 ? ((jlptMatched / jlpt.size) * 100).toFixed(1) : "0";
+  console.log(
+    `  jlpt: ${jlptMatched}/${jlpt.size} words matched (${jlptRate}% of list)`
+  );
+
   // Attribution / provenance.
   const insMeta = await db.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)"
@@ -267,6 +336,15 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   await insMeta.run("kanjidicDate", kanjidic.dictDate);
   await insMeta.run("kanjidicVersion", kanjidic.databaseVersion);
   await insMeta.run("kanjiCount", String(kanjiSet.size));
+  await insMeta.run(
+    "jlptSource",
+    "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk, via stephenmk/yomitan-jlpt-vocab"
+  );
+  await insMeta.run(
+    "jlptLicense",
+    "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
+  );
+  await insMeta.run("jlptMatched", String(jlptMatched));
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));

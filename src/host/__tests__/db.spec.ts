@@ -146,6 +146,31 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await expect(dict.getWord("no-such-id")).resolves.toBeNull();
   });
 
+  // ── Word-level JLPT (M6) ──────────────────────────────────────────────────
+
+  test("tags a word with its JLPT level via the JMdict-id join", async () => {
+    // WHY: the JLPT badge rests on this join. yomitan-jlpt-vocab keys words by JMdict id (= our
+    // words.id), so a known N5 word (会う, entry 1198180) must carry jlpt=5. A broken join (e.g. an
+    // id-scheme drift) would silently drop all JLPT tags — this catches that. The badge surfaces
+    // through both the search result and the word detail, so assert both paths.
+    const detail = await dict.getWord("1198180");
+    expect(detail?.jlpt).toBe(5);
+    const results = await dict.search("会う");
+    const au = results.find((r) => r.id === "1198180");
+    expect(au?.jlpt).toBe(5);
+  });
+
+  test("exposes jlpt as a strict number-or-null discriminant", async () => {
+    // WHY: most JMdict entries have no JLPT level; the field must be null (badge hidden), never 0,
+    // a default, or undefined, so the UI's `level === null` check reliably distinguishes "no level"
+    // from a real one. Every result across a broad query must honor that discriminant.
+    const results = await dict.search("学");
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.jlpt === null || typeof r.jlpt === "number").toBe(true);
+    }
+  });
+
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
 
   test("resolves a kanji character's Kanjidic data", async () => {

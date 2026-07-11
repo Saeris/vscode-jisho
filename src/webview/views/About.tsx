@@ -59,6 +59,22 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             </a>{" "}
             (© EDRDG; RADKFILE2/KRADFILE2 © Jim Rose).
           </p>
+          <p>
+            Word-level JLPT tags come from{" "}
+            <a href="https://www.tanos.co.uk/jlpt/">
+              Jonathan Waller&apos;s JLPT Resources
+            </a>{" "}
+            (
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+              CC BY-SA 4.0
+            </a>
+            ), via{" "}
+            <a href="https://github.com/stephenmk/yomitan-jlpt-vocab">
+              yomitan-jlpt-vocab
+            </a>
+            . No official JLPT vocabulary list exists, so these levels are an
+            unofficial community estimate.
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>
@@ -82,6 +98,12 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
                   <td>Kanjidic date</td>
                   <td>{meta["kanjidicDate"] ?? "unknown"}</td>
                 </tr>
+                {meta["jlptMatched"] ? (
+                  <tr>
+                    <td>JLPT-tagged words</td>
+                    <td>{meta["jlptMatched"]}</td>
+                  </tr>
+                ) : null}
                 <tr>
                   <td>Built</td>
                   <td>{meta["builtAt"] ?? "unknown"}</td>

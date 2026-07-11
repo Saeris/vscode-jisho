@@ -3,6 +3,7 @@ import { Button } from "react-aria-components";
 import type { KanaDto, SenseDto, WordDetailDto } from "../../shared/messages";
 import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { JlptBadge } from "../components/JlptBadge";
 import { DetailHeader } from "../components/DetailHeader";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
@@ -75,6 +76,7 @@ const WordBody = ({
           label={`Play pronunciation of ${headword}`}
         />
         {word.common ? <Badge kind="common">common</Badge> : null}
+        <JlptBadge level={word.jlpt} />
         {altKanji.length > 0 ? (
           <span className={styles.headwordAlt} lang="ja">
             {altKanji.join("、")}

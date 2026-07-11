@@ -303,6 +303,10 @@ export class Dictionary {
         LIMIT 1`,
       id
     );
+    const word = await this.#get<{ jlpt: number | null }>(
+      "SELECT jlpt FROM words WHERE id = ?",
+      id
+    );
 
     const reading = kana?.text ?? "";
     const headword = kanji?.text ?? reading;
@@ -312,7 +316,8 @@ export class Dictionary {
       headword,
       reading: kanji ? reading : "", // no separate reading line for kana-only words
       common,
-      glossPreview: gloss?.text ?? ""
+      glossPreview: gloss?.text ?? "",
+      jlpt: word?.jlpt ?? null
     };
   }
 
@@ -328,10 +333,11 @@ export class Dictionary {
 
   /** Full detail for one entry, or `null` if the id is unknown. */
   async getWord(id: string): Promise<WordDetailDto | null> {
-    const word = await this.#get<{ id: string; is_common: number }>(
-      "SELECT id, is_common FROM words WHERE id = ?",
-      id
-    );
+    const word = await this.#get<{
+      id: string;
+      is_common: number;
+      jlpt: number | null;
+    }>("SELECT id, is_common, jlpt FROM words WHERE id = ?", id);
     if (!word) return null;
 
     const kanjiRows = await this.#all<{
@@ -403,7 +409,14 @@ export class Dictionary {
       });
     }
 
-    return { id: word.id, common: word.is_common === 1, kanji, kana, senses };
+    return {
+      id: word.id,
+      common: word.is_common === 1,
+      jlpt: word.jlpt,
+      kanji,
+      kana,
+      senses
+    };
   }
 
   /** Full detail for one kanji character, or `null` if it isn't in Kanjidic. */

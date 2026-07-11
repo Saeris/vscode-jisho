@@ -84,8 +84,9 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[JMdict / EDICT][jmdict]** — Japanese-English dictionary data, © the [Electronic Dictionary Research and Development Group (EDRDG)][edrdg], used under the [EDRDG License][edrdg-license]. Sourced via [jmdict-simplified][jmdict-simplified].
 - **[KANJIDIC2][kanjidic]** — kanji character data (readings, meanings, stroke counts, grades, JLPT levels), © EDRDG, used under [CC BY-SA 4.0][cc-by-sa].
 - **[KRADFILE / RADKFILE][kradfile]** — kanji radical/component decompositions, © EDRDG (RADKFILE2/KRADFILE2 © Jim Rose), used under the [EDRDG License][edrdg-license].
+- **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
 
-Additional sources (Tatoeba example sentences, Kanjium pitch accent, JLPT lists, and AnimCJK stroke data) will be added and credited as their features are implemented.
+Additional sources (Tatoeba example sentences, Kanjium pitch accent, and AnimCJK stroke data) will be added and credited as their features are implemented.
 
 ## 🤝 Contributing
 
@@ -111,6 +112,8 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [edrdg-license]: https://www.edrdg.org/edrdg/licence.html
 [kanjidic]: https://www.edrdg.org/wiki/index.php/KANJIDIC_Project
 [kradfile]: https://www.edrdg.org/krad/kradinf.html
+[tanos-jlpt]: https://www.tanos.co.uk/jlpt/
+[yomitan-jlpt]: https://github.com/stephenmk/yomitan-jlpt-vocab
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/

@@ -10,6 +10,7 @@ import {
 import type { Selection } from "react-aria-components";
 import { searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { JlptBadge } from "../components/JlptBadge";
 import { SegmentBar } from "../components/SegmentBar";
 import styles from "./SearchResults.module.css";
 
@@ -144,6 +145,7 @@ export const SearchResults = ({
                     <span className={styles.reading}>{item.reading}</span>
                   ) : null}
                   {item.common ? <Badge kind="common">common</Badge> : null}
+                  <JlptBadge level={item.jlpt} />
                 </span>
                 <span className={styles.gloss}>{item.glossPreview}</span>
               </ListBoxItem>
