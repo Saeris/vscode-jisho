@@ -34,7 +34,7 @@ Build a throwaway web extension (or a stripped branch of this one) and answer:
 
 ## 4. Web-specific regressions pass
 
-Run the whole feature surface in vscode.dev: search (all script routes), detail views, About, deinflection, and whatever M4–M7 features exist by then (kuromoji's dictionary loading and KanjiCanvas/AnimCJK assets each have their own web-delivery wrinkles — audit them here; they were flagged in their plans). Fix or explicitly document gaps (a partial web release with e.g. handwriting disabled is acceptable if labeled).
+Run the whole feature surface in vscode.dev: search (all script routes), detail views, About, deinflection, and whatever M4–M7 features exist by then. Web-delivery wrinkles flagged in their plans — audit here: the **Lindera tokenizer** already has a `lindera-wasm-web-*` build (M5 chose it partly for this), but it needs the **`wasm-unsafe-eval` CSP** in the web host — confirm that's grantable in the vscode.dev extension worker; and KanjiCanvas/AnimCJK assets need their own web delivery. Fix or explicitly document gaps (a partial web release with e.g. handwriting disabled is acceptable if labeled).
 
 ## Build order & verification
 
