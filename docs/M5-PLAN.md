@@ -31,6 +31,17 @@ Install `lindera-wasm-nodejs-ipadic`, tokenize the M2/M3 corpus in the extension
 
 **If the spike fails its budget** (size, memory, startup, or the WASM won't load in the host): record why, keep M2's rule table as the deinflection story, and demote the remaining items to the backlog. Don't force it.
 
+### Spike results (2026-07, `lindera-wasm-nodejs-ipadic@2.0.0`) — PASS
+
+- **Token fields are named properties** (no feature-array parsing): `surface`, `baseForm` (lemma/基本形), `partOfSpeech` + `partOfSpeechSubcategory1..3`, `reading`, `pronunciation` (katakana), `conjugationForm`, `conjugationType`, `byteStart`/`byteEnd`, `wordId`. Our `Segment` maps directly: surface←surface, lemma←baseForm, reading←reading, pos←partOfSpeech.
+- **Segmentation/lemmas are excellent** and a strict superset of M2 deinflection:
+  - `日本語を勉強します` → 日本語[名詞] を[助詞] 勉強[名詞] し[する·動詞] ます[ます·助動詞]
+  - `食べました` → 食べ[食べる] まし[ます] た[た]; `たかくない` → たかく[たかい] ない; `話します` → 話し[話す] ます
+- **Load model (nodejs build):** WASM loads **synchronously at `require`** (CommonJS `__wbindgen_placeholder__` pattern) — **no async init needed in the host** (simpler than the docs' web-build `__wbg_init().then()`). Cost: require ~17ms, `builder.build()` **~193ms** (one-time, lazy), `tokenize()` **~4ms**. RSS with IPADIC loaded ~188MB — acceptable (host is a separate process); keep init lazy so it's paid only on the first Japanese multi-word query.
+- **Config:** `new TokenizerBuilder()` → `setDictionary("embedded://ipadic")` → `setMode("normal")` → `build()`. (camelCase methods, not the `set_dictionary` snake_case the rustdoc showed.)
+- **Dictionary:** IPADIC quality is sufficient on the corpus — **stay on IPADIC**, don't pursue the 44.7MB UniDic. 12.5MB unpacked.
+- **Segment granularity note:** IPADIC splits サ変 compounds (勉強+する) — so the searchable "content unit" is the noun (勉強), with する/ます as suffixes. The POS mapping/UI coalesces these (a 名詞 followed by する→one searchable segment, or just present the noun as the tappable unit).
+
 ## 2. Tokenizer service in the host
 
 `src/host/tokenizer.ts`: a lazy-initialized singleton wrapping Lindera, exposing `segment(text): Promise<Segment[]>` where `Segment = { surface, lemma, pos, reading? }` — a plain DTO. WASM init + builder happen once on first call, cached. POS values normalized to a small enum the UI can color (`noun | verb | particle | adjective | adverb | auxiliary | other`) by mapping IPADIC's Japanese POS taxonomy (名詞, 動詞, 助詞, 形容詞, 副詞, 助動詞…) once, here. `@tursodatabase/*`-style: the lindera package is `neverBundle`d if it ships a `.node`/wasm asset the loader resolves at runtime — determine during the spike and set `pack.deps` + `.vscodeignore` accordingly (mirror the turso packaging pattern). Unit tests against known sentences.

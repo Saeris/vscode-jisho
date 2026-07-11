@@ -3432,6 +3432,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lindera-wasm-nodejs-ipadic@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "lindera-wasm-nodejs-ipadic@npm:2.0.0"
+  checksum: 10/778262ab28590b4b8c3ef63e72514c9d55138013a9dadeed7a17831a2906be03189bfbdc204780c39af7b7539d600cd8f5149c645c608b2917ff90788dbf375f
+  languageName: node
+  linkType: hard
+
 "linkify-it@npm:^5.0.1":
   version: 5.0.1
   resolution: "linkify-it@npm:5.0.1"
@@ -5409,6 +5416,7 @@ __metadata:
     "@vscode/vsce": "npm:^3.2.0"
     "@xstate/react": "npm:^6.1.0"
     class-variance-authority: "npm:^0.7.1"
+    lindera-wasm-nodejs-ipadic: "npm:^2.0.0"
     ovsx: "npm:^0.10.0"
     react: "npm:^19.2.7"
     react-aria-components: "npm:^1.19.0"

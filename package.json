@@ -94,6 +94,7 @@
     "@tursodatabase/database": "^0.6.1",
     "@xstate/react": "^6.1.0",
     "class-variance-authority": "^0.7.1",
+    "lindera-wasm-nodejs-ipadic": "^2.0.0",
     "react": "^19.2.7",
     "react-aria-components": "^1.19.0",
     "react-dom": "^19.2.7",
