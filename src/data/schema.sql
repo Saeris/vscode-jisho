@@ -88,6 +88,20 @@ CREATE TABLE pitch_accents (
   PRIMARY KEY (word_id, reading)
 );
 
+-- Example sentences (Tanaka corpus via Tatoeba, embedded per sense in jmdict-examples-eng). One
+-- row per (word, sense, example); `position` retains source order, and examples are capped per
+-- sense at build time. Read whole when rendering a word's detail, never queried across words.
+CREATE TABLE sentences (
+  word_id        TEXT NOT NULL REFERENCES words(id),
+  sense_position INTEGER NOT NULL, -- which sense of the word (matches senses.position)
+  position       INTEGER NOT NULL, -- order within the sense
+  ja             TEXT NOT NULL,
+  en             TEXT NOT NULL,
+  PRIMARY KEY (word_id, sense_position, position)
+);
+
+CREATE INDEX idx_sentences_word ON sentences(word_id);
+
 -- ── Kanji (Kanjidic2 + Kradfile/Radkfile) ──────────────────────────────────
 -- Defined before `search_terms` because kanji-entry term rows FK-reference `kanji_characters`.
 -- One row per kanji character. Readings/meanings/nanori are JSON arrays read whole when

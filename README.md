@@ -86,8 +86,9 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[KRADFILE / RADKFILE][kradfile]** — kanji radical/component decompositions, © EDRDG (RADKFILE2/KRADFILE2 © Jim Rose), used under the [EDRDG License][edrdg-license].
 - **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
 - **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
+- **[Example sentences][tatoeba]** — the Tanaka corpus, maintained by the [Tatoeba][tatoeba] project, used under [CC BY 2.0 FR][cc-by-fr] (embedded in JMdict via jmdict-simplified).
 
-Additional sources (Tatoeba example sentences and AnimCJK stroke data) will be added and credited as their features are implemented.
+Additional sources (AnimCJK stroke data) will be added and credited as their features are implemented.
 
 ## 🤝 Contributing
 
@@ -116,6 +117,8 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [tanos-jlpt]: https://www.tanos.co.uk/jlpt/
 [yomitan-jlpt]: https://github.com/stephenmk/yomitan-jlpt-vocab
 [kanjium]: https://github.com/mifunetoshiro/kanjium
+[tatoeba]: https://tatoeba.org/
+[cc-by-fr]: https://creativecommons.org/licenses/by/2.0/fr/deed.en
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/

@@ -84,6 +84,14 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             </a>
             .
           </p>
+          <p>
+            Example sentences come from the Tanaka corpus, maintained by the{" "}
+            <a href="https://tatoeba.org/">Tatoeba</a> project (
+            <a href="https://creativecommons.org/licenses/by/2.0/fr/deed.en">
+              CC BY 2.0 FR
+            </a>
+            ), embedded in JMdict via jmdict-simplified.
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>
@@ -117,6 +125,12 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
                   <tr>
                     <td>Pitch-tagged readings</td>
                     <td>{meta["pitchRows"]}</td>
+                  </tr>
+                ) : null}
+                {meta["sentenceRows"] ? (
+                  <tr>
+                    <td>Example sentences</td>
+                    <td>{meta["sentenceRows"]}</td>
                   </tr>
                 ) : null}
                 <tr>

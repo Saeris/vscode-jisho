@@ -39,6 +39,12 @@ export interface TagDto {
   description: string;
 }
 
+/** An example sentence: a Japanese sentence paired with its English translation. */
+export interface SentenceDto {
+  ja: string;
+  en: string;
+}
+
 /** One sense (meaning group): glosses plus grammatical/usage metadata. */
 export interface SenseDto {
   partOfSpeech: TagDto[];
@@ -53,6 +59,8 @@ export interface SenseDto {
   /** Cross-references (related words), as their surface strings. */
   related: string[];
   antonym: string[];
+  /** Example sentences (Tanaka/Tatoeba) for this sense; empty when none. */
+  sentences: SentenceDto[];
 }
 
 /** Normalized part of speech, for coloring the query breakdown. */

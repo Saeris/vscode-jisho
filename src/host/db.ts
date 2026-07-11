@@ -15,6 +15,7 @@ import type {
   RadicalLookupDto,
   SearchResultDto,
   SenseDto,
+  SentenceDto,
   TagDto,
   WordDetailDto
 } from "../shared/messages";
@@ -383,6 +384,7 @@ export class Dictionary {
 
     const senseRows = await this.#all<{
       id: number;
+      position: number;
       pos_json: string;
       field_json: string;
       misc_json: string;
@@ -393,11 +395,27 @@ export class Dictionary {
       related_json: string;
       antonym_json: string;
     }>(
-      `SELECT id, pos_json, field_json, misc_json, info_json, dialect_json,
+      `SELECT id, position, pos_json, field_json, misc_json, info_json, dialect_json,
               applies_to_kanji_json, applies_to_kana_json, related_json, antonym_json
          FROM senses WHERE word_id = ? ORDER BY position`,
       id
     );
+
+    // Example sentences are keyed by (word_id, sense_position); load them once and group.
+    const sentenceRows = await this.#all<{
+      sense_position: number;
+      ja: string;
+      en: string;
+    }>(
+      "SELECT sense_position, ja, en FROM sentences WHERE word_id = ? ORDER BY sense_position, position",
+      id
+    );
+    const sentencesBySense = new Map<number, SentenceDto[]>();
+    for (const r of sentenceRows) {
+      const list = sentencesBySense.get(r.sense_position) ?? [];
+      list.push({ ja: r.ja, en: r.en });
+      sentencesBySense.set(r.sense_position, list);
+    }
 
     const senses: SenseDto[] = [];
     for (const s of senseRows) {
@@ -415,7 +433,8 @@ export class Dictionary {
         appliesToKanji: parseStrings(s.applies_to_kanji_json),
         appliesToKana: parseStrings(s.applies_to_kana_json),
         related: flattenXrefs(s.related_json),
-        antonym: flattenXrefs(s.antonym_json)
+        antonym: flattenXrefs(s.antonym_json),
+        sentences: sentencesBySense.get(s.position) ?? []
       });
     }
 

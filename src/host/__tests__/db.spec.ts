@@ -196,6 +196,31 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
       expect(Array.isArray(k.pitchAccents)).toBe(true);
   });
 
+  // ── Example sentences (M6) ────────────────────────────────────────────────
+
+  test("attaches example sentences to the correct sense", async () => {
+    // WHY: sentences are keyed by (word_id, sense_position); they must land on the sense they
+    // illustrate, not spill across senses. 食べる's first sense ("to eat") carries a ja/en pair;
+    // a mis-keyed join would attach it to the wrong sense or drop it. Guards the per-sense grouping
+    // the collapsible Examples UI renders.
+    const [top] = await dict.search("食べる");
+    const word = await dict.getWord(top.id);
+    const withSentences = word!.senses.filter((s) => s.sentences.length > 0);
+    expect(withSentences.length).toBeGreaterThan(0);
+    const first = withSentences[0].sentences[0];
+    expect(first.ja).toMatch(/[぀-ヿ㐀-鿿]/); // a real Japanese sentence
+    expect(first.en.length).toBeGreaterThan(0); // paired with an English translation
+  });
+
+  test("caps example sentences per sense", async () => {
+    // WHY: the build keeps at most 3 sentences per sense so a heavily-exemplified word can't bloat
+    // the detail payload. A regression removing the cap would let some senses carry dozens.
+    const [top] = await dict.search("見る");
+    const word = await dict.getWord(top.id);
+    for (const s of word!.senses)
+      expect(s.sentences.length).toBeLessThanOrEqual(3);
+  });
+
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
 
   test("resolves a kanji character's Kanjidic data", async () => {

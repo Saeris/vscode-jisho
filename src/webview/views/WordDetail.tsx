@@ -1,6 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "react-aria-components";
-import type { KanaDto, SenseDto, WordDetailDto } from "../../shared/messages";
+import {
+  Button,
+  Disclosure,
+  DisclosurePanel,
+  Heading
+} from "react-aria-components";
+import type {
+  KanaDto,
+  SenseDto,
+  SentenceDto,
+  WordDetailDto
+} from "../../shared/messages";
 import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
@@ -182,7 +192,37 @@ const Sense = ({
       terms={sense.antonym}
       onSearchTerm={onSearchTerm}
     />
+    {sense.sentences.length > 0 ? (
+      <Examples sentences={sense.sentences} />
+    ) : null}
   </li>
+);
+
+/** Collapsible example-sentence section for a sense: Japanese sentence over its English gloss. */
+const Examples = ({
+  sentences
+}: {
+  sentences: SentenceDto[];
+}): React.ReactElement => (
+  <Disclosure className={styles.examples}>
+    <Heading level={4} className={styles.examplesHeading}>
+      <Button slot="trigger" className={styles.examplesTrigger}>
+        Examples ({sentences.length})
+      </Button>
+    </Heading>
+    <DisclosurePanel>
+      <ul className={styles.exampleList}>
+        {sentences.map((s, i) => (
+          <li key={i} className={styles.example}>
+            <span className={styles.exampleJa} lang="ja">
+              {s.ja}
+            </span>
+            <span className={styles.exampleEn}>{s.en}</span>
+          </li>
+        ))}
+      </ul>
+    </DisclosurePanel>
+  </Disclosure>
 );
 
 /** Cross-references as tappable links: clicking one searches for that term. */

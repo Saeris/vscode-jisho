@@ -32,6 +32,19 @@ import type {
   Radkfile
 } from "@scriptin/jmdict-simplified-types";
 
+// The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
+// don't cover (their README notes this). Declare the extra shape locally — verified against the
+// real asset: each example has a source ref and ja/eng sentence pair.
+interface JMdictExample {
+  source: { type: string; value: string };
+  /** The headword form the sentence exemplifies (unused by us; we key on the word itself). */
+  text: string;
+  sentences: Array<{ lang: string; text: string }>;
+}
+type SenseWithExamples = JMdictWord["sense"][number] & {
+  examples?: JMdictExample[];
+};
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
@@ -40,13 +53,15 @@ const RELEASE_API =
 
 // `--full` builds the complete JMdict (~217k entries) — the variant delivered to users via the
 // dictionary-latest GitHub Release. The default common-only subset (~22k) stays the dev/test
-// fixture. The variant is recorded in `meta` and the version sidecar, so switching variants
-// triggers ensureDatabase's refresh.
+// fixture, filtered from the same source in-memory. The variant is recorded in `meta` and the
+// version sidecar, so switching variants triggers ensureDatabase's refresh.
+//
+// Both variants source from `jmdict-examples-eng` (a strict superset of `jmdict-eng` that adds
+// Tanaka-corpus example sentences per sense). Deriving the common fixture from the same asset means
+// the dev/test DB exercises the exact example-ingestion path the shipped DB does.
 const FULL = process.argv.includes("--full");
 const VARIANT = FULL ? "full" : "common";
-const ASSET_PATTERN = FULL
-  ? /^jmdict-eng-\d.*\.json\.tgz$/
-  : /^jmdict-eng-common-.*\.json\.tgz$/;
+const ASSET_PATTERN = /^jmdict-examples-eng-\d.*\.json\.tgz$/;
 
 /** Extract the single JSON file from a gzipped tar (one-member archive). */
 const extractSingleJsonFromTgz = (tgz: Uint8Array): string => {
@@ -223,6 +238,17 @@ const downloadSources = async (): Promise<Sources> => {
     fetchJlptLevels(),
     fetchPitchAccents()
   ]);
+  // Both variants download the full examples asset; the common fixture keeps only common entries
+  // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
+  if (!FULL) {
+    const before = dict.words.length;
+    dict.words = dict.words.filter(
+      (w) => w.kanji.some((k) => k.common) || w.kana.some((k) => k.common)
+    );
+    console.log(
+      `Filtered to common entries: ${dict.words.length}/${before} words`
+    );
+  }
   return { dict, kanjidic, kradfile, radkfile, jlpt, pitch };
 };
 
@@ -267,6 +293,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const insGloss = await db.prepare(
     "INSERT INTO glosses(sense_id, position, lang, text) VALUES (?, ?, ?, ?)"
   );
+  const insSentence = await db.prepare(
+    "INSERT INTO sentences(word_id, sense_position, position, ja, en) VALUES (?, ?, ?, ?, ?)"
+  );
   const insTerm = await db.prepare(
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
@@ -294,14 +323,16 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const BATCH = 5000;
   const total = dict.words.length;
   let done = 0;
+  let sentenceRows = 0;
   for (const word of dict.words) {
-    await importWord(word, {
+    sentenceRows += await importWord(word, {
       insWord,
       insKanji,
       insKana,
       insSense,
       insGloss,
-      insTerm
+      insTerm,
+      insSentence
     });
     done++;
     if (done % BATCH === 0) {
@@ -433,6 +464,16 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
   );
   await insMeta.run("pitchRows", String(pitchRows));
+  await insMeta.run(
+    "sentenceSource",
+    "Example sentences: Tanaka corpus, via Tatoeba (embedded in jmdict-examples-eng)"
+  );
+  await insMeta.run(
+    "sentenceLicense",
+    "CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/deed.en)"
+  );
+  await insMeta.run("sentenceRows", String(sentenceRows));
+  console.log(`  sentences: ${sentenceRows} example rows`);
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
@@ -484,12 +525,18 @@ interface Stmts {
   insSense: Statement;
   insGloss: Statement;
   insTerm: Statement;
+  insSentence: Statement;
 }
 
-const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
+/** Cap on example sentences kept per sense — the source averages ~1, but bound it defensively. */
+const MAX_SENTENCES_PER_SENSE = 3;
+
+/** Imports one word; returns the number of example sentences inserted for it. */
+const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   const wordCommon =
     word.kanji.some((k) => k.common) || word.kana.some((k) => k.common) ? 1 : 0;
   await s.insWord.run(word.id, wordCommon);
+  let sentenceCount = 0;
 
   for (let i = 0; i < word.kanji.length; i++) {
     const k = word.kanji[i];
@@ -605,7 +652,22 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<void> => {
         await s.insTerm.run(word.id, "word", w, w, wordCommon, isPrimary);
       }
     }
+
+    // Example sentences (jmdict-examples-eng): keep up to MAX per sense, each a ja/en pair. Skip
+    // any example missing either language (the source is occasionally one-sided).
+    const examples = (sense as SenseWithExamples).examples ?? [];
+    let kept = 0;
+    for (const ex of examples) {
+      if (kept >= MAX_SENTENCES_PER_SENSE) break;
+      const ja = ex.sentences.find((se) => se.lang === "jpn")?.text;
+      const en = ex.sentences.find((se) => se.lang === "eng")?.text;
+      if (ja === undefined || en === undefined) continue;
+      await s.insSentence.run(word.id, i, kept, ja, en);
+      kept++;
+    }
+    sentenceCount += kept;
   }
+  return sentenceCount;
 };
 
 interface KanjiStmts {
