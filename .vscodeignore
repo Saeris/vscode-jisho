@@ -24,7 +24,8 @@ CLAUDE.md
 # The dictionary DB is delivered by download on first activation, not bundled.
 assets/**
 
-# Exclude node_modules by default, but the Turso native runtime must ship in the .vsix
-# (it is `neverBundle`d, so it is loaded from node_modules at runtime).
+# Exclude node_modules by default, but the neverBundle'd runtime packages must ship in the
+# .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .wasm).
 node_modules/**
 !node_modules/@tursodatabase/**
+!node_modules/lindera-wasm-nodejs-ipadic/**

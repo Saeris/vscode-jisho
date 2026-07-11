@@ -35,7 +35,13 @@ export default defineConfig({
       // `vscode` is provided by the host at runtime — never bundle it.
       // `@tursodatabase/database` loads a platform-specific native .node addon via
       // its own resolver; it must stay unbundled and ship in node_modules.
-      neverBundle: ["vscode", /^@tursodatabase\//],
+      // `lindera-wasm-nodejs-ipadic` reads its .wasm from its own __dirname at runtime,
+      // so it likewise must stay unbundled.
+      neverBundle: [
+        "vscode",
+        /^@tursodatabase\//,
+        "lindera-wasm-nodejs-ipadic"
+      ],
       alwaysBundle: []
     }
   },

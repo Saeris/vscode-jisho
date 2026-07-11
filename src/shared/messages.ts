@@ -50,6 +50,27 @@ export interface SenseDto {
   antonym: string[];
 }
 
+/** Normalized part of speech, for coloring the query breakdown. */
+export type PartOfSpeech =
+  | "noun"
+  | "verb"
+  | "adjective"
+  | "adverb"
+  | "particle"
+  | "auxiliary"
+  | "other";
+
+/** One segment of a tokenized query, for the multi-word breakdown bar. */
+export interface SegmentDto {
+  /** The surface text as it appears in the query (inflected). */
+  surface: string;
+  /** Dictionary form — what tapping the segment searches for. */
+  lemma: string;
+  /** Katakana reading, or "" when unknown. */
+  reading: string;
+  pos: PartOfSpeech;
+}
+
 /** A compact result for the search list. */
 export interface SearchResultDto {
   id: string;
