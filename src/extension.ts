@@ -6,7 +6,12 @@ import type { Request, Response, SegmentDto } from "./shared/messages";
 
 const VIEW_ID = "vscode-jisho.searchView";
 
-const HAS_JAPANESE = /[぀-ヿ㐀-鿿豈-﫿]/;
+// Requires at least one kanji (CJK ideograph). IPADIC's Viterbi lattice relies on kanji↔kana
+// script transitions to find word boundaries; all-kana input (にほんごをはなしますか) has no such
+// signal and tokenizes into garbage fragments (に·ほん·ご·を…). So we only tokenize mixed-script
+// input — pure-kana and romaji fall through to the rule-based deinflection path, which handles
+// their conjugation (はなします → 話す) correctly.
+const HAS_KANJI = /[㐀-鿿豈-﫿]/;
 
 interface QueryAnalysis {
   /** Breakdown chips — only when a Japanese query has >1 content word. */
@@ -17,12 +22,13 @@ interface QueryAnalysis {
 
 /**
  * Tokenize a Japanese query once, deriving both the breakdown segments and the content lemmas.
- * English/romaji queries never load the tokenizer's dictionary. A single conjugated word
- * (食べました) yields one lemma (食べる) for the search merge but no breakdown bar.
+ * Only mixed-script (kanji-bearing) input tokenizes reliably — English/romaji and pure-kana
+ * queries never load the tokenizer's dictionary and rely on rule-based deinflection instead. A
+ * single conjugated word (食べました) yields one lemma (食べる) for the search merge but no breakdown.
  */
 const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   const trimmed = query.trim();
-  if (trimmed.length < 2 || !HAS_JAPANESE.test(trimmed)) {
+  if (trimmed.length < 2 || !HAS_KANJI.test(trimmed)) {
     return { segments: [], lemmas: [] };
   }
   const all = await segment(trimmed);
