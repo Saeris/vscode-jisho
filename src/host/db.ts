@@ -81,8 +81,18 @@ export class Dictionary {
    * by a composite relevance score (best-scoring term per word) so obvious answers surface first —
    * see the CASE tiers in the SQL. Latin queries are lowercased and matched against `term_lower`;
    * Japanese queries match `term` directly.
+   *
+   * `extraLemmas` are dictionary-form candidates supplied by the caller's morphological tokenizer
+   * (M5). They join the same deinflection-merge channel as the built-in rule-based `deinflect()`
+   * fallback — the tokenizer is more accurate (no over-generation), but `Dictionary` stays
+   * tokenizer-agnostic: when none are passed (tokenizer not ready, or non-Japanese input) the rule
+   * table still covers conjugated queries.
    */
-  async search(rawQuery: string, limit = 50): Promise<SearchResultDto[]> {
+  async search(
+    rawQuery: string,
+    limit = 50,
+    extraLemmas: string[] = []
+  ): Promise<SearchResultDto[]> {
     const query = rawQuery.trim();
     if (query === "") return [];
 
@@ -146,7 +156,7 @@ export class Dictionary {
     // first ("hanashimasu" → はなします) — only when the transliteration is fully kana, so
     // English queries ("study") are never mangled. Candidates score below a literal exact match
     // (130) but above prefix/substring noise, so typing a real word exactly still wins.
-    const candidates = new Set<string>();
+    const candidates = new Set<string>(extraLemmas);
     if (isLatin) {
       const kana: string = toKana(needle);
       if (isKana(kana)) {

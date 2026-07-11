@@ -94,6 +94,14 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(results.some((r) => r.headword === "話す")).toBe(true);
   });
 
+  test("tokenizer-provided lemmas surface their dictionary-form words", async () => {
+    // WHY: M5 feeds the morphological tokenizer's lemma into search as a candidate. A query whose
+    // rule-based deinflection might miss should still find the word when the tokenizer supplies the
+    // base form — here 食べる passed as an extra lemma must surface 食べる.
+    const results = await dict.search("たべ", 50, ["食べる"]);
+    expect(results.some((r) => r.headword === "食べる")).toBe(true);
+  });
+
   test("deinflection never displaces an exact match", async () => {
     // WHY: a literal exact match of the typed text must always beat generated candidates —
     // 食べる typed exactly stays first even though rules produce candidates from it.

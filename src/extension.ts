@@ -8,15 +8,30 @@ const VIEW_ID = "vscode-jisho.searchView";
 
 const HAS_JAPANESE = /[぀-ヿ㐀-鿿豈-﫿]/;
 
+interface QueryAnalysis {
+  /** Breakdown chips — only when a Japanese query has >1 content word. */
+  segments: SegmentDto[];
+  /** Content-word dictionary forms, fed to search as deinflection candidates. */
+  lemmas: string[];
+}
+
 /**
- * Morphological breakdown for the query — but only for Japanese input with more than one content
- * word. Gating here keeps English/romaji queries from ever loading the tokenizer's dictionary.
+ * Tokenize a Japanese query once, deriving both the breakdown segments and the content lemmas.
+ * English/romaji queries never load the tokenizer's dictionary. A single conjugated word
+ * (食べました) yields one lemma (食べる) for the search merge but no breakdown bar.
  */
-const breakdown = async (query: string): Promise<SegmentDto[]> => {
+const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   const trimmed = query.trim();
-  if (trimmed.length < 2 || !HAS_JAPANESE.test(trimmed)) return [];
-  const segments = await segment(trimmed);
-  return contentSegmentCount(segments) > 1 ? segments : [];
+  if (trimmed.length < 2 || !HAS_JAPANESE.test(trimmed)) {
+    return { segments: [], lemmas: [] };
+  }
+  const all = await segment(trimmed);
+  const lemmas = all
+    .filter((s) => s.pos !== "particle" && s.pos !== "auxiliary")
+    .map((s) => s.lemma)
+    .filter((l) => l !== "" && l !== trimmed);
+  const segments = contentSegmentCount(all) > 1 ? all : [];
+  return { segments, lemmas };
 };
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -142,17 +157,19 @@ const respond = async (
 ): Promise<Response> => {
   switch (request.type) {
     case "search": {
-      const [results, kanji, segments] = await Promise.all([
-        dict.search(request.query),
-        dict.searchKanji(request.query),
-        breakdown(request.query)
+      // Tokenize once (Japanese only): segments feed the breakdown bar, lemmas feed search's
+      // deinflection merge — the tokenizer is more accurate than the rule-based fallback.
+      const analysis = await analyzeQuery(request.query);
+      const [results, kanji] = await Promise.all([
+        dict.search(request.query, 50, analysis.lemmas),
+        dict.searchKanji(request.query)
       ]);
       return {
         type: "search",
         requestId: request.requestId,
         results,
         kanji,
-        segments
+        segments: analysis.segments
       };
     }
     case "getWord":
