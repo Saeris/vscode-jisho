@@ -1,0 +1,50 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.writing {
+  margin-bottom: 12px;
+}
+
+.headword {
+  font-size: 2em;
+  line-height: 1.2;
+}
+
+.readings {
+  color: var(--jisho-muted);
+  margin-top: 2px;
+}
+
+.translations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.translation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.translationText {
+  font-size: 1.05em;
+}

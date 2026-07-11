@@ -11,9 +11,9 @@ The single consolidated view of where vscode-jisho is going. Every milestone has
 | M1  | Vocabulary search + detail     | ✅ shipped                                 | [M1-PLAN.md](M1-PLAN.md) |
 | M2  | Search quality                 | ✅ shipped                                 | [M2-PLAN.md](M2-PLAN.md) |
 | M3  | Release — installable v0.1     | ✅ code complete (publish pending secrets) | [M3-PLAN.md](M3-PLAN.md) |
-| M4  | Kanji as first-class           | queued                                     | —                        |
-| M5  | Morphology & multi-word search | queued                                     | —                        |
-| M6  | Enrichment datasets            | queued                                     | —                        |
+| M4  | Kanji as first-class           | shipped                                    | —                        |
+| M5  | Morphology & multi-word search | shipped                                    | —                        |
+| M6  | Enrichment datasets            | shipped                                    | —                        |
 | M7  | Stroke order & handwriting     | queued                                     | —                        |
 
 ## M1 — Vocabulary search + detail (shipped)
@@ -58,9 +58,9 @@ The riskiest single item, deliberately sequenced after kanji. **Engine decided (
 
 **Study references** (patterns, not code): [Sudachi](https://github.com/WorksApplications/Sudachi) A/B/C split modes (segmentation granularity — Lindera's normal/decompose modes are the analogue); [Fudoki](https://github.com/iamcheyan/fudoki) / [@saeris/remark-ayaji](https://github.com/Saeris/remark-ayaji) POS→color UI treatment for the breakdown bar.
 
-## M6 — Enrichment datasets
+## M6 — Enrichment datasets (shipped)
 
-Layer the remaining reference data onto existing views. Each is a data-build addition plus a detail-view section — independent of each other, so this milestone can be split or reordered freely:
+Layered the remaining reference data onto existing views. Each was a data-build addition plus a detail-view section — see [M6-PLAN.md](M6-PLAN.md) for as-built details:
 
 - **Pitch accent** (Kanjium) — accent notation on word details and result rows.
 - **Example sentences** (Tatoeba, via JMdict's examples variant or Tatoeba directly) — sentences on word details, with the M2 tap-through pattern extended to sentence vocabulary (better with the M5 tokenizer).

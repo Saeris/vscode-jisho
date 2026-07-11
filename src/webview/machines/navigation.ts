@@ -10,6 +10,7 @@ export type View =
   | { name: "search" }
   | { name: "wordDetail"; id: string }
   | { name: "kanjiDetail"; literal: string }
+  | { name: "nameDetail"; id: string }
   | { name: "radicals" }
   | { name: "about" };
 
@@ -27,6 +28,7 @@ export interface NavContext {
 export type NavEvent =
   | { type: "openWord"; id: string }
   | { type: "openKanji"; literal: string }
+  | { type: "openName"; id: string }
   | { type: "openRadicals" }
   | { type: "openAbout" }
   | { type: "back" }
@@ -60,6 +62,15 @@ export const navigationMachine = setup({
           ? [
               ...context.stack,
               { name: "kanjiDetail", literal: event.literal } satisfies View
+            ]
+          : context.stack
+    }),
+    pushName: assign({
+      stack: ({ context, event }) =>
+        event.type === "openName"
+          ? [
+              ...context.stack,
+              { name: "nameDetail", id: event.id } satisfies View
             ]
           : context.stack
     }),
@@ -97,6 +108,7 @@ export const navigationMachine = setup({
   on: {
     openWord: { actions: "pushWord" },
     openKanji: { actions: "pushKanji" },
+    openName: { actions: "pushName" },
     openRadicals: { actions: "pushRadicals" },
     openAbout: { actions: "pushAbout" },
     back: { actions: "pop" },

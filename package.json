@@ -30,6 +30,7 @@
     "build:platforms": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
     "build:data": "vp exec node scripts/build-data.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
+    "build:data:names": "vp exec node scripts/build-data.ts --names",
     "check": "vp check",
     "format": "vp check --fix",
     "test": "vp test --fileParallelism"

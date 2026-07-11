@@ -78,6 +78,64 @@ export const ensureDatabase = async (
   return target.fsPath;
 };
 
+const NAMES_DB_NAME = "jisho-names.db";
+
+/**
+ * Provision the optional JMnedict names database (`jisho-names.db`), returning its on-disk path.
+ * Unlike the word DB this has **no bundled dev copy** — it is download-only (JMnedict would roughly
+ * double the bundled data). If a locally-built `assets/jisho-names.db` exists (from
+ * `vp run build:data:names`), F5 development uses it directly; otherwise it downloads the
+ * `jisho-names.db.gz` artifact from the same rolling release. Provisioned lazily on the first names
+ * query so users who never search names never download it.
+ */
+export const ensureNamesDatabase = async (
+  context: vscode.ExtensionContext
+): Promise<string> => {
+  const storageDir = context.globalStorageUri;
+  await vscode.workspace.fs.createDirectory(storageDir);
+  const target = vscode.Uri.joinPath(storageDir, NAMES_DB_NAME);
+
+  // dev backend: use the locally-built names DB shipped alongside the source under F5.
+  const bundled = vscode.Uri.joinPath(
+    context.extensionUri,
+    "assets",
+    NAMES_DB_NAME
+  );
+  if (await exists(bundled)) return bundled.fsPath;
+
+  // A previously-downloaded copy is fine (offline-first).
+  if (await exists(target)) return target.fsPath;
+
+  // Installed backend: download the names artifact with a progress notification.
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Jisho: downloading names dictionary…",
+      cancellable: false
+    },
+    async (progress) => {
+      let lastPercent = 0;
+      await downloadDatabase(
+        target.fsPath,
+        (received, total) => {
+          if (total <= 0) return;
+          const percent = Math.floor((received / total) * 100);
+          if (percent > lastPercent) {
+            progress.report({
+              increment: percent - lastPercent,
+              message: `${percent}%`
+            });
+            lastPercent = percent;
+          }
+        },
+        undefined,
+        "jisho-names.db"
+      );
+    }
+  );
+  return target.fsPath;
+};
+
 const exists = async (uri: vscode.Uri): Promise<boolean> => {
   try {
     await vscode.workspace.fs.stat(uri);

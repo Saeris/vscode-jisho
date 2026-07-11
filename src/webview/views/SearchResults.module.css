@@ -101,6 +101,16 @@
   white-space: nowrap;
 }
 
+/* Name-type labels (surname/place/…) on a name result row — subdued, like a reading. */
+.nameType {
+  color: var(--jisho-muted);
+  font-size: 0.8em;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Section divider between the Words and Kanji result lists. */
 .sectionHeader {
   padding: 4px var(--jisho-gap);

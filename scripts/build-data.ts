@@ -26,6 +26,8 @@ import { toRomaji } from "wanakana";
 import type {
   JMdict,
   JMdictWord,
+  JMnedict,
+  JMnedictWord,
   Kanjidic2,
   Kanjidic2Character,
   Kradfile,
@@ -48,8 +50,17 @@ type SenseWithExamples = JMdictWord["sense"][number] & {
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
+const NAMES_DB = join(root, "assets", "jisho-names.db");
+const NAMES_SCHEMA = join(root, "src", "data", "names-schema.sql");
 const RELEASE_API =
   "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
+
+// `--names` builds the separate JMnedict names database (`jisho-names.db`), an optional download
+// delivered as its own `jisho-names.db.gz` trio on the dictionary-latest release. It's ~743k
+// entries and would roughly double the main DB, so it's never bundled into it. Runs independently
+// of the word/kanji build.
+const NAMES = process.argv.includes("--names");
+const NAMES_ASSET_PATTERN = /^jmnedict-all-\d.*\.json\.tgz$/;
 
 // `--full` builds the complete JMdict (~217k entries) — the variant delivered to users via the
 // dictionary-latest GitHub Release. The default common-only subset (~22k) stays the dev/test
@@ -730,7 +741,165 @@ const importKanji = async (
   }
 };
 
+/**
+ * Build the separate JMnedict names database. Mirrors the word build's discipline (batched
+ * commits + WAL checkpoints, denormalized index-friendly search terms) but with the simpler name
+ * schema. Emits `jisho-names.db` and always the gzip trio (it's a download-only artifact — there's
+ * no bundled dev copy the way the common word DB has).
+ */
+const buildNamesDatabase = async (): Promise<void> => {
+  console.log("Resolving latest jmdict-simplified release…");
+  const release = await fetchJson<GithubRelease>(RELEASE_API);
+  console.log(`Release ${release.tag_name}`);
+  const dict = await fetchAssetJson<JMnedict>(release, NAMES_ASSET_PATTERN);
+
+  mkdirSync(dirname(NAMES_DB), { recursive: true });
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${NAMES_DB}${suffix}`, { force: true });
+  }
+
+  const db = await connect(NAMES_DB);
+  await db.exec(readFileSync(NAMES_SCHEMA, "utf8"));
+  await db.exec("PRAGMA synchronous=OFF");
+  await db.exec("BEGIN");
+
+  const insTag = await db.prepare(
+    "INSERT INTO name_tags(tag, description) VALUES (?, ?)"
+  );
+  for (const [tag, description] of Object.entries(dict.tags)) {
+    await insTag.run(tag, description);
+  }
+
+  const insWord = await db.prepare("INSERT INTO name_words(id) VALUES (?)");
+  const insKanji = await db.prepare(
+    "INSERT INTO name_kanji(word_id, position, text) VALUES (?, ?, ?)"
+  );
+  const insKana = await db.prepare(
+    "INSERT INTO name_kana(word_id, position, text, applies_to_kanji_json) VALUES (?, ?, ?, ?)"
+  );
+  const insTrans = await db.prepare(
+    "INSERT INTO name_translations(word_id, position, types_json, translations_json) VALUES (?, ?, ?, ?)"
+  );
+  const insTerm = await db.prepare(
+    "INSERT INTO name_search_terms(word_id, kind, term, term_lower, is_primary) VALUES (?, ?, ?, ?, ?)"
+  );
+
+  const BATCH = 5000;
+  const total = dict.words.length;
+  let done = 0;
+  for (const name of dict.words) {
+    await importName(name, { insWord, insKanji, insKana, insTrans, insTerm });
+    if (++done % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+      console.log(`  …${done}/${total} names`);
+    }
+  }
+  await db.exec("COMMIT");
+
+  const insMeta = await db.prepare(
+    "INSERT INTO meta(key, value) VALUES (?, ?)"
+  );
+  await insMeta.run("source", "JMnedict (jmdict-simplified, jmnedict-all)");
+  await insMeta.run("dictDate", dict.dictDate);
+  await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
+  await insMeta.run(
+    "license",
+    "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
+  );
+  const builtAt = new Date().toISOString();
+  await insMeta.run("variant", "names");
+  await insMeta.run("nameCount", String(total));
+  await insMeta.run("builtAt", builtAt);
+
+  await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  await db.close();
+
+  const version = `names ${dict.dictDate} ${builtAt}`;
+  writeFileSync(`${NAMES_DB}.version`, version, "utf8");
+  console.log(`\nWrote ${NAMES_DB} — ${total} names.`);
+
+  // Names ship only as a download (no bundled dev copy), so always emit the gzip trio.
+  console.log("Compressing release asset…");
+  const gzPath = join(dirname(NAMES_DB), "jisho-names.db.gz");
+  await pipeline(
+    createReadStream(NAMES_DB),
+    createGzip({ level: 9 }),
+    createWriteStream(gzPath)
+  );
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(gzPath), hash);
+  writeFileSync(`${gzPath}.sha256`, hash.digest("hex"), "utf8");
+  writeFileSync(`${gzPath}.version`, version, "utf8");
+  console.log(`Wrote ${gzPath} (+ .sha256, .version)`);
+};
+
+interface NameStmts {
+  insWord: Statement;
+  insKanji: Statement;
+  insKana: Statement;
+  insTrans: Statement;
+  insTerm: Statement;
+}
+
+const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
+  await s.insWord.run(name.id);
+
+  for (let i = 0; i < name.kanji.length; i++) {
+    const k = name.kanji[i];
+    await s.insKanji.run(name.id, i, k.text);
+    await s.insTerm.run(
+      name.id,
+      "kanji",
+      k.text,
+      k.text.toLowerCase(),
+      i === 0 ? 1 : 0
+    );
+  }
+  for (let i = 0; i < name.kana.length; i++) {
+    const k = name.kana[i];
+    await s.insKana.run(name.id, i, k.text, JSON.stringify(k.appliesToKanji));
+    await s.insTerm.run(
+      name.id,
+      "kana",
+      k.text,
+      k.text.toLowerCase(),
+      i === 0 ? 1 : 0
+    );
+    const romaji = toRomaji(k.text);
+    if (romaji !== "" && romaji !== k.text) {
+      await s.insTerm.run(name.id, "romaji", romaji, romaji.toLowerCase(), 0);
+    }
+  }
+  for (let i = 0; i < name.translation.length; i++) {
+    const t = name.translation[i];
+    const texts = t.translation.map((tt) => tt.text);
+    await s.insTrans.run(
+      name.id,
+      i,
+      JSON.stringify(t.type),
+      JSON.stringify(texts)
+    );
+    // Index each word of each translation so an English query ("Tanaka") finds the name.
+    const words = new Set(
+      texts
+        .join(" ")
+        .toLowerCase()
+        .split(/[^a-z0-9']+/)
+        .filter((w) => w.length > 1)
+    );
+    for (const w of words) {
+      await s.insTerm.run(name.id, "trans", w, w, 0);
+    }
+  }
+};
+
 console.time("build-data");
-const sources = await downloadSources();
-await buildDatabase(sources);
+if (NAMES) {
+  await buildNamesDatabase();
+} else {
+  const sources = await downloadSources();
+  await buildDatabase(sources);
+}
 console.timeEnd("build-data");

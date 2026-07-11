@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Dictionary } from "./host/db";
-import { ensureDatabase } from "./host/ensureDatabase";
+import { NamesDictionary } from "./host/names";
+import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type { Request, Response, SegmentDto } from "./shared/messages";
 
@@ -60,6 +61,7 @@ class JishoViewProvider
 {
   #context: vscode.ExtensionContext;
   #dictionary: Promise<Dictionary> | undefined;
+  #names: Promise<NamesDictionary> | undefined;
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
@@ -79,6 +81,21 @@ class JishoViewProvider
     return this.#dictionary;
   }
 
+  async #namesDict(): Promise<NamesDictionary> {
+    // The names DB is a separate, opt-in download provisioned on first names query. Same
+    // open-once/retry-on-failure discipline as the word DB.
+    this.#names ??= (async (): Promise<NamesDictionary> => {
+      try {
+        const path = await ensureNamesDatabase(this.#context);
+        return await NamesDictionary.open(path);
+      } catch (err) {
+        this.#names = undefined;
+        throw err;
+      }
+    })();
+    return this.#names;
+  }
+
   resolveWebviewView(view: vscode.WebviewView): void {
     view.webview.options = {
       enableScripts: true,
@@ -94,8 +111,10 @@ class JishoViewProvider
 
   async #handle(webview: vscode.Webview, request: Request): Promise<void> {
     try {
-      const dict = await this.#dict();
-      const response = await respond(dict, request);
+      const response =
+        request.type === "searchNames" || request.type === "getName"
+          ? await respondNames(await this.#namesDict(), request)
+          : await respond(await this.#dict(), request);
       await webview.postMessage(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -146,20 +165,28 @@ class JishoViewProvider
   }
 
   async dispose(): Promise<void> {
-    if (this.#dictionary) {
-      try {
-        await (await this.#dictionary).close();
-      } catch {
-        // best-effort close on shutdown
+    for (const opened of [this.#dictionary, this.#names]) {
+      if (opened) {
+        try {
+          await (await opened).close();
+        } catch {
+          // best-effort close on shutdown
+        }
       }
     }
   }
 }
 
-/** Dispatch a request to the dictionary and build its response. */
+/** Requests served by the word/kanji dictionary (everything except the names DB). */
+type WordRequest = Exclude<
+  Request,
+  { type: "searchNames" } | { type: "getName" }
+>;
+
+/** Dispatch a word/kanji request to the dictionary and build its response. */
 const respond = async (
   dict: Dictionary,
-  request: Request
+  request: WordRequest
 ): Promise<Response> => {
   switch (request.type) {
     case "search": {
@@ -201,6 +228,33 @@ const respond = async (
         type: "getAbout",
         requestId: request.requestId,
         meta: await dict.getMeta()
+      };
+  }
+};
+
+/** Requests served by the optional names dictionary. */
+type NamesRequest = Extract<
+  Request,
+  { type: "searchNames" } | { type: "getName" }
+>;
+
+/** Dispatch a names request to the (separately-provisioned) names dictionary. */
+const respondNames = async (
+  names: NamesDictionary,
+  request: NamesRequest
+): Promise<Response> => {
+  switch (request.type) {
+    case "searchNames":
+      return {
+        type: "searchNames",
+        requestId: request.requestId,
+        names: await names.searchNames(request.query)
+      };
+    case "getName":
+      return {
+        type: "getName",
+        requestId: request.requestId,
+        name: await names.getName(request.id)
       };
   }
 };

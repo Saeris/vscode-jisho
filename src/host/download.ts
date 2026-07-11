@@ -30,23 +30,25 @@ const fetchOk = async (url: string): Promise<Response> => {
 };
 
 /**
- * Download `<base>/jisho-full.db.gz`, verify it against `<base>/jisho-full.db.gz.sha256`, and
- * gunzip it to `destPath` (written via a `.part` temp file, renamed only after verification).
- * Returns the release's version string (from `<base>/jisho-full.db.version`) for the sidecar.
+ * Download `<base>/<prefix>.gz`, verify it against `<base>/<prefix>.gz.sha256`, and gunzip it to
+ * `destPath` (written via a `.part` temp file, renamed only after verification). Returns the
+ * release's version string (from `<base>/<prefix>.version`) for the sidecar. `prefix` selects the
+ * artifact — `jisho-full.db` (the word DB) or `jisho-names.db` (the optional names DB).
  */
 export const downloadDatabase = async (
   destPath: string,
   onProgress: DownloadProgress,
-  base: string = DATA_RELEASE_BASE
+  base: string = DATA_RELEASE_BASE,
+  prefix = "jisho-full.db"
 ): Promise<string> => {
   const expectedSha = (
-    await (await fetchOk(`${base}/jisho-full.db.gz.sha256`)).text()
+    await (await fetchOk(`${base}/${prefix}.gz.sha256`)).text()
   ).trim();
   const version = (
-    await (await fetchOk(`${base}/jisho-full.db.version`)).text()
+    await (await fetchOk(`${base}/${prefix}.version`)).text()
   ).trim();
 
-  const res = await fetchOk(`${base}/jisho-full.db.gz`);
+  const res = await fetchOk(`${base}/${prefix}.gz`);
   // fetchOk already rejected null bodies, but the Response type can't carry that narrowing.
   const body = res.body;
   if (body === null) throw new Error("Download failed: empty response body");

@@ -166,6 +166,33 @@ export interface KanjiDetailDto {
   words: KanjiWordDto[];
 }
 
+/** A compact name result for the search list's "Names" section. */
+export interface NameResultDto {
+  id: string;
+  /** Primary writing to show (first kanji, else first kana). */
+  headword: string;
+  /** Primary reading (first kana), or "" for kana-only names. */
+  reading: string;
+  /** Human-readable name types (surname, place, given name…), from the first translation. */
+  types: string[];
+  /** First translation preview (e.g. "Tanaka"). */
+  translationPreview: string;
+}
+
+/** One translation group of a name: its type tags and translation strings. */
+export interface NameTranslationDto {
+  types: TagDto[];
+  translations: string[];
+}
+
+/** The full name detail (a simplified word detail — no senses/pos/pitch). */
+export interface NameDetailDto {
+  id: string;
+  kanji: string[];
+  kana: string[];
+  translations: NameTranslationDto[];
+}
+
 // ── Request / Response protocol ───────────────────────────────────────────────
 
 export interface SearchRequest {
@@ -199,12 +226,30 @@ export interface GetAboutRequest {
   requestId: string;
 }
 
+/**
+ * Name search against the optional JMnedict database. Separate from `search` because the names DB
+ * is a lazy, opt-in download provisioned only on first use — the word/kanji search never waits on it.
+ */
+export interface SearchNamesRequest {
+  type: "searchNames";
+  requestId: string;
+  query: string;
+}
+
+export interface GetNameRequest {
+  type: "getName";
+  requestId: string;
+  id: string;
+}
+
 export type Request =
   | SearchRequest
   | GetWordRequest
   | GetKanjiRequest
   | LookupRadicalsRequest
-  | GetAboutRequest;
+  | GetAboutRequest
+  | SearchNamesRequest
+  | GetNameRequest;
 
 export interface SearchResponse {
   type: "search";
@@ -247,6 +292,20 @@ export interface GetAboutResponse {
   meta: Record<string, string>;
 }
 
+export interface SearchNamesResponse {
+  type: "searchNames";
+  requestId: string;
+  /** Empty when the query has no name matches, or the names DB isn't available yet. */
+  names: NameResultDto[];
+}
+
+export interface GetNameResponse {
+  type: "getName";
+  requestId: string;
+  /** `null` when the id is unknown. */
+  name: NameDetailDto | null;
+}
+
 export interface ErrorResponse {
   type: "error";
   requestId: string;
@@ -259,4 +318,6 @@ export type Response =
   | GetKanjiResponse
   | LookupRadicalsResponse
   | GetAboutResponse
+  | SearchNamesResponse
+  | GetNameResponse
   | ErrorResponse;

@@ -77,6 +77,14 @@ gh release upload dictionary-latest --clobber \
   assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
 ```
 
+The **names dictionary** (JMnedict, ~743k entries) is a separate optional artifact — downloaded on demand the first time a search could return names — built and uploaded the same way:
+
+```bash
+vp run build:data:names  # builds assets/jisho-names.db + jisho-names.db.gz (+ .sha256, .version)
+gh release upload dictionary-latest --clobber \
+  assets/jisho-names.db.gz assets/jisho-names.db.gz.sha256 assets/jisho-names.db.version
+```
+
 ## 📣 Data sources & attribution
 
 This extension is built on the work of several open dictionary projects. Their licenses require attribution, which is reproduced here (and will be surfaced in-app):
@@ -87,6 +95,7 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
 - **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
 - **[Example sentences][tatoeba]** — the Tanaka corpus, maintained by the [Tatoeba][tatoeba] project, used under [CC BY 2.0 FR][cc-by-fr] (embedded in JMdict via jmdict-simplified).
+- **[JMnedict][jmnedict]** — the names dictionary (optional download), © [EDRDG][edrdg], used under the [EDRDG License][edrdg-license].
 
 Additional sources (AnimCJK stroke data) will be added and credited as their features are implemented.
 
@@ -119,6 +128,7 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [kanjium]: https://github.com/mifunetoshiro/kanjium
 [tatoeba]: https://tatoeba.org/
 [cc-by-fr]: https://creativecommons.org/licenses/by/2.0/fr/deed.en
+[jmnedict]: https://www.edrdg.org/enamdict/enamdict_doc.html
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/

@@ -7,6 +7,7 @@ import {
 } from "./machines/navigation";
 import { About } from "./views/About";
 import { KanjiDetail } from "./views/KanjiDetail";
+import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
 import { SearchResults } from "./views/SearchResults";
 import { WordDetail } from "./views/WordDetail";
@@ -32,6 +33,7 @@ export const App = (): React.ReactElement => {
           onQueryChange={(query) => send({ type: "setSearchQuery", query })}
           onOpenWord={(id) => send({ type: "openWord", id })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+          onOpenName={(id) => send({ type: "openName", id })}
           onOpenRadicals={() => send({ type: "openRadicals" })}
           onOpenAbout={() => send({ type: "openAbout" })}
         />
@@ -52,6 +54,13 @@ export const App = (): React.ReactElement => {
           onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenWord={(id) => send({ type: "openWord", id })}
+        />
+      ) : null}
+      {view.name === "nameDetail" ? (
+        <NameDetail
+          id={view.id}
+          onBack={() => send({ type: "back" })}
+          onHome={onHome}
         />
       ) : null}
       {view.name === "radicals" ? (

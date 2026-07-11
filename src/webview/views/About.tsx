@@ -92,6 +92,15 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             </a>
             ), embedded in JMdict via jmdict-simplified.
           </p>
+          <p>
+            The names dictionary (optional download) uses{" "}
+            <a href="https://www.edrdg.org/enamdict/enamdict_doc.html">
+              JMnedict
+            </a>
+            , © EDRDG, used under the{" "}
+            <a href="https://www.edrdg.org/edrdg/licence.html">EDRDG licence</a>
+            .
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>

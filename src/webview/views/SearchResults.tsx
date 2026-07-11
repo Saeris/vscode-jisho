@@ -8,7 +8,7 @@ import {
   SearchField
 } from "react-aria-components";
 import type { Selection } from "react-aria-components";
-import { searchQuery } from "../queries";
+import { namesQuery, searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
 import { SegmentBar } from "../components/SegmentBar";
@@ -20,6 +20,7 @@ interface SearchResultsProps {
   onQueryChange: (query: string) => void;
   onOpenWord: (id: string) => void;
   onOpenKanji: (literal: string) => void;
+  onOpenName: (id: string) => void;
   onOpenRadicals: () => void;
   onOpenAbout: () => void;
 }
@@ -29,6 +30,7 @@ export const SearchResults = ({
   onQueryChange,
   onOpenWord,
   onOpenKanji,
+  onOpenName,
   onOpenRadicals,
   onOpenAbout
 }: SearchResultsProps): React.ReactElement => {
@@ -38,8 +40,12 @@ export const SearchResults = ({
   const { data, isFetching, isError, error } = useQuery(
     searchQuery(deferredQuery)
   );
+  // Names come from a separate, opt-in database queried independently — a failure or first-use
+  // download of the names DB must not affect word/kanji results, so its errors are ignored here.
+  const { data: names } = useQuery(namesQuery(deferredQuery));
   const words = data?.words ?? [];
   const kanji = data?.kanji ?? [];
+  const nameResults = names ?? [];
   const segments = data?.segments ?? [];
   const count = data ? words.length + kanji.length : undefined;
 
@@ -181,6 +187,46 @@ export const SearchResults = ({
                         .filter(Boolean)
                         .join("　")}
                     </span>
+                  </span>
+                </ListBoxItem>
+              )}
+            </ListBox>
+          </>
+        ) : null}
+
+        {nameResults.length > 0 ? (
+          <>
+            <div className={styles.sectionHeader}>Names</div>
+            <ListBox
+              aria-label="Name results"
+              selectionMode="single"
+              onSelectionChange={noop}
+              onAction={(key) => onOpenName(String(key))}
+              items={nameResults}
+            >
+              {(item) => (
+                <ListBoxItem
+                  id={item.id}
+                  textValue={item.headword}
+                  className={styles.item}
+                >
+                  <span className={styles.itemTop}>
+                    <span className={styles.headword} lang="ja">
+                      {item.headword}
+                    </span>
+                    {item.reading ? (
+                      <span className={styles.reading} lang="ja">
+                        {item.reading}
+                      </span>
+                    ) : null}
+                    {item.types.length > 0 ? (
+                      <span className={styles.nameType}>
+                        {item.types.join(", ")}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className={styles.gloss}>
+                    {item.translationPreview}
                   </span>
                 </ListBoxItem>
               )}

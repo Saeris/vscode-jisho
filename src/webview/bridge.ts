@@ -6,10 +6,12 @@
 import type {
   GetAboutResponse,
   GetKanjiResponse,
+  GetNameResponse,
   GetWordResponse,
   LookupRadicalsResponse,
   Request,
   Response,
+  SearchNamesResponse,
   SearchResponse
 } from "../shared/messages";
 
@@ -107,5 +109,29 @@ export const getAbout = async (): Promise<GetAboutResponse> => {
   const response = await send({ type: "getAbout", requestId: nextRequestId() });
   if (response.type !== "getAbout")
     throw new Error("Unexpected response for getAbout");
+  return response;
+};
+
+export const searchNames = async (
+  query: string
+): Promise<SearchNamesResponse> => {
+  const response = await send({
+    type: "searchNames",
+    requestId: nextRequestId(),
+    query
+  });
+  if (response.type !== "searchNames")
+    throw new Error("Unexpected response for searchNames");
+  return response;
+};
+
+export const getName = async (id: string): Promise<GetNameResponse> => {
+  const response = await send({
+    type: "getName",
+    requestId: nextRequestId(),
+    id
+  });
+  if (response.type !== "getName")
+    throw new Error("Unexpected response for getName");
   return response;
 };
