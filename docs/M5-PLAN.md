@@ -62,3 +62,14 @@ Install `lindera-wasm-nodejs-ipadic`, tokenize the M2/M3 corpus in the extension
 ## Build order & verification
 
 1 (spike — gate) → 2 (service) → 3 (breakdown UI + multi-word) → 4a (lemma deinflection) → 4b (#12 arrow-nav; #11 autocomplete only if its spike passes). Per-item commits + bump files (item 3 is `minor`). Standing gates per CONVENTIONS; tokenizer init must not regress activation time (measure); verify host externals stay expected after adding lindera; F5 pass for the breakdown UI. Append as-built deviations + flip ROADMAP status.
+
+## As-built deviations
+
+Where the shipped implementation differs from the plan above:
+
+- **No async WASM init in the host.** The plan (from the web-build docs) assumed a `__wbg_init().then()` gate. The `nodejs` build instead loads its WASM when the module is imported, so the tokenizer service just uses a **dynamic `import()`** (idiomatic ESM, chosen over `require` for consistency with the codebase) — lazy, cached, no init dance.
+- **Segment granularity coalescing.** IPADIC splits サ変 compounds (勉強+する) and verb+auxiliary chains (食べ+まし+た). `tokenizer.ts` coalesces trailing する / auxiliaries / suffixal tokens onto the preceding content word so a "segment" is a searchable unit (勉強します → one 勉強·verb segment). Particles/auxiliaries stay separate for the dimmed chips.
+- **Deinflection kept `Dictionary` tokenizer-agnostic.** Rather than importing the tokenizer into the DB layer, `search` gained an `extraLemmas` param; `extension.ts` tokenizes once (`analyzeQuery`) and feeds both the breakdown segments and the content lemmas. The M2 rule table stays as the fallback.
+- **#11 autocomplete ruled out, not just deferred.** Research (recorded in [BACKLOG.md](BACKLOG.md) #11) found the web platform cannot override the OS IME candidate window (non-cancelable composition `beforeinput`; `chrome.input.ime` is ChromeOS-only), so the Duolingo-style strip isn't viable on desktop. #12 (arrow-nav) shipped; #11 stays deferred with a settled technical rationale.
+- **Packaging verified end-to-end.** Lindera ships unbundled in the `.vsix` (13MB `.wasm` + loader confirmed present); the dynamic `import()` stays externalized in the host bundle. `wasm-unsafe-eval` CSP is not needed in the host (no CSP there); it's the M8 web-host concern, already noted in M8-PLAN.
+- **BACKLOG #8** (deinflection-table hardening) marked largely superseded — the tokenizer supplies accurate lemmas.
