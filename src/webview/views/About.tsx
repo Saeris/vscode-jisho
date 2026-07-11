@@ -75,6 +75,15 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             . No official JLPT vocabulary list exists, so these levels are an
             unofficial community estimate.
           </p>
+          <p>
+            Pitch accent data (mora notation) comes from{" "}
+            <a href="https://github.com/mifunetoshiro/kanjium">Kanjium</a> by
+            Uros O. (derived from NHK/Wadoku work),{" "}
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+              CC BY-SA 4.0
+            </a>
+            .
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>
@@ -102,6 +111,12 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
                   <tr>
                     <td>JLPT-tagged words</td>
                     <td>{meta["jlptMatched"]}</td>
+                  </tr>
+                ) : null}
+                {meta["pitchRows"] ? (
+                  <tr>
+                    <td>Pitch-tagged readings</td>
+                    <td>{meta["pitchRows"]}</td>
                   </tr>
                 ) : null}
                 <tr>

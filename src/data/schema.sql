@@ -76,6 +76,18 @@ CREATE TABLE tags (
   description TEXT NOT NULL
 );
 
+-- Pitch accent (Kanjium): mora-position accent pattern(s) per (word, reading). `accents_json` is
+-- a JSON array of mora numbers (0=heiban/flat, n=downstep after mora n), ordered by commonness;
+-- read whole when rendering a word's readings, never queried across words. Keyed by (word_id,
+-- reading) because a word's readings can differ in accent. Unofficial-adjacent but well-sourced
+-- (NHK/Wadoku via Kanjium); imperfect JMdict join coverage is expected.
+CREATE TABLE pitch_accents (
+  word_id      TEXT NOT NULL REFERENCES words(id),
+  reading      TEXT NOT NULL,
+  accents_json TEXT NOT NULL DEFAULT '[]',
+  PRIMARY KEY (word_id, reading)
+);
+
 -- ── Kanji (Kanjidic2 + Kradfile/Radkfile) ──────────────────────────────────
 -- Defined before `search_terms` because kanji-entry term rows FK-reference `kanji_characters`.
 -- One row per kanji character. Readings/meanings/nanori are JSON arrays read whole when

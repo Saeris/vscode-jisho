@@ -364,11 +364,21 @@ export class Dictionary {
          FROM kana WHERE word_id = ? ORDER BY position`,
       id
     );
+    // Pitch accents are keyed by (word_id, reading); load them once and attach per reading.
+    const pitchRows = await this.#all<{
+      reading: string;
+      accents_json: string;
+    }>("SELECT reading, accents_json FROM pitch_accents WHERE word_id = ?", id);
+    const pitchByReading = new Map<string, number[]>();
+    for (const p of pitchRows) {
+      pitchByReading.set(p.reading, parseNumbers(p.accents_json));
+    }
     const kana: KanaDto[] = kanaRows.map((r) => ({
       text: r.text,
       common: r.is_common === 1,
       tags: parseStrings(r.tags_json),
-      appliesToKanji: parseStrings(r.applies_to_kanji_json)
+      appliesToKanji: parseStrings(r.applies_to_kanji_json),
+      pitchAccents: pitchByReading.get(r.text) ?? []
     }));
 
     const senseRows = await this.#all<{
@@ -593,6 +603,12 @@ export class Dictionary {
 const parseStrings = (json: string): string[] => {
   const value: unknown = JSON.parse(json);
   return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
+};
+
+/** Parse a JSON-encoded number array from a DB column, tolerating malformed data. */
+const parseNumbers = (json: string): number[] => {
+  const value: unknown = JSON.parse(json);
+  return Array.isArray(value) ? value.filter((v) => typeof v === "number") : [];
 };
 
 /**

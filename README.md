@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📖 Jisho — Japanese Dictionary for VSCode
+# 📔 Jisho — Japanese Dictionary for VSCode
 
 [![CI status][ci_badge]][ci]
 
@@ -19,7 +19,7 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 
 Planned for later milestones: kanji detail with radical breakdown and stroke-order animation, pitch-accent notation, example sentences, JLPT word lists, names dictionary, and handwriting-based kanji search — see the [roadmap](./docs/ROADMAP.md) for the full sequence.
 
-## 🚀 Development (running the extension)
+## 🛠 Development (running the extension)
 
 This extension has three build targets: the **extension host** bundle (`vp pack` → a CommonJS `.cjs` VSCode loads in its Node extension host), the **webview** app (`vp build` → the React UI that renders in the sidebar), and a one-off **data build** (`vp run build:data` → the SQLite dictionary). The first two are wired into the F5 debug flow; the data build you run occasionally.
 
@@ -62,7 +62,7 @@ Marketplace releases are **per-platform packages**: `vp run build:platforms` bui
 
 > **Platform note:** Intel Macs (darwin-x64) are unsupported until turso ships that binary; `vp run build` still produces a current-platform-only `.vsix` for local testing.
 
-## 🗄️ Dictionary delivery
+## 📚 Dictionary delivery
 
 The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, gunzipped, sha256-verified, with a progress notification — then everything is offline. In F5 development the workspace copy of `assets/jisho.db` is used directly instead (and refreshes automatically when you rebuild it).
 
@@ -77,7 +77,7 @@ gh release upload dictionary-latest --clobber \
   assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
 ```
 
-## 📚 Data sources & attribution
+## 📣 Data sources & attribution
 
 This extension is built on the work of several open dictionary projects. Their licenses require attribution, which is reproduced here (and will be surfaced in-app):
 
@@ -85,8 +85,9 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[KANJIDIC2][kanjidic]** — kanji character data (readings, meanings, stroke counts, grades, JLPT levels), © EDRDG, used under [CC BY-SA 4.0][cc-by-sa].
 - **[KRADFILE / RADKFILE][kradfile]** — kanji radical/component decompositions, © EDRDG (RADKFILE2/KRADFILE2 © Jim Rose), used under the [EDRDG License][edrdg-license].
 - **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
+- **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
 
-Additional sources (Tatoeba example sentences, Kanjium pitch accent, and AnimCJK stroke data) will be added and credited as their features are implemented.
+Additional sources (Tatoeba example sentences and AnimCJK stroke data) will be added and credited as their features are implemented.
 
 ## 🤝 Contributing
 
@@ -114,6 +115,7 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [kradfile]: https://www.edrdg.org/krad/kradinf.html
 [tanos-jlpt]: https://www.tanos.co.uk/jlpt/
 [yomitan-jlpt]: https://github.com/stephenmk/yomitan-jlpt-vocab
+[kanjium]: https://github.com/mifunetoshiro/kanjium
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
 [viteplus]: https://viteplus.dev/

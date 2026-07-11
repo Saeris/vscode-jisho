@@ -4,6 +4,7 @@ import type { KanaDto, SenseDto, WordDetailDto } from "../../shared/messages";
 import { wordQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
+import { PitchBadge } from "../components/PitchBadge";
 import { DetailHeader } from "../components/DetailHeader";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
@@ -77,6 +78,10 @@ const WordBody = ({
         />
         {word.common ? <Badge kind="common">common</Badge> : null}
         <JlptBadge level={word.jlpt} />
+        {/* Kana-only words show their reading as the headword, so surface pitch here. */}
+        {!primaryKanji && word.kana.length > 0 ? (
+          <PitchBadge accents={word.kana[0].pitchAccents} />
+        ) : null}
         {altKanji.length > 0 ? (
           <span className={styles.headwordAlt} lang="ja">
             {altKanji.join("、")}
@@ -84,7 +89,13 @@ const WordBody = ({
         ) : null}
         {primaryKanji ? (
           <div className={styles.readings} lang="ja">
-            {word.kana.map((k) => formatReading(k)).join("、")}
+            {word.kana.map((k, i) => (
+              <span key={i} className={styles.reading}>
+                {i > 0 ? <span className={styles.readingSep}>、</span> : null}
+                {formatReading(k)}
+                <PitchBadge accents={k.pitchAccents} />
+              </span>
+            ))}
           </div>
         ) : null}
       </div>

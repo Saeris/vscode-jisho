@@ -7,7 +7,8 @@ const badge = cva(styles.badge, {
       common: styles.common,
       pos: styles.pos,
       misc: styles.misc,
-      jlpt: styles.jlpt
+      jlpt: styles.jlpt,
+      pitch: styles.pitch
     }
   },
   defaultVariants: { kind: "pos" }

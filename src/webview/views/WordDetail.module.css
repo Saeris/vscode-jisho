@@ -46,6 +46,17 @@
   margin-top: 2px;
 }
 
+/* Each reading is now its own inline group (reading text + its pitch badge), so readings wrap
+   cleanly and the pitch number stays attached to the right reading. */
+.reading {
+  display: inline-flex;
+  align-items: center;
+}
+
+.readingSep {
+  margin-inline-end: 2px;
+}
+
 .tagRow {
   display: flex;
   flex-wrap: wrap;

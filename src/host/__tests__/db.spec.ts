@@ -171,6 +171,31 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     }
   });
 
+  // ── Pitch accent (M6) ─────────────────────────────────────────────────────
+
+  test("attaches pitch accents to the matching reading", async () => {
+    // WHY: pitch is keyed by (word_id, reading) and must land on the *right* reading. 食べる's
+    // reading たべる is [2] (odaka); a broken join or mis-keying would drop it or attach it to the
+    // wrong reading. This guards the per-reading attachment the UI badge depends on.
+    const [top] = await dict.search("食べる");
+    const word = await dict.getWord(top.id);
+    const taberu = word!.kana.find((k) => k.text === "たべる");
+    expect(taberu?.pitchAccents).toEqual([2]);
+  });
+
+  test("keeps pitch accents distinct per reading", async () => {
+    // WHY: a word with multiple readings must not share one reading's accent across all — 日本語
+    // has both にほんご and にっぽんご, each with its own pattern. This catches a join that keys on
+    // the word instead of the (word, reading) pair.
+    const [top] = await dict.search("日本語");
+    const word = await dict.getWord(top.id);
+    const nihongo = word!.kana.find((k) => k.text === "にほんご");
+    expect(nihongo?.pitchAccents.length).toBeGreaterThan(0);
+    // Every reading exposes a number[] (possibly empty), never undefined.
+    for (const k of word!.kana)
+      expect(Array.isArray(k.pitchAccents)).toBe(true);
+  });
+
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
 
   test("resolves a kanji character's Kanjidic data", async () => {

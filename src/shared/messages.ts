@@ -26,6 +26,11 @@ export interface KanaDto {
   tags: string[];
   /** Kanji writings this reading applies to; `["*"]` means all. */
   appliesToKanji: string[];
+  /**
+   * Pitch accent pattern(s) for this reading as mora positions (0=heiban/flat, n=downstep after
+   * mora n), ordered by commonness; empty when unknown. Source: Kanjium (NHK/Wadoku).
+   */
+  pitchAccents: number[];
 }
 
 /** A tag rendered for display: its code plus human-readable description. */

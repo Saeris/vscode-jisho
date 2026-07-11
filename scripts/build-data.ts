@@ -116,6 +116,12 @@ const JLPT_LEVELS: Array<{ file: string; level: number }> = [
   { file: "n1.csv", level: 1 }
 ];
 
+// Pitch accent (Kanjium, CC-BY-SA-4.0). `accents.txt` is a TSV of `word ⇥ reading ⇥ pattern(s)`
+// (124,137 rows). Reading is empty when the word is already kana; patterns are comma-separated
+// mora numbers, sometimes with (POS) annotations we strip. Pinned to a commit for reproducibility.
+const KANJIUM_SHA = "8a0cdaa16d64a281a2048de2eee2ec5e3a440fa6";
+const KANJIUM_ACCENTS_URL = `https://raw.githubusercontent.com/mifunetoshiro/kanjium/${KANJIUM_SHA}/data/source_files/raw/accents.txt`;
+
 /** Download one .json.tgz asset matching `pattern` from the resolved release and parse it. */
 const fetchAssetJson = async <T>(
   release: GithubRelease,
@@ -162,30 +168,66 @@ const fetchJlptLevels = async (): Promise<Map<string, number>> => {
   return byId;
 };
 
+/**
+ * Fetch Kanjium's accents.txt and return a `surface\treading` → mora-position[] map. Each row is
+ * `word ⇥ reading ⇥ pattern(s)`; the reading column is empty when the word is itself kana (so the
+ * surface *is* the reading). Patterns are comma-separated mora numbers, occasionally carrying
+ * `(POS)` annotations (e.g. `(副)0,(名)3`) which we strip — we keep only the distinct numeric
+ * positions in order. The key uses `\t` (never present in either field) as a safe separator.
+ */
+const fetchPitchAccents = async (): Promise<Map<string, number[]>> => {
+  const res = await fetch(KANJIUM_ACCENTS_URL, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok)
+    throw new Error(`Kanjium accents → ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  const map = new Map<string, number[]>();
+  for (const line of text.split(/\r?\n/)) {
+    if (line === "") continue;
+    const cols = line.split("\t");
+    // Need at least word + pattern columns; a malformed line without tabs is skipped.
+    if (cols.length < 3) continue;
+    const word = cols[0];
+    const patternRaw = cols[2];
+    const reading = cols[1] === "" ? word : cols[1];
+    // Strip (POS) annotations, then take the distinct integer mora positions in order.
+    const positions: number[] = [];
+    for (const part of patternRaw.replace(/\([^)]*\)/g, "").split(",")) {
+      const n = Number.parseInt(part.trim(), 10);
+      if (!Number.isNaN(n) && !positions.includes(n)) positions.push(n);
+    }
+    if (positions.length > 0) map.set(`${word}\t${reading}`, positions);
+  }
+  return map;
+};
+
 interface Sources {
   dict: JMdict;
   kanjidic: Kanjidic2;
   kradfile: Kradfile;
   radkfile: Radkfile;
   jlpt: Map<string, number>;
+  pitch: Map<string, number[]>;
 }
 
 const downloadSources = async (): Promise<Sources> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
-  const [dict, kanjidic, kradfile, radkfile, jlpt] = await Promise.all([
+  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
     fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
     fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
-    fetchJlptLevels()
+    fetchJlptLevels(),
+    fetchPitchAccents()
   ]);
-  return { dict, kanjidic, kradfile, radkfile, jlpt };
+  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch };
 };
 
 const buildDatabase = async (sources: Sources): Promise<void> => {
-  const { dict, kanjidic, kradfile, radkfile, jlpt } = sources;
+  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -242,6 +284,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const insKanjiTerm = await db.prepare(
     "INSERT INTO search_terms(kanji, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
+  const insPitch = await db.prepare(
+    "INSERT INTO pitch_accents(word_id, reading, accents_json) VALUES (?, ?, ?)"
+  );
 
   // Commit in batches and checkpoint between them: a single giant transaction can never fold its
   // pages back into the main file, so the WAL balloons unboundedly (the full build's WAL passed
@@ -268,6 +313,40 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   }
 
   await db.exec("COMMIT");
+
+  // ── Pitch accent pass (Kanjium) ───────────────────────────────────────────
+  // Join per word: for each reading, look for a pitch pattern keyed by (a writing, reading) — or
+  // (reading, reading) for kana-only words / when no kanji writing matches. The map's key was
+  // built the same way (`surface\treading`, surface being a writing or the reading itself). One
+  // row per (word, reading) that hit; readings with no accent data are simply omitted.
+  await db.exec("BEGIN");
+  let pitchRows = 0;
+  let pdone = 0;
+  for (const word of dict.words) {
+    const writings =
+      word.kanji.length > 0 ? word.kanji.map((k) => k.text) : [""];
+    for (const kana of word.kana) {
+      const reading = kana.text;
+      // Prefer a writing-specific pattern; fall back to the reading keyed against itself.
+      let positions: number[] | undefined;
+      for (const w of writings) {
+        positions = pitch.get(`${w === "" ? reading : w}\t${reading}`);
+        if (positions) break;
+      }
+      positions ??= pitch.get(`${reading}\t${reading}`);
+      if (positions) {
+        await insPitch.run(word.id, reading, JSON.stringify(positions));
+        pitchRows++;
+      }
+    }
+    if (++pdone % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+    }
+  }
+  await db.exec("COMMIT");
+  console.log(`  pitch: ${pitchRows} (word, reading) accent rows`);
 
   // ── Kanji pass ────────────────────────────────────────────────────────────
   // Import characters first (search_terms.kanji FK-references kanji_characters), then their
@@ -345,6 +424,15 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
   );
   await insMeta.run("jlptMatched", String(jlptMatched));
+  await insMeta.run(
+    "pitchSource",
+    "Pitch accent: Kanjium (Uros O.), from NHK/Wadoku data"
+  );
+  await insMeta.run(
+    "pitchLicense",
+    "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
+  );
+  await insMeta.run("pitchRows", String(pitchRows));
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
