@@ -1,7 +1,8 @@
 /**
  * Japanese text-to-speech via the Web Speech API. Selects a `ja-JP` voice explicitly (a naive
- * `speak()` can read kanji with a Chinese voice), prefers higher-quality "natural"/neural voices
- * where the OS offers them, and supports a cancellable sequence for reading a list of readings.
+ * `speak()` can read kanji with a Chinese voice), prefers higher-quality voices by name where the
+ * OS offers them (see PREFERRED_VOICE_HINTS), and supports a cancellable sequence for reading a
+ * list of readings.
  *
  * All webview-side; no host or data involvement. Degrades gracefully — `isSpeechAvailable()`
  * returns false when the runtime has no Japanese voice, so callers can hide their play controls.
@@ -10,8 +11,30 @@
 const synth: SpeechSynthesis | undefined =
   typeof window !== "undefined" ? window.speechSynthesis : undefined;
 
-/** Voice names that tend to mark higher-quality synthesis across platforms. */
-const NATURAL_HINT = /natural|neural|premium|enhanced|siri/i;
+/**
+ * Higher-quality Japanese voices, most-preferred first, matched by substring against the voice
+ * name. Chromium/Electron's Web Speech API only exposes OS voices, and quality/availability vary:
+ *
+ *  - macOS ships "Kyoko" — the Enhanced/Premium variants (downloadable in System Settings) sound
+ *    markedly better than the compact default.
+ *  - Windows exposes only classic **SAPI5** voices here (Ayumi/Haruka/Ichiro/Sayaka) — the modern
+ *    "Natural"/OneCore neural voices (Nanami, Keita) are NOT reachable via this API, a known
+ *    Chromium limitation. Among the SAPI5 set we just pick a sensible, consistent default rather
+ *    than "whatever the OS lists first" (which was the robotic-sounding Ayumi).
+ *
+ * The `Natural`/`Neural`/`Online` hints stay in case a runtime ever does expose them.
+ */
+const PREFERRED_VOICE_HINTS = [
+  "Natural",
+  "Neural",
+  "Online",
+  "Premium",
+  "Enhanced",
+  "Kyoko", // macOS
+  "O-Ren", // macOS (also ja)
+  "Sayaka", // Windows SAPI5 — a reasonable default among the four
+  "Haruka" // Windows SAPI5
+];
 
 /**
  * getVoices() populates asynchronously; resolve once it's non-empty (or immediately if already
@@ -30,15 +53,19 @@ const loadVoices = async (): Promise<SpeechSynthesisVoice[]> => {
 
 let cachedJa: SpeechSynthesisVoice | null | undefined;
 
-/** The preferred Japanese voice (natural-quality first), or null if none exists. Cached. */
+/** The preferred Japanese voice, or null if none exists. Cached. */
 const japaneseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
   if (cachedJa !== undefined) return cachedJa;
   const voices = await loadVoices();
   const ja = voices.filter((v) => v.lang.toLowerCase().startsWith("ja"));
-  // Prefer non-local (cloud/neural) voices, then name-hinted natural ones, then any ja voice.
-  const preferred =
-    ja.find((v) => !v.localService) ??
-    ja.find((v) => NATURAL_HINT.test(v.name));
+  // Walk the preference hints in order; the first hint that matches a voice name wins. Falls back
+  // to the first available Japanese voice. (`localService` is not a useful quality signal in
+  // Chromium/Electron — all OS voices report true — so we go by name.)
+  let preferred: SpeechSynthesisVoice | undefined;
+  for (const hint of PREFERRED_VOICE_HINTS) {
+    preferred = ja.find((v) => v.name.includes(hint));
+    if (preferred) break;
+  }
   cachedJa = preferred ?? (ja.length > 0 ? ja[0] : null);
   return cachedJa;
 };

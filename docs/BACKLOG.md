@@ -81,17 +81,24 @@ A horizontal suggestion strip above/below the search field showing kana/romaji c
 
 Complement #11's ↑-into-suggestions with **↓ from the search box moving focus into the results list** (today reaching results needs several Tabs past the 部/ⓘ buttons). In the results list, ↑/↓ move through items; ↑ at the top (or Esc) returns focus to the input. Pairs naturally with #11 as one keyboard-navigation model. React Aria's ListBox already handles intra-list arrows; the piece to add is the input↔list focus hand-off.
 
-### 13. Pronunciation text-to-speech (feature — medium) — scheduled for the M4.5 quick-wins pass
+### 13. Pronunciation text-to-speech (feature — medium) — ✅ shipped in the M4.5 pass
 
-A play button on word and kanji detail pages that speaks the reading aloud, like Shirabe, via the webview's **Web Speech API** (`speechSynthesis`). Requirements:
+Play buttons on word/kanji detail pages speak readings via the Web Speech API, with explicit `ja-JP` voice selection, cancellable per-category sequences on kanji, and graceful degradation when no Japanese voice exists.
 
-- **Explicit Japanese voice.** Must select a `ja-JP` voice — a naive `speak()` can default to a Chinese reading for kanji. Set `utterance.lang = "ja-JP"` and pick a matching voice from `getVoices()`.
-- **Prefer natural voices.** Where the OS offers higher-quality/"natural"/"neural" voices, prefer them over the robotic default (heuristic match on voice name; `localService === false` often signals the better cloud/neural voices).
-- **Graceful degradation.** If no `ja-JP` voice exists in the webview, hide the button (feature-detect; `getVoices()` may populate async via `voiceschanged`).
-- **Word page:** one play button per reading.
-- **Kanji page:** a play button _per reading category_ (on / kun / nanori) that reads through that list with pauses between entries, and is **cancellable** (`speechSynthesis.cancel()`), with visible playing/stop state.
+**As-built voice-quality finding:** Chromium/Electron's Web Speech API exposes only the OS's **classic SAPI5** Japanese voices (on Windows: Ayumi/Haruka/Ichiro/Sayaka), never the modern "Natural"/OneCore neural voices — a Chromium limitation. `localService` is uniformly `true`, so it's useless as a quality signal; selection now walks a name-preference list (`src/webview/speech.ts` `PREFERRED_VOICE_HINTS`) and defaults to a sensible SAPI5 voice. The genuine quality upgrade (bundled/downloaded audio) stays deferred — larger data effort, only worth it if synthesis quality proves unacceptable.
 
-No host/data changes; pure webview. Fallback to bundled/downloaded audio only if synthesis quality/availability disappoints (larger data effort — deferred).
+### 14. Preferences / settings view (feature — medium)
+
+A settings view accumulating user preferences, reachable from the search bar (⚙ affordance) as another navigation-stack view. First candidates:
+
+- **TTS voice picker** — let the user choose from the Japanese voices the OS actually exposes (`getVoices()` filtered to `ja`), overriding the name-preference default from #13. Persist the choice (see persistence note below).
+- **Furigana toggle** — the on/off switch for #15.
+
+**Persistence:** webview state doesn't survive reloads on its own. Persist prefs via a `setState`/`getState` message to the host, stored in the extension's `Memento` (`context.globalState`) — a small new message pair. Defer building the view until there are ≥2–3 real preferences to justify the chrome (voice + furigana is enough to start).
+
+### 15. Furigana over kanji (feature — medium)
+
+Optionally render furigana (kana reading ruby text) above kanji in headwords, and possibly in example sentences later. Uses HTML `<ruby>`/`<rt>`. The alignment problem — mapping which kana annotate which kanji — is non-trivial for mixed kanji/okurigana words (食べる → 食[た]べる, not 食べる[たべる]); JMdict-simplified publishes **furigana** data (kanji-to-kana spans) that solves exactly this, so add it as another build asset joined per word. Gated behind the #14 furigana toggle (some learners want the challenge of no readings). Note: [@saeris/kuromoji](https://github.com/Saeris/kuromoji)/remark-ayaji also generate furigana via tokenization — cross-reference once M5's tokenizer lands.
 
 ## Suggested sequencing
 
