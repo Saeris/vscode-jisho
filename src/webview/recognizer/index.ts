@@ -133,18 +133,37 @@ const fineClassification = (
   return candidates;
 };
 
+/** True when a pattern spans no area — every point collapses to one location (a dot or a tap). */
+const isDegenerate = (pattern: Pattern): boolean => {
+  let x0: number | undefined;
+  let y0: number | undefined;
+  for (const stroke of pattern) {
+    for (const [x, y] of stroke) {
+      x0 ??= x;
+      y0 ??= y;
+      if (x !== x0 || y !== y0) return false;
+    }
+  }
+  return true;
+};
+
 /**
  * Recognize a handwritten pattern. Returns the top candidate characters, best first. `strokes` is
  * the raw captured input (`Array<Array<[x, y]>>`); it is normalized internally, so it need not be
  * pre-scaled.
+ *
+ * Degenerate input is rejected up front: strokes with fewer than two points (stray dots/taps) are
+ * dropped, and a pattern with no spatial extent returns no candidates rather than crashing — moment
+ * normalization of a zero-area pattern yields NaN coordinates, which the distance metrics can't rank.
  */
 export const recognize = (
   strokes: Pattern,
   refPatterns: readonly RefPattern[],
   limit = 10
 ): string[] => {
-  if (strokes.length === 0) return [];
-  const normalized = momentNormalize(strokes);
+  const usable = strokes.filter((stroke) => stroke.length >= 2);
+  if (usable.length === 0 || isDegenerate(usable)) return [];
+  const normalized = momentNormalize(usable);
   const features = extractFeatures(normalized, 20);
   const coarse = coarseClassification(features, refPatterns);
   const fine = fineClassification(features, coarse, refPatterns);

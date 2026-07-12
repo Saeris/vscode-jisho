@@ -53,10 +53,15 @@ export const Handwriting = ({
   onBack,
   onPick
 }: HandwritingProps): React.ReactElement => {
+  // The stroke data lives in a ref (the source of truth, always current in event handlers — no
+  // stale-closure races); `strokes` state is a render mirror bumped after each mutation.
+  const strokesRef = useRef<Point[][]>([]);
   const [strokes, setStrokes] = useState<Point[][]>([]);
   const [candidates, setCandidates] = useState<string[]>([]);
-  const current = useRef<Point[] | null>(null);
+  const drawing = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const sync = (): void => setStrokes(strokesRef.current.map((s) => [...s]));
 
   const toLocal = (e: React.PointerEvent): Point => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -65,31 +70,33 @@ export const Handwriting = ({
 
   const onPointerDown = (e: React.PointerEvent): void => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    current.current = [toLocal(e)];
-    setStrokes((s) => [...s, current.current!]);
+    drawing.current = true;
+    strokesRef.current.push([toLocal(e)]);
+    sync();
   };
 
   const onPointerMove = (e: React.PointerEvent): void => {
-    if (!current.current) return;
-    current.current.push(toLocal(e));
-    // Trigger a re-render by replacing the last stroke reference.
-    setStrokes((s) => [...s.slice(0, -1), [...current.current!]]);
+    if (!drawing.current) return;
+    strokesRef.current[strokesRef.current.length - 1].push(toLocal(e));
+    sync();
   };
 
   const onPointerUp = async (): Promise<void> => {
-    if (!current.current) return;
-    current.current = null;
+    if (!drawing.current) return;
+    drawing.current = false;
     const recognize = await loadRecognizer();
-    setCandidates(recognize(strokes));
+    // Recognize the current committed strokes (from the ref, not a stale render closure).
+    setCandidates(recognize(strokesRef.current));
   };
 
   const undo = (): void => {
-    const next = strokes.slice(0, -1);
-    setStrokes(next);
-    if (next.length === 0) setCandidates([]);
+    strokesRef.current.pop();
+    sync();
+    if (strokesRef.current.length === 0) setCandidates([]);
   };
 
   const clear = (): void => {
+    strokesRef.current = [];
     setStrokes([]);
     setCandidates([]);
   };

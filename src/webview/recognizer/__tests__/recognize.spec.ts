@@ -37,6 +37,38 @@ describe("recognize (end-to-end, real patterns)", () => {
     expect(recognize([], refPatterns)).toEqual([]);
   });
 
+  // ── Degenerate input (regression: drawing え crashed the extension) ──────────
+  // A single-point or zero-area stroke moment-normalizes to NaN coordinates, which the distance
+  // metrics can't rank — it used to throw "Cannot read properties of undefined". recognize() now
+  // rejects degenerate input up front. These pin that guard so the crash can't return.
+
+  it("does not throw on a single-point stroke", () => {
+    expect(() => recognize([[[100, 100]]], refPatterns)).not.toThrow();
+    expect(recognize([[[100, 100]]], refPatterns)).toEqual([]);
+  });
+
+  it("does not throw on a zero-length stroke (identical points)", () => {
+    const stroke = [
+      [100, 100],
+      [100, 100]
+    ] as const;
+    expect(() => recognize([stroke], refPatterns)).not.toThrow();
+    expect(recognize([stroke], refPatterns)).toEqual([]);
+  });
+
+  it("ignores a stray dot but still recognizes a real stroke drawn with it", () => {
+    // WHY: a fat-fingered tap before a real stroke shouldn't crash or block recognition — the
+    // degenerate stroke is dropped and the real one is recognized.
+    const dot = [[50, 50]] as const;
+    const line = [
+      [10, 10],
+      [80, 80],
+      [120, 40]
+    ] as const;
+    expect(() => recognize([dot, line], refPatterns)).not.toThrow();
+    expect(recognize([dot, line], refPatterns).length).toBeGreaterThan(0);
+  });
+
   it("returns candidates ranked best-first, capped at the limit", () => {
     // WHY: the UI shows the top N as chips; the limit must be honoured and the best match lead.
     const candidates = recognize(strokesFor("語"), refPatterns, 8);
