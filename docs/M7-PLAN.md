@@ -36,6 +36,15 @@ Reserved decisions from M1 (docs/M1-PLAN.md §Reserved): **capture** with [perfe
 
 **Success:** draw 食 (sloppily, wrong stroke order) → 食 appears among candidates → tap → search shows 食-words + the kanji section. Component-level test for the stroke-capture → candidate pipeline with a recorded stroke fixture; visual/UX pass in F5.
 
+### As-built (item 2)
+
+- **Recognizer = a ground-up functional rewrite, not a vendored blob** (user direction). KanjiCanvas's reference is a pre-ES6 global-object script with shared mutable state + DOM coupling; we **reverse-engineered** the algorithm (Wakahara et al. one-to-one stroke correspondence) and rebuilt it as pure typed functions in `src/webview/recognizer/` (`types` · `geometry` moment-normalize/resample · `correspondence` distance metrics + N/M-N stroke map · `index` pipeline). Maintained internally; may externalize as a package later.
+- **Fidelity pinned by ported reference tests** (not synthetic mimicry). `correspondence.spec.ts` ports the reference's own documented `testMap` outputs (`test_k2`/`k21..23` → `[0,0,1,1]`/`[0,0,0,1]`/`[0,1,1,1]`) — which **caught a real transcription bug** (a `k1`/`k2` mix-up in `completeMap`'s split metric). `recognize.spec.ts` runs end-to-end on the real patterns (a char's own strokes rank top-3; relaxed from top-1 because visually near-identical pairs like 日/曰 legitimately tie under aspect-normalization). 7 recognizer tests total.
+- **Patterns = a lazy 6.7MB chunk.** `ref-patterns.js` (6.7MB, not the plan's ~1MB estimate) → converted to a typed `patterns.ts` data module, loaded via dynamic `import()` only when the handwriting view runs recognition. Build confirms code-splitting: `patterns-*.js` **6.4MB (2.3MB gz) as its own chunk**, `recognizer-*.js` ~4KB, **base `index.js` unchanged at 449KB**. The vendored `.orig.js` sources were deleted after reimplementation; only `KANJICANVAS-LICENSE.TXT` is retained for attribution.
+- **Drawing view:** `Handwriting.tsx` — pointer-capture strokes rendered with **perfect-freehand** (added as a dep), undo/clear, top-8 candidate chips. Tapping a chip **appends** the char to the query and returns to search (new `appendToSearch` nav event + `handwriting` view; ✏️ affordance in the search toolbar). All webview-side; no host/message changes. Stroke order/count free.
+- **Attribution:** KanjiCanvas (MIT — the notice's required GitHub backlink is in About + README) + perfect-freehand (MIT), credited in About, README, and `src/webview/recognizer/README.md`.
+- **Item 3 (radical picker):** already shipped in M4 — nothing to do here.
+
 ## 3. Radical-based lookup (if it slipped from M4)
 
 If M4 deferred its radical picker, it lands here — see M4-PLAN item 4; it complements handwriting as the other "I can see it but can't type it" input mode.

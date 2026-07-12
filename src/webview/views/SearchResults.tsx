@@ -22,6 +22,7 @@ interface SearchResultsProps {
   onOpenKanji: (literal: string) => void;
   onOpenName: (id: string) => void;
   onOpenRadicals: () => void;
+  onOpenHandwriting: () => void;
   onOpenAbout: () => void;
 }
 
@@ -32,6 +33,7 @@ export const SearchResults = ({
   onOpenKanji,
   onOpenName,
   onOpenRadicals,
+  onOpenHandwriting,
   onOpenAbout
 }: SearchResultsProps): React.ReactElement => {
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
@@ -108,6 +110,13 @@ export const SearchResults = ({
           aria-label="Look up kanji by radicals"
         >
           <span lang="ja">部</span>
+        </Button>
+        <Button
+          className={styles.iconButton}
+          onPress={onOpenHandwriting}
+          aria-label="Draw a kanji to search"
+        >
+          ✏️
         </Button>
         <Button
           className={styles.iconButton}

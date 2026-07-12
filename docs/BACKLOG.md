@@ -147,6 +147,10 @@ Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied
 
 M7 #1 vendored the customized AnimCJK SVGs from guide-to-japanese as-is (inline per-stroke `--d` delays). Two follow-ups: (a) a **build script that regenerates our SVG shape from the authoritative AnimCJK source** (inject the guides layer, our CSS), so we can re-sync from upstream instead of the author's uncommitted fork; (b) refactor the animation CSS to compute per-stroke delay from **`sibling-index()`/`sibling-count()`** (now available as CSS properties) instead of hardcoded `--d:1s…9s` — which needs wrapping the animated strokes in their own `<g>` so `sibling-index()` counts cleanly (a structural change the transform script should make). Together these make the SVGs reproducible and the CSS far simpler. Deferred from M7 #1 to keep the milestone moving.
 
+### 22. Stroke-order quiz mode (feature — medium) — Duolingo/hanzi-writer style
+
+Beyond passive stroke-order playback (M7 #1), add an interactive **quiz**: the user draws each stroke in order and gets per-stroke feedback (correct → advance; wrong → hint/flash), like [hanzi-writer](https://github.com/chanind/hanzi-writer)'s quiz function and Duolingo's kanji exercises. Reuses our stroke SVGs (the median paths give the expected stroke shape/order) + perfect-freehand for capture (already the M7 #2 drawing layer) — compare the user's stroke against the expected one positionally. Complements both the stroke-order animation and the handwriting recognizer. Its own focused effort; reference hanzi-writer's quiz UX and the median-path matching approach.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

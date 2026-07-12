@@ -4167,6 +4167,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"perfect-freehand@npm:^1.2.3":
+  version: 1.2.3
+  resolution: "perfect-freehand@npm:1.2.3"
+  checksum: 10/893ebf7df541c5d1a1218fa07da1aa14bdc35b4c30e5b20d3d1594d714fced5f2c2f41f89ab2a19ef9afda90fcbf87d7ce94cd4bdb717080146f802daeb2d543
+  languageName: node
+  linkType: hard
+
 "picocolors@npm:^1.1.1":
   version: 1.1.1
   resolution: "picocolors@npm:1.1.1"
@@ -5418,6 +5425,7 @@ __metadata:
     class-variance-authority: "npm:^0.7.1"
     lindera-wasm-nodejs-ipadic: "npm:^2.0.0"
     ovsx: "npm:^0.10.0"
+    perfect-freehand: "npm:^1.2.3"
     react: "npm:^19.2.7"
     react-aria-components: "npm:^1.19.0"
     react-dom: "npm:^19.2.7"

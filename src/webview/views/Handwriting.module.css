@@ -1,0 +1,86 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.canvas {
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1;
+  align-self: center;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  touch-action: none; /* let us capture drags without the page scrolling/zooming */
+  background: var(--jisho-input-bg, transparent);
+}
+
+.ink {
+  fill: var(--jisho-fg);
+}
+
+.controls {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.control {
+  padding: 3px 12px;
+  border-radius: var(--jisho-radius);
+  border: 1px solid var(--jisho-border);
+  background: transparent;
+  color: var(--jisho-fg);
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.control[data-disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.control:not([data-disabled]):hover {
+  background: var(--jisho-hover-bg);
+}
+
+.candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* Candidate kanji chips — large enough to read and tap. */
+.candidate {
+  min-width: 44px;
+  padding: 6px 8px;
+  font-size: 1.6em;
+  line-height: 1;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  background: transparent;
+  color: var(--jisho-fg);
+  cursor: pointer;
+}
+
+.candidate:hover {
+  background: var(--jisho-hover-bg);
+  border-color: var(--jisho-link);
+}
+
+.hint {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+  text-align: center;
+}

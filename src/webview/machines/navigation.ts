@@ -12,6 +12,7 @@ export type View =
   | { name: "kanjiDetail"; literal: string }
   | { name: "nameDetail"; id: string }
   | { name: "radicals" }
+  | { name: "handwriting" }
   | { name: "about" };
 
 export interface NavContext {
@@ -30,12 +31,15 @@ export type NavEvent =
   | { type: "openKanji"; literal: string }
   | { type: "openName"; id: string }
   | { type: "openRadicals" }
+  | { type: "openHandwriting" }
   | { type: "openAbout" }
   | { type: "back" }
   | { type: "home" }
   | { type: "setSearchQuery"; query: string }
   /** Jump to the search view with a new query — the tap-through action for cross-references. */
-  | { type: "searchFor"; term: string };
+  | { type: "searchFor"; term: string }
+  /** Append a character to the query and return to search — the handwriting-pick action. */
+  | { type: "appendToSearch"; char: string };
 
 export const navigationMachine = setup({
   // `{} as T` is XState v5's documented idiom for declaring machine types — there is no
@@ -80,6 +84,12 @@ export const navigationMachine = setup({
         { name: "radicals" } satisfies View
       ]
     }),
+    pushHandwriting: assign({
+      stack: ({ context }) => [
+        ...context.stack,
+        { name: "handwriting" } satisfies View
+      ]
+    }),
     pushAbout: assign({
       stack: ({ context }) => [
         ...context.stack,
@@ -100,6 +110,14 @@ export const navigationMachine = setup({
       stack: () => [{ name: "search" } satisfies View],
       searchQuery: ({ context, event }) =>
         event.type === "searchFor" ? event.term : context.searchQuery
+    }),
+    appendToSearch: assign({
+      // Return to the search view and append the chosen character (handwriting → search flow).
+      stack: () => [{ name: "search" } satisfies View],
+      searchQuery: ({ context, event }) =>
+        event.type === "appendToSearch"
+          ? context.searchQuery + event.char
+          : context.searchQuery
     })
   }
 }).createMachine({
@@ -110,11 +128,13 @@ export const navigationMachine = setup({
     openKanji: { actions: "pushKanji" },
     openName: { actions: "pushName" },
     openRadicals: { actions: "pushRadicals" },
+    openHandwriting: { actions: "pushHandwriting" },
     openAbout: { actions: "pushAbout" },
     back: { actions: "pop" },
     home: { actions: "reset" },
     setSearchQuery: { actions: "setQuery" },
-    searchFor: { actions: "searchFor" }
+    searchFor: { actions: "searchFor" },
+    appendToSearch: { actions: "appendToSearch" }
   }
 });
 

@@ -14,7 +14,7 @@ The single consolidated view of where vscode-jisho is going. Every milestone has
 | M4  | Kanji as first-class           | shipped                                    | —                        |
 | M5  | Morphology & multi-word search | shipped                                    | —                        |
 | M6  | Enrichment datasets            | shipped                                    | —                        |
-| M7  | Stroke order & handwriting     | queued                                     | —                        |
+| M7  | Stroke order & handwriting     | shipped                                    | —                        |
 
 ## M1 — Vocabulary search + detail (shipped)
 
@@ -68,9 +68,9 @@ Layered the remaining reference data onto existing views. Each was a data-build 
 - **WaniKani citations** — level references and outbound links only (citation, not content reproduction).
 - **JMnedict names** (~743k person/place/organization names) — a separate "Names" result section and search kind. Note: large dataset (~146MB source); relies on M3's download delivery being solid.
 
-## M7 — Stroke order & handwriting
+## M7 — Stroke order & handwriting (shipped)
 
-The drawing milestone, built on decisions reserved since M1:
+The drawing milestone, built on decisions reserved since M1 — see [M7-PLAN.md](M7-PLAN.md) for as-built details:
 
 - **Stroke-order animation** (AnimCJK) — animated SVG stroke order on the kanji detail view, driven by an XState animation-player machine (play/pause/step/replay — the machine XState was chosen for).
 - **Handwriting search** — draw-to-search: **perfect-freehand** captures strokes (retaining raw `[x,y][][]` point data), **KanjiCanvas** (MIT, offline, stroke-order-and-count free) recognizes candidates, results feed the normal search. Recognition and display data are deliberately decoupled (KanjiCanvas ships its own reference patterns; AnimCJK is display-only).

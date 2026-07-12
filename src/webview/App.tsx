@@ -6,6 +6,7 @@ import {
   navigationMachine
 } from "./machines/navigation";
 import { About } from "./views/About";
+import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
 import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
@@ -35,6 +36,7 @@ export const App = (): React.ReactElement => {
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenName={(id) => send({ type: "openName", id })}
           onOpenRadicals={() => send({ type: "openRadicals" })}
+          onOpenHandwriting={() => send({ type: "openHandwriting" })}
           onOpenAbout={() => send({ type: "openAbout" })}
         />
       </Activity>
@@ -67,6 +69,12 @@ export const App = (): React.ReactElement => {
         <RadicalPicker
           onBack={() => send({ type: "back" })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+        />
+      ) : null}
+      {view.name === "handwriting" ? (
+        <Handwriting
+          onBack={() => send({ type: "back" })}
+          onPick={(char) => send({ type: "appendToSearch", char })}
         />
       ) : null}
       {view.name === "about" ? (

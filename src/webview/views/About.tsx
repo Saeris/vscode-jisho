@@ -173,6 +173,15 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             kanji-learning service by Tofugu. No WaniKani content is bundled;
             the links are a convenience only.
           </p>
+          <p>
+            Handwriting recognition is a functional reimplementation of the{" "}
+            <a href="http://github.com/asdfjkl/kanjicanvas">KanjiCanvas</a>{" "}
+            algorithm (© Dominik Klein, MIT), with drawing by{" "}
+            <a href="https://github.com/steveruizok/perfect-freehand">
+              perfect-freehand
+            </a>{" "}
+            (MIT).
+          </p>
         </div>
       </div>
     </div>
