@@ -10,7 +10,23 @@ We did **not** vendor the original code. It's a pre-ES6 global-object (`KanjiCan
 - `geometry.ts` — preprocessing: moment normalization (into a 256×256 box, ARAN aspect correction) + interval feature resampling.
 - `correspondence.ts` — stroke distance metrics (endpoint / initial / whole-whole) and the one-to-one stroke-correspondence map (`getMap` greedy + hill-climb, `completeMap` M–N).
 - `index.ts` — the pipeline: `recognize(strokes, refPatterns)` → normalize → features → coarse classification → fine classification → ranked candidate characters.
-- `patterns.ts` — the reference stroke patterns extracted from KanjiCanvas (~6.7MB data; **lazy-loaded** via dynamic `import()` so it never enters the base bundle).
+- `patterns.ts` — decodes the reference stroke patterns from a compact binary blob into `RefPattern[]`. **Lazy-loaded** via dynamic `import()` so it never enters the base bundle.
+- `patterns.data.ts` — the patterns as base64 of a compact binary blob (do not hand-edit). Base64-inline because the webview CSP blocks fetching an asset file. This replaced an ~8MB JS array literal: the built chunk went 6.4MB→1.8MB (2.3MB→1.25MB gz), and decoding a flat `ArrayBuffer` is far cheaper for parse time and heap than a giant nested literal. It is the **canonical committed source** for the patterns.
+
+### Binary format (little-endian)
+
+```
+u32 entryCount
+per entry:
+  u16 charCode        (all reference chars are single BMP code units)
+  u16 strokeCount     (canonical stroke count)
+  u16 actualStrokes   (number of stroke arrays that follow)
+  per stroke:
+    u16 pointCount
+    (f32 x, f32 y) × pointCount   (coords are post-moment-normalization floats)
+```
+
+Regenerating the patterns (e.g. adding characters via re-extraction from KanjiCanvas/source) needs a re-extract + re-encode tool — tracked in [BACKLOG.md](../../../docs/BACKLOG.md) alongside the AnimCJK-source transform (#21). The `patterns.ts` decoder is the authoritative reader of this format.
 
 ## Fidelity
 
