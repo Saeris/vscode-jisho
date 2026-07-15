@@ -153,6 +153,10 @@ M7 #1 vendored the customized AnimCJK SVGs from guide-to-japanese as-is (inline 
 
 Beyond passive stroke-order playback (M7 #1), add an interactive **quiz**: the user draws each stroke in order and gets per-stroke feedback (correct → advance; wrong → hint/flash), like [hanzi-writer](https://github.com/chanind/hanzi-writer)'s quiz function and Duolingo's kanji exercises. Reuses our stroke SVGs (the median paths give the expected stroke shape/order) + perfect-freehand for capture (already the M7 #2 drawing layer) — compare the user's stroke against the expected one positionally. Complements both the stroke-order animation and the handwriting recognizer. Its own focused effort; reference hanzi-writer's quiz UX and the median-path matching approach.
 
+### 23. Pitch contour: overlay on the kana rather than a band above (refinement — small)
+
+Our contour renders in a **dedicated band above** the reading; Shirabe **overlays** it on the kana, the line riding over the glyphs and sharing their vertical space. The band was a deliberate trade during the polish pass: an overlaid line at sidebar font sizes collided with the glyphs — verticals slicing neighbouring kana, the low line clipping descenders (た), which read as a box drawn around the accent mora rather than a pitch contour. Threading the line through a glyph's natural interior clearance needs font-metric awareness (ascender/x-height offsets per family and size) that the band approach avoids entirely, which is why it isn't a one-line CSS change. Deemed "good enough" by the author for now; revisit if the difference bothers in use. `PitchAccent.browser.spec.tsx` asserts the clear-of-glyphs invariant, so any overlay attempt must update that test's intent deliberately, not incidentally.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

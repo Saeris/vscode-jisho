@@ -4743,7 +4743,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright@npm:1.61.1":
+"playwright@npm:1.61.1, playwright@npm:^1.61.1":
   version: 1.61.1
   resolution: "playwright@npm:1.61.1"
   dependencies:
@@ -6134,6 +6134,7 @@ __metadata:
     lindera-wasm-nodejs-ipadic: "npm:^2.0.0"
     ovsx: "npm:^0.10.0"
     perfect-freehand: "npm:^1.2.3"
+    playwright: "npm:^1.61.1"
     react: "npm:^19.2.7"
     react-aria-components: "npm:^1.19.0"
     react-dom: "npm:^19.2.7"

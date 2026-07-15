@@ -134,3 +134,10 @@ playwright-report/
 # Per-platform packages built by scripts/package-platforms.ts
 dist-vsix/
 .platform-pkgs.tmp/
+
+# Vitest browser mode: failure screenshots + attachments, regenerated per run.
+# (Committed visual-regression baselines, when we add them, will live elsewhere and be tracked.)
+.vitest-attachments/
+**/__screenshots__/
+# Output of the *.preview.browser.spec.tsx visual benches — regenerated on every run.
+**/*-preview.png

@@ -1,35 +1,66 @@
-/* Pitch contour drawn over the kana: each mora is a cell; high moras get a top overline, and the
-   downstep mora gets a right edge so the line "drops" after it — the OJAD/Shirabe convention.
-   Uses currentColor via a chart color so it stays theme-aware. */
+/* Pitch contour drawn as one continuous line above the kana (Shirabe/OJAD convention): the line
+   rides high over high-pitch moras and low over low-pitch ones, with a vertical connector at each
+   pitch change. See PitchAccent.tsx for why this is one SVG polyline and not per-mora borders. */
 
 .contour {
+  /* Height of the contour band. Scales with the font so the mark keeps its proportions wherever it's
+     used (headword row vs. reading list). */
+  --pitch-band: 0.8em;
+
   display: inline-flex;
-  align-items: flex-start;
-  /* Room above the glyphs for the overline. */
-  padding-top: 4px;
+  align-items: center;
   margin-inline-start: 6px;
   color: var(--vscode-charts-blue, var(--jisho-fg));
   font-size: 0.95em;
-  line-height: 1.4;
   white-space: nowrap;
 }
 
+.track {
+  display: grid;
+  /* One column per mora, each sized to its own kana. `--mora-count` is set inline by the component
+     and is load-bearing: the columns must be EXPLICIT for the SVG's `grid-column: 1 / -1` to span
+     them (-1 resolves against explicit tracks only — with implicit columns it collapses to one).
+     min-content, NOT 1fr: `1fr` distributes the PARENT's free space, so inside the flex row a long
+     reading got stretched columns and the contour ran wide of the text. min-content makes the track
+     hug the glyphs at any length.
+     The SVG's x-coordinates stay aligned even though columns differ in width, because they tile the
+     track edge-to-edge: mora boundary i maps to viewBox x = i regardless of each column's width. */
+  grid-template-columns: repeat(var(--mora-count), min-content);
+  /* Two rows: the contour gets its OWN band, the kana sit below it. Drawing the line across the text
+     box (the obvious first try) ran the verticals through neighbouring glyphs and clipped
+     descenders, which read as a box around the accent mora rather than a pitch line. */
+  grid-template-rows: var(--pitch-band) auto;
+  line-height: 1.3;
+}
+
+/* The line occupies a real grid cell spanning every column, rather than being absolutely positioned.
+   An abspos child of a grid resolves against its GRID AREA, so `inset-inline: 0` alone left the SVG
+   shrink-to-fit at its ~3px intrinsic width instead of spanning the track — the contour collapsed to
+   a stub. As a spanning grid item it simply fills the row, and stays aligned to the columns. */
+.line {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .mora {
-  position: relative;
-  border-top: 2px solid transparent;
+  grid-row: 2;
+  text-align: center;
+  /* Kana are full-width; a little side padding keeps the columns from crowding the vertical drops. */
+  padding-inline: 1px;
 }
 
-/* High-pitch mora: overline across the top. */
-.high {
-  border-top-color: currentColor;
-}
-
-/* Low-pitch mora: no overline (transparent top keeps baseline alignment). */
-.low {
-  border-top-color: transparent;
-}
-
-/* Downstep: a right edge on the accent mora draws the vertical drop after it. */
-.drop {
-  border-right: 2px solid currentColor;
+.line polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  /* The SVG is stretched non-uniformly (preserveAspectRatio="none"), which would smear the stroke
+     with the default behaviour: verticals thick, horizontals thin. Pinning the stroke to the
+     viewport keeps every segment the same visual weight. */
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
 }

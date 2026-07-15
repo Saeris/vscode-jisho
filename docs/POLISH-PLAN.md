@@ -11,6 +11,24 @@ Surfaced during M7 handwriting testing:
 - The recognizer (and the webview generally) need a more robust, layered test suite.
 - We want a way to **drive the running extension** — both to catch regressions AND to let the agent visually iterate on the UI (screenshot → see → fix → re-screenshot).
 
+## Test layout: three Vitest projects + E2E
+
+`vite.config.ts` splits Vitest into **projects** (one config file, `vp test --project <name>` to scope), so each layer only pays for what it needs:
+
+| Project     | Env           | Pattern                                 | For                                                  |
+| ----------- | ------------- | --------------------------------------- | ---------------------------------------------------- |
+| `unit`      | node          | `src/**/*.{test,spec}.ts`               | pure logic — pitch geometry, recognizer, query layer |
+| `component` | jsdom         | `src/**/*.{test,spec}.tsx`              | React components, no layout needed                   |
+| `browser`   | real Chromium | `src/**/*.browser.{test,spec}.{ts,tsx}` | **anything layout-dependent**                        |
+
+Plus **E2E** (`e2e/*.e2e.ts`, Playwright driving real VS Code) — deliberately _not_ a Vitest project: it verifies the whole extension, not components in isolation.
+
+**Why a browser project exists.** jsdom has no layout engine — zero-size boxes, no real style resolution. The pitch contour shipped broken **twice** with a fully green jsdom suite: first per-mora CSS borders that couldn't draw a line spanning moras, then an SVG that silently collapsed to its ~3px intrinsic width (an abspos child of a grid resolves against its _grid area_, so `inset-inline: 0` never stretched it). Neither is observable without real layout. `PitchAccent.browser.spec.tsx` now catches the collapse in ~290ms (`expected 3.64 to be >= 49.03`) — verified by reverting the fix and watching it fail. **Rule: if a bug is only visible as pixels or geometry, it belongs in `browser`, not jsdom.**
+
+**Component preview benches.** A `*.preview.browser.spec.tsx` renders every variant of a component and screenshots it (`page.screenshot`) — a fast visual bench for iterating on appearance without launching VS Code (~5s vs ~15s). Not assertions; correctness lives in the sibling `.browser.spec.tsx`. This is what caught the `1fr`-vs-`min-content` column bug that a single-example test would have missed.
+
+Setup notes (Vite+ specifics): browser mode needs the base **`playwright`** package (not just `@playwright/test`, which is the E2E _runner_), the `resolutions` remapping `vite`/`vitest` onto `@voidzero-dev/vite-plus-{core,test}` (already present), and `vp exec playwright install chromium`. Project literals are annotated `TestProjectConfiguration` and `react()` is **spread** (`[...react()]`) — it returns a `Plugin[]`, so `[react()]` is `Plugin[][]`.
+
 ## The testing pyramid (build bottom-up)
 
 1. **Recognizer unit tests (broaden).** Pure functions, no browser. Per-stage tests (each distance metric, moment normalization, feature extraction) + wider real-character recognition coverage + the degenerate-input guards (done). Cheapest, highest density.
