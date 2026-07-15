@@ -17,7 +17,7 @@
  *  2. **Never attach to a port we didn't open.** We refuse to start if the debug port is already
  *     serving a CDP endpoint, so we can't accidentally drive someone else's editor/debug session.
  */
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -40,6 +40,27 @@ export interface Launched {
 
 const wait = async (ms: number): Promise<void> => {
   await new Promise<void>((resolve) => setTimeout(resolve, ms));
+};
+
+/**
+ * Kill the process tree rooted at `pid` — and ONLY that tree.
+ *
+ * VS Code spawns a tree (main + renderers + extension host); signalling just the launcher leaves
+ * survivors that keep file handles on the install/profile and break subsequent launches. Windows
+ * has no process-group signal, so we use taskkill /T (tree) /F, scoped to our own PID.
+ */
+const killTree = (pid: number): void => {
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore"
+      });
+    } else {
+      process.kill(-pid, "SIGKILL"); // negative pid = the process group we spawned
+    }
+  } catch {
+    // Best-effort: the tree may already be gone.
+  }
 };
 
 /** Poll the CDP endpoint until VS Code is ready to accept a connection. */
@@ -156,7 +177,14 @@ export const launchVSCode = async (): Promise<Launched> => {
       "--no-sandbox",
       workspaceDir
     ],
-    { stdio: "ignore", env }
+    {
+      stdio: "ignore",
+      env,
+      // On POSIX this puts the child in its own process group so killTree can signal the whole
+      // group (-pid) without touching anything else. No-op semantics we rely on for Windows, where
+      // killTree uses taskkill /T instead.
+      detached: process.platform !== "win32"
+    }
   );
 
   const browser = await connectWithRetry();
@@ -193,11 +221,15 @@ export const launchVSCode = async (): Promise<Launched> => {
     browser,
     window,
     close: async (): Promise<void> => {
-      // Cleanup is PID-only, deliberately. NEVER call browser.close() over a CDP *attach* — it can
+      // Cleanup is PID-scoped, deliberately. NEVER call browser.close() over a CDP *attach* — it can
       // shut the target down, and an earlier version of this file closed the developer's real VS
-      // Code windows that way. We kill only the process WE spawned and let the socket drop, so
+      // Code windows that way. We only ever kill the tree rooted at the process WE spawned, so
       // nothing here can act on a target we don't own.
-      if (proc.pid !== undefined) proc.kill();
+      //
+      // It must be a TREE kill: VS Code spawns a tree (main + renderers + extension host), and a
+      // plain proc.kill() only signals the launcher — survivors keep holding the install/profile,
+      // which poisons later launches (they load workbench.html but never render the workbench).
+      if (proc.pid !== undefined) killTree(proc.pid);
       await Promise.resolve();
     }
   };
