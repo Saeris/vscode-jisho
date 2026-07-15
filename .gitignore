@@ -117,6 +117,11 @@ cypress/e2e/build
 profiles/
 *.cpuprofile
 
+# E2E: the VS Code build @vscode/test-electron downloads (~224MB) and Playwright's run artifacts
+.vscode-test/
+test-results/
+playwright-report/
+
 # Temp vsix extraction for packaging verification
 .vsix-verify.tmp/
 /assets/jisho-full.db.gz
