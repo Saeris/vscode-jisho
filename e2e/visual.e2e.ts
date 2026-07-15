@@ -99,7 +99,11 @@ test("capture: kanji detail (stroke player)", async () => {
 
 test("capture: handwriting view", async () => {
   const frame = await jishoFrame(app().window);
-  await frame.getByRole("button", { name: /draw a kanji/i }).click();
+  // Return to search if a previous capture left a detail view pushed — the toolbar only exists there.
+  const back = frame.getByRole("button", { name: /back/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  // The ✏️ toolbar button (its accessible name comes from aria-label="Draw a kanji to search").
+  await frame.locator("button", { hasText: "✏️" }).first().click();
   await frame.getByText(/stroke order and count/i).waitFor();
   await screenshotSidebar(
     app().window,
