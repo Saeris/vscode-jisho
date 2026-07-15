@@ -32,6 +32,23 @@ describe("recognize (end-to-end, real patterns)", () => {
     }
   });
 
+  it("self-recognizes the large majority of a broad character sample", () => {
+    // WHY: a 5-char check can hide dataset-wide regressions. Sweep every 40th pattern (a spread of
+    // stroke counts and complexities) and require a char's own canonical strokes to rank top-5 for
+    // the vast majority. This is a statistical guard on the whole pipeline: a metric/normalization
+    // regression would crater this rate even if the hand-picked five still passed. The bar is <100%
+    // because genuine near-twins (日/曰, ロ/口/囗) legitimately swap ranks.
+    const sample = refPatterns.filter((_, i) => i % 40 === 0);
+    let top5 = 0;
+    for (const [char, , strokes] of sample) {
+      const candidates = recognize(strokes, refPatterns, 5);
+      if (candidates.includes(char)) top5++;
+    }
+    const rate = top5 / sample.length;
+    expect(sample.length).toBeGreaterThan(40); // a real sample, not a handful
+    expect(rate).toBeGreaterThan(0.9); // ≥90% self-recognized in the top 5
+  });
+
   it("returns no candidates for empty input", () => {
     // WHY: an empty canvas must yield nothing, not throw or return noise.
     expect(recognize([], refPatterns)).toEqual([]);
