@@ -150,4 +150,40 @@ describe("navigationMachine", () => {
     expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
     expect(canGoBack(actor.getSnapshot().context)).toBe(false);
   });
+
+  // ── M6/M7 views ─────────────────────────────────────────────────────────
+
+  it("opening a name pushes a nameDetail view (M6 names)", () => {
+    // WHY: tapping a result in the Names section must navigate to that name's detail, preserving
+    // search beneath — the same forward-nav contract as words/kanji.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openName", id: "5543705" });
+    const ctx = actor.getSnapshot().context;
+    expect(activeView(ctx)).toEqual({ name: "nameDetail", id: "5543705" });
+    expect(canGoBack(ctx)).toBe(true);
+  });
+
+  it("opening the handwriting view pushes it and back returns to search (M7)", () => {
+    // WHY: the ✏️ affordance opens draw-to-search as a stack entry so Back returns to the search
+    // the user was on.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openHandwriting" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "handwriting"
+    });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
+  });
+
+  it("appendToSearch adds the character to the query and returns to search (M7 pick)", () => {
+    // WHY: picking a recognized kanji from the handwriting view must APPEND it to the existing
+    // query (not replace) and land back on search — you build a multi-character query by drawing.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "setSearchQuery", query: "日本" });
+    actor.send({ type: "openHandwriting" });
+    actor.send({ type: "appendToSearch", char: "語" });
+    const ctx = actor.getSnapshot().context;
+    expect(activeView(ctx)).toEqual({ name: "search" });
+    expect(ctx.searchQuery).toBe("日本語");
+  });
 });
