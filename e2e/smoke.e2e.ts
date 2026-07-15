@@ -27,6 +27,8 @@ test.afterAll(async () => {
 test("opens the Jisho sidebar and renders the search UI", async () => {
   await openJishoSidebar(app().window);
   const frame = await jishoFrame(app().window);
+  // jishoFrame only waits for the app root (the search view can be hidden behind a detail view),
+  // so assert the search UI explicitly here.
   await expect(frame.getByRole("searchbox")).toBeVisible();
   // Capture the whole workbench: proves no first-run/sign-in modal is overlaying the UI, and is the
   // entry point for the visual-iteration loop (look at real pixels, refine, re-shoot).
