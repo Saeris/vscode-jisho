@@ -520,8 +520,20 @@ export class Dictionary {
     );
     if (!row) return null;
 
-    const componentRows = await this.#all<{ component: string }>(
-      "SELECT component FROM kanji_components WHERE literal = ? ORDER BY component",
+    // A component only has a detail page if Kanjidic knows it. Kradfile is a *visual* decomposition
+    // (not the 214 Kangxi radicals) and substitutes JIS-encodable lookalikes for elements it can't
+    // encode — ノ ハ マ ユ ヨ ｜ — which are real components but not kanji. The LEFT JOIN settles
+    // that here, where the data is, instead of leaving the UI to offer a page that 404s.
+    const componentRows = await this.#all<{
+      component: string;
+      has_detail: number;
+    }>(
+      `SELECT c.component AS component,
+              CASE WHEN k.literal IS NULL THEN 0 ELSE 1 END AS has_detail
+         FROM kanji_components c
+         LEFT JOIN kanji_characters k ON k.literal = c.component
+        WHERE c.literal = ?
+        ORDER BY c.component`,
       literal
     );
 
@@ -557,7 +569,10 @@ export class Dictionary {
       kun: parseStrings(row.kun_json),
       meanings: parseStrings(row.meanings_json),
       nanori: parseStrings(row.nanori_json),
-      components: componentRows.map((c) => c.component),
+      components: componentRows.map((c) => ({
+        literal: c.component,
+        hasDetail: c.has_detail === 1
+      })),
       words
     };
   }

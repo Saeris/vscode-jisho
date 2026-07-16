@@ -9,6 +9,11 @@ import styles from "./RadicalPicker.module.css";
 interface RadicalPickerProps {
   onBack: () => void;
   onOpenKanji: (literal: string) => void;
+  /**
+   * Radicals to start with selected. Set when arriving from a kanji's component list — tapping a
+   * part means "show me kanji built from this", which is exactly what this view answers.
+   */
+  preselect?: string[];
 }
 
 /**
@@ -18,9 +23,11 @@ interface RadicalPickerProps {
  */
 export const RadicalPicker = ({
   onBack,
-  onOpenKanji
+  onOpenKanji,
+  preselect
 }: RadicalPickerProps): React.ReactElement => {
-  const [selected, setSelected] = useState<string[]>([]);
+  // Seeded from props, then owned locally — the user is free to toggle from here.
+  const [selected, setSelected] = useState<string[]>(preselect ?? []);
   const { data } = useQuery(radicalQuery(selected));
 
   const toggle = (radical: string): void => {

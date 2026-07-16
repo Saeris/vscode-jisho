@@ -149,6 +149,23 @@ export interface RadicalLookupDto {
   matches: KanjiResultDto[];
 }
 
+/**
+ * One component ("part") of a kanji, from Kradfile.
+ *
+ * Kradfile is a **visual decomposition**, explicitly not the classical 214 Kangxi radicals (per
+ * EDRDG's own docs), so some parts are stroke shapes rather than characters — and where an element
+ * isn't encodable in JIS X 0208, Kradfile substitutes a lookalike. Six such proxies exist: ノ ハ マ
+ * ユ ヨ ｜ (katakana and a fullwidth bar standing in for 丿 八 厶 …). They are genuine components —
+ * ノ appears in 1,415 kanji — but Kanjidic has no entry for them, so `hasDetail` is false and the UI
+ * must not offer a detail page that cannot exist (it previously did: "Kanji not found").
+ */
+export interface ComponentDto {
+  /** The component character as Kradfile writes it (possibly a JIS-encodable proxy). */
+  literal: string;
+  /** True when Kanjidic has an entry, i.e. a kanji detail page exists for it. */
+  hasDetail: boolean;
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -161,7 +178,7 @@ export interface KanjiDetailDto {
   meanings: string[];
   nanori: string[];
   /** Component characters/radicals (Kradfile). */
-  components: string[];
+  components: ComponentDto[];
   /** Common words containing this kanji. */
   words: KanjiWordDto[];
 }

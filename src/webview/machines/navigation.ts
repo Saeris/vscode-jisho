@@ -12,7 +12,8 @@ export type View =
   | { name: "kanjiDetail"; literal: string }
   | { name: "strokeOrder"; literal: string }
   | { name: "nameDetail"; id: string }
-  | { name: "radicals" }
+  /** `preselect` seeds the picker's selection — used when tapping a kanji's component. */
+  | { name: "radicals"; preselect?: string[] }
   | { name: "handwriting" }
   | { name: "about" };
 
@@ -32,7 +33,8 @@ export type NavEvent =
   | { type: "openKanji"; literal: string }
   | { type: "openStrokeOrder"; literal: string }
   | { type: "openName"; id: string }
-  | { type: "openRadicals" }
+  /** Open the radical picker; `preselect` seeds its selection (tapping a component part). */
+  | { type: "openRadicals"; preselect?: string[] }
   | { type: "openHandwriting" }
   | { type: "openAbout" }
   | { type: "back" }
@@ -90,9 +92,12 @@ export const navigationMachine = setup({
           : context.stack
     }),
     pushRadicals: assign({
-      stack: ({ context }) => [
+      stack: ({ context, event }) => [
         ...context.stack,
-        { name: "radicals" } satisfies View
+        {
+          name: "radicals",
+          preselect: event.type === "openRadicals" ? event.preselect : undefined
+        } satisfies View
       ]
     }),
     pushHandwriting: assign({

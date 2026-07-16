@@ -281,6 +281,19 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(eat!.words.some((w) => w.headword.includes("食"))).toBe(true);
   });
 
+  test("flags components that have no kanji detail page", async () => {
+    // WHY: tapping ノ on 久 opened "Kanji not found". Kradfile is a *visual* decomposition, not the
+    // 214 Kangxi radicals, and substitutes JIS-encodable lookalikes for elements it can't encode —
+    // ノ ハ マ ユ ヨ ｜. They're genuine parts (ノ is in 1,415 kanji) but Kanjidic has no entry, so
+    // the UI needs to know which parts can be opened and which must go somewhere else.
+    const hisashi = await dict.getKanji("久");
+    const no = hisashi!.components.find((c) => c.literal === "ノ");
+    expect(no?.hasDetail).toBe(false);
+    // Real kanji components in the same list must stay openable.
+    const iru = hisashi!.components.find((c) => c.literal === "入");
+    expect(iru?.hasDetail).toBe(true);
+  });
+
   test("returns null for a non-kanji literal", async () => {
     await expect(dict.getKanji("x")).resolves.toBeNull();
   });

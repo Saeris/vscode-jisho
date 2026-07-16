@@ -60,6 +60,9 @@ export const App = (): React.ReactElement => {
           onOpenStrokeOrder={(literal) =>
             send({ type: "openStrokeOrder", literal })
           }
+          onFindByPart={(preselect) =>
+            send({ type: "openRadicals", preselect })
+          }
         />
       ) : null}
       {view.name === "strokeOrder" ? (
@@ -78,6 +81,10 @@ export const App = (): React.ReactElement => {
       ) : null}
       {view.name === "radicals" ? (
         <RadicalPicker
+          // Remount when the preselection changes: the picker seeds its local selection from this
+          // prop, so a plain re-render would keep the previous view's selection.
+          key={view.preselect?.join("") ?? ""}
+          preselect={view.preselect}
           onBack={() => send({ type: "back" })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />

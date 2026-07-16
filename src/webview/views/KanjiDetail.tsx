@@ -20,6 +20,8 @@ interface KanjiDetailProps {
   onOpenWord: (id: string) => void;
   /** Open the stroke-order sub-page (animation + chart). */
   onOpenStrokeOrder: (literal: string) => void;
+  /** Open the radical picker seeded with these parts — for components with no kanji detail. */
+  onFindByPart: (parts: string[]) => void;
 }
 
 export const KanjiDetail = ({
@@ -28,7 +30,8 @@ export const KanjiDetail = ({
   onHome,
   onOpenKanji,
   onOpenWord,
-  onOpenStrokeOrder
+  onOpenStrokeOrder,
+  onFindByPart
 }: KanjiDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(kanjiQuery(literal));
 
@@ -48,6 +51,7 @@ export const KanjiDetail = ({
             onOpenKanji={onOpenKanji}
             onOpenWord={onOpenWord}
             onOpenStrokeOrder={onOpenStrokeOrder}
+            onFindByPart={onFindByPart}
           />
         )}
       </div>
@@ -59,12 +63,14 @@ const KanjiBody = ({
   kanji,
   onOpenKanji,
   onOpenWord,
-  onOpenStrokeOrder
+  onOpenStrokeOrder,
+  onFindByPart
 }: {
   kanji: KanjiDetailDto;
   onOpenKanji: (literal: string) => void;
   onOpenWord: (id: string) => void;
   onOpenStrokeOrder: (literal: string) => void;
+  onFindByPart: (parts: string[]) => void;
 }): React.ReactElement => (
   <>
     <div className={styles.hero}>
@@ -121,16 +127,29 @@ const KanjiBody = ({
 
     {kanji.components.length > 0 ? (
       <div className={styles.section}>
-        <h2>Components</h2>
+        {/* "Parts", not "Radicals" — Kradfile is a visual decomposition, not the classical 214
+            Kangxi radicals, and Jisho uses the same wording for the same data. Calling these
+            radicals would overclaim. */}
+        <h2>Parts</h2>
         <div className={styles.componentGrid} lang="ja">
           {kanji.components.map((c) => (
             <Button
-              key={c}
+              key={c.literal}
               className={styles.component}
-              onPress={() => onOpenKanji(c)}
-              aria-label={`Open ${c}`}
+              // Every part stays tappable (as on Jisho), but the destination depends on what the
+              // part IS: a real kanji opens its detail; a stroke-shape proxy (ノ ハ マ ユ ヨ ｜) has
+              // no Kanjidic entry, so it opens the radical picker seeded with it — "kanji built
+              // from this part", which is the question tapping it actually asks.
+              onPress={() =>
+                c.hasDetail ? onOpenKanji(c.literal) : onFindByPart([c.literal])
+              }
+              aria-label={
+                c.hasDetail
+                  ? `Open ${c.literal}`
+                  : `Find kanji containing ${c.literal}`
+              }
             >
-              {c}
+              {c.literal}
             </Button>
           ))}
         </div>
