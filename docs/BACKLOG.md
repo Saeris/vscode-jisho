@@ -225,6 +225,61 @@ The Jisho-style recursive breakdown from the 願 reference screenshot (願 → �
 
 **Build:** precompute the pruned tree per kanji at build time into a new table (avoid recursing 84k records at query time), fetch pinned to a commit like the other sources.
 
+### 29. Stroke-SVG transform: research findings (IN PROGRESS — supersedes #21a)
+
+Everything below was verified against the real runtime or the real data. Recorded because most of it is non-obvious and was learned the hard way.
+
+**The webview is Chromium 148 / Electron 42** (VS Code 1.128, probed via E2E). `sibling-index()`, `sibling-count()`, CSS `if()` and `@property` are **all supported**. "Not Baseline" on MDN is about the open web and does not apply to us — we ship to exactly one browser. This is what makes a CSS-first player possible at all; the pure-JS approach ([dmak](https://mbilbille.github.io/dmak/), inspected live) is a 2014 workaround for CSS that could not do this yet, and copying its architecture would be a regression.
+
+**Our SVGs already carry `pathLength="3333"`** on every stroke, so every path is pre-normalised — the _other_ thing dmak needed JS for (measuring path length to compute `stroke-dasharray`) is also unnecessary.
+
+**Why the transform is required, not optional:** in the AnimCJK source the animated strokes are siblings of `<style>`, `<defs>` and the filled glyph paths, so `sibling-index()` on stroke 1 returns **11**, not 1. They must be wrapped in their own `<g>` for the ordinal to be meaningful. And the embedded `<style>` autoplays on mount — there is no way to stop it from outside, which is the root cause of the broken player.
+
+**AnimCJK's `dictionaryJa.txt` is a significant find** (7,184 entries, same APL licence we already ship). The `acjk` field encodes component structure with **per-component stroke counts**, and `.` marks the radical:
+
+- `願⿰原10頁.9` → 原 = strokes 1–10, 頁 = strokes 11–19, **頁 is the radical**
+- `語⿰言.7吾7` → 言 (radical) = strokes 1–7, 吾 = 8–14
+- `近⿺斤4⻌.3` → 斤 = strokes 1–4, **⻌ (radical) = strokes 5–7**
+
+That is exactly the "which stroke indices are the radical" mapping radical highlighting needs — a pure-CSS range check against `sibling-index()`. Note 近: the radical is **not** the leading strokes, so highlighting cannot assume it is. It also independently corroborates the cjk-decomp component tree (#28): 願 → 原 + 頁 matches.
+
+**KanjiVG** ([kanjivg.tagaini.net](https://kanjivg.tagaini.net/)) has a better _annotation model_ — nested `<g kvg:element>` groups, `kvg:radical`, `kvg:type` stroke shapes (㇒㇐㇑…), and a `StrokeNumbers` group — and independently agrees (斤 1–4, ⻌ 5–7 radical). **But it is CC BY-SA 3.0**, real ShareAlike: merging its paths would make those files ShareAlike. Since `dictionaryJa.txt` gives the same stroke-range facts under APL, we don't need it. Keep it as a cross-check reference only; if ever used, note that the `kvg:` annotations are facts (uncopyrightable) while the paths are the licensed expression.
+
+**Max stroke count is 29 (鬱)**; only 65 kanji exceed 20, none exceed 29. **Circled-number glyph coverage was probed in the real webview and is complete** — ①(U+2460) through ㉙(U+3259) all render at full width against a tofu control, including the 21+ block (U+3251–325F) that was the risk. So numbered start points (the author's Figma approach: the start dot _is_ the stroke number) are viable across the whole set.
+
+**The guide arrows are NOT a trivial derivation.** `addGuidelines.ts` (guide-to-japanese) classifies each stroke by its start _and_ end heading (H/V/O × L/R × T/B) and uses a ~250-line decision table to pick an offset and taper so the guide runs alongside the stroke without overlapping it. A naive "short tick at the start point" discards all of that and looks wrong. Known drawback of the offset approach: guides can render outside the character's bounding box (observed when importing to Figma). **Duolingo** keeps direction paths aligned to the median instead. **Decision: emit both and interpolate** via a registered `@property --guide-offset` (0 = median-aligned/Duolingo, 1 = offset/current) — variable-font-style control, real CSS interpolation, no JS.
+
+### 30. Radical position categories + click-a-stroke-to-look-up-its-radical (feature)
+
+From the Kanji Look & Learn references: radicals fall into **seven positional categories** — ① left (_hen_), ② top (_kanmuri_), ③ bottom (_ashi_), ④ enclosure (_kamae_), ⑤ upper-left (_tare_), ⑥ lower-left (_nyō_), ⑦ right (_tsukuri_) — and its "Kanji Parts" pages highlight the radical's region within the character.
+
+**The categories are derivable from data we already ship.** `dictionaryJa.txt`'s `acjk` field encodes the IDC (split geometry) plus which side the `.` (radical) sits on:
+
+| IDC          | Split      | Radical first            | Radical second            |
+| ------------ | ---------- | ------------------------ | ------------------------- |
+| `⿰`         | left-right | **hen** (体⿰亻.2本5)    | **tsukuri** (頭⿰豆7頁.9) |
+| `⿱`         | top-bottom | **kanmuri**              | **ashi** (字⿱宀3子.3)    |
+| `⿴⿵⿶⿷⿻` | surround   | **kamae** (国⿴囗.:2玉5) | kamae                     |
+| `⿸⿹`       | upper-left | **tare** (広⿸广.3厶2)   | tare                      |
+| `⿺`         | lower-left | **nyō** (道⿺首9⻌.3)    | nyō                       |
+
+**Verified: 18/19 of the textbook's own examples classify correctly; 94% of 7,007 entries are classifiable.** [KanjiVG](https://kanjivg.tagaini.net/)'s `kvg:position` attribute uses the _same seven terms_ (`left/top/bottom/kamae/tare/nyo/right` — confirmed on 近=nyo, 体=left/right, 国=kamae, 広=tare) and agrees on every sample, so it's a good cross-check — but it's CC BY-SA 3.0, and we don't need it since the derivation above uses APL data we already ship.
+
+**The 6% that don't classify are a real distinction, not a gap.** `見.⿱目5儿2` marks 見 _itself_ as the radical (見 IS Kangxi radical #147), so there's no sub-component to categorise — the textbook still files it under _ashi_ because it teaches _visual lookup_ ("find the 儿 at the bottom") while the data answers _classification_ ("this character is a radical"). For these, clicking any stroke should surface the character itself as its radical.
+
+**Two applications:**
+
+1. **Radical search filter** — let the picker filter/group by position category, matching how the textbook teaches lookup. Pairs with #27's tag-search idea (`#hen`).
+2. **Click a component region to look up its radical.** **Box for hitting, strokes for showing** — the two are deliberately different geometry:
+   - **Hit target = an invisible `<rect>`** sized to the component's stroke bounds, exactly like the reference's shaded regions. Strokes are thin; a bare path is a miserable click target (especially 亻), so the box is the _right_ affordance here, not an approximation the print edition settled for.
+   - **Hover/focus styling = the component's STROKES**, never the box. `:hover`/`:focus-visible` on the rect restyles the strokes inside it. No shaded rectangle — that was the reference's constraint, not our goal.
+
+   Because `acjk` gives each component's **stroke range** (願⿰原10頁.9 → 頁 = strokes 11–19), both halves fall out of the same data: compute the rect from those strokes' bounds, and target the same range with a CSS `sibling-index()` check for the styling.
+
+   **Watch out:** `kamae` components enclose others (国 = 囗 around 玉), so their rects necessarily overlap the components inside. Order hit targets innermost-first so the inner component wins the click — verify against real enclosure characters (国 聞 医 凶) rather than assuming.
+
+   Needs the #29 transform first (strokes wrapped in their own `<g>`, so `sibling-index()` is the stroke number and a CSS range check can target a component).
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
