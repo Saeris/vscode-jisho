@@ -29,7 +29,8 @@ import manifest from "./package.json" with { type: "json" };
 const unitProject: TestProjectConfiguration = {
   test: {
     name: "unit",
-    include: ["src/**/*.{test,spec}.ts"],
+    // `scripts/` too: the data-build transforms are pure functions and belong at this layer.
+    include: ["src/**/*.{test,spec}.ts", "scripts/**/*.{test,spec}.ts"],
     exclude: [...configDefaults.exclude, "**/*.browser.{test,spec}.{ts,tsx}"],
     environment: "node"
   }
