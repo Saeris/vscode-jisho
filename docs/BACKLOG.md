@@ -210,6 +210,21 @@ Two halves of one idea, both unlocked by the JMdict priority-tag extraction in t
 
 **Research first:** study [Jisho.org's tag vocabulary](https://jisho.org/docs) — it has a well-developed set (`#jlpt-n5`, `#common`, `#verb`, wildcards) and its search-operator docs are the reference implementation for this feature. Also relates to #16 (the parts-of-speech breakdown filter), which is the same "filter results by a classifier" affordance arrived at from a different direction — design them together.
 
+### 28. Recursive component tree (data + view) — IN PROGRESS
+
+The Jisho-style recursive breakdown from the 願 reference screenshot (願 → 原 + 頁 → 貝 → 目 + 八, indented, each node showing meaning/readings). We shipped only a **flat Parts list** (see #the kanji parts fix). Kradfile cannot produce the tree: it decomposes to a flat set of atoms and **omits intermediate nodes** — 願 gives ハ 厂 小 白 目 貝 頁 all at once, with no 原. So this needs a hierarchical decomposition source.
+
+**Source chosen: [cjk-decomp](https://github.com/amake/cjk-decomp) (amake fork), under MIT** (it offers 6 licences; MIT is one, so no copyleft concern — unlike [cjkvi-ids](https://github.com/cjkvi/cjkvi-ids), whose `ids.txt` is CHISE-derived GPLv2). 84,269 records; format `char:type(part,part)` with recursive intermediate nodes. Verified it produces exactly the reference hierarchy for 願.
+
+**Two data realities to handle (verified against the file):**
+
+- It decomposes past the useful level into **stroke primitives and PUA glyphs** (㇒ ㇐ 𤽄…). Prune to nodes that **exist in `kanji_characters`** — which is also exactly the set we have meanings/readings to annotate, so the prune and the display gate are the same test. Bounds depth automatically.
+- Some kanji (鬱) decompose _only_ through non-kanji nodes, so the pruned tree is empty/flat. **Fall back to the flat Parts list** when the tree has no real structure — decided, so no lone-node "trees".
+
+**Placement:** its own pushed sub-page (a "Component tree ›" link on the kanji detail), matching the reference (a full-screen Components page) and keeping the detail lean. Each node tappable to its own kanji detail; stroke-shape leaves route like the flat Parts list (#the parts fix).
+
+**Build:** precompute the pruned tree per kanji at build time into a new table (avoid recursing 84k records at query time), fetch pinned to a commit like the other sources.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

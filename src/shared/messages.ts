@@ -166,6 +166,19 @@ export interface ComponentDto {
   hasDetail: boolean;
 }
 
+/**
+ * A node in a kanji's recursive component tree (cjk-decomp). Each node is a real Kanjidic character
+ * with a brief annotation, and its `children` are its direct components — the Jisho-style breakdown.
+ */
+export interface ComponentTreeDto {
+  literal: string;
+  /** First few meanings, for the annotation line (empty if none). */
+  meaningPreview: string;
+  /** On/kun readings joined for display (empty if none). */
+  readingPreview: string;
+  children: ComponentTreeDto[];
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -177,8 +190,13 @@ export interface KanjiDetailDto {
   kun: string[];
   meanings: string[];
   nanori: string[];
-  /** Component characters/radicals (Kradfile). */
+  /** Component characters/radicals (Kradfile), the flat parts list. */
   components: ComponentDto[];
+  /**
+   * Whether a recursive component tree (cjk-decomp) exists for this kanji — gates the "Component
+   * tree" link on the detail. When false, only the flat `components` list is meaningful.
+   */
+  hasTree: boolean;
   /** Common words containing this kanji. */
   words: KanjiWordDto[];
 }
@@ -237,6 +255,12 @@ export interface GetStrokeSvgRequest {
   literal: string;
 }
 
+export interface GetComponentTreeRequest {
+  type: "getComponentTree";
+  requestId: string;
+  literal: string;
+}
+
 /** Radical picker: the current selection (empty = show all radicals, no matches). */
 export interface LookupRadicalsRequest {
   type: "lookupRadicals";
@@ -271,6 +295,7 @@ export type Request =
   | GetWordRequest
   | GetKanjiRequest
   | GetStrokeSvgRequest
+  | GetComponentTreeRequest
   | LookupRadicalsRequest
   | GetAboutRequest
   | SearchNamesRequest
@@ -311,6 +336,13 @@ export interface GetStrokeSvgResponse {
   svg: string | null;
 }
 
+export interface GetComponentTreeResponse {
+  type: "getComponentTree";
+  requestId: string;
+  /** The recursive tree, or `null` when the kanji has no meaningful decomposition. */
+  tree: ComponentTreeDto | null;
+}
+
 export interface LookupRadicalsResponse {
   type: "lookupRadicals";
   requestId: string;
@@ -349,6 +381,7 @@ export type Response =
   | GetWordResponse
   | GetKanjiResponse
   | GetStrokeSvgResponse
+  | GetComponentTreeResponse
   | LookupRadicalsResponse
   | GetAboutResponse
   | SearchNamesResponse

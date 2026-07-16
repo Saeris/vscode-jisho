@@ -141,6 +141,20 @@ CREATE TABLE kanji_components (
 
 CREATE INDEX idx_components_component ON kanji_components(component);
 
+-- Recursive component tree (cjk-decomp, amake fork — Apache-2.0/MIT multi-licence). Unlike Kradfile
+-- (a flat set of atoms), this is HIERARCHICAL: it records each character's DIRECT children, so
+-- 願 → 原 + 頁, 原 → 厂 …, giving the intermediate nodes Kradfile omits — the Jisho-style breakdown.
+-- Adjacency rows, not a serialised tree: a subtree like 目 is shared by thousands of kanji, so
+-- storing edges keeps it once and the host reconstructs the tree by walking from the root.
+-- Pruned at build time to children that exist in kanji_characters (which is also the set we can
+-- annotate with meanings/readings), dropping cjk-decomp's stroke-primitive and PUA leaves.
+CREATE TABLE component_tree (
+  literal  TEXT NOT NULL REFERENCES kanji_characters(literal), -- the parent character
+  child    TEXT NOT NULL REFERENCES kanji_characters(literal), -- one direct component of it
+  position INTEGER NOT NULL,                                   -- left-to-right order from the IDS
+  PRIMARY KEY (literal, position)
+);
+
 -- Radical → the kanji built from it (Radkfile). Drives the radical picker; `kanji_json` is read
 -- whole (never joined), so a JSON array column is fine.
 CREATE TABLE radicals (

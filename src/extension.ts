@@ -223,6 +223,12 @@ const respond = async (
         requestId: request.requestId,
         svg: await dict.getStrokeSvg(request.literal)
       };
+    case "getComponentTree":
+      return {
+        type: "getComponentTree",
+        requestId: request.requestId,
+        tree: await dict.getComponentTree(request.literal)
+      };
     case "lookupRadicals":
       return {
         type: "lookupRadicals",

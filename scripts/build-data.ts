@@ -147,6 +147,18 @@ const JLPT_LEVELS: Array<{ file: string; level: number }> = [
   { file: "n1.csv", level: 1 }
 ];
 
+// Recursive kanji decomposition (cjk-decomp, amake fork). Multi-licensed — the README grants "6
+// licenses, of which you only need choose one", MIT among them, and the committed LICENSE file is
+// Apache-2.0; either fits our MIT extension (unlike cjkvi-ids, whose ids.txt is CHISE-derived
+// GPLv2). We attribute under Apache-2.0. Pinned to a commit for reproducibility.
+//
+// Format: one record per line, `char:type(part,part,…)` — e.g. `願:a(原,頁)`. `type` is the spatial
+// arrangement (a=across, d=down, s=surround…), which we ignore; we want the child list. Parts recurse
+// down to stroke primitives (㇒ ㇐) and PUA glyphs, well past the useful level — so the tree is
+// pruned to children present in Kanjidic (the set we can show meanings for), which also bounds depth.
+const CJK_DECOMP_SHA = "c29b391fd6267e7a3541387e03a3dd60b1cd34d1";
+const CJK_DECOMP_URL = `https://raw.githubusercontent.com/amake/cjk-decomp/${CJK_DECOMP_SHA}/cjk-decomp.txt`;
+
 // JMdict priority tags (EDRDG, CC-BY-SA-4.0 — the same licence and source as our main dictionary,
 // so no new licensing surface). jmdict-simplified deliberately collapses JMdict's `ke_pri`/`re_pri`
 // fields into a single boolean `common`, discarding the underlying gradient; their own type docs say
@@ -192,6 +204,27 @@ const fetchAssetJson = async <T>(
   const tgz = new Uint8Array(await res.arrayBuffer());
   const data: T = JSON.parse(extractSingleJsonFromTgz(tgz));
   return data;
+};
+
+/**
+ * Fetch cjk-decomp and return each character's DIRECT component children (unpruned). The parse is
+ * line-based: `char:type(a,b,c)` → [a, b, c]. The spatial `type` code is discarded.
+ */
+const fetchDecomposition = async (): Promise<Map<string, string[]>> => {
+  console.log("Downloading cjk-decomp.txt…");
+  const res = await fetch(CJK_DECOMP_URL, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok) throw new Error(`cjk-decomp → ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  const map = new Map<string, string[]>();
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^(.+?):[a-z0-9]+\((.*)\)/.exec(line);
+    if (!m) continue;
+    map.set(m[1], m[2] === "" ? [] : m[2].split(","));
+  }
+  console.log(`  ${map.size} decomposition records`);
+  return map;
 };
 
 /** One word's priority signals, derived from its JMdict `ke_pri`/`re_pri` tags. */
@@ -345,13 +378,15 @@ interface Sources {
   jlpt: Map<string, number>;
   pitch: Map<string, number[]>;
   priority: Map<string, WordPriority>;
+  /** char → its direct component children (cjk-decomp, unpruned). */
+  decomp: Map<string, string[]>;
 }
 
 const downloadSources = async (): Promise<Sources> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
-  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority] =
+  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp] =
     await Promise.all([
       fetchAssetJson<JMdict>(release, ASSET_PATTERN),
       fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -359,7 +394,8 @@ const downloadSources = async (): Promise<Sources> => {
       fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
       fetchJlptLevels(),
       fetchPitchAccents(),
-      fetchWordPriorities()
+      fetchWordPriorities(),
+      fetchDecomposition()
     ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -372,11 +408,12 @@ const downloadSources = async (): Promise<Sources> => {
       `Filtered to common entries: ${dict.words.length}/${before} words`
     );
   }
-  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority };
+  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp };
 };
 
 const buildDatabase = async (sources: Sources): Promise<void> => {
-  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority } = sources;
+  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp } =
+    sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -429,6 +466,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   );
   const insComponent = await db.prepare(
     "INSERT INTO kanji_components(literal, component) VALUES (?, ?)"
+  );
+  const insTreeEdge = await db.prepare(
+    "INSERT INTO component_tree(literal, child, position) VALUES (?, ?, ?)"
   );
   const insRadical = await db.prepare(
     "INSERT INTO radicals(radical, stroke_count, kanji_json) VALUES (?, ?, ?)"
@@ -526,6 +566,46 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     if (!kanjiSet.has(literal)) continue;
     for (const component of components) {
       await insComponent.run(literal, component);
+    }
+  }
+
+  // Recursive component tree (cjk-decomp), pruned to Kanjidic nodes. cjk-decomp recurses to stroke
+  // primitives and PUA glyphs; we only want children that are themselves characters we have a detail
+  // page (and meanings) for — so for each kanji, gather the NEAREST such descendants along each
+  // branch. When a direct child isn't in Kanjidic (a stroke shape), we descend THROUGH it to find
+  // the real components beneath, which is what collapses cjk-decomp's deep stroke tree onto the
+  // clean kanji-level hierarchy the UI shows. A child that IS a kanji becomes an edge and the walk
+  // stops there (its own row carries its subtree — the tree is reconstructed by following edges).
+  const treeEdgesFor = (literal: string): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>([literal]);
+    const collect = (node: string): void => {
+      for (const child of decomp.get(node) ?? []) {
+        if (seen.has(child)) continue;
+        seen.add(child);
+        if (kanjiSet.has(child)) {
+          out.push(child); // a real component — an edge; its own subtree lives in its own rows
+        } else {
+          collect(child); // a stroke shape / PUA — descend through it to the real parts below
+        }
+      }
+    };
+    collect(literal);
+    return out;
+  };
+  for (const literal of kanjiSet) {
+    const children = treeEdgesFor(literal);
+    // Skip self-referential singletons (a kanji whose only "component" is itself): no tree to show.
+    if (
+      children.length === 0 ||
+      (children.length === 1 && children[0] === literal)
+    ) {
+      continue;
+    }
+    let position = 0;
+    for (const child of children) {
+      await insTreeEdge.run(literal, child, position);
+      position++;
     }
   }
   // Radkfile radicals.

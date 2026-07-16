@@ -20,6 +20,8 @@ interface KanjiDetailProps {
   onOpenWord: (id: string) => void;
   /** Open the stroke-order sub-page (animation + chart). */
   onOpenStrokeOrder: (literal: string) => void;
+  /** Open the recursive component-tree sub-page. */
+  onOpenComponentTree: (literal: string) => void;
   /** Open the radical picker seeded with these parts — for components with no kanji detail. */
   onFindByPart: (parts: string[]) => void;
 }
@@ -31,6 +33,7 @@ export const KanjiDetail = ({
   onOpenKanji,
   onOpenWord,
   onOpenStrokeOrder,
+  onOpenComponentTree,
   onFindByPart
 }: KanjiDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(kanjiQuery(literal));
@@ -51,6 +54,7 @@ export const KanjiDetail = ({
             onOpenKanji={onOpenKanji}
             onOpenWord={onOpenWord}
             onOpenStrokeOrder={onOpenStrokeOrder}
+            onOpenComponentTree={onOpenComponentTree}
             onFindByPart={onFindByPart}
           />
         )}
@@ -64,12 +68,14 @@ const KanjiBody = ({
   onOpenKanji,
   onOpenWord,
   onOpenStrokeOrder,
+  onOpenComponentTree,
   onFindByPart
 }: {
   kanji: KanjiDetailDto;
   onOpenKanji: (literal: string) => void;
   onOpenWord: (id: string) => void;
   onOpenStrokeOrder: (literal: string) => void;
+  onOpenComponentTree: (literal: string) => void;
   onFindByPart: (parts: string[]) => void;
 }): React.ReactElement => (
   <>
@@ -124,6 +130,19 @@ const KanjiBody = ({
         ›
       </span>
     </Button>
+
+    {kanji.hasTree ? (
+      <Button
+        className={styles.strokeLink}
+        onPress={() => onOpenComponentTree(kanji.literal)}
+      >
+        <span aria-hidden="true">🌳</span>
+        Component tree
+        <span className={styles.chevron} aria-hidden="true">
+          ›
+        </span>
+      </Button>
+    ) : null}
 
     {kanji.components.length > 0 ? (
       <div className={styles.section}>

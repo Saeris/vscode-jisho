@@ -7,6 +7,7 @@ import type {
   KanjiDetailDto,
   KanjiResultDto,
   NameDetailDto,
+  ComponentTreeDto,
   NameResultDto,
   RadicalLookupDto,
   SearchResultDto,
@@ -17,6 +18,7 @@ import {
   getAbout,
   getKanji,
   getName,
+  getComponentTree,
   getStrokeSvg,
   getWord,
   lookupRadicals,
@@ -101,6 +103,21 @@ export const strokeSvgQuery = (
   queryOptions({
     queryKey: ["strokeSvg", literal],
     queryFn: async () => (await getStrokeSvg(literal)).svg
+  });
+
+export const componentTreeQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<
+    ComponentTreeDto | null,
+    Error,
+    ComponentTreeDto | null,
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["componentTree", literal],
+    queryFn: async () => (await getComponentTree(literal)).tree
   });
 
 export const wordQuery = (

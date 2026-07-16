@@ -10,6 +10,7 @@ import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
 import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
+import { ComponentTree } from "./views/ComponentTree";
 import { SearchResults } from "./views/SearchResults";
 import { StrokeOrder } from "./views/StrokeOrder";
 import { WordDetail } from "./views/WordDetail";
@@ -60,9 +61,20 @@ export const App = (): React.ReactElement => {
           onOpenStrokeOrder={(literal) =>
             send({ type: "openStrokeOrder", literal })
           }
+          onOpenComponentTree={(literal) =>
+            send({ type: "openComponentTree", literal })
+          }
           onFindByPart={(preselect) =>
             send({ type: "openRadicals", preselect })
           }
+        />
+      ) : null}
+      {view.name === "componentTree" ? (
+        <ComponentTree
+          literal={view.literal}
+          onBack={() => send({ type: "back" })}
+          onHome={onHome}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
       ) : null}
       {view.name === "strokeOrder" ? (

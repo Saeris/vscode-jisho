@@ -24,6 +24,7 @@ const kanji: KanjiDetailDto = {
     { literal: "久", hasDetail: true },
     { literal: "入", hasDetail: true }
   ],
+  hasTree: false,
   words: []
 };
 
@@ -55,6 +56,7 @@ const renderView = (
         onOpenKanji={vi.fn<(literal: string) => void>()}
         onOpenWord={vi.fn<(id: string) => void>()}
         onOpenStrokeOrder={vi.fn<(literal: string) => void>()}
+        onOpenComponentTree={vi.fn<(literal: string) => void>()}
         onFindByPart={vi.fn<(parts: string[]) => void>()}
         {...props}
       />

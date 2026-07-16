@@ -7,6 +7,7 @@ import type {
   GetAboutResponse,
   GetKanjiResponse,
   GetNameResponse,
+  GetComponentTreeResponse,
   GetStrokeSvgResponse,
   GetWordResponse,
   LookupRadicalsResponse,
@@ -103,6 +104,19 @@ export const getStrokeSvg = async (
   });
   if (response.type !== "getStrokeSvg")
     throw new Error("Unexpected response for getStrokeSvg");
+  return response;
+};
+
+export const getComponentTree = async (
+  literal: string
+): Promise<GetComponentTreeResponse> => {
+  const response = await send({
+    type: "getComponentTree",
+    requestId: nextRequestId(),
+    literal
+  });
+  if (response.type !== "getComponentTree")
+    throw new Error("Unexpected response for getComponentTree");
   return response;
 };
 

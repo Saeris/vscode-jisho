@@ -7,6 +7,7 @@ import { connect } from "@tursodatabase/database";
 import { isKana, toKana } from "wanakana";
 import { deinflect } from "./deinflect";
 import type {
+  ComponentTreeDto,
   KanaDto,
   KanjiDetailDto,
   KanjiDto,
@@ -365,6 +366,57 @@ export class Dictionary {
     };
   }
 
+  /**
+   * The recursive component tree for a kanji (cjk-decomp), or `null` when it has no meaningful
+   * decomposition (the caller then falls back to the flat component list). Each node carries a short
+   * meaning/reading annotation; children come from `component_tree` edges, walked depth-first.
+   *
+   * A `seen` set breaks cycles (a component can transitively contain itself in the raw data) and
+   * caps runaway depth defensively. The trees are shallow (mostly ≤3), so per-node lookups are fine.
+   */
+  async getComponentTree(literal: string): Promise<ComponentTreeDto | null> {
+    const build = async (
+      node: string,
+      seen: Set<string>
+    ): Promise<ComponentTreeDto> => {
+      const meta = await this.#get<{
+        meanings_json: string;
+        on_json: string;
+        kun_json: string;
+      }>(
+        "SELECT meanings_json, on_json, kun_json FROM kanji_characters WHERE literal = ?",
+        node
+      );
+      const edges = seen.has(node)
+        ? []
+        : await this.#all<{ child: string }>(
+            "SELECT child FROM component_tree WHERE literal = ? ORDER BY position",
+            node
+          );
+      const nextSeen = new Set(seen).add(node);
+      const children: ComponentTreeDto[] = [];
+      for (const { child } of edges) {
+        children.push(await build(child, nextSeen));
+      }
+      return {
+        literal: node,
+        meaningPreview: meta
+          ? parseStrings(meta.meanings_json).slice(0, 3).join(", ")
+          : "",
+        readingPreview: meta
+          ? [...parseStrings(meta.on_json), ...parseStrings(meta.kun_json)]
+              .slice(0, 4)
+              .join("、")
+          : "",
+        children
+      };
+    };
+
+    const root = await build(literal, new Set());
+    // No tree to show — the caller renders the flat parts list instead.
+    return root.children.length === 0 ? null : root;
+  }
+
   /** Raw stroke-order SVG markup for a kanji, or `null` when we have no animation for it. */
   async getStrokeSvg(literal: string): Promise<string | null> {
     const row = await this.#get<{ svg: string }>(
@@ -524,6 +576,13 @@ export class Dictionary {
     // (not the 214 Kangxi radicals) and substitutes JIS-encodable lookalikes for elements it can't
     // encode — ノ ハ マ ユ ヨ ｜ — which are real components but not kanji. The LEFT JOIN settles
     // that here, where the data is, instead of leaving the UI to offer a page that 404s.
+    // Does a recursive tree exist? One cheap existence check — gates the detail's tree link so we
+    // never offer a page that would be empty (the getComponentTree fallback returns null there).
+    const treeEdge = await this.#get<{ one: number }>(
+      "SELECT 1 AS one FROM component_tree WHERE literal = ? LIMIT 1",
+      literal
+    );
+
     const componentRows = await this.#all<{
       component: string;
       has_detail: number;
@@ -573,6 +632,7 @@ export class Dictionary {
         literal: c.component,
         hasDetail: c.has_detail === 1
       })),
+      hasTree: treeEdge !== undefined,
       words
     };
   }

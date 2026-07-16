@@ -294,6 +294,39 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(iru?.hasDetail).toBe(true);
   });
 
+  test("builds the recursive component tree with intermediate nodes", async () => {
+    // WHY: the whole reason for cjk-decomp over Kradfile. Kradfile gives 願 a FLAT set of atoms
+    // (ハ 厂 小 白 目 貝 頁) with no 原; the tree must show 願 → 原 + 頁, i.e. the intermediate node
+    // 原 that makes it a real breakdown. Guards against silently regressing to the flat data.
+    const tree = await dict.getComponentTree("願");
+    expect(tree).not.toBeNull();
+    const topLevel = tree!.children.map((c) => c.literal);
+    expect(topLevel).toContain("原"); // the node Kradfile omits
+    expect(topLevel).toContain("頁");
+    // Nodes carry annotations so the view can label them.
+    const gen = tree!.children.find((c) => c.literal === "原");
+    expect(gen?.meaningPreview.length).toBeGreaterThan(0);
+    // And it recurses: 頁 → 貝 → 目 …
+    const page = tree!.children.find((c) => c.literal === "頁");
+    expect(page?.children.some((c) => c.literal === "貝")).toBe(true);
+  });
+
+  test("returns null when a kanji has no meaningful tree", async () => {
+    // WHY: some kanji decompose only through stroke primitives / PUA nodes, so the pruned tree is
+    // empty. The caller falls back to the flat Parts list — a null here is the signal for that, and
+    // a lone-node "tree" would look broken.
+    const tree = await dict.getComponentTree("一");
+    expect(tree).toBeNull();
+  });
+
+  test("flags whether a kanji has a component tree", async () => {
+    // WHY: the detail view's "Component tree" link is gated on this so it never opens an empty page.
+    const withTree = await dict.getKanji("願");
+    expect(withTree!.hasTree).toBe(true);
+    const withoutTree = await dict.getKanji("一");
+    expect(withoutTree!.hasTree).toBe(false);
+  });
+
   test("returns null for a non-kanji literal", async () => {
     await expect(dict.getKanji("x")).resolves.toBeNull();
   });

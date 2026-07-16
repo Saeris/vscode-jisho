@@ -1,0 +1,92 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.title {
+  font-size: 1.1em;
+  margin: 0 0 12px;
+}
+
+.title span[lang="ja"] {
+  font-size: 1.4em;
+  vertical-align: middle;
+}
+
+.status {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Nested levels indent and draw a connector rail down the left, like the reference's tree lines. */
+.node .tree {
+  margin-inline-start: 14px;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--jisho-border);
+}
+
+.node {
+  position: relative;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--jisho-radius);
+  color: var(--jisho-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--jisho-hover-bg);
+}
+
+.row[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.glyph {
+  font-size: 1.6em;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0; /* let the meaning ellipsize instead of overflowing the sidebar */
+}
+
+.meaning {
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading {
+  font-size: 0.8em;
+  color: var(--jisho-muted);
+}
