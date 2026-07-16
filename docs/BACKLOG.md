@@ -157,6 +157,38 @@ Beyond passive stroke-order playback (M7 #1), add an interactive **quiz**: the u
 
 Our contour renders in a **dedicated band above** the reading; Shirabe **overlays** it on the kana, the line riding over the glyphs and sharing their vertical space. The band was a deliberate trade during the polish pass: an overlaid line at sidebar font sizes collided with the glyphs — verticals slicing neighbouring kana, the low line clipping descenders (た), which read as a box drawn around the accent mora rather than a pitch contour. Threading the line through a glyph's natural interior clearance needs font-metric awareness (ascender/x-height offsets per family and size) that the band approach avoids entirely, which is why it isn't a one-line CSS change. Deemed "good enough" by the author for now; revisit if the difference bothers in use. `PitchAccent.browser.spec.tsx` asserts the clear-of-glyphs invariant, so any overlay attempt must update that test's intent deliberately, not incidentally.
 
+### 24. Recognizer patterns via `import ... with { type: "bytes" }` (refinement — small, BLOCKED on tooling)
+
+`patterns.data.ts` is a 1.8MB TS module wrapping a base64 string that `patterns.ts` `atob()`s at runtime. The [import-bytes proposal](https://github.com/tc39/proposal-import-bytes) (TC39 **Stage 2.7**) would let us commit a raw `patterns.bin` and `import bytes from "./patterns.bin" with { type: "bytes" }` — deleting `patterns.data.ts`, the `decodeBase64` helper, and base64's +33% encoding overhead, and yielding a `Uint8Array` (backed by an immutable ArrayBuffer) straight to the existing `DataView` decoder.
+
+**Blocked: Rolldown/Vite does not implement it.** Verified empirically (2026-07) — a probe importing a `.bin` with the attribute fails with `The requested module '…?import' does not provide an export named 'default'`; the attribute is silently ignored. Deno 2.4 and Bun have shipped comparable features, so bundler support is plausibly near.
+
+Notes for whoever picks this up:
+
+- **The bytes must arrive inside a JS module** — the webview CSP blocks fetching an asset, which is why `?url` + `fetch()` (the normal answer) is not available to us. This constraint is the whole reason for the base64 smuggling.
+- `?raw` (a JS string) and `?inline` (a data URL, registered extensions only) both work today but are base64 under the hood — no real gain over the status quo.
+- The **wire** win is smaller than +33% suggests: gzip recovers most of base64's overhead (current chunk 1.80MB → 1.25MB gz). The real wins are simpler code and less parse/heap churn.
+- Pairs with **#21**'s patterns re-extract/re-encode tool — same encoder, so do them together. The binary format is specified in `src/webview/recognizer/README.md`.
+
+### 25. Evaluated and declined: PGlite instead of Turso/SQLite (decision record)
+
+Considered swapping `@tursodatabase/database` for [PGlite](https://pglite.dev) (WASM Postgres) to gain Postgres extensions. **Declined 2026-07.** Recorded so it isn't re-litigated from scratch.
+
+**What PGlite would genuinely win:**
+
+- **Real full-text search** — `tsvector`/GIN + `pg_trgm`/`fuzzystrmatch`. Our biggest standing compromise: Turso has no FTS5, so `db.ts` is restricted to indexed prefix range scans and forbids unanchored `LIKE '%…%'` (#1 exists largely because of this).
+- **One universal `.vsix`** — a WASM engine needs no per-platform native binary, retiring `scripts/package-platforms.ts` (which swaps a 13MB `.node` per target).
+
+**Why it loses anyway:**
+
+- **Delivery model breaks.** Our DBs are 82MB / 130MB / 410MB and ship as portable SQLite files that are _downloaded and opened_. PGlite's storage is a PGDATA directory, so we'd either ship a `pg_dump` and `COPY` millions of rows in on first run (minutes of CPU) or tar a PGDATA dir (bulkier than SQLite, and coupled to the exact PG build). Losing "download the file, open it" is close to disqualifying on its own.
+- **Single connection only** (PGlite's own docs; the multi-tab worker exists to elect one leader). We already open two — the main DB and the separate names DB (`names.ts`).
+- **WASM is slower than the native binding** in the extension host, where we currently pay nothing.
+- **Doesn't unblock M8.** Turso already ships a `-wasm` sibling build; the async query layer was written for that path from M1.
+- **Cost is a full data-layer rewrite** — schema, `build-data.ts`, both query modules, delivery pipeline, and re-uploading every artifact.
+
+**Revisit if:** Turso's native `fts_match` (Tantivy-backed, experimental) proves inadequate for #1; per-platform packaging becomes a real maintenance burden; or M8 hits a wall with `-wasm`.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

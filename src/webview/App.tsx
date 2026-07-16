@@ -11,6 +11,7 @@ import { KanjiDetail } from "./views/KanjiDetail";
 import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
 import { SearchResults } from "./views/SearchResults";
+import { StrokeOrder } from "./views/StrokeOrder";
 import { WordDetail } from "./views/WordDetail";
 
 export const App = (): React.ReactElement => {
@@ -56,6 +57,16 @@ export const App = (): React.ReactElement => {
           onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenWord={(id) => send({ type: "openWord", id })}
+          onOpenStrokeOrder={(literal) =>
+            send({ type: "openStrokeOrder", literal })
+          }
+        />
+      ) : null}
+      {view.name === "strokeOrder" ? (
+        <StrokeOrder
+          literal={view.literal}
+          onBack={() => send({ type: "back" })}
+          onHome={onHome}
         />
       ) : null}
       {view.name === "nameDetail" ? (

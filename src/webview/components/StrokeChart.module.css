@@ -1,0 +1,81 @@
+/* Stroke-order chart: cell N shows the character drawn to its Nth stroke, newest stroke highlighted.
+   Each cell re-renders the same SVG at a different seek position — see StrokeChart.tsx. */
+
+.chart {
+  display: grid;
+  /* Auto-fill rather than a fixed column count: the sidebar is narrow and resizable, so the grid
+     reflows instead of overflowing (a 24-stroke kanji like 願 must not force a horizontal scroll). */
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid var(--jisho-border);
+  border-radius: 2px;
+}
+
+.step {
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-start: 3px;
+  font-size: 0.6em;
+  line-height: 1;
+  color: var(--jisho-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Freeze every cell at its seek position: no animation, the timeline scrubbed by --stroke-index.
+   Same negative-delay trick as the player (documented in StrokePlayer.module.css). */
+/* Freeze each cell at its seek position: the animation is paused and a negative delay scrubs the
+   timeline so strokes 1..--stroke-index read as already finished. See StrokePlayer.module.css. */
+.canvas :global(svg.acjk) path[clip-path] {
+  animation-play-state: paused;
+  animation-delay: calc(var(--d) - (var(--stroke-index, 0) * 1s) - 0.8s);
+}
+
+/* The guides (start dot + direction arrow) belong to the stroke being ADDED in this cell — that's
+   the instruction the chart is conveying. Hide them all, then re-show only the highlighted one. */
+.canvas :global(svg.acjk) .guides {
+  opacity: 0;
+}
+
+/* Highlight the stroke this cell ADDS — cell N reddens stroke N. "The Nth stroke, where N is a
+   variable" is unreachable from a selector (nth-child needs a literal, and sibling-index() isn't
+   here yet — BACKLOG #21). So the comparison happens in a PROPERTY instead: every stroke already
+   carries its own index as --d (stroke N has --d:Ns), so dividing by 1s gives a unitless index, and
+   clamping |index - highlight| to 0..1 yields exactly 0 for the highlighted stroke and 1 for all
+   others. That switch drives the colour mix — no selector required.
+
+   Note this is only sound because --d is 1s-per-stroke by construction in our SVGs; the transform
+   script in #21 must preserve that invariant (it's the same one the seek trick relies on). */
+.canvas :global(svg.acjk) path[clip-path] {
+  --index: calc(var(--d) / 1s);
+  --is-other: clamp(0, abs(var(--index) - var(--highlight-stroke, 0)), 1);
+
+  stroke: color-mix(
+    in srgb,
+    var(--vscode-charts-red, #e51400) calc((1 - var(--is-other)) * 100%),
+    var(--jisho-fg) calc(var(--is-other) * 100%)
+  );
+}
+
+/* Ghost the character's outline underneath, so an early cell still reads as the right kanji rather
+   than a few floating marks — the reference charts all do this. */
+.canvas :global(svg.acjk) path[id] {
+  fill: var(--jisho-border);
+}

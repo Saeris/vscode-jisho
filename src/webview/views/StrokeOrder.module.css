@@ -1,0 +1,43 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.literal {
+  font-size: 2em;
+  line-height: 1;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+.status {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.section {
+  margin-top: 20px;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+  margin: 0 0 6px;
+}
+
+.count {
+  text-transform: none;
+  letter-spacing: normal;
+}

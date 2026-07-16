@@ -26,6 +26,12 @@ import { downloadAndUnzipVSCode } from "@vscode/test-electron";
 import { type Browser, type Page, chromium } from "@playwright/test";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+/**
+ * PINNED, not "stable". `downloadAndUnzipVSCode("stable")` re-resolves on every run, so a VS Code
+ * release silently swaps the binary (and re-downloads 224MB) under a suite that was green an hour
+ * ago. Pin it so runs are reproducible and version bumps are a deliberate, reviewable change.
+ */
+const VSCODE_VERSION = "1.128.1";
 // A deliberately uncommon port. NOT 9229 (Node's default inspector) or 9222 (Chrome's default) —
 // attaching to a port some other process already owns risks driving/closing the user's real editor
 // or a debug session. We additionally verify the endpoint is OUR spawned process before using it.
@@ -138,7 +144,7 @@ const assertPortFree = async (): Promise<void> => {
 
 export const launchVSCode = async (): Promise<Launched> => {
   await assertPortFree();
-  const executablePath = await downloadAndUnzipVSCode("stable");
+  const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
   const userDataDir = mkdtempSync(join(tmpdir(), "jisho-e2e-user-"));
   const extensionsDir = mkdtempSync(join(tmpdir(), "jisho-e2e-ext-"));
   const workspaceDir = mkdtempSync(join(tmpdir(), "jisho-e2e-ws-"));
@@ -212,7 +218,15 @@ export const launchVSCode = async (): Promise<Launched> => {
       await wait(500);
     }
     throw new Error(
-      "VS Code workbench window not found over CDP within 90s (cold start too slow?)"
+      "VS Code workbench window not found over CDP within 90s.\n" +
+        "Most likely cause: a VS Code INSTALLER UPDATE is in progress on this machine. The spawned " +
+        "instance then blocks on Inno Setup's `vscode-updating` mutex ('checkInnoSetupMutex: " +
+        "vscode-updating is held') and never opens a window, so CDP reports zero targets.\n" +
+        "This is transient — let the update finish and re-run. NOTE: this is a DIFFERENT message " +
+        "from the harmless 'mutex already exists' noise that appears on healthy runs; that one is " +
+        "safe to ignore, this one is fatal.\n" +
+        "Other causes to rule out: leaked VS Code children from a previous run holding the install, " +
+        "or an external indexer (e.g. GitKraken) holding a handle on .vscode-test/."
     );
   };
   const window = await findWorkbench();

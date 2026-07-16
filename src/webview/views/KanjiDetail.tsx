@@ -3,9 +3,9 @@ import { Button } from "react-aria-components";
 import type { KanjiDetailDto } from "../../shared/messages";
 import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { CopyButton } from "../components/CopyButton";
 import { DetailHeader } from "../components/DetailHeader";
 import { SequencePlayButton } from "../components/PlayButton";
-import { StrokePlayer } from "../components/StrokePlayer";
 import { Term } from "../components/Term";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import styles from "./KanjiDetail.module.css";
@@ -18,6 +18,8 @@ interface KanjiDetailProps {
   onOpenKanji: (literal: string) => void;
   /** Tap a containing word to open its detail. */
   onOpenWord: (id: string) => void;
+  /** Open the stroke-order sub-page (animation + chart). */
+  onOpenStrokeOrder: (literal: string) => void;
 }
 
 export const KanjiDetail = ({
@@ -25,7 +27,8 @@ export const KanjiDetail = ({
   onBack,
   onHome,
   onOpenKanji,
-  onOpenWord
+  onOpenWord,
+  onOpenStrokeOrder
 }: KanjiDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(kanjiQuery(literal));
 
@@ -44,6 +47,7 @@ export const KanjiDetail = ({
             kanji={data}
             onOpenKanji={onOpenKanji}
             onOpenWord={onOpenWord}
+            onOpenStrokeOrder={onOpenStrokeOrder}
           />
         )}
       </div>
@@ -54,17 +58,27 @@ export const KanjiDetail = ({
 const KanjiBody = ({
   kanji,
   onOpenKanji,
-  onOpenWord
+  onOpenWord,
+  onOpenStrokeOrder
 }: {
   kanji: KanjiDetailDto;
   onOpenKanji: (literal: string) => void;
   onOpenWord: (id: string) => void;
+  onOpenStrokeOrder: (literal: string) => void;
 }): React.ReactElement => (
   <>
     <div className={styles.hero}>
-      <span className={styles.literal} lang="ja">
-        {kanji.literal}
-      </span>
+      {/* Copying the character is a primary action here: the point of this extension is getting
+          Japanese into the document you're writing next door. */}
+      <CopyButton
+        className={styles.literalCopy}
+        value={kanji.literal}
+        label={`Copy ${kanji.literal}`}
+      >
+        <span className={styles.literal} lang="ja">
+          {kanji.literal}
+        </span>
+      </CopyButton>
       <div className={styles.badges}>
         {kanji.strokeCount !== null ? (
           <Badge kind="pos">{kanji.strokeCount} strokes</Badge>
@@ -86,8 +100,6 @@ const KanjiBody = ({
       </div>
     </div>
 
-    <StrokePlayer literal={kanji.literal} />
-
     {kanji.meanings.length > 0 ? (
       <p className={styles.meanings}>{kanji.meanings.join(", ")}</p>
     ) : null}
@@ -95,6 +107,17 @@ const KanjiBody = ({
     <ReadingRow label="On" readings={kanji.on} />
     <ReadingRow label="Kun" readings={kanji.kun} />
     <ReadingRow label="Nanori" readings={kanji.nanori} />
+
+    <Button
+      className={styles.strokeLink}
+      onPress={() => onOpenStrokeOrder(kanji.literal)}
+    >
+      <span aria-hidden="true">✏️</span>
+      Stroke order
+      <span className={styles.chevron} aria-hidden="true">
+        ›
+      </span>
+    </Button>
 
     {kanji.components.length > 0 ? (
       <div className={styles.section}>

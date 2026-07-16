@@ -1,0 +1,60 @@
+.copy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--jisho-radius);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.copy:hover {
+  border-color: var(--jisho-border);
+  background: var(--jisho-hover-bg);
+}
+
+.copy[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* The confirmation floats over neighbouring content rather than joining the layout — otherwise the
+   whole row would jump sideways for a second every time you copied something. */
+.feedback {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 0.7rem;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  padding: 3px 6px;
+  border-radius: var(--jisho-radius);
+  background: var(--vscode-editorWidget-background, var(--jisho-input-bg));
+  border: 1px solid var(--jisho-border);
+  color: var(--jisho-fg);
+}
+
+.copy[data-status="copied"] .feedback,
+.copy[data-status="failed"] .feedback {
+  opacity: 1;
+}
+
+.copy[data-status="failed"] .feedback {
+  color: var(--vscode-errorForeground, var(--jisho-fg));
+}
+
+/* The confirmation is transient by design, so fade it rather than snapping — except for users who
+   asked for less motion, who just get the state change. */
+@media (prefers-reduced-motion: no-preference) {
+  .feedback {
+    transition: opacity 120ms ease-out;
+  }
+}

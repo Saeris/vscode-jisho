@@ -76,7 +76,7 @@ test("capture: word detail — examples expanded", async () => {
   );
 });
 
-test("capture: kanji detail (stroke player)", async () => {
+test("capture: kanji detail (readings, copy, stroke-order link)", async () => {
   const frame = await jishoFrame(app().window);
   // Get back to search first — a previous capture may have left a detail view on the stack.
   const back = frame.getByRole("button", { name: /back/i });
@@ -94,6 +94,25 @@ test("capture: kanji detail (stroke player)", async () => {
   await screenshotSidebar(
     app().window,
     "test-results/shots/13-kanji-detail.png"
+  );
+});
+
+test("capture: stroke order sub-page (player + chart)", async () => {
+  const frame = await jishoFrame(app().window);
+  const back = frame.getByRole("button", { name: /back/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+
+  await frame.getByRole("searchbox").fill("近");
+  await frame
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  // From the kanji detail, into the stroke-order view.
+  await frame.getByRole("button", { name: /stroke order/i }).click();
+  await frame.getByRole("slider").waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/15-stroke-order.png"
   );
 });
 
