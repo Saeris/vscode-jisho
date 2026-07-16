@@ -101,7 +101,9 @@ export class Dictionary {
     // containing non-ASCII (kana/kanji) matches `term` directly. Testing for a non-ASCII char
     // avoids a control-character regex range.
     const isLatin = !/[^ -~]/.test(query);
-    const column = isLatin ? "term_lower" : "term";
+    // Table-qualified: the ranking query joins `words`, and both tables have an `is_common`, so
+    // unqualified names are ambiguous.
+    const column = isLatin ? "st.term_lower" : "st.term";
     const needle = isLatin ? query.toLowerCase() : query;
 
     // Composite relevance score, best-scoring term per word. Every tier is index-friendly — a
@@ -115,6 +117,17 @@ export class Dictionary {
     //     sense) outranks the same match buried in a later gloss — this puts 水 first for "water".
     //   - common: a mild bonus, not the primary key.
     //   - length penalty (capped): shorter matched terms are closer matches, so 勉強 beats 勉強家.
+    //   - breadth penalty (capped): a gloss sharing its sense with many near-synonyms is a weaker
+    //     signal. 食べる's first sense is just "to eat"; 喫する's is "to eat, to drink, to smoke,
+    //     to take" — both list "to eat" first, so is_primary can't separate them and frequency
+    //     actively misleads (喫する is the more common *newspaper* word). IDF, within a sense.
+    //
+    // FREQUENCY is a TIEBREAKER, not part of the score. Folding it in would let a very frequent
+    // prefix match outrank an exact one (水曜日 above 水 when searching 水); the tiers encode
+    // "closeness of match", which must dominate. Within a tier, though, ties were being broken
+    // arbitrarily — every exact match scored identically, so "eat" led with 食らう (a vulgar
+    // "devour") over 食べる. `words.freq_rank` (JMdict's own nfXX buckets) breaks them by real
+    // usage. Its corpus is newspapers, so it has that skew — 端 still beats 箸 (BACKLOG #26).
     // Single-character latin queries stay exact-only: an "e%" range spans a huge slice of the
     // index and a 1-letter English prefix search is meaningless anyway.
     const exactOnly = isLatin && needle.length < 2;
@@ -125,8 +138,9 @@ export class Dictionary {
       word_id: string;
       score: number;
       common: number;
+      freq_rank: number | null;
     }>(
-      `SELECT word_id,
+      `SELECT st.word_id AS word_id,
               MAX(
                 CASE
                   WHEN ${column} = ?1 THEN
@@ -139,15 +153,18 @@ export class Dictionary {
                   ELSE
                     45 + CASE WHEN kind IN ('kanji', 'kana', 'romaji') THEN 15 ELSE 0 END
                 END
-                + CASE WHEN is_primary = 1 THEN 10 ELSE 0 END
-                + CASE WHEN is_common = 1 THEN 5 ELSE 0 END
+                + CASE WHEN st.is_primary = 1 THEN 10 ELSE 0 END
+                + CASE WHEN st.is_common = 1 THEN 5 ELSE 0 END
                 - MIN(LENGTH(${column}) - LENGTH(?1), 15)
+                - MIN(st.sense_breadth - 1, 6)
               ) AS score,
-              MAX(is_common) AS common
-         FROM search_terms
+              MAX(st.is_common) AS common,
+              w.freq_rank AS freq_rank
+         FROM search_terms st
+         JOIN words w ON w.id = st.word_id
         WHERE ${where}
-        GROUP BY word_id
-        ORDER BY score DESC, common DESC
+        GROUP BY st.word_id
+        ORDER BY score DESC, freq_rank IS NULL, freq_rank, common DESC
         LIMIT ?3`,
       ...(exactOnly ? [needle, needle, limit] : [needle, `${needle}￿`, limit])
     );
@@ -169,18 +186,33 @@ export class Dictionary {
     }
     candidates.delete(needle);
 
-    const merged = new Map<string, { score: number; common: number }>();
+    interface Ranked {
+      score: number;
+      common: number;
+      /** JMdict nfXX bucket; lower is more frequent, null = outside wordfreq's top ~24k. */
+      freqRank: number | null;
+    }
+    const merged = new Map<string, Ranked>();
     for (const row of rows) {
-      merged.set(row.word_id, { score: row.score, common: row.common });
+      merged.set(row.word_id, {
+        score: row.score,
+        common: row.common,
+        freqRank: row.freq_rank
+      });
     }
     if (candidates.size > 0) {
       const list = [...candidates];
-      const deinflected = await this.#all<{ word_id: string; common: number }>(
-        `SELECT word_id, MAX(is_common) AS common
-           FROM search_terms
+      const deinflected = await this.#all<{
+        word_id: string;
+        common: number;
+        freq_rank: number | null;
+      }>(
+        `SELECT st.word_id AS word_id, MAX(st.is_common) AS common, w.freq_rank AS freq_rank
+           FROM search_terms st
+           JOIN words w ON w.id = st.word_id
           WHERE kind IN ('kanji', 'kana')
             AND term IN (${list.map(() => "?").join(", ")})
-          GROUP BY word_id
+          GROUP BY st.word_id
           LIMIT ?`,
         ...list,
         limit
@@ -189,13 +221,24 @@ export class Dictionary {
         const score = 90 + (row.common === 1 ? 5 : 0);
         const existing = merged.get(row.word_id);
         if (!existing || existing.score < score) {
-          merged.set(row.word_id, { score, common: row.common });
+          merged.set(row.word_id, {
+            score,
+            common: row.common,
+            freqRank: row.freq_rank
+          });
         }
       }
     }
 
+    // Mirrors the SQL's ORDER BY exactly — the deinflection merge above can reorder things, so the
+    // two must agree or results would shuffle depending on whether a query hit that path.
     const ranked = [...merged.entries()]
-      .sort((a, b) => b[1].score - a[1].score || b[1].common - a[1].common)
+      .sort(
+        (a, b) =>
+          b[1].score - a[1].score ||
+          byFrequency(a[1].freqRank, b[1].freqRank) ||
+          b[1].common - a[1].common
+      )
       .slice(0, limit);
 
     const results: SearchResultDto[] = [];
@@ -626,6 +669,18 @@ export class Dictionary {
     };
   }
 }
+
+/**
+ * Order two JMdict nfXX frequency buckets: lower rank = more frequent = first, and unranked words
+ * (null — anything outside wordfreq's top ~24,000) sort last rather than first, which is what a
+ * naive numeric compare on null would do.
+ */
+const byFrequency = (a: number | null, b: number | null): number => {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
+};
 
 /** Parse a JSON-encoded string array from a DB column, tolerating malformed data. */
 const parseStrings = (json: string): string[] => {

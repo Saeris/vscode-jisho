@@ -189,6 +189,27 @@ Considered swapping `@tursodatabase/database` for [PGlite](https://pglite.dev) (
 
 **Revisit if:** Turso's native `fts_match` (Tantivy-backed, experimental) proves inadequate for #1; per-platform packaging becomes a real maintenance burden; or M8 hits a wall with `-wasm`.
 
+### 26. BCCWJ frequency as an optional user-imported dictionary (feature — medium)
+
+`nfXX` (see the ranking work) is a **newspaper** corpus, so it carries a newspaper's skew: it ranks 端 ("edge", constant in news prose) above 箸 ("chopsticks", rarely newsworthy), and buckets 講演/公演/公園 identically at `nf02`. [BCCWJ](https://clrd.ninjal.ac.jp/bccwj/en/freq-list.html) (NINJAL's Balanced Corpus of Contemporary Written Japanese — 100M words across books, magazines, blogs, textbooks) is _balanced_ precisely to avoid that skew, and is the academic standard. It would fix the cases `nfXX` structurally cannot.
+
+**Why it isn't bundled — a redistribution question, not a use question.** NINJAL states the frequency lists are "free for use for research or educational purposes" and that commercial use is "considered on an individual basis", but publishes **no redistribution terms at all**. This project is a free, non-commercial, open-source educational tool, so our _use_ sits comfortably inside their stated audience — but using data ourselves and **rebundling it into a shipped artifact re-served to thousands of users** are different permissions, and silence on the second is an unanswered question, not a yes. (Contrast JMdict: CC BY-SA 4.0 _explicitly_ grants redistribution, which is why bundling it is uncontroversial.) Note the MIT licence on [toasted-nutbread's converter](https://github.com/toasted-nutbread/yomichan-bccwj-frequency-dictionary) covers **the script, not NINJAL's data** — the same trap as AnimCJK/Arphic.
+
+**Corroborating evidence:** [Yomitan bundles no frequency data at all](https://yomitan.wiki/dictionaries/) and requires users to import dictionaries themselves, while happily shipping JMdict. Neither [Kuuuube](https://github.com/Kuuuube/yomitan-dictionaries) nor [MarvNC](https://github.com/MarvNC/yomitan-dictionaries) publishes licensing for their frequency dictionaries. The ecosystem consistently routes around this.
+
+**Approach — the Yomitan model:** let the user import BCCWJ themselves. They download it from NINJAL under terms that plainly cover them; we only read it. No redistribution question, better data. Fits the opt-in preferences menu already planned for the names DB (a `frequency_overrides` table keyed like `pitch_accents`, layered over `words.freq_rank` when present). Join is surface+reading, not JMdict id, so expect homograph ambiguity.
+
+**Cheap way to settle it properly:** NINJAL invite contact at `kotonoha@ninjal.ac.jp`. A written "an open-source educational tool may bundle the frequency list" would make bundling a non-question. Worth asking before building the import path.
+
+### 27. Tag classifiers + tag search (`#vulgar`, `#n5`) (feature — medium)
+
+Two halves of one idea, both unlocked by the JMdict priority-tag extraction in the ranking work:
+
+- **Classifiers on the word detail.** `ichi1`/`ichi2` (Ichimango goi bunruishuu), `news1`/`news2` (Mainichi Shimbun top 12k/24k), `spec1`/`spec2`, `gai1`/`gai2` (common loanwords) are real provenance signals worth surfacing as badges — "this word is in the newspaper top 12,000" is genuinely useful context. The build step for `nfXX` already parses them, so the data is free once that lands.
+- **Tag search.** `#vulgar` returns words tagged `vulg`; `#n5` filters to JLPT N5 words _and_ kanji. We already store JMdict misc tags (`vulg`, `arch`, `obs`, `derog`, `col`…), POS tags, field tags, and JLPT levels — the data is present, only the query syntax and UI are missing. Needs a small query-syntax parser in the host (`#tag` prefix → filter, not a term match) plus UI affordances.
+
+**Research first:** study [Jisho.org's tag vocabulary](https://jisho.org/docs) — it has a well-developed set (`#jlpt-n5`, `#common`, `#verb`, wildcards) and its search-operator docs are the reference implementation for this feature. Also relates to #16 (the parts-of-speech breakdown filter), which is the same "filter results by a classifier" affordance arrived at from a different direction — design them together.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

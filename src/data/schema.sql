@@ -17,10 +17,24 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE words (
   id        TEXT PRIMARY KEY,           -- JMdict entry id (e.g. "1358280")
   is_common INTEGER NOT NULL DEFAULT 0, -- 1 if any kanji/kana writing is "common"
-  jlpt      INTEGER                     -- word-level JLPT (5=N5 … 1=N1), null otherwise.
+  jlpt      INTEGER,                    -- word-level JLPT (5=N5 … 1=N1), null otherwise.
                                         -- Unofficial community estimate (Waller/tanos via
                                         -- stephenmk/yomitan-jlpt-vocab), joined by JMdict id.
+  -- Frequency rank from JMdict's own nfXX priority tags: 1 = among the 500 most frequent words,
+  -- 2 = the next 500, … (~48 buckets over the top ~24,000). NULL = outside that set. Read from the
+  -- original JMdict XML because jmdict-simplified discards the *_pri fields, keeping only the
+  -- boolean `common` — without this gradient every exact match ties and ranking is arbitrary.
+  -- Source corpus is the Mainichi Shimbun wordfreq file, so it has a newspaper's skew (BACKLOG #26).
+  freq_rank INTEGER,
+  -- The named priority tags (news1, ichi1, spec1, gai1…) as a JSON array, unioned across the
+  -- entry's writings/readings. Kept for display badges + the planned tag search (BACKLOG #27);
+  -- read whole per word, never queried across words.
+  priority_tags_json TEXT NOT NULL DEFAULT '[]'
 );
+
+-- Ranking scans words by frequency; NULLs (the majority) are excluded by the partial index so it
+-- stays small.
+CREATE INDEX idx_words_freq ON words(freq_rank) WHERE freq_rank IS NOT NULL;
 
 -- Kanji (non-kana-only) writings of a word.
 CREATE TABLE kanji (
@@ -164,7 +178,14 @@ CREATE TABLE search_terms (
   -- 1 when this term is the word's primary surface: its first kanji writing, first kana reading
   -- (and that reading's romaji), or the first gloss of the first sense. Ranking boosts primary
   -- terms so a word whose *main* meaning matches outranks one where the match is buried.
-  is_primary INTEGER NOT NULL DEFAULT 0
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  -- For gloss/word rows: how many glosses share this term's sense. A specificity signal — 食べる's
+  -- first sense is just "to eat" (breadth 1), while 喫する's is "to eat, to drink, to smoke, to
+  -- take" (breadth 4), so "eat" is a far weaker signal for 喫する. Both list "to eat" as sense 0
+  -- gloss 0, so `is_primary` cannot separate them and frequency actively misleads (喫する is the
+  -- more common NEWSPAPER word). Essentially IDF within a sense: a term sharing its sense with many
+  -- near-synonyms is a less specific match. 1 for non-gloss rows (a writing/reading stands alone).
+  sense_breadth INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX idx_search_term       ON search_terms(term);

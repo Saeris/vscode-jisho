@@ -26,6 +26,44 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(results[0]?.glossPreview).toBe("to eat");
   });
 
+  test("puts the everyday word first when several share a gloss", async () => {
+    // WHY: this shipped broken. Every exact match scored identically, so ordering fell to whatever
+    // SQLite returned and "eat" led with 食らう — a vulgar "devour" — ahead of 食べる, the first
+    // word any learner meets. Ranking must resolve those ties by real usage, not arbitrarily.
+    const results = await dict.search("eat");
+    expect(results[0]?.headword).toBe("食べる");
+  });
+
+  test("prefers the specific word over one that merely lists the gloss", async () => {
+    // WHY: 喫する ("to eat, to drink, to smoke, to take") lists "to eat" as its FIRST gloss, exactly
+    // like 食べる — so position can't separate them — and it's the more common *newspaper* word, so
+    // frequency alone actively promotes it (it did, once). The discriminator is sense breadth: a
+    // gloss sharing its sense with three near-synonyms is a weaker signal than one standing alone.
+    const results = await dict.search("eat", 10);
+    const taberu = results.findIndex((r) => r.headword === "食べる");
+    const kissuru = results.findIndex((r) => r.headword === "喫する");
+    expect(taberu).toBeGreaterThanOrEqual(0);
+    if (kissuru >= 0) expect(taberu).toBeLessThan(kissuru);
+  });
+
+  test("ranks a frequent homophone above rarer ones", async () => {
+    // WHY: こうえん maps to 公園/公演/講演/後援 — all common, all exact matches, previously a 4-way
+    // tie that surfaced 講演 (lecture) over 公園 (park). JMdict's nfXX buckets break it by usage.
+    const results = await dict.search("こうえん", 10);
+    const park = results.findIndex((r) => r.headword === "公園");
+    const lecture = results.findIndex((r) => r.headword === "講演");
+    expect(park).toBeGreaterThanOrEqual(0);
+    if (lecture >= 0) expect(park).toBeLessThan(lecture);
+  });
+
+  test("keeps an exact match ahead of a more frequent prefix match", async () => {
+    // WHY: frequency is a TIEBREAKER, not a ranking axis. Folding it into the score would let a
+    // very common compound outrank the exact word the user typed — 水 must never sit below 水曜日.
+    // This is the guard that stops a future "just add frequency to the score" change.
+    const results = await dict.search("水", 10);
+    expect(results[0]?.headword).toBe("水");
+  });
+
   test("finds words by kana reading", async () => {
     // WHY: kana input is the most common query for learners who can't type kanji; it must resolve.
     const results = await dict.search("たべる");

@@ -8,7 +8,7 @@
  * Pure Node (fetch + zlib + a minimal tar reader) so it runs anywhere without extra deps
  * or system tools. Node 26 executes this .ts file directly via type-stripping.
  */
-import { createGzip, gunzipSync } from "node:zlib";
+import { createGunzip, createGzip, gunzipSync } from "node:zlib";
 import {
   createReadStream,
   createWriteStream,
@@ -20,7 +20,7 @@ import {
   writeFileSync
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { pipeline } from "node:stream/promises";
+import { finished, pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
@@ -147,6 +147,29 @@ const JLPT_LEVELS: Array<{ file: string; level: number }> = [
   { file: "n1.csv", level: 1 }
 ];
 
+// JMdict priority tags (EDRDG, CC-BY-SA-4.0 — the same licence and source as our main dictionary,
+// so no new licensing surface). jmdict-simplified deliberately collapses JMdict's `ke_pri`/`re_pri`
+// fields into a single boolean `common`, discarding the underlying gradient; their own type docs say
+// so ("It gets rid of a bunch of *_pri fields"). We therefore read the ORIGINAL XML for those two
+// fields only.
+//
+// The gradient matters: with only `common`, every exact match ties and ordering falls to whatever
+// SQLite returns — "eat" led with 食らう (a vulgar "devour") ahead of 食べる, and "water" led with
+// 水分 (moisture) ahead of 水.
+//
+// Per the JMdict DTD, the values are:
+//   news1/2 — in the top 12,000 / second 12,000 of Alexandre Girardi's Mainichi Shimbun wordfreq file
+//   ichi1/2 — in "Ichimango goi bunruishuu" (ichi2 = demoted; observed to be low-frequency in practice)
+//   spec1/2 — detected as common but absent from the other lists
+//   gai1/2  — common loanwords, from wordfreq
+//   nfXX    — THE RANKING: "the number of the set of 500 words in which the entry can be found",
+//             01 = the first 500, 02 = the second, … ~48 buckets over the top ~24,000 words.
+//
+// Caveat worth remembering (see BACKLOG #26): wordfreq is a NEWSPAPER corpus, so it carries a
+// newspaper's skew — 端 ("edge") outranks 箸 ("chopsticks") because edges make the news and
+// chopsticks don't. It fixes the worst cases, not every case.
+const JMDICT_XML_URL = "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz";
+
 // Pitch accent (Kanjium, CC-BY-SA-4.0). `accents.txt` is a TSV of `word ⇥ reading ⇥ pattern(s)`
 // (124,137 rows). Reading is empty when the word is already kana; patterns are comma-separated
 // mora numbers, sometimes with (POS) annotations we strip. Pinned to a commit for reproducibility.
@@ -169,6 +192,87 @@ const fetchAssetJson = async <T>(
   const tgz = new Uint8Array(await res.arrayBuffer());
   const data: T = JSON.parse(extractSingleJsonFromTgz(tgz));
   return data;
+};
+
+/** One word's priority signals, derived from its JMdict `ke_pri`/`re_pri` tags. */
+export interface WordPriority {
+  /**
+   * The wordfreq rank bucket: 1 = the 500 most frequent words, 2 = the next 500, … Lower is more
+   * frequent. `null` when the entry carries no nfXX tag (i.e. outside wordfreq's top ~24,000).
+   */
+  freqRank: number | null;
+  /** The raw priority tags (news1, ichi1, spec1, gai1…), kept for display badges and tag search. */
+  tags: string[];
+}
+
+/**
+ * Stream JMdict's XML and extract each entry's priority tags, keyed by `ent_seq` — which IS our
+ * `words.id`, so this joins as an exact primary key rather than a lossy surface+reading match (the
+ * same property that made the JLPT list a good source).
+ *
+ * Hand-parsed rather than via an XML library: we need two fields out of a 60MB document, and the
+ * structure we depend on is trivially regular (`<ent_seq>` once per entry, `<ke_pri>`/`<re_pri>`
+ * repeated). Streaming keeps peak memory flat — we never hold the whole document.
+ *
+ * A word's tags are the UNION across its writings/readings, and its rank is the BEST (lowest) nfXX
+ * among them. JMdict tags priorities per kanji/reading pair because a priority sometimes applies to
+ * only one pair; we rank whole entries, so the entry is as common as its most common form.
+ */
+const fetchWordPriorities = async (): Promise<Map<string, WordPriority>> => {
+  console.log("Downloading JMdict_e.gz (priority tags)…");
+  const res = await fetch(JMDICT_XML_URL, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok) throw new Error(`JMdict XML → ${res.status} ${res.statusText}`);
+
+  const byId = new Map<string, WordPriority>();
+  const gunzip = createGunzip();
+
+  // Accumulate decompressed text and consume it one <entry> at a time, so the buffer never grows
+  // past a single entry regardless of the document's size.
+  let buffer = "";
+  gunzip.on("data", (chunk: Buffer) => {
+    buffer += chunk.toString("utf8");
+    let end: number;
+    while ((end = buffer.indexOf("</entry>")) !== -1) {
+      const entry = buffer.slice(0, end);
+      buffer = buffer.slice(end + 8);
+
+      const seq = /<ent_seq>(\d+)<\/ent_seq>/.exec(entry)?.[1];
+      if (seq === undefined) continue;
+
+      const tags = [
+        ...entry.matchAll(/<(?:ke|re)_pri>([^<]+)<\/(?:ke|re)_pri>/g)
+      ]
+        .map((m) => m[1])
+        .filter((t) => t !== "");
+      if (tags.length === 0) continue;
+
+      // Best (lowest) nfXX across the entry's writings/readings.
+      let freqRank: number | null = null;
+      const named: string[] = [];
+      for (const tag of tags) {
+        const nf = /^nf(\d+)$/.exec(tag);
+        if (nf) {
+          const rank = Number(nf[1]);
+          if (freqRank === null || rank < freqRank) freqRank = rank;
+        } else if (!named.includes(tag)) {
+          named.push(tag);
+        }
+      }
+      byId.set(seq, { freqRank, tags: named });
+    }
+  });
+
+  if (!res.body) throw new Error("JMdict XML response had no body");
+  // Feed the gunzip by iterating fetch's stream directly. `Readable.fromWeb` would be the tidier
+  // bridge, but the DOM and Node lib both declare a `ReadableStream` and they aren't assignable to
+  // each other here; async iteration sidesteps the clash without a cast.
+  for await (const chunk of res.body) gunzip.write(chunk);
+  gunzip.end();
+  await finished(gunzip);
+  console.log(`  priority tags for ${byId.size} entries`);
+  return byId;
 };
 
 /**
@@ -240,20 +344,23 @@ interface Sources {
   radkfile: Radkfile;
   jlpt: Map<string, number>;
   pitch: Map<string, number[]>;
+  priority: Map<string, WordPriority>;
 }
 
 const downloadSources = async (): Promise<Sources> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
-  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch] = await Promise.all([
-    fetchAssetJson<JMdict>(release, ASSET_PATTERN),
-    fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
-    fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
-    fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
-    fetchJlptLevels(),
-    fetchPitchAccents()
-  ]);
+  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority] =
+    await Promise.all([
+      fetchAssetJson<JMdict>(release, ASSET_PATTERN),
+      fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
+      fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
+      fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
+      fetchJlptLevels(),
+      fetchPitchAccents(),
+      fetchWordPriorities()
+    ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
   if (!FULL) {
@@ -265,11 +372,11 @@ const downloadSources = async (): Promise<Sources> => {
       `Filtered to common entries: ${dict.words.length}/${before} words`
     );
   }
-  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch };
+  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority };
 };
 
 const buildDatabase = async (sources: Sources): Promise<void> => {
-  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch } = sources;
+  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -293,7 +400,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   }
 
   const insWord = await db.prepare(
-    "INSERT INTO words(id, is_common) VALUES (?, ?)"
+    "INSERT INTO words(id, is_common, freq_rank, priority_tags_json) VALUES (?, ?, ?, ?)"
   );
   const insKanji = await db.prepare(
     "INSERT INTO kanji(word_id, position, text, is_common, tags_json) VALUES (?, ?, ?, ?, ?)"
@@ -313,7 +420,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO sentences(word_id, sense_position, position, ja, en) VALUES (?, ?, ?, ?, ?)"
   );
   const insTerm = await db.prepare(
-    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
   const insKanjiChar = await db.prepare(
     `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt,
@@ -351,7 +458,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       insSense,
       insGloss,
       insTerm,
-      insSentence
+      insSentence,
+      priority
     });
     done++;
     if (done % BATCH === 0) {
@@ -573,6 +681,8 @@ interface Stmts {
   insGloss: Statement;
   insTerm: Statement;
   insSentence: Statement;
+  /** JMdict-id → priority tags, from the original XML (jmdict-simplified drops them). */
+  priority: Map<string, WordPriority>;
 }
 
 /** Cap on example sentences kept per sense — the source averages ~1, but bound it defensively. */
@@ -582,7 +692,15 @@ const MAX_SENTENCES_PER_SENSE = 3;
 const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   const wordCommon =
     word.kanji.some((k) => k.common) || word.kana.some((k) => k.common) ? 1 : 0;
-  await s.insWord.run(word.id, wordCommon);
+  // JMdict's own priority data, joined by entry id. Absent for most entries (nfXX only covers the
+  // top ~24k words), which is why freq_rank is nullable and ranking must not assume it.
+  const pri = s.priority.get(word.id);
+  await s.insWord.run(
+    word.id,
+    wordCommon,
+    pri?.freqRank ?? null,
+    JSON.stringify(pri?.tags ?? [])
+  );
   let sentenceCount = 0;
 
   for (let i = 0; i < word.kanji.length; i++) {
@@ -600,14 +718,23 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       k.text,
       k.text.toLowerCase(),
       k.common ? 1 : 0,
-      i === 0 ? 1 : 0
+      i === 0 ? 1 : 0,
+      1 // a writing stands alone; sense_breadth only means anything for gloss rows
     );
     // Index each distinct CJK character of the writing so a single-kanji query (強) finds words
     // containing it (勉強) via an *exact* char-row match — substring LIKE scans are too slow at
     // full-dictionary scale, so containment is precomputed here instead.
     for (const char of new Set(k.text)) {
       if (/[㐀-鿿豈-﫿]/.test(char)) {
-        await s.insTerm.run(word.id, "char", char, char, k.common ? 1 : 0, 0);
+        await s.insTerm.run(
+          word.id,
+          "char",
+          char,
+          char,
+          k.common ? 1 : 0,
+          0,
+          1
+        );
       }
     }
   }
@@ -627,7 +754,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       k.text,
       k.text.toLowerCase(),
       k.common ? 1 : 0,
-      i === 0 ? 1 : 0
+      i === 0 ? 1 : 0,
+      1
     );
     // Hepburn romaji of the reading, so learners can search by transliteration ("taberu").
     // Romaji is latin, so it matches via the query layer's case-insensitive `term_lower` path.
@@ -639,7 +767,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         romaji,
         romaji.toLowerCase(),
         k.common ? 1 : 0,
-        i === 0 ? 1 : 0
+        i === 0 ? 1 : 0,
+        1
       );
     }
   }
@@ -658,6 +787,10 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       JSON.stringify(sense.related),
       JSON.stringify(sense.antonym)
     );
+    // How many glosses this sense carries — a specificity signal for ranking. "to eat" alone
+    // (食べる) is a much stronger match for "eat" than "to eat, to drink, to smoke, to take"
+    // (喫する), where it's one of four near-synonyms. See schema.sql's sense_breadth.
+    const breadth = sense.gloss.length;
     for (let g = 0; g < sense.gloss.length; g++) {
       const gloss = sense.gloss[g];
       const isPrimary = i === 0 && g === 0 ? 1 : 0;
@@ -668,7 +801,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         gloss.text,
         gloss.text.toLowerCase(),
         wordCommon,
-        isPrimary
+        isPrimary,
+        breadth
       );
       // Many JMdict glosses carry parenthetical clarifications — "water (esp. cool or cold)" —
       // which block exact/whole-word matching on the bare word. Index a stripped variant too so
@@ -684,7 +818,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           stripped,
           stripped.toLowerCase(),
           wordCommon,
-          isPrimary
+          isPrimary,
+          breadth
         );
       }
       // Index each word of the gloss so "eat" finds "to eat" via an *exact* word-row match —
@@ -696,7 +831,15 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           .filter((w) => w.length > 1)
       );
       for (const w of words) {
-        await s.insTerm.run(word.id, "word", w, w, wordCommon, isPrimary);
+        await s.insTerm.run(
+          word.id,
+          "word",
+          w,
+          w,
+          wordCommon,
+          isPrimary,
+          breadth
+        );
       }
     }
 
