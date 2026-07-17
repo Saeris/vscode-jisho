@@ -3,7 +3,12 @@ import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import { contentSegmentCount, segment } from "./host/tokenizer";
-import type { Request, Response, SegmentDto } from "./shared/messages";
+import type {
+  GetStrokeSvgRequest,
+  Request,
+  Response,
+  SegmentDto
+} from "./shared/messages";
 
 const VIEW_ID = "vscode-jisho.searchView";
 
@@ -112,9 +117,11 @@ class JishoViewProvider
   async #handle(webview: vscode.Webview, request: Request): Promise<void> {
     try {
       const response =
-        request.type === "searchNames" || request.type === "getName"
-          ? await respondNames(await this.#namesDict(), request)
-          : await respond(await this.#dict(), request);
+        request.type === "getStrokeSvg"
+          ? await this.#strokeSvg(request)
+          : request.type === "searchNames" || request.type === "getName"
+            ? await respondNames(await this.#namesDict(), request)
+            : await respond(await this.#dict(), request);
       await webview.postMessage(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -125,6 +132,30 @@ class JishoViewProvider
       };
       await webview.postMessage(error);
     }
+  }
+
+  /**
+   * Stroke SVGs ship as files in the extension package, not in the dictionary DB — so they need no
+   * database (the stroke page works even before the dictionary download finishes) and a stroke-data
+   * fix never forces a dictionary re-download. See docs/STROKE-ORDER.md.
+   */
+  async #strokeSvg(request: GetStrokeSvgRequest): Promise<Response> {
+    let svg: string | null = null;
+    // The literal names a file, so insist on exactly one code point before touching the filesystem.
+    if (Array.from(request.literal).length === 1) {
+      try {
+        const uri = vscode.Uri.joinPath(
+          this.#context.extensionUri,
+          "assets",
+          "kanji-svgs",
+          `${request.literal}.svg`
+        );
+        svg = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+      } catch {
+        svg = null; // no drawing exists for this character
+      }
+    }
+    return { type: "getStrokeSvg", requestId: request.requestId, svg };
   }
 
   #html(webview: vscode.Webview): string {
@@ -177,10 +208,10 @@ class JishoViewProvider
   }
 }
 
-/** Requests served by the word/kanji dictionary (everything except the names DB). */
+/** Requests served by the word/kanji dictionary (not the names DB, not the file-backed SVGs). */
 type WordRequest = Exclude<
   Request,
-  { type: "searchNames" } | { type: "getName" }
+  { type: "searchNames" } | { type: "getName" } | { type: "getStrokeSvg" }
 >;
 
 /** Dispatch a word/kanji request to the dictionary and build its response. */
@@ -216,12 +247,6 @@ const respond = async (
         type: "getKanji",
         requestId: request.requestId,
         kanji: await dict.getKanji(request.literal)
-      };
-    case "getStrokeSvg":
-      return {
-        type: "getStrokeSvg",
-        requestId: request.requestId,
-        svg: await dict.getStrokeSvg(request.literal)
       };
     case "getComponentTree":
       return {

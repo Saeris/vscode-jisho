@@ -331,22 +331,6 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await expect(dict.getKanji("x")).resolves.toBeNull();
   });
 
-  // ── Stroke order (M7) ─────────────────────────────────────────────────────
-
-  test("returns the stroke-order SVG for a kanji we have", async () => {
-    // WHY: the stroke player rests on this lookup. 食 must return real AnimCJK markup (animated
-    // strokes are marked with clip-path); a broken ingest would return null and hide the animation.
-    const svg = await dict.getStrokeSvg("食");
-    expect(svg).not.toBeNull();
-    expect(svg).toContain("clip-path");
-  });
-
-  test("returns null for a character with no stroke SVG", async () => {
-    // WHY: not every character has an animation; the player must get null (and render nothing)
-    // rather than an empty or malformed string.
-    await expect(dict.getStrokeSvg("x")).resolves.toBeNull();
-  });
-
   test("finds kanji by a single-character CJK query", async () => {
     // WHY: searching 食 must surface the character itself in the Kanji section, not only words.
     const kanji = await dict.searchKanji("食");

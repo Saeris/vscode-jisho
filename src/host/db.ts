@@ -417,15 +417,6 @@ export class Dictionary {
     return root.children.length === 0 ? null : root;
   }
 
-  /** Raw stroke-order SVG markup for a kanji, or `null` when we have no animation for it. */
-  async getStrokeSvg(literal: string): Promise<string | null> {
-    const row = await this.#get<{ svg: string }>(
-      "SELECT svg FROM stroke_svgs WHERE literal = ?",
-      literal
-    );
-    return row?.svg ?? null;
-  }
-
   /** Provenance/attribution key-values written by the data build (source, license, dictDate…). */
   async getMeta(): Promise<Record<string, string>> {
     const rows = await this.#all<{ key: string; value: string }>(

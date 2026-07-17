@@ -280,9 +280,11 @@ From the Kanji Look & Learn references: radicals fall into **seven positional ca
 
    Needs the #29 transform first (strokes wrapped in their own `<g>`, so `sibling-index()` is the stroke number and a CSS range check can target a component).
 
-### 31. Ship stroke SVGs as files in the .vsix, not rows in the database (refactor — medium)
+### 31. Ship stroke SVGs as files in the .vsix, not rows in the database — DONE (2026-07-17)
 
-`stroke_svgs` holds 3,821 SVGs (~27MB) inside the 82MB `jisho.db`. They're there because `assets/**` is `.vscodeignore`d — nothing in `assets/` ships, and the DB is downloaded from a GitHub Release on first run, so the SVGs ride along inside it.
+Implemented: `!assets/kanji-svgs/**` re-included in the package (licence files ship with it), `getStrokeSvg` reads from `extensionUri` in the provider (no database needed — the stroke page now works before the dictionary download finishes), and the `stroke_svgs` table + ingest pass are gone. The dev DB dropped 82 MB → 51 MB. Full architecture: [STROKE-ORDER.md](STROKE-ORDER.md). Original rationale kept below.
+
+`stroke_svgs` held 3,821 SVGs (~27MB) inside the 82MB `jisho.db`. They were there because `assets/**` is `.vscodeignore`d — nothing in `assets/` shipped, and the DB is downloaded from a GitHub Release on first run, so the SVGs rode along inside it.
 
 **Why change it.** The coupling is invisible and it bites: `vp run build:strokes` regenerates the FILES, but the extension serves the DB, so nothing changes until `vp run build:data` re-ingests them. Unit tests (`?raw` file imports) pass against the new data while the running extension renders the old — the two disagree silently, and the symptoms look like broken CSS rather than stale data. That cost a full debugging session. Beyond the trap: the SVGs are ~⅓ of the DB, and today a stroke-data fix forces users to re-download the entire dictionary.
 

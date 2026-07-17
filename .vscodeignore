@@ -23,6 +23,10 @@ CLAUDE.md
 
 # The dictionary DB is delivered by download on first activation, not bundled.
 assets/**
+# …but the stroke-order SVGs ship in the package (with their APL licence files): they're read by
+# the host per request, and keeping them out of the DB decouples stroke fixes from dictionary
+# releases. See docs/STROKE-ORDER.md.
+!assets/kanji-svgs/**
 
 # Exclude node_modules by default, but the neverBundle'd runtime packages must ship in the
 # .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .wasm).

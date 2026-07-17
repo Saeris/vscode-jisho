@@ -12,10 +12,8 @@ import { createGunzip, createGzip, gunzipSync } from "node:zlib";
 import {
   createReadStream,
   createWriteStream,
-  existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -54,9 +52,6 @@ const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
 const NAMES_DB = join(root, "assets", "jisho-names.db");
 const NAMES_SCHEMA = join(root, "src", "data", "names-schema.sql");
-// Vendored kanji stroke-order SVGs (AnimCJK, APL — see assets/kanji-svgs/README.md). One file per
-// literal, ingested verbatim into the stroke_svgs table.
-const STROKE_SVG_DIR = join(root, "assets", "kanji-svgs");
 const RELEASE_API =
   "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
 
@@ -473,9 +468,6 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const insRadical = await db.prepare(
     "INSERT INTO radicals(radical, stroke_count, kanji_json) VALUES (?, ?, ?)"
   );
-  const insStrokeSvg = await db.prepare(
-    "INSERT INTO stroke_svgs(literal, svg) VALUES (?, ?)"
-  );
   const insKanjiTerm = await db.prepare(
     "INSERT INTO search_terms(kanji, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
@@ -615,29 +607,6 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   await db.exec("COMMIT");
   console.log(`  kanji: ${kanjiSet.size} characters`);
 
-  // ── Stroke-order SVG pass (AnimCJK) ───────────────────────────────────────
-  // Ingest each vendored per-character SVG verbatim (file named by literal, e.g. 食.svg). Kept as
-  // its own batched transaction; each SVG is a few KB of text.
-  await db.exec("BEGIN");
-  let svgRows = 0;
-  if (existsSync(STROKE_SVG_DIR)) {
-    let sdone = 0;
-    for (const file of readdirSync(STROKE_SVG_DIR)) {
-      if (!file.endsWith(".svg")) continue; // skip the license/README files
-      const literal = file.slice(0, -".svg".length);
-      const svg = readFileSync(join(STROKE_SVG_DIR, file), "utf8");
-      await insStrokeSvg.run(literal, svg);
-      svgRows++;
-      if (++sdone % BATCH === 0) {
-        await db.exec("COMMIT");
-        await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-        await db.exec("BEGIN");
-      }
-    }
-  }
-  await db.exec("COMMIT");
-  console.log(`  stroke SVGs: ${svgRows} characters`);
-
   // ── JLPT pass ─────────────────────────────────────────────────────────────
   // Join word-level JLPT by JMdict id (exact PK). Only ids present in this variant's JMdict get
   // updated, so the common-only build naturally covers fewer list rows than the full build. Record
@@ -680,7 +649,6 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "strokeSource",
     "Stroke order: AnimCJK (© FM&SH), glyph paths under the Arphic Public License"
   );
-  await insMeta.run("strokeSvgCount", String(svgRows));
   await insMeta.run(
     "jlptSource",
     "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk, via stephenmk/yomitan-jlpt-vocab"
