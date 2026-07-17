@@ -21,6 +21,16 @@
   --jisho-badge-bg: var(--vscode-badge-background);
   --jisho-badge-fg: var(--vscode-badge-foreground);
 
+  /*
+   * Stroke-order guides. `charts-*` are the only palette VSCode exposes that stays a *hue* across
+   * themes (most tokens resolve to greys), which is what these need: the numeral and the direction
+   * arrow have to read as annotations over the character, not as part of it. VSCode retunes them
+   * per theme, so they follow light/dark automatically. The fallbacks are for the rare theme that
+   * omits the charts palette entirely.
+   */
+  --jisho-guide-accent: var(--vscode-charts-green, #1a7f37);
+  --jisho-guide-arrow: var(--vscode-charts-red, #d1242f);
+
   --jisho-radius: 4px;
   --jisho-gap: 8px;
 }

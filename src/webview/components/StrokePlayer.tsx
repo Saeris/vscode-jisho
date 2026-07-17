@@ -88,15 +88,23 @@ export const StrokePlayer = ({
     return (): void => cancelAnimationFrame(frame);
   }, [playing, strokeCount]);
 
-  /** Move the playhead and take control: any manual seek stops playback at that exact position. */
-  const seekTo = (strokeNumber: number): void => {
+  /**
+   * Scrub while the user drags. `onChange` fires on every pointer move, so this is the hot path:
+   * move the playhead so the drawing tracks the thumb, and stop playback the moment the user takes
+   * over.
+   *
+   * `position` is set from the slider's own reported value and nothing else. An earlier version
+   * derived it (flooring the clock), which desynced the controlled value from what React Aria had
+   * just reported — and at 0 specifically, `setPosition(0)` when position was already 0 is a React
+   * bail-out, so no re-render happened and the thumb stuck under the pointer. That's why it only
+   * misbehaved at one end.
+   */
+  const scrubTo = (strokeNumber: number): void => {
     const anim = clock();
     if (!anim) return;
-    anim.pause();
+    if (anim.playState === "running") anim.pause();
     anim.currentTime = strokeNumber * MS_PER_STROKE;
     setPlaying(false);
-    // Exactly what the slider reported — never a re-derived value, or the thumb jumps under the
-    // pointer.
     setPosition(strokeNumber);
   };
 
@@ -168,7 +176,11 @@ export const StrokePlayer = ({
         maxValue={strokeCount}
         step={1}
         // A single-thumb Slider reports a plain number (the array form is for multi-thumb).
-        onChange={seekTo}
+        // onChange fires continuously as the user drags — that's what makes the drawing follow the
+        // thumb. onChangeEnd fires once on release; it re-commits the final value so the controlled
+        // value and React Aria's internal drag state are guaranteed to agree when the drag ends.
+        onChange={scrubTo}
+        onChangeEnd={scrubTo}
       >
         <div className={styles.sliderHeader}>
           <Label className={styles.sliderLabel}>Stroke</Label>

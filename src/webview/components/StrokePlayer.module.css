@@ -152,15 +152,21 @@
 
 /* The numbered start marker. Proportions follow the reference Figma styles: a 24px glyph with a 4px
    stroke — a 1:6 stroke-to-size ratio, kept here at 96/16 in viewBox units (0-1024). `paint-order`
-   puts the stroke behind the fill, so it reads as an outline that separates the numeral from the
-   character underneath without needing a backing shape. */
+   puts the stroke behind the fill, so it reads as an outline separating the numeral from the
+   character underneath, without needing a backing shape.
+
+   Both colours come from the theme bridge, so the marker inverts with the user's theme. An earlier
+   version used `--vscode-charts-green` over a hardcoded dark outline: chart colours are tuned for
+   lines on a chart, not for text, and the fixed outline meant the numeral lost contrast entirely on
+   a light theme. */
 .canvas :global(svg.acjk .guides text) {
   font-size: 96px;
-  fill: var(--vscode-charts-green, #0f6);
+  fill: var(--jisho-guide-accent);
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  stroke: var(--vscode-editor-background, #1f1f1f);
+  /* The canvas it sits on — NOT the editor background; the sidebar can differ. */
+  stroke: var(--jisho-bg);
   stroke-width: 16;
 }
 
@@ -168,7 +174,7 @@
    the same distinction the reference makes between a drawn stroke and a guide. */
 .canvas :global(svg.acjk .guides path) {
   fill: none;
-  stroke: var(--vscode-charts-red, #f77);
+  stroke: var(--jisho-guide-arrow);
   stroke-width: 16;
   stroke-linecap: round;
   stroke-dasharray: 32 28;
@@ -187,7 +193,7 @@
 }
 
 .canvas :global(svg.acjk #guide-arrow) {
-  fill: var(--vscode-charts-red, #f77);
+  fill: var(--jisho-guide-arrow);
 }
 
 /* ── Controls ───────────────────────────────────────────────────────────── */
