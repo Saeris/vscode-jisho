@@ -1,39 +1,14 @@
 /**
- * Stroke-SVG transform: regenerate `assets/kanji-svgs/` from the authoritative AnimCJK source.
+ * Stroke-SVG transform: regenerate `assets/kanji-svgs/` from the AnimCJK source (pinned SHA).
  *
- * Run occasionally (NOT part of a build):  vp run build:strokes
+ * Run occasionally, not per-build:  vp run build:strokes
  *
- * ⚠️ THEN RUN `vp run build:data`. The extension serves these SVGs from the `stroke_svgs` table, not
- * from disk — `build-data.ts` is what ingests them. Regenerating the files alone changes nothing the
- * user sees, and the mismatch is invisible: unit tests import the files (`?raw`) and pass, while the
- * running extension keeps rendering the old copies. That gap cost a long debugging session; the
- * symptoms looked like broken CSS rather than stale data.
+ * Strips the embedded <style> (the app owns all styling), groups the markup into
+ * glyph/strokes/guides, drops the baked-in per-stroke delays, and regenerates the direction guides
+ * from each stroke's median. Format, rationale, and lessons: docs/STROKE-ORDER.md.
  *
- * Why this exists (BACKLOG #21): the vendored SVGs were copied from a personal fork, so they could
- * not be re-synced from upstream, and their embedded CSS made the player unfixable — it autoplays on
- * mount (the animation runs as soon as the markup is in the DOM, before any app state says to), and
- * every attempt to control it meant fighting someone else's stylesheet from the outside.
- *
- * What it changes vs. the AnimCJK source:
- *
- *  1. **Strips the embedded <style> entirely.** The app owns the CSS now. Nothing animates until our
- *     state says so, which is what makes real play/pause/seek possible at all.
- *  2. **Wraps the animated strokes in <g class="strokes">.** In the source they're siblings of the
- *     <style>, the filled glyph paths and <defs>, so `sibling-index()` on stroke 1 returns 11, not 1.
- *     Giving them their own parent makes `sibling-index()` the stroke's ordinal — which is what lets
- *     CSS decide which strokes are drawn, with no per-stroke JS and no hardcoded nth-child rules.
- *  3. **Wraps the filled glyph shapes in <g class="glyph">.** Same reason, and the app needs to
- *     address them as a group (they're the static outline under the strokes — left at full opacity
- *     they render the whole character regardless of playback position).
- *  4. **Regenerates the guides layer** (start dot + direction arrow per stroke). This isn't in the
- *     AnimCJK source at all — it was a fork addition — so we derive it from each stroke's own median.
- *  5. **Drops the per-stroke `--d` delay.** It hardcoded a 1s-per-stroke timeline into the data;
- *     `sibling-index()` now supplies the ordinal and our CSS decides the timing.
- *
- * Licensing: the SVG paths derive from the Arphic PL KaitiM fonts, so they carry the **Arphic Public
- * License** (file-scoped copyleft with an LGPL-style aggregation clause — bundleable into an MIT
- * extension, which is why ARPHICPL.TXT ships alongside them). AnimCJK is itself a modification of
- * that font data; these transforms are a further modification of the same, and stay under APL.
+ * Licensing: the paths derive from the Arphic PL KaitiM fonts via AnimCJK and stay under the Arphic
+ * Public License (ARPHICPL.TXT ships alongside the output).
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -195,11 +170,9 @@ const smoothPath = (points: Point[]): string => {
 type Slope = [axis: "H" | "V" | "O", lr: "L" | "R", tb: "T" | "B"];
 
 const slopeOf = (from: Point, to: Point): Slope => {
-  // NOTE: this mirrors the original's `Math.round(360 / (2 * Math.PI)) * angle` — which rounds the
-  // CONSTANT (57.29… → 57) before multiplying, not the result. It is very likely a bug in the
-  // original (the intent reads as degrees), but the offset table below was hand-tuned against these
-  // exact values across thousands of characters, so "fixing" it would silently change every guide.
-  // Preserved deliberately; revisit only with visual diffs across the whole set.
+  // Deliberately preserves the original's rounded constant (57, not 57.29…): the offset table was
+  // tuned against these exact skewed angles, so "fixing" the maths would silently change every
+  // guide. Details: docs/STROKE-ORDER.md.
   const angle =
     Math.round(360 / (2 * Math.PI)) * Math.atan2(to.y - from.y, to.x - from.x);
   const abs = Math.abs(angle);
@@ -226,13 +199,9 @@ const NO_OFFSET: Offset = {
 };
 
 /**
- * Pick the guide's offset from the stroke's start and end headings.
- *
- * Ported from guide-to-japanese's `addGuidelines.ts`, whose table was tuned by hand against the real
- * character set. The goal: place the guide clear of the stroke it describes, on the side where it
- * won't collide with neighbouring strokes — which depends on where the stroke starts, where it ends,
- * and how it curves between. A naive "short tick at the start point" ignores all of this and reads
- * wrong. The branches are the original's, restructured but not retuned.
+ * Pick the guide's offset from the stroke's start and end headings, so the guide sits clear of the
+ * stroke it describes. Hand-tuned table ported from guide-to-japanese's `addGuidelines.ts` —
+ * restructured but not retuned (docs/STROKE-ORDER.md).
  */
 const offsetFor = (
   s0: Slope,
@@ -396,17 +365,9 @@ const offsetFor = (
 };
 
 /**
- * Both guide variants for one stroke, plus its numbered start marker.
- *
- * TWO paths are emitted per stroke so the app can interpolate between them with a registered
- * `@property --guide-offset` (0 = median-aligned, Duolingo-style; 1 = offset clear of the stroke,
- * the guide-to-japanese look). The offset variant reads better in isolation but can spill outside
- * the character's bounding box (seen when importing to Figma); the aligned variant never does.
- * Shipping both makes that a runtime dial instead of a baked-in choice.
- *
- * The start marker is a circled number (①②③…) rather than a plain dot: it doubles as the stroke's
- * ordinal. Verified in the webview that ①(U+2460) through ㉙(U+3259) all render — and the set's max
- * is 29 strokes (鬱), so the range covers every character we ship.
+ * One stroke's guides: a circled-numeral start marker (①…㉙ — the set's max is 29 strokes) plus
+ * BOTH arrow variants — `aligned` traces the median, `offset` sits clear of it — so the app can
+ * cross-fade between the two styles at runtime via --guide-offset.
  */
 const guideFor = (d: string, index: number): string => {
   const raw = medianPoints(d);
@@ -478,16 +439,9 @@ const ARROW_MARKER =
   `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker>`;
 
 /**
- * Rewrite one AnimCJK source SVG into our shape:
- *
- *   <svg class="acjk">
- *     <g class="glyph">   the static filled outline (path[id]) — the faint guide under the strokes
- *     <defs>              the clip paths, plus our arrowhead marker
- *     <g class="strokes"> the animated medians — sibling-index() here IS the stroke number
- *     <g class="guides">  per stroke: a numbered start marker + BOTH guide variants
- *   </svg>
- *
- * No <style>: the app owns every rule, so nothing animates until state says so.
+ * Rewrite one AnimCJK source SVG into our glyph/defs/strokes/guides shape, no <style> — the format
+ * the player and chart render from (spec: docs/STROKE-ORDER.md). g.strokes must contain the medians
+ * and nothing else, so sibling-index() is the stroke number.
  */
 export const transform = (source: string, literal: string): string => {
   const viewBox = /viewBox="([^"]*)"/.exec(source)?.[1] ?? "0 0 1024 1024";
@@ -532,13 +486,9 @@ export const transform = (source: string, literal: string): string => {
 const CONCURRENCY = 16;
 
 /**
- * Fetch and transform every kanji in the manifest (the Japanese subset we ship — the full AnimCJK
- * set is ~7,000 characters, most of which our dictionary never surfaces).
- *
- * Failures are separated by KIND rather than lumped into one count: a 404 means upstream simply has
- * no drawing for that character (expected, benign), while a transform throwing means our own code is
- * wrong about the source's shape (a bug we must not paper over). The original version caught both
- * and reported "unavailable upstream", which would have hidden the second behind the first.
+ * Fetch and transform every kanji in the manifest (the Japanese subset our dictionary surfaces).
+ * Missing-upstream (404, benign) and transform-failed (our bug — fail loudly) are counted apart so
+ * one can never hide the other.
  */
 const main = async (): Promise<void> => {
   const literals = readFileSync(join(OUT_DIR, "MANIFEST.txt"), "utf8")

@@ -1,60 +1,26 @@
-/* ── Stroke player ──────────────────────────────────────────────────────────
-   The SVGs carry NO styles of their own (scripts/build-strokes.ts strips them), so everything the
-   character looks like is here. That's the point: the old assets animated themselves the moment they
-   hit the DOM, and nothing outside could stop it — no real play/pause, no seeking.
+/* Stroke-player rendering. The SVGs ship with no styles of their own (build-strokes.ts strips
+   them), so this file owns the character's whole appearance, driven by one number: --stroke-index,
+   the playhead, animated by the component over the Web Animations API. Why each trick exists:
+   docs/STROKE-ORDER.md. */
 
-   The whole player rests on one comparison. Each median is an only-child of `g.strokes`, so
-   `sibling-index()` IS its stroke number; `--stroke-index` is the playhead. "Is this stroke drawn?"
-   is `sibling-index() <= var(--stroke-index)`, evaluated per element by the engine. No per-stroke
-   rules, no nth-child ladder, no JS reaching into the DOM. JS only ever writes the playhead.
-
-   Requires Chromium 133+ (sibling-index) / 137+ (if()); the webview is Chromium 148. */
-
-/* Registered so it interpolates — an unregistered custom property is just a string and would jump
-   between values instead of animating. This is what makes the playhead animatable at all. */
+/* The playhead. Registered <number> so it interpolates and calc() can do arithmetic on it.
+   Registrations are global; the chart reuses these. */
 @property --stroke-index {
   syntax: "<number>";
   inherits: true;
   initial-value: 0;
 }
 
-/* Playback is ONE keyframe animation driving the playhead from nothing-drawn to fully-drawn, and it
-   is the player's clock: JS holds it via getAnimations() and uses the Web Animations API for
-   everything — currentTime to seek, progress to read the slider back, play()/pause(), finished.
-   We don't hand-roll a playhead.
-
-   `paused` is load-bearing: the animation exists from first paint but never starts on its own, so the
-   character CANNOT autoplay. (The old assets animated themselves on mount with no way to stop them
-   from outside — the original bug.) `forwards` holds the last frame when it ends.
-
-   The duration here is nominal — the view rewrites it from the character's stroke count, and sets
-   --stroke-count, which the `to` frame reads. */
-/* CSS Modules scopes this name and rewrites the reference above to match, which is fine: the
-   component finds the animation via getAnimations() on the canvas rather than by name, so it never
-   depends on what the bundler called it. (`:global()` is not an option here — it's selector syntax,
-   and `animation-name: :global(x)` is a parse error.) */
-@keyframes draw-strokes {
-  from {
-    --stroke-index: 0;
-  }
-  to {
-    --stroke-index: var(--stroke-count);
-  }
-}
-
-/* One stroke's own drawing progress: 0 = not started, 1 = complete, fractional = mid-draw.
-   MUST be registered: an unregistered custom property is a token stream, not a number, so
-   `calc(3339 * (1 - var(--stroke-progress)))` would be an invalid expression and the whole
-   declaration would be dropped. Registration is what makes it usable in arithmetic at all. */
+/* One stroke's own progress (0 → 1 while the playhead crosses it). Must be registered — calc() on
+   an unregistered custom property is token substitution, not arithmetic. */
 @property --stroke-progress {
   syntax: "<number>";
   inherits: false;
   initial-value: 0;
 }
 
-/* 0 = guides trace the median exactly (Duolingo-style); 1 = guides sit clear of the stroke
-   (guide-to-japanese style, but can spill outside the character's box). The transform emits both
-   paths, so this is a real dial rather than a baked-in choice. */
+/* Guide style dial: 0 = arrows trace the median (Duolingo-style), 1 = arrows sit clear of the
+   stroke. The transform emits both path variants, so this cross-fades at runtime. */
 @property --guide-offset {
   syntax: "<number>";
   inherits: true;
@@ -75,17 +41,6 @@
   align-self: center;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
-  /* `paused` keeps it from ever starting on its own; the component drives it via getAnimations().
-     The duration is nominal — the component rewrites it from the character's stroke count. */
-  animation: draw-strokes 1s linear forwards paused;
-}
-
-/* Reduced motion: no drawing animation. The player still works — seeking sets the clock's
-   currentTime, so strokes appear instantly at the position asked for. */
-@media (prefers-reduced-motion: reduce) {
-  .canvas {
-    animation-duration: 1ms;
-  }
 }
 
 .canvas svg {
@@ -95,26 +50,16 @@
 
 /* ── The character ──────────────────────────────────────────────────────── */
 
-/* AnimCJK ships the glyph twice: solid filled shapes plus medians clipped to them. The fills are
-   static — at full opacity they show the whole character regardless of the playhead, which is what
-   made the old player look finished at stroke 0. Here they're the faint outline being drawn onto. */
+/* The static filled glyph: a faint "where the strokes will go" underlay. */
 .canvas :global(svg.acjk .glyph path) {
   fill: var(--jisho-fg);
-  /* Faint enough to read as "where the strokes will go" rather than as the finished character —
-     at 0.35 it looked complete before a single stroke was drawn, which defeats the point. */
   opacity: 0.12;
 }
 
-/* Each median is drawn by pulling its dash offset from 3339 to 0. pathLength="3333" normalises every
-   stroke to the same length, so these are constants — nothing is measured at runtime.
-
-   `--stroke-progress` is this stroke's OWN progress: 0 before the playhead reaches it, 1 once past,
-   and fractional while it's being drawn. Continuous arithmetic, not a condition — an earlier version
-   used `if(playhead >= sibling-index(): 0; else: 3339)`, which has only two possible values, so each
-   stroke snapped from invisible to complete and nothing ever animated.
-
-   The engine evaluates sibling-index() per element, so this one rule draws every stroke of every
-   character, in order, with no per-stroke JS. */
+/* Draw-on effect. pathLength normalises every median to 3333, and stroke N draws while the playhead
+   crosses N-1 → N; sibling-index() is the stroke number because the medians are the only children
+   of g.strokes. Continuous arithmetic — a conditional here would snap strokes on instead of
+   drawing them. */
 .canvas :global(svg.acjk .strokes path) {
   --stroke-progress: clamp(
     0,
@@ -132,16 +77,10 @@
 
 /* ── Guides ─────────────────────────────────────────────────────────────── */
 
-/* Only the NEXT stroke shows its guide — showing all of them at once is noise; the reader wants
-   "start here, go this way" for the one stroke they're about to draw.
-   Each guide element carries its own stroke number as --gs (written by the transform), so this is a
-   direct comparison against the playhead. `if()` supports >= / <= but not equality on a computed
-   value, so "is this the next stroke?" is two bounds: past the playhead, and no more than one past. */
+/* Show only the guide for the stroke being drawn next (--gs is each element's stroke number,
+   stamped by the transform). A step function, so if() is the right tool; held in a variable so the
+   variant rules below can multiply it rather than override it. */
 .canvas :global(svg.acjk .guides > *) {
-  /* Visible only for the next stroke. Kept as a VARIABLE rather than set directly on opacity: the
-     two guide-path variants below also need to control their own opacity to cross-fade, and a more
-     specific `opacity` rule would silently override this gate — which showed up as every guide
-     rendering at once. They multiply this instead of replacing it. */
   --gs-visible: if(
     style(--gs <= var(--stroke-index)): 0;
       style(--gs > calc(var(--stroke-index) + 1)): 0; else: 1
@@ -150,28 +89,19 @@
   opacity: var(--gs-visible);
 }
 
-/* The numbered start marker. Proportions follow the reference Figma styles: a 24px glyph with a 4px
-   stroke — a 1:6 stroke-to-size ratio, kept here at 96/16 in viewBox units (0-1024). `paint-order`
-   puts the stroke behind the fill, so it reads as an outline separating the numeral from the
-   character underneath, without needing a backing shape.
-
-   Both colours come from the theme bridge, so the marker inverts with the user's theme. An earlier
-   version used `--vscode-charts-green` over a hardcoded dark outline: chart colours are tuned for
-   lines on a chart, not for text, and the fixed outline meant the numeral lost contrast entirely on
-   a light theme. */
+/* Numbered start marker. 96/16 keeps the reference 1:6 glyph-to-outline ratio; the outline is the
+   surface colour so the numeral stays legible over the character in any theme. */
 .canvas :global(svg.acjk .guides text) {
   font-size: 96px;
   fill: var(--jisho-guide-accent);
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  /* The canvas it sits on — NOT the editor background; the sidebar can differ. */
   stroke: var(--jisho-bg);
   stroke-width: 16;
 }
 
-/* The direction arrow: dashed, so it reads as an instruction rather than part of the character —
-   the same distinction the reference makes between a drawn stroke and a guide. */
+/* Direction arrow — dashed so it reads as an instruction, not part of the character. */
 .canvas :global(svg.acjk .guides path) {
   fill: none;
   stroke: var(--jisho-guide-arrow);
@@ -181,9 +111,6 @@
   marker-end: url(#guide-arrow);
 }
 
-/* The two guide variants cross-fade on --guide-offset, so the choice between "traces the stroke" and
-   "sits clear of it" is a runtime dial. Multiplied by the next-stroke gate above — a variant that
-   ignored it would show for every stroke at once. */
 .canvas :global(svg.acjk .guides path.aligned) {
   opacity: calc(var(--gs-visible) * (1 - var(--guide-offset)));
 }
@@ -245,7 +172,7 @@
 
 .sliderValue {
   color: var(--jisho-muted);
-  font-variant-numeric: tabular-nums; /* the number must not jitter as it changes */
+  font-variant-numeric: tabular-nums; /* keep the readout from jittering as it counts */
 }
 
 .sliderTrack {

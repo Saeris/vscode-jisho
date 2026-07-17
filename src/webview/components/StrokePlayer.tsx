@@ -8,27 +8,19 @@ import {
 } from "react-aria-components";
 import styles from "./StrokePlayer.module.css";
 
-/** Milliseconds each stroke takes to draw. Also the unit that converts clock time ↔ stroke number. */
-const MS_PER_STROKE = 600;
+/** Milliseconds per stroke — the unit converting the clock's currentTime ↔ stroke numbers. */
+export const MS_PER_STROKE = 600;
+
+const prefersReducedMotion = (): boolean =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * Stroke-order player: play/pause/replay plus a slider that both tracks playback and seeks it.
+ * Stroke-order player. One Web Animation (the "clock") drives `--stroke-index` — the playhead —
+ * from 0 to the stroke count; the stylesheet turns that single number into the drawn strokes and
+ * guides. JS never touches the SVG: it only plays, pauses, and seeks the clock.
  *
- * **The CSS animation is the single source of truth.** One `draw-strokes` keyframe animation drives
- * `--stroke-index` from 0 to the stroke count; CSS renders from that (each median reads its own
- * number via `sibling-index()` — see the stylesheet), and this component drives it through the Web
- * Animations API: `currentTime` to seek, `play()`/`pause()` for playback.
- *
- * Nothing mirrors the playhead into React state. An earlier version kept the position in an XState
- * machine and used an effect to sync it onto the clock — so *every* input (play, pause, replay, a
- * slider nudge) re-ran that effect, re-seeked, and restarted the animation. One design flaw, four
- * symptoms. The clock owns the position; React state holds only what the clock can't answer: whether
- * the user has pressed play.
- *
- * The slider position is polled with requestAnimationFrame while playing, because the Web Animations
- * API has no progress event — polling is the documented way to follow a running animation.
- *
- * The animation is declared `paused` in CSS, so it exists from first paint but can never autoplay.
+ * Invariant: whenever the clock is paused, currentTime sits on a whole-stroke multiple, so the
+ * picture, the clock, and the slider always agree at rest. See docs/STROKE-ORDER.md.
  */
 export const StrokePlayer = ({
   svg,
@@ -38,113 +30,100 @@ export const StrokePlayer = ({
   strokeCount: number;
 }): React.ReactElement => {
   const canvas = useRef<HTMLDivElement>(null);
+  const clock = useRef<Animation | null>(null);
   const [playing, setPlaying] = useState(false);
-  /**
-   * The slider's controlled value, in WHOLE strokes. Mirrors the clock for rendering only — never
-   * written back to it. Kept whole (not fractional) so the value handed to the slider always matches
-   * what the slider itself reports; a re-derived value makes the thumb fight the pointer.
-   */
+  // The slider's controlled value, in whole strokes. Mirrors the clock for display; never derived
+  // from anything else, or the thumb fights the pointer (docs/STROKE-ORDER.md, lesson 6).
   const [position, setPosition] = useState(0);
 
-  /**
-   * The CSS animation driving the playhead. Read off the element rather than looked up by name:
-   * CSS Modules hashes the keyframe name at build time, so matching "draw-strokes" finds nothing.
-   * The canvas declares exactly one animation.
-   */
-  const clock = (): Animation | undefined => canvas.current?.getAnimations()[0];
-
-  // Per-character setup: the duration and the keyframes' end value both depend on the stroke count,
-  // so they can't be static in the stylesheet.
   useEffect(() => {
     const el = canvas.current;
-    if (!el) return;
-    el.style.setProperty("--stroke-count", String(strokeCount));
-    clock()?.effect?.updateTiming({ duration: strokeCount * MS_PER_STROKE });
-  }, [strokeCount, svg]);
+    if (!el) return undefined;
+    const anim = el.animate(
+      [{ "--stroke-index": "0" }, { "--stroke-index": String(strokeCount) }],
+      {
+        duration: strokeCount * MS_PER_STROKE,
+        easing: "linear",
+        fill: "forwards"
+      }
+    );
+    anim.pause(); // created at rest — autoplay is impossible by construction
+    anim.onfinish = (): void => {
+      setPlaying(false);
+      setPosition(strokeCount);
+    };
+    clock.current = anim;
+    setPlaying(false);
+    setPosition(0);
+    return (): void => {
+      clock.current = null;
+      anim.cancel();
+    };
+  }, [svg, strokeCount]);
 
-  // Follow the clock while it runs. The Web Animations API fires no progress event, so tracking a
-  // running animation means polling — this is what makes the handle travel with the drawing instead
-  // of sitting at 0 until the user touches it.
-  //
-  // Floored on the way IN: `position` is the slider's controlled value, and the slider deals in whole
-  // strokes. Storing the clock's fractional time here and flooring at render made the value React
-  // Aria received differ from the one it just reported during a drag, so the thumb fought the pointer
-  // and stuck at the ends of the track.
+  // The Web Animations API has no progress event, so follow the running clock with rAF to keep the
+  // slider handle moving during playback.
   useEffect((): (() => void) | undefined => {
     if (!playing) return undefined;
-    let frame = 0;
-    const follow = (): void => {
-      const anim = clock();
+    let frame = requestAnimationFrame(function follow(): void {
+      const anim = clock.current;
       if (!anim) return;
       const strokesDrawn = Number(anim.currentTime ?? 0) / MS_PER_STROKE;
       setPosition(Math.min(Math.floor(strokesDrawn), strokeCount));
-      if (anim.playState === "finished") {
-        setPlaying(false);
-        return;
-      }
       frame = requestAnimationFrame(follow);
-    };
-    frame = requestAnimationFrame(follow);
+    });
     return (): void => cancelAnimationFrame(frame);
   }, [playing, strokeCount]);
 
-  /**
-   * Scrub while the user drags. `onChange` fires on every pointer move, so this is the hot path:
-   * move the playhead so the drawing tracks the thumb, and stop playback the moment the user takes
-   * over.
-   *
-   * `position` is set from the slider's own reported value and nothing else. An earlier version
-   * derived it (flooring the clock), which desynced the controlled value from what React Aria had
-   * just reported — and at 0 specifically, `setPosition(0)` when position was already 0 is a React
-   * bail-out, so no re-render happened and the thumb stuck under the pointer. That's why it only
-   * misbehaved at one end.
-   */
-  const scrubTo = (strokeNumber: number): void => {
-    const anim = clock();
+  /** Seek to a whole stroke and take control: a manual seek always stops playback there. */
+  const scrubTo = (stroke: number): void => {
+    const anim = clock.current;
     if (!anim) return;
-    if (anim.playState === "running") anim.pause();
-    anim.currentTime = strokeNumber * MS_PER_STROKE;
+    anim.pause();
+    anim.currentTime = stroke * MS_PER_STROKE;
     setPlaying(false);
-    setPosition(strokeNumber);
+    setPosition(stroke);
   };
 
   const togglePlay = (): void => {
-    const anim = clock();
+    const anim = clock.current;
     if (!anim) return;
     if (playing) {
-      // pause() holds the playhead where it is — no seek, or we'd lose the position mid-stroke.
+      // Snap down to the last completed stroke (the paused-position invariant).
       anim.pause();
+      const stroke = Math.floor(Number(anim.currentTime ?? 0) / MS_PER_STROKE);
+      anim.currentTime = stroke * MS_PER_STROKE;
       setPlaying(false);
-      // Floor: mid-draw the clock reads e.g. 3.7 strokes, but only 3 are finished. Rounding up would
-      // make the slider claim a stroke the user can't see yet.
-      setPosition(Math.floor(Number(anim.currentTime ?? 0) / MS_PER_STROKE));
+      setPosition(stroke);
       return;
     }
-    // Replay the run once it's over; otherwise play() resumes from wherever it was paused.
-    if (anim.playState === "finished") anim.currentTime = 0;
-    anim.play();
+    if (prefersReducedMotion()) {
+      anim.finish();
+      return;
+    }
+    anim.play(); // resumes from the paused position; auto-rewinds only when already finished
     setPlaying(true);
   };
 
   const replay = (): void => {
-    const anim = clock();
+    const anim = clock.current;
     if (!anim) return;
     anim.currentTime = 0;
+    setPosition(0);
+    if (prefersReducedMotion()) {
+      anim.finish();
+      return;
+    }
     anim.play();
     setPlaying(true);
-    setPosition(0);
   };
-
-  // `position` is already whole strokes — floored where the clock is read, not here, so the value
-  // React Aria gets back is exactly the one it reported.
-  const sliderValue = position;
 
   return (
     <div className={styles.container}>
       <div
         ref={canvas}
         className={styles.canvas}
-        // The SVG comes from our own build (assets/kanji-svgs), not user input — safe to inject.
+        // Our own build output (assets/kanji-svgs), not user input — safe to inject.
         // oxlint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: svg }}
       />
@@ -152,8 +131,7 @@ export const StrokePlayer = ({
       <div className={styles.controls}>
         <Button
           className={styles.control}
-          // Explicit names: "Play" and "Replay" are ambiguous to a screen reader searching by name
-          // (and to any name-based query), since one contains the other.
+          // Explicit names: "Play" contains "Replay"'s stem, ambiguous for name-based queries.
           aria-label={playing ? "Pause animation" : "Play animation"}
           onPress={togglePlay}
         >
@@ -168,24 +146,21 @@ export const StrokePlayer = ({
         </Button>
       </div>
 
-      {/* Tracks playback and seeks it — dragging or arrowing takes over from the animation. */}
+      {/* onChange scrubs on every pointer move; onChangeEnd re-commits on release so the controlled
+          value and React Aria's drag state agree when the drag ends. */}
       <Slider
         className={styles.slider}
-        value={sliderValue}
+        value={position}
         minValue={0}
         maxValue={strokeCount}
         step={1}
-        // A single-thumb Slider reports a plain number (the array form is for multi-thumb).
-        // onChange fires continuously as the user drags — that's what makes the drawing follow the
-        // thumb. onChangeEnd fires once on release; it re-commits the final value so the controlled
-        // value and React Aria's internal drag state are guaranteed to agree when the drag ends.
         onChange={scrubTo}
         onChangeEnd={scrubTo}
       >
         <div className={styles.sliderHeader}>
           <Label className={styles.sliderLabel}>Stroke</Label>
           <span className={styles.sliderValue}>
-            {sliderValue} / {strokeCount}
+            {position} / {strokeCount}
           </span>
         </div>
         <SliderTrack className={styles.sliderTrack}>
@@ -195,8 +170,7 @@ export const StrokePlayer = ({
                 className={styles.sliderFill}
                 style={{ width: `${sliderState.getThumbPercent(0) * 100}%` }}
               />
-              {/* `index` is required — without it the thumb isn't bound to a track position and
-                  arrow keys/drags silently do nothing. */}
+              {/* `index` is required — without it the thumb isn't bound to the track. */}
               <SliderThumb index={0} className={styles.sliderThumb} />
             </>
           )}

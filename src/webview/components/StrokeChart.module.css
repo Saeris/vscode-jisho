@@ -1,10 +1,18 @@
-/* Stroke-order chart: cell N shows the character drawn to its Nth stroke, newest stroke highlighted.
-   Each cell re-renders the same SVG at a different seek position — see StrokeChart.tsx. */
+/* Stroke-order chart: cell N injects the same SVG and sets --stroke-index to N, so the shared
+   rendering arithmetic freezes it at that position — no animation involved. See
+   docs/STROKE-ORDER.md. --stroke-index and --stroke-progress registrations live in
+   StrokePlayer.module.css (registrations are global; the two files always ship together). */
+
+/* 1 when this stroke is the newest one drawn, 0 otherwise. Registered for the calc() in color-mix. */
+@property --stroke-newest {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
 
 .chart {
   display: grid;
-  /* Auto-fill rather than a fixed column count: the sidebar is narrow and resizable, so the grid
-     reflows instead of overflowing (a 24-stroke kanji like 願 must not force a horizontal scroll). */
+  /* Auto-fill so the grid reflows in a narrow, resizable sidebar (願 has 19 cells, 鬱 has 29). */
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
   gap: 4px;
   margin: 0;
@@ -39,42 +47,40 @@
   height: 100%;
 }
 
-/* Each cell renders the SAME svg frozen at its own position: no animation at all, just
-   `--stroke-index` set per cell (by StrokeChart.tsx) and the same sibling-index() comparison the
-   player uses. Cell N shows strokes 1..N.
-   This got much simpler after the transform: the old version scrubbed a paused animation with a
-   negative delay derived from each stroke's baked-in `--d`, which no longer exists. */
+/* Same draw-on arithmetic as the player, frozen at the cell's playhead. The newest stroke — the one
+   this cell adds — is the one whose number equals the playhead (integers by construction), picked
+   out with 1 - |Δ| and painted via color-mix so the reader sees WHICH stroke each step contributes. */
 .canvas :global(svg.acjk .strokes path) {
+  --stroke-progress: clamp(
+    0,
+    calc(var(--stroke-index) - (sibling-index() - 1)),
+    1
+  );
+  --stroke-newest: clamp(
+    0,
+    calc(1 - abs(var(--stroke-index) - sibling-index())),
+    1
+  );
+
   fill: none;
   stroke-width: 128;
   stroke-linecap: round;
   stroke-dasharray: 3337;
-  stroke-dashoffset: if(
-    style(--stroke-index >= sibling-index()): 0; else: 3339
-  );
-  /* Redden the stroke this cell ADDS — the one thing that changed since the previous cell — so the
-     reader sees WHICH stroke each step contributes, not just the running total.
-     "Is this the highlighted stroke?" is an equality, but `if()` only compares a custom property
-     against a LITERAL — `style(--highlight-stroke: sibling-index())` never matches (verified). So
-     equality is expressed as two bounds, the same shape the player's guide gate uses. */
-  stroke: if(
-    style(--highlight-stroke >= sibling-index()) and
-      style(--highlight-stroke <= sibling-index()): var(
-        --vscode-charts-red,
-        #e51400
-      )
-      ; else: var(--jisho-fg)
+  stroke-dashoffset: calc(3339 * (1 - var(--stroke-progress)));
+  stroke: color-mix(
+    in srgb,
+    var(--jisho-guide-arrow) calc(var(--stroke-newest) * 100%),
+    var(--jisho-fg) calc((1 - var(--stroke-newest)) * 100%)
   );
 }
 
-/* The guides belong to the animated player: in a static chart cell they'd stack a numeral and an
-   arrow on every stroke at once. The cell's own number label carries the ordering instead. */
+/* Guides belong to the player; in a static cell they would stack a numeral and an arrow on every
+   stroke. The cell's own number label carries the ordering. */
 .canvas :global(svg.acjk .guides) {
   display: none;
 }
 
-/* Ghost the character's outline underneath, so an early cell still reads as the right kanji rather
-   than a few floating marks — the reference charts all do this. */
+/* Ghost the outline underneath so an early cell still reads as the right kanji. */
 .canvas :global(svg.acjk .glyph path) {
   fill: var(--jisho-border);
 }

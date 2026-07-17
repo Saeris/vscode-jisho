@@ -2,22 +2,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import svg from "../../../../assets/kanji-svgs/近.svg?raw";
-import { StrokePlayer } from "../StrokePlayer";
+import { MS_PER_STROKE, StrokePlayer } from "../StrokePlayer";
 
 /**
  * 近 (7 strokes) is the candidate character throughout: few enough to reason about, enough to catch
- * off-by-ones.
- *
- * These assert BEHAVIOUR, not mechanism. The previous suite passed while the player was unusable
- * because it checked static outcomes ("after an arrow key, 3 strokes are drawn") — which is also
- * true if the input restarted the whole animation and it happened to reach 3. So every test here
- * pins what actually separates working from broken:
- *   - does an input RESTART the animation? (it must not)
- *   - is the animation PAUSED after a seek? (it must be)
- *   - does the slider ADVANCE by itself while playing? (it must)
- *   - does each of several distinct seek positions show exactly the right strokes?
+ * off-by-ones. These assert BEHAVIOUR, not mechanism — two broken players shipped behind suites
+ * that only checked end states (docs/STROKE-ORDER.md, lesson 6). The load-bearing questions: does
+ * an input restart the animation, is it paused after a seek, does the slider advance by itself,
+ * and does each of several seek positions show exactly the right strokes.
  */
-const ms = (strokes: number): number => strokes * 600;
+const ms = (strokes: number): number => strokes * MS_PER_STROKE;
 
 const strokes = (): SVGPathElement[] => [
   ...document.querySelectorAll<SVGPathElement>("svg.acjk .strokes path")
@@ -44,10 +38,8 @@ const partial = (): number =>
   }).length;
 
 const clock = (): Animation => {
-  const anim = document
-    .querySelector("[class*='canvas']")
-    ?.getAnimations()
-    .find((a) => a instanceof CSSAnimation);
+  // The player creates its clock with element.animate(), so it's the canvas's only animation.
+  const anim = document.querySelector("[class*='canvas']")?.getAnimations()[0];
   if (!anim) throw new Error("the player has no animation to drive");
   return anim;
 };
@@ -129,7 +121,9 @@ describe("stroke player: playback", () => {
     expect(pausedAt).toBeGreaterThan(0);
 
     await play();
-    expect(Number(clock().currentTime)).toBeGreaterThanOrEqual(pausedAt);
+    // 1ms tolerance: currentTime round-trips through the timeline's float representation
+    // (1800 reads back as 1799.9999999999998). The property under test is "did not rewind".
+    expect(Number(clock().currentTime)).toBeGreaterThanOrEqual(pausedAt - 1);
   });
 
   it("keeps the picture and the slider in step when paused", async () => {

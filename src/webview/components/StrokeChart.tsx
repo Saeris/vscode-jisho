@@ -1,15 +1,9 @@
 import styles from "./StrokeChart.module.css";
 
 /**
- * The stroke-order chart: a grid where cell N shows the character drawn up to its Nth stroke — the
- * classic textbook/Shirabe reference layout.
- *
- * Each cell is the same SVG seeked to a different position, reusing the trick documented in
- * StrokePlayer.module.css: a negative `animation-delay` scrubs the whole timeline, so `--stroke-index`
- * decides how much is drawn. No per-cell data and no JS — just N copies at N offsets.
- *
- * The newest stroke in each cell is highlighted against the strokes already laid down, which is the
- * chart's whole point: you read *which* stroke is added at each step, not just the running total.
+ * Stroke-order chart: cell N shows the character drawn to its Nth stroke, newest stroke
+ * highlighted — the classic textbook layout. Each cell injects the same SVG with `--stroke-index`
+ * set to its own number; the stylesheet does the rest. See docs/STROKE-ORDER.md.
  */
 export const StrokeChart = ({
   svg,
@@ -39,14 +33,10 @@ export const StrokeChart = ({
   </ol>
 );
 
-/**
- * `--stroke-index` seeks this cell's copy of the animation; `--highlight-stroke` tells the CSS which
- * stroke is the new one. See StrokePlayer.tsx's strokeVars for why this needs the intersection type.
- */
+// React's CSSProperties has no index signature for --* names; the intersection states the extra
+// key honestly, no cast needed.
 const cellVars = (
   step: number
-): React.CSSProperties &
-  Record<"--stroke-index" | "--highlight-stroke", number> => ({
-  "--stroke-index": step,
-  "--highlight-stroke": step
+): React.CSSProperties & Record<"--stroke-index", number> => ({
+  "--stroke-index": step
 });

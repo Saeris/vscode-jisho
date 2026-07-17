@@ -16,13 +16,9 @@ interface StrokeOrderProps {
 }
 
 /**
- * Stroke order as its own pushed view: the animated player, plus the full step-by-step chart.
- *
- * Deliberately NOT inline on the kanji detail. This extension's primary use is translating and
- * authoring prose in the editor next door, so the detail page leads with meaning, readings, and
- * copy-to-clipboard; stroke practice is a destination you opt into. (Shirabe, an educational aid,
- * puts the chart up front — a reasonable choice for a different job.) The sub-page also gives the
- * chart room to breathe, which a narrow sidebar can't spare inline.
+ * Stroke order as its own pushed view: the animated player plus the step-by-step chart. Kept off
+ * the kanji detail deliberately — that page leads with meaning/readings for translation work, and
+ * stroke practice is a destination you opt into (docs/STROKE-ORDER.md).
  */
 export const StrokeOrder = ({
   literal,
