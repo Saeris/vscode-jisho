@@ -170,3 +170,37 @@
   color: var(--jisho-muted);
   font-size: 0.9em;
 }
+
+.conjugations {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--jisho-border);
+}
+
+.conjTable {
+  margin-top: 6px;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+.conjTable th,
+.conjTable td {
+  padding: 3px 8px 3px 0;
+  text-align: start;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.conjTable thead th {
+  color: var(--jisho-muted);
+  font-weight: normal;
+  font-size: 0.9em;
+}
+
+/* Row headers (the form names) stay quiet next to the Japanese cells. */
+.conjTable tbody th {
+  color: var(--jisho-muted);
+  font-weight: normal;
+  white-space: nowrap;
+}

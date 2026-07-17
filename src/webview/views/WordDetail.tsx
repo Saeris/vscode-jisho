@@ -12,6 +12,7 @@ import type {
   WordDetailDto
 } from "../../shared/messages";
 import { wordQuery } from "../queries";
+import { conjugate } from "../conjugate";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
 import { PitchAccent } from "../components/PitchAccent";
@@ -119,7 +120,56 @@ const WordBody = ({
           <Sense key={i} sense={sense} onSearchTerm={onSearchTerm} />
         ))}
       </ol>
+
+      <Conjugations headword={headword} word={word} />
     </>
+  );
+};
+
+/**
+ * Word-level conjugation table (Shirabe-style), collapsed by default. Renders nothing for
+ * non-conjugable words — the engine's null IS the gate.
+ */
+const Conjugations = ({
+  headword,
+  word
+}: {
+  headword: string;
+  word: WordDetailDto;
+}): React.ReactElement | null => {
+  const rows = conjugate(
+    headword,
+    word.senses.flatMap((s) => s.partOfSpeech.map((t) => t.code))
+  );
+  if (rows === null) return null;
+  return (
+    <Disclosure className={styles.conjugations}>
+      <Heading level={3} className={styles.examplesHeading}>
+        <Button slot="trigger" className={styles.examplesTrigger}>
+          Conjugations
+        </Button>
+      </Heading>
+      <DisclosurePanel>
+        <table className={styles.conjTable}>
+          <thead>
+            <tr>
+              <th scope="col">Form</th>
+              <th scope="col">Affirmative</th>
+              <th scope="col">Negative</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.form}>
+                <th scope="row">{r.form}</th>
+                <td lang="ja">{r.affirmative}</td>
+                <td lang="ja">{r.negative === "" ? "—" : r.negative}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DisclosurePanel>
+    </Disclosure>
   );
 };
 

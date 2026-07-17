@@ -97,7 +97,7 @@ const RULES: ReadonlyArray<readonly [from: string, to: readonly string[]]> = [
   ["める", ["む"]],
   ["れる", ["る"]],
   // ── Causative ──
-  ["させる", ["る", "する"]],
+  ["させる", ["る", "する", "す"]],
   ["わせる", ["う"]],
   ["かせる", ["く"]],
   ["がせる", ["ぐ"]],

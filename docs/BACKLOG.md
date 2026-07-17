@@ -130,7 +130,9 @@ When the search box is empty, Shirabe shows a list of the user's recent searches
 
 Shirabe draws the pitch contour as an overline over the high-pitch moras with a downstep drop, strictly more legible than the numeric `[2]`. Shipped: `src/webview/pitch.ts` (mora segmentation + heiban/atamadaka/nakadaka/odaka contour) rendered by `PitchAccent.tsx` as per-mora CSS overline + downstep border over the kana, number in the tooltip. See M6 #1 as-built.
 
-### 19. Verb/adjective conjugation table (feature — large)
+### 19. Verb/adjective conjugation table (feature — large) — DONE (2026-07-17)
+
+> **Status:** shipped. `src/webview/conjugate.ts` generates the 13-row verb table (plus adjective tables) from the word's POS codes, rendered as a collapsed "Conjugations" disclosure on WordDetail; the engine's null gates the section. Covers v1, all v5 classes incl. the lexical irregulars (v5k-s/v5r-i/v5u-s/v5aru), vk in both spellings, する/vs-nouns, adj-i/ix/na, with the ら抜き potential in parens. The #8 round-trip test now exists: every searchable form the table shows must deinflect back to its dictionary form (it caught a real deinflect gap: させる→す).
 
 Shirabe shows a full conjugation reference on the word page: Positive / Negative / Masu / Masu-negative groups, each covering present, past, -te, -eba/-tara conditionals, potential, passive, causative, imperative, volitional (screenshots show ~30 forms for 食べる). We have no conjugation display. This is **generation** logic — the inverse of `deinflect.ts` — so it pairs conceptually with BACKLOG #8's "forward conjugator" idea (a forward conjugator would both power this table _and_ give #8's round-trip deinflection tests). Scope: a conjugation engine keyed on the word's POS tags (v1/v5x/adj-i…), rendered as a labelled table on `WordDetail`, gated to conjugable POS. Large; a milestone candidate of its own or a big backlog item. Note colloquial variants Shirabe shows in parens (食べれる ら-nuki potential).
 

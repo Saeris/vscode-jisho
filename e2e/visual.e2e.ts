@@ -76,6 +76,22 @@ test("capture: word detail — examples expanded", async () => {
   );
 });
 
+test("capture: word detail — conjugation table expanded", async () => {
+  const frame = await jishoFrame(app().window);
+  const back = frame.getByRole("button", { name: /back/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await frame.getByRole("button", { name: "Conjugations" }).click();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/12c-word-detail-conjugations.png"
+  );
+});
+
 test("capture: kanji detail (readings, copy, stroke-order link)", async () => {
   const frame = await jishoFrame(app().window);
   // Get back to search first — a previous capture may have left a detail view on the stack.
