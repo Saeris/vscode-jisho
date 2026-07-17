@@ -90,6 +90,14 @@ test("capture: word detail — conjugation table expanded", async () => {
     app().window,
     "test-results/shots/12c-word-detail-conjugations.png"
   );
+
+  // Form-label grammar hint (Term tooltip opens after its 300ms delay).
+  await frame.getByRole("button", { name: "Te-form" }).hover();
+  await frame.getByText(/the connector/i).waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/12d-conjugation-hint.png"
+  );
 });
 
 test("capture: kanji detail (readings, copy, stroke-order link)", async () => {

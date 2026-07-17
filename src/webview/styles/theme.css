@@ -45,9 +45,11 @@ body {
 body {
   background: var(--jisho-bg);
   color: var(--jisho-fg);
-  /* Inherit VSCode's configured UI font so the panel matches the editor chrome. */
+  /* Inherit VSCode's configured UI font so the panel matches the editor chrome. The size gets a
+     slight lift over the chrome default: kanji need more pixels than latin to stay legible, and
+     13px was hard on the eyes. A user-adjustable scale is BACKLOG #14. */
   font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size, 13px);
+  font-size: calc(var(--vscode-font-size, 13px) * 1.08);
 }
 
 #root {

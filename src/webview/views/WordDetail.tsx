@@ -18,6 +18,7 @@ import { JlptBadge } from "../components/JlptBadge";
 import { PitchAccent } from "../components/PitchAccent";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import { DetailHeader } from "../components/DetailHeader";
+import { Term } from "../components/Term";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
 
@@ -161,7 +162,9 @@ const Conjugations = ({
           <tbody>
             {rows.map((r) => (
               <tr key={r.form}>
-                <th scope="row">{r.form}</th>
+                <th scope="row">
+                  <Term>{r.form}</Term>
+                </th>
                 <td lang="ja">{r.affirmative}</td>
                 <td lang="ja">{r.negative === "" ? "—" : r.negative}</td>
               </tr>

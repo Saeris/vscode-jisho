@@ -61,6 +61,8 @@ The shipped `src/host/deinflect.ts` is a hand-maintained suffix-rewrite array �
 
 Caveat: typed-japanese self-reports LLM-generated rules with possible inaccuracies — use it as a structural model; Yomitan's tables stay the correctness reference. Superseded eventually by M5's tokenizer, so weigh effort accordingly.
 
+**2026-07-17:** the forward conjugator now exists (`src/webview/conjugate.ts`, #19) and the round-trip test with `deinflect()` runs in CI — it already caught a missing させる→す rule. The user flagged typed-japanese as the natural comparison for `conjugate.ts` specifically; agreed the structural alignment is there (its type-level conjugation matrix ≈ our `GODAN` row table) but a mapped-type exhaustiveness refactor isn't worth it while the runtime table is this small and the round-trip test covers the seams. Revisit only if the table grows form families.
+
 ## Post-M4 UX feedback (from testing the kanji features)
 
 ### 9. Escape hatch back to search root (fix — small)
@@ -70,6 +72,8 @@ Link-driven navigation (word → kanji → component kanji → word → …) bui
 ### 10. Jargon tooltips (feature — small)
 
 Dictionary terminology is opaque to newcomers (the user hadn't seen "nanori"). Add hover tooltips to non-obvious labels — start with **on / kun / nanori** in `KanjiDetail`, apply sparingly elsewhere as more are found. Implementation: a small `<Term>` component (React Aria `Tooltip` + `TooltipTrigger`, which we already have via react-aria-components) wrapping the label with a definition string; theme-aware. A tiny glossary map keeps definitions in one place.
+
+**2026-07-17:** conjugation-form labels added to the glossary — each of the table's 15 form names now carries a short when-you'd-use-it hint ("Te-form — the connector…"), since the terminology alone doesn't say when a form is common.
 
 ### 11. Dictionary-aware suggestion strip (feature — large) — DEFERRED; viable, pending a cross-OS spike (verdict corrected M5)
 
@@ -107,12 +111,15 @@ A settings view accumulating user preferences, reachable from the search bar (�
 
 - **TTS voice picker** — let the user choose from the Japanese voices the OS actually exposes (`getVoices()` filtered to `ja`), overriding the name-preference default from #13. Persist the choice (see persistence note below).
 - **Furigana toggle** — the on/off switch for #15.
+- **Text size** (added 2026-07-17) — a user-adjustable scale multiplier over the base font. The base got a fixed 1.08× lift (kanji need more pixels than latin to stay legible; the user found 13px kanji hard to read), but comfortable size is personal — expose the multiplier.
 
 **Persistence:** webview state doesn't survive reloads on its own. Persist prefs via a `setState`/`getState` message to the host, stored in the extension's `Memento` (`context.globalState`) — a small new message pair. Defer building the view until there are ≥2–3 real preferences to justify the chrome (voice + furigana is enough to start).
 
 ### 15. Furigana over kanji (feature — medium)
 
-Optionally render furigana (kana reading ruby text) above kanji in headwords, and possibly in example sentences later. Uses HTML `<ruby>`/`<rt>`. The alignment problem — mapping which kana annotate which kanji — is non-trivial for mixed kanji/okurigana words (食べる → 食[た]べる, not 食べる[たべる]); JMdict-simplified publishes **furigana** data (kanji-to-kana spans) that solves exactly this, so add it as another build asset joined per word. Gated behind the #14 furigana toggle (some learners want the challenge of no readings). Note: [@saeris/kuromoji](https://github.com/Saeris/kuromoji)/remark-ayaji also generate furigana via tokenization — cross-reference once M5's tokenizer lands.
+Optionally render furigana (kana reading ruby text) above kanji in headwords, and possibly in example sentences later. Uses HTML `<ruby>`/`<rt>`. The alignment problem — mapping which kana annotate which kanji — is non-trivial for mixed kanji/okurigana words (食べる → 食[た]べる, not 食べる[たべる]); JMdict-simplified publishes **furigana** data (kanji-to-kana spans) that solves exactly this, so add it as another build asset joined per word. Gated behind the #14 furigana toggle (some learners want the challenge of no readings).
+
+**Add: conjugation tables** (user, 2026-07-17) — conjugated forms are where kanji pronunciation confusion actually bites (Shirabe doesn't do this). The table is the _easy_ furigana case: `conjugate()` is a pure function of (surface, POS), so running it twice — once on the headword, once on the kana reading — yields aligned pairs per cell (食べた/たべた), and the JMdict furigana spans give the stem split. Example sentences are the _most useful_ place (needs M5 tokenizer alignment or the furigana asset); do the table first when #14's toggle exists. Note: [@saeris/kuromoji](https://github.com/Saeris/kuromoji)/remark-ayaji also generate furigana via tokenization — cross-reference once M5's tokenizer lands.
 
 ### 16. Breakdown bar: filter the sentence in place instead of destructive re-search (fix — medium)
 

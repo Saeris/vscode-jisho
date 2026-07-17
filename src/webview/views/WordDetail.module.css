@@ -39,6 +39,8 @@
   font-size: 1.2em;
   color: var(--jisho-muted);
   margin-left: 8px;
+  /* CJK breaks anywhere by default; keep each alternate writing whole and break at the 、. */
+  word-break: keep-all;
 }
 
 .readings {
@@ -181,7 +183,7 @@
   margin-top: 6px;
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85em;
+  font-size: 0.9em;
 }
 
 .conjTable th,
