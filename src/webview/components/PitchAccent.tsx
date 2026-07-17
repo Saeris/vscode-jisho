@@ -2,30 +2,15 @@ import { pitchContour, type MoraPitch } from "../pitch";
 import styles from "./PitchAccent.module.css";
 
 /**
- * Graphical pitch-accent contour over a reading (Shirabe/OJAD style): a single continuous line rides
- * HIGH over high-pitch moras and LOW under low-pitch moras, with a vertical connector at each pitch
- * change — including the downstep after the accent mora. The bare accent number is kept in the
- * title/aria-label for reference.
- *
- * Drawn as ONE SVG polyline rather than per-mora CSS borders. The line must span mora boundaries
- * (a high run is one unbroken stroke, and the downstep is a vertical joining two levels), which
- * per-element borders fundamentally cannot express — each box owns only its own edges, so a high run
- * came out as disconnected segments with a stray tick at the drop.
- *
- * Alignment without measurement: the moras sit in an N-column CSS grid and the SVG stretches across
- * the same track with `viewBox="0 0 N 10"` + `preserveAspectRatio="none"`. Column i's centre is
- * therefore always x = i + 0.5 in viewBox units, whatever the rendered width or font — so the
- * vertices track the glyphs with no ResizeObserver and no layout effects.
- *
- * When a reading has multiple accepted patterns, we render the first (most common) and note the rest
- * in the title. Renders nothing when no accent data is known.
+ * Pitch-accent contour (Shirabe/OJAD style): one continuous SVG polyline over the reading — high
+ * runs, low runs, a vertical at each pitch change. One polyline, not per-mora borders: the line
+ * must span mora boundaries, which per-element edges can't express. Alignment needs no measuring —
+ * the moras sit in an N-column grid and the SVG stretches across it with `viewBox="0 0 N 10"` +
+ * `preserveAspectRatio="none"`, so mora boundary i is always x = i. Renders nothing without data;
+ * multiple accepted patterns render the first and note the rest in the title.
  */
 
-/**
- * Vertical positions within the contour band (viewBox is 0..10 tall, mapped onto `--pitch-band`).
- * Both levels sit ABOVE the kana — the band is its own strip, so "low" means the lower of the two
- * pitch levels, not below the text. Insets keep the stroke off the band's edges.
- */
+/** Band-local y levels (viewBox is 0..10 tall). Both sit in the strip ABOVE the kana. */
 const HIGH_Y = 1.2;
 const LOW_Y = 8.8;
 
