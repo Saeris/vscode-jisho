@@ -5,95 +5,208 @@ import svg from "../../../../assets/kanji-svgs/近.svg?raw";
 import { StrokePlayer } from "../StrokePlayer";
 
 /**
- * The stroke player's whole seeking mechanism is CSS behaviour on injected markup, so it is tested
- * in a real browser: jsdom neither runs animations nor resolves the `calc()`/custom-property
- * arithmetic these rules depend on.
+ * 近 (7 strokes) is the candidate character throughout: few enough to reason about, enough to catch
+ * off-by-ones.
  *
- * The trick under test (documented in StrokePlayer.module.css): each stroke carries its index as a
- * delay (`--d: Ns`), so offsetting every stroke's animation-delay by `--stroke-index` seconds leaves
- * strokes 1..N already finished and the rest not yet started — i.e. "the first N strokes are drawn".
+ * These assert BEHAVIOUR, not mechanism. The previous suite passed while the player was unusable
+ * because it checked static outcomes ("after an arrow key, 3 strokes are drawn") — which is also
+ * true if the input restarted the whole animation and it happened to reach 3. So every test here
+ * pins what actually separates working from broken:
+ *   - does an input RESTART the animation? (it must not)
+ *   - is the animation PAUSED after a seek? (it must be)
+ *   - does the slider ADVANCE by itself while playing? (it must)
+ *   - does each of several distinct seek positions show exactly the right strokes?
  */
-const strokes = (): HTMLElement[] => [
-  ...document.querySelectorAll<HTMLElement>("svg.acjk path[clip-path]")
+const ms = (strokes: number): number => strokes * 600;
+
+const strokes = (): SVGPathElement[] => [
+  ...document.querySelectorAll<SVGPathElement>("svg.acjk .strokes path")
 ];
 
-/** A stroke is visible once its animation has run past the end (dashoffset drawn to 0). */
-const delayOf = (el: HTMLElement): number =>
-  Number.parseFloat(getComputedStyle(el).animationDelay);
+/** How many strokes are actually drawn on screen (dash offset pulled to 0). */
+const drawn = (): number =>
+  strokes().filter((p) => getComputedStyle(p).strokeDashoffset === "0px")
+    .length;
 
-describe("stroke player seeking (real CSS)", () => {
+const clock = (): Animation => {
+  const anim = document
+    .querySelector("[class*='canvas']")
+    ?.getAnimations()
+    .find((a) => a instanceof CSSAnimation);
+  if (!anim) throw new Error("the player has no animation to drive");
+  return anim;
+};
+
+const slider = (): HTMLElement => screen.getByRole("slider");
+const sliderValue = (): number => Number(slider().getAttribute("value"));
+
+const play = async (): Promise<void> => {
+  await userEvent.click(screen.getByRole("button", { name: "Play animation" }));
+};
+
+const wait = async (duration: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, duration));
+};
+
+describe("stroke player: playback", () => {
   afterEach(cleanup);
 
-  it("shows nothing at rest", () => {
-    // WHY: the player must open on a blank frame — the first render is a still, and a character that
-    // arrives already drawn gives the user nothing to watch and no reason to press play.
+  it("shows nothing and stays paused until asked", () => {
+    // WHY: the original bug — the SVG animated itself the instant it hit the DOM.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
-    // At index 0 every stroke's seek must land BEFORE its own draw begins (a positive delay means
-    // "hasn't started"). Stroke 1's delay is 1s - 0s - 0.8s = +0.2s.
-    for (const stroke of strokes()) expect(delayOf(stroke)).toBeGreaterThan(0);
+    expect(drawn()).toBe(0);
+    expect(clock().playState).toBe("paused");
+    expect(sliderValue()).toBe(0);
   });
 
-  it("pauses the animation while at rest", () => {
-    // WHY: if the animation were running, the negative-delay seek would be a starting point rather
-    // than a fixed position — strokes would keep appearing on their own under the slider.
+  it("advances the slider on its own while playing", async () => {
+    // WHY: the slider must TRACK playback, like dmak's. Nothing drove it before — the value only
+    // moved when the user did, so the handle sat at 0 while the character drew itself.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
-    for (const stroke of strokes()) {
-      expect(getComputedStyle(stroke).animationPlayState).toBe("paused");
-    }
+    await play();
+    await wait(ms(2.5));
+    const mid = sliderValue();
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(7);
+    await wait(ms(2));
+    expect(sliderValue()).toBeGreaterThan(mid); // still climbing
   });
 
-  it("overrides the delay the SVG sets in its own inline style", () => {
-    // WHY: the SVG declares its own `animation` in an inline <style>. This asserts our rule wins —
-    // without it the strokes would follow the SVG's fixed timeline and ignore the slider entirely.
+  it("resumes from where it paused instead of restarting", async () => {
+    // WHY: THE bug. Every input restarted the animation, because the effect re-seeked and replayed on
+    // any state change. Pause then play must continue — the playhead may not go backwards.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
-    const first = strokes()[0];
-    // The SVG's own value would be a bare 1s; ours is 1s - 0s - 0.8s = 0.2s.
-    expect(delayOf(first)).toBeCloseTo(0.2, 2);
-  });
-
-  it("keeps the character's filled shapes as a faint guide, not the drawing itself", () => {
-    // WHY: AnimCJK ships the glyph twice — solid `path[id]` shapes plus the animated `path[clip-path]`
-    // strokes clipped to them. The filled shapes are STATIC, so at full opacity they render the whole
-    // character regardless of the seek: the player looked complete at stroke 0 while every assertion
-    // about the animated strokes passed. They must stay faint, or the seek is invisible.
-    render(<StrokePlayer svg={svg} strokeCount={7} />);
-    const filled = [
-      ...document.querySelectorAll<HTMLElement>("svg.acjk path[id]")
-    ];
-    expect(filled.length).toBeGreaterThan(0);
-    for (const shape of filled) {
-      expect(Number(getComputedStyle(shape).opacity)).toBeLessThan(0.5);
-    }
-  });
-
-  it("seeks the drawing forward as the slider advances", async () => {
-    // WHY: this is the feature. Arrowing the slider must actually redraw — each step has to push one
-    // more stroke past its finish line, which shows up as every delay shifting a full second
-    // earlier. Asserting the machine's index alone would pass even if the CSS ignored it entirely.
-    render(<StrokePlayer svg={svg} strokeCount={7} />);
-    const before = strokes().map(delayOf);
-
-    // React Aria renders the thumb as a real (visually hidden) <input type="range">, which is what
-    // carries the implicit `slider` role and the native arrow-key handling — so drive that.
-    const thumb = screen.getByRole("slider");
-    thumb.focus();
-    await userEvent.keyboard("{ArrowRight}");
-
-    expect(thumb).toHaveValue("1");
-    const after = strokes().map(delayOf);
-    after.forEach((delay, i) => expect(delay).toBeCloseTo(before[i] - 1, 2));
-  });
-
-  it("hands the timeline back to the SVG's own stagger while playing", async () => {
-    // WHY: playback and seeking are mutually exclusive modes. During playback the strokes must run on
-    // the SVG's natural 1s-per-stroke stagger (delay = --d) rather than the seeked offset, or the
-    // animation would start mid-character wherever the slider happened to be.
-    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await play();
+    await wait(ms(3));
     await userEvent.click(
-      screen.getByRole("button", { name: "Play animation" })
+      screen.getByRole("button", { name: "Pause animation" })
     );
-    // Stroke 1's natural delay is a bare 1s.
-    expect(delayOf(strokes()[0])).toBeCloseTo(1, 2);
-    expect(getComputedStyle(strokes()[0]).animationPlayState).toBe("running");
+    const pausedAt = Number(clock().currentTime);
+    expect(pausedAt).toBeGreaterThan(0);
+
+    await play();
+    expect(Number(clock().currentTime)).toBeGreaterThanOrEqual(pausedAt);
+  });
+
+  it("keeps the picture and the slider in step when paused", async () => {
+    // WHY: pause must land on what the user SEES. A slider reading 3 over 2 drawn strokes is a lie.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await play();
+    await wait(ms(3.5));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Pause animation" })
+    );
+    expect(clock().playState).toBe("paused");
+    expect(sliderValue()).toBe(drawn());
+  });
+});
+
+describe("stroke player: seeking", () => {
+  afterEach(cleanup);
+
+  it("draws exactly the sought strokes at every position", async () => {
+    // WHY: the core promise of a seek slider, checked at MULTIPLE points — a single position can pass
+    // by luck (or by restarting and racing to the right count). Every stop must be exact.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (const target of [1, 2, 3, 4, 5, 6, 7]) {
+      await userEvent.keyboard("{ArrowRight}");
+      expect(sliderValue()).toBe(target);
+      expect(drawn()).toBe(target);
+    }
+    // …and back down: seeking must be reversible, not just forward.
+    for (const target of [6, 5, 4, 3, 2, 1, 0]) {
+      await userEvent.keyboard("{ArrowLeft}");
+      expect(sliderValue()).toBe(target);
+      expect(drawn()).toBe(target);
+    }
+  });
+
+  it("pauses playback when the user grabs the slider", async () => {
+    // WHY: the user takes over. An animation still running under a scrub fights the input and the
+    // handle jumps back — seeking has to stop the clock, not race it.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await play();
+    await wait(ms(1.5));
+    expect(clock().playState).toBe("running");
+
+    slider().focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(clock().playState).toBe("paused");
+  });
+
+  it("does not restart the animation when seeking", async () => {
+    // WHY: seeking to stroke 5 must SHOW stroke 5, not rewind to 0 and animate up to it. That
+    // restart-on-every-input is exactly what made the player unusable.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (let i = 0; i < 5; i++) await userEvent.keyboard("{ArrowRight}");
+    expect(sliderValue()).toBe(5);
+    // Immediately — no waiting for an animation to catch up.
+    expect(drawn()).toBe(5);
+    expect(clock().playState).toBe("paused");
+  });
+
+  it("resumes from a seeked position rather than the beginning", async () => {
+    // WHY: seek to 5, press play, and it must carry on from 5. Restarting would throw away the
+    // position the user just chose.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (let i = 0; i < 5; i++) await userEvent.keyboard("{ArrowRight}");
+    await play();
+    expect(Number(clock().currentTime)).toBeGreaterThanOrEqual(ms(5) - 50);
+  });
+
+  it("replay rewinds to the start", async () => {
+    // WHY: replay is the one control that SHOULD rewind — the counterpart to play resuming.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (let i = 0; i < 5; i++) await userEvent.keyboard("{ArrowRight}");
+    expect(drawn()).toBe(5);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Restart animation" })
+    );
+    expect(Number(clock().currentTime)).toBeLessThan(ms(1));
+  });
+});
+
+describe("stroke player: guides", () => {
+  afterEach(cleanup);
+
+  const guideOpacity = (strokeNumber: number): number => {
+    const marker = document.querySelector<SVGElement>(
+      `svg.acjk .guides text.g${strokeNumber}`
+    );
+    return marker ? Number(getComputedStyle(marker).opacity) : -1;
+  };
+
+  it("shows only the upcoming stroke's guide", () => {
+    // WHY: the guide says "start here, go this way" for the stroke about to be drawn. All of them at
+    // once is unreadable noise — which is what shipped.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    expect(guideOpacity(1)).toBe(1); // next up
+    expect(guideOpacity(2)).toBe(0);
+    expect(guideOpacity(7)).toBe(0);
+  });
+
+  it("moves the guide along as strokes are drawn", async () => {
+    // WHY: the guide has to follow the playhead. After seeking to stroke 3, the guide belongs on
+    // stroke 4 — the next one — and stroke 1's is long done.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (let i = 0; i < 3; i++) await userEvent.keyboard("{ArrowRight}");
+    expect(guideOpacity(1)).toBe(0); // already drawn
+    expect(guideOpacity(3)).toBe(0); // already drawn
+    expect(guideOpacity(4)).toBe(1); // next up
+    expect(guideOpacity(5)).toBe(0); // not yet
+  });
+
+  it("hides every guide once the character is finished", async () => {
+    // WHY: at the end there is no next stroke, so nothing should linger over the completed glyph.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    slider().focus();
+    for (let i = 0; i < 7; i++) await userEvent.keyboard("{ArrowRight}");
+    expect(drawn()).toBe(7);
+    for (let n = 1; n <= 7; n++) expect(guideOpacity(n)).toBe(0);
   });
 });

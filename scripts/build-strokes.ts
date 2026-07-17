@@ -3,6 +3,12 @@
  *
  * Run occasionally (NOT part of a build):  vp run build:strokes
  *
+ * ⚠️ THEN RUN `vp run build:data`. The extension serves these SVGs from the `stroke_svgs` table, not
+ * from disk — `build-data.ts` is what ingests them. Regenerating the files alone changes nothing the
+ * user sees, and the mismatch is invisible: unit tests import the files (`?raw`) and pass, while the
+ * running extension keeps rendering the old copies. That gap cost a long debugging session; the
+ * symptoms looked like broken CSS rather than stale data.
+ *
  * Why this exists (BACKLOG #21): the vendored SVGs were copied from a personal fork, so they could
  * not be re-synced from upstream, and their embedded CSS made the player unfixable — it autoplays on
  * mount (the animation runs as soon as the markup is in the DOM, before any app state says to), and
@@ -36,8 +42,9 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "assets", "kanji-svgs");
 
-// Pinned for reproducibility — an upstream change should be a deliberate, reviewable bump.
-const ANIMCJK_SHA = "master";
+// Pinned for reproducibility — an upstream change should be a deliberate, reviewable bump, not
+// something that silently rewrites 3,821 assets the next time this runs.
+const ANIMCJK_SHA = "ec5e17cca76c87587790bcbce5ea0b4d4fb753d6";
 const SOURCE_BASE = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/svgsJa`;
 
 /**
@@ -411,7 +418,10 @@ const guideFor = (d: string, index: number): string => {
     n <= 20
       ? String.fromCodePoint(0x245f + n)
       : String.fromCodePoint(0x3250 + (n - 20));
-  const marker = `<text class="g${n}" x="${round(start.x)}" y="${round(start.y)}">${numeral}</text>`;
+  // --gs carries the stroke number, so CSS can compare it to the playhead directly. Emitting it
+  // beats deriving it from sibling-index(): a guide is 1 element for a dot-only stroke and 3
+  // otherwise, so any position-based arithmetic silently breaks on the former.
+  const marker = `<text class="g${n}" style="--gs:${n}" x="${round(start.x)}" y="${round(start.y)}">${numeral}</text>`;
 
   if (raw.length < 2) return marker;
 
@@ -442,8 +452,8 @@ const guideFor = (d: string, index: number): string => {
 
   return (
     marker +
-    `<path class="g${n} aligned" d="${aligned}"/>` +
-    `<path class="g${n} offset" d="${smoothPath(shifted)}"/>`
+    `<path class="g${n} aligned" style="--gs:${n}" d="${aligned}"/>` +
+    `<path class="g${n} offset" style="--gs:${n}" d="${smoothPath(shifted)}"/>`
   );
 };
 
@@ -518,7 +528,18 @@ export const transform = (source: string, literal: string): string => {
   ].join("\n");
 };
 
-/** Fetch and transform every kanji we already ship an SVG for. */
+/** How many source files to fetch at once. Enough to be quick, gentle enough not to get rate-limited. */
+const CONCURRENCY = 16;
+
+/**
+ * Fetch and transform every kanji in the manifest (the Japanese subset we ship — the full AnimCJK
+ * set is ~7,000 characters, most of which our dictionary never surfaces).
+ *
+ * Failures are separated by KIND rather than lumped into one count: a 404 means upstream simply has
+ * no drawing for that character (expected, benign), while a transform throwing means our own code is
+ * wrong about the source's shape (a bug we must not paper over). The original version caught both
+ * and reported "unavailable upstream", which would have hidden the second behind the first.
+ */
 const main = async (): Promise<void> => {
   const literals = readFileSync(join(OUT_DIR, "MANIFEST.txt"), "utf8")
     .split(/\r?\n/)
@@ -526,32 +547,63 @@ const main = async (): Promise<void> => {
   mkdirSync(OUT_DIR, { recursive: true });
 
   let done = 0;
-  let failed = 0;
-  for (const literal of literals) {
+  const missing: string[] = [];
+  const broken: Array<{ literal: string; error: string }> = [];
+
+  const process = async (literal: string): Promise<void> => {
     const codepoint = literal.codePointAt(0);
-    if (codepoint === undefined) continue;
+    if (codepoint === undefined) return;
+    const res = await fetch(`${SOURCE_BASE}/${codepoint}.svg`, {
+      headers: { "User-Agent": "vscode-jisho-build" }
+    });
+    if (!res.ok) {
+      missing.push(literal);
+      return;
+    }
+    const source = await res.text();
     try {
-      const res = await fetch(`${SOURCE_BASE}/${codepoint}.svg`, {
-        headers: { "User-Agent": "vscode-jisho-build" }
-      });
-      if (!res.ok) {
-        failed++;
-        continue;
-      }
       writeFileSync(
         join(OUT_DIR, `${literal}.svg`),
-        transform(await res.text(), literal),
+        transform(source, literal),
         "utf8"
       );
       done++;
-      if (done % 500 === 0) console.log(`  …${done}/${literals.length}`);
-    } catch {
-      failed++;
+    } catch (error) {
+      broken.push({
+        literal,
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
-  }
-  console.log(
-    `Transformed ${done} stroke SVGs (${failed} unavailable upstream).`
+  };
+
+  // A simple worker pool: each worker pulls the next index until the list is exhausted.
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: CONCURRENCY }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= literals.length) return;
+        await process(literals[i]);
+        if (done > 0 && done % 500 === 0) {
+          console.log(`  …${done}/${literals.length}`);
+        }
+      }
+    })
   );
+
+  console.log(`Transformed ${done}/${literals.length} stroke SVGs.`);
+  if (missing.length > 0) {
+    console.log(
+      `  ${missing.length} not in AnimCJK upstream: ${missing.slice(0, 20).join("")}${missing.length > 20 ? "…" : ""}`
+    );
+  }
+  // Fail loudly: a transform error means we misread the source format, and quietly shipping 3,820 of
+  // 3,821 files would hide it.
+  if (broken.length > 0) {
+    for (const b of broken)
+      console.error(`  TRANSFORM FAILED ${b.literal}: ${b.error}`);
+    throw new Error(`${broken.length} characters failed to transform`);
+  }
 };
 
 // Only run when invoked directly — the transform is imported by tests.

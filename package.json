@@ -29,6 +29,7 @@
     "build": "vp pack && vp build && vp exec vsce package --no-yarn",
     "build:platforms": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
     "build:data": "vp exec node scripts/build-data.ts",
+    "build:strokes": "vp exec node scripts/build-strokes.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
     "build:data:names": "vp exec node scripts/build-data.ts --names",
     "e2e": "vp pack && vp build && vp exec playwright test",

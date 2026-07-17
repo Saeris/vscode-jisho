@@ -74,7 +74,7 @@ describe("stroke SVG transform", () => {
     //   M581,114 Q608,137 596.125,142.1875 Q524.875,173.3125 513,178.5
     // (we round to 2dp, hence 596.13 / 524.88 — a deliberate file-size trade, not a geometry change)
     const guides = groupOf(out(), "guides");
-    const offset = /<path class="g1 offset" d="([^"]*)"/.exec(guides)?.[1];
+    const offset = /<path class="g1 offset"[^>]* d="([^"]*)"/.exec(guides)?.[1];
     expect(offset).toBe(
       "M581,114 Q608,137 596.13,142.19 Q524.88,173.31 513,178.5"
     );
@@ -85,11 +85,21 @@ describe("stroke SVG transform", () => {
     // never does but overlaps the stroke. Shipping both lets @property interpolate between them
     // instead of baking the trade-off into the asset. The aligned variant must trace the median.
     const guides = groupOf(out(), "guides");
-    const aligned = /<path class="g1 aligned" d="([^"]*)"/.exec(guides)?.[1];
+    const aligned = /<path class="g1 aligned"[^>]* d="([^"]*)"/.exec(
+      guides
+    )?.[1];
     // Starts exactly on the median's first point (677,114), unlike the offset variant (581,114).
     expect(aligned?.startsWith("M677,114")).toBe(true);
     expect([...guides.matchAll(/class="g\d+ aligned"/g)]).toHaveLength(2);
     expect([...guides.matchAll(/class="g\d+ offset"/g)]).toHaveLength(2);
+  });
+
+  it("tags every guide element with its stroke number", () => {
+    // WHY: --gs is how CSS knows which stroke a guide belongs to, so it can show only the NEXT one.
+    // Deriving it from sibling-index() instead would break on dot-only strokes (1 element, not 3).
+    const guides = groupOf(out(), "guides");
+    expect([...guides.matchAll(/--gs:1/g)].length).toBeGreaterThanOrEqual(3);
+    expect([...guides.matchAll(/--gs:2/g)].length).toBeGreaterThanOrEqual(3);
   });
 
   it("numbers each stroke's start marker", () => {

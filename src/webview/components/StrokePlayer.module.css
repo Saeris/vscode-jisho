@@ -1,3 +1,56 @@
+/* ── Stroke player ──────────────────────────────────────────────────────────
+   The SVGs carry NO styles of their own (scripts/build-strokes.ts strips them), so everything the
+   character looks like is here. That's the point: the old assets animated themselves the moment they
+   hit the DOM, and nothing outside could stop it — no real play/pause, no seeking.
+
+   The whole player rests on one comparison. Each median is an only-child of `g.strokes`, so
+   `sibling-index()` IS its stroke number; `--stroke-index` is the playhead. "Is this stroke drawn?"
+   is `sibling-index() <= var(--stroke-index)`, evaluated per element by the engine. No per-stroke
+   rules, no nth-child ladder, no JS reaching into the DOM. JS only ever writes the playhead.
+
+   Requires Chromium 133+ (sibling-index) / 137+ (if()); the webview is Chromium 148. */
+
+/* Registered so it interpolates — an unregistered custom property is just a string and would jump
+   between values instead of animating. This is what makes the playhead animatable at all. */
+@property --stroke-index {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/* Playback is ONE keyframe animation driving the playhead from nothing-drawn to fully-drawn, and it
+   is the player's clock: JS holds it via getAnimations() and uses the Web Animations API for
+   everything — currentTime to seek, progress to read the slider back, play()/pause(), finished.
+   We don't hand-roll a playhead.
+
+   `paused` is load-bearing: the animation exists from first paint but never starts on its own, so the
+   character CANNOT autoplay. (The old assets animated themselves on mount with no way to stop them
+   from outside — the original bug.) `forwards` holds the last frame when it ends.
+
+   The duration here is nominal — the view rewrites it from the character's stroke count, and sets
+   --stroke-count, which the `to` frame reads. */
+/* CSS Modules scopes this name and rewrites the reference above to match, which is fine: the
+   component finds the animation via getAnimations() on the canvas rather than by name, so it never
+   depends on what the bundler called it. (`:global()` is not an option here — it's selector syntax,
+   and `animation-name: :global(x)` is a parse error.) */
+@keyframes draw-strokes {
+  from {
+    --stroke-index: 0;
+  }
+  to {
+    --stroke-index: var(--stroke-count);
+  }
+}
+
+/* 0 = guides trace the median exactly (Duolingo-style); 1 = guides sit clear of the stroke
+   (guide-to-japanese style, but can spill outside the character's box). The transform emits both
+   paths, so this is a real dial rather than a baked-in choice. */
+@property --guide-offset {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 .container {
   display: flex;
   flex-direction: column;
@@ -12,7 +65,17 @@
   align-self: center;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
-  background: var(--jisho-canvas-bg, transparent);
+  /* `paused` keeps it from ever starting on its own; the component drives it via getAnimations().
+     The duration is nominal — the component rewrites it from the character's stroke count. */
+  animation: draw-strokes 1s linear forwards paused;
+}
+
+/* Reduced motion: no drawing animation. The player still works — seeking sets the clock's
+   currentTime, so strokes appear instantly at the position asked for. */
+@media (prefers-reduced-motion: reduce) {
+  .canvas {
+    animation-duration: 1ms;
+  }
 }
 
 .canvas svg {
@@ -20,56 +83,91 @@
   height: 100%;
 }
 
-/* ── Playback vs. seeking ────────────────────────────────────────────────────
-   The injected SVG autoplays via its own CSS: each stroke runs `zk` for --t (0.8s) after a
-   per-stroke delay --d (1s for stroke 1, 2s for stroke 2, …).
+/* ── The character ──────────────────────────────────────────────────────── */
 
-   PLAYING: let it run, and the XState machine is the controller via data-playing.
-
-   PAUSED/SEEKING: rather than fight the selector to reveal "strokes 1..N" (CSS can't compare a
-   sibling's position to a custom property until sibling-index() lands — see BACKLOG #21), we SEEK
-   THE WHOLE TIMELINE. A negative animation-delay starts an animation already advanced by that much,
-   so offsetting every stroke by --stroke-index seconds lands each one either finished or not yet
-   begun — exactly "the first N strokes are drawn". Stroke N completes at N + 0.8s, so the +0.8s
-   term puts the seek just past the Nth stroke's end rather than mid-draw. */
-.canvas :global(svg.acjk) path[clip-path],
-.canvas :global(svg.acjk) .guides circle,
-.canvas :global(svg.acjk) .guides path {
-  /* The full `animation` shorthand, not just animation-delay: the SVG sets the shorthand in its own
-     inline <style>, which resets the delay to var(--d) and would silently undo a longhand override. */
-  animation: zk var(--t) linear forwards
-    calc(var(--d) - (var(--stroke-index, 0) * 1s) - 0.8s);
-  animation-play-state: paused;
+/* AnimCJK ships the glyph twice: solid filled shapes plus medians clipped to them. The fills are
+   static — at full opacity they show the whole character regardless of the playhead, which is what
+   made the old player look finished at stroke 0. Here they're the faint outline being drawn onto. */
+.canvas :global(svg.acjk .glyph path) {
+  fill: var(--jisho-fg);
+  /* Faint enough to read as "where the strokes will go" rather than as the finished character —
+     at 0.35 it looked complete before a single stroke was drawn, which defeats the point. */
+  opacity: 0.12;
 }
 
-.canvas[data-playing="true"] :global(svg.acjk) path[clip-path],
-.canvas[data-playing="true"] :global(svg.acjk) .guides circle,
-.canvas[data-playing="true"] :global(svg.acjk) .guides path {
-  /* Hand the timeline back to the SVG's own staggered delays. */
-  animation: zk var(--t) linear forwards var(--d);
-  animation-play-state: running;
-}
-
-/* The start-dot/arrow guides only make sense for the stroke being drawn right now. While seeking
-   they'd all pile up at once, so they're playback-only. */
-.canvas:not([data-playing="true"]) :global(svg.acjk) .guides {
-  opacity: 0;
-}
-
-/* AnimCJK ships TWO path sets: `path[id]` are solid filled glyph shapes and `path[clip-path]` are
-   the animated strokes clipped to them. The filled shapes are static — no animation touches them —
-   so left alone they render the COMPLETE character underneath, which made the player look fully
-   drawn at stroke 0 no matter where the seek was. Here they're the faint guide the strokes are
-   drawn onto; the chart uses the same shapes as its ghost outline. */
-.canvas :global(svg.acjk) path[id] {
-  fill: var(--vscode-editorWidget-border, var(--jisho-border));
-  opacity: 0.35;
-}
-
-/* The animated strokes must read as the character itself, over that guide. */
-.canvas :global(svg.acjk) path[clip-path] {
+/* Each median is drawn by pulling its dash offset to zero. pathLength="3333" normalises every stroke
+   to the same length, so these are constants — nothing has to be measured at runtime. */
+.canvas :global(svg.acjk .strokes path) {
+  fill: none;
   stroke: var(--jisho-fg);
+  stroke-width: 128;
+  stroke-linecap: round;
+  stroke-dasharray: 3337;
+  /* Fully drawn once the playhead reaches this stroke, hidden before. The engine evaluates
+     sibling-index() per element, so one rule covers every stroke of every character. */
+  stroke-dashoffset: if(
+    style(--stroke-index >= sibling-index()): 0; else: 3339
+  );
 }
+
+/* ── Guides ─────────────────────────────────────────────────────────────── */
+
+/* Only the NEXT stroke shows its guide — showing all of them at once is noise; the reader wants
+   "start here, go this way" for the one stroke they're about to draw.
+   Each guide element carries its own stroke number as --gs (written by the transform), so this is a
+   direct comparison against the playhead. `if()` supports >= / <= but not equality on a computed
+   value, so "is this the next stroke?" is two bounds: past the playhead, and no more than one past. */
+.canvas :global(svg.acjk .guides > *) {
+  /* Visible only for the next stroke. Kept as a VARIABLE rather than set directly on opacity: the
+     two guide-path variants below also need to control their own opacity to cross-fade, and a more
+     specific `opacity` rule would silently override this gate — which showed up as every guide
+     rendering at once. They multiply this instead of replacing it. */
+  --gs-visible: if(
+    style(--gs <= var(--stroke-index)): 0;
+      style(--gs > calc(var(--stroke-index) + 1)): 0; else: 1
+  );
+
+  opacity: var(--gs-visible);
+}
+
+.canvas :global(svg.acjk .guides text) {
+  /* Sized in viewBox units (0-1024), so it scales with the canvas. 96 was unreadable at the sidebar's
+     ~220px; the numeral has to be legible at the size it actually renders. */
+  font-size: 150px;
+  fill: var(--vscode-charts-green, #0f6);
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  /* Stroked in the canvas colour so the numeral stays legible over the character beneath it,
+     without needing a backing shape. */
+  stroke: var(--vscode-editor-background, #1f1f1f);
+  stroke-width: 12;
+}
+
+.canvas :global(svg.acjk .guides path) {
+  fill: none;
+  stroke: var(--vscode-charts-red, #f77);
+  stroke-width: 16;
+  stroke-linecap: round;
+  marker-end: url(#guide-arrow);
+}
+
+/* The two guide variants cross-fade on --guide-offset, so the choice between "traces the stroke" and
+   "sits clear of it" is a runtime dial. Multiplied by the next-stroke gate above — a variant that
+   ignored it would show for every stroke at once. */
+.canvas :global(svg.acjk .guides path.aligned) {
+  opacity: calc(var(--gs-visible) * (1 - var(--guide-offset)));
+}
+
+.canvas :global(svg.acjk .guides path.offset) {
+  opacity: calc(var(--gs-visible) * var(--guide-offset));
+}
+
+.canvas :global(svg.acjk #guide-arrow) {
+  fill: var(--vscode-charts-red, #f77);
+}
+
+/* ── Controls ───────────────────────────────────────────────────────────── */
 
 .controls {
   display: flex;
@@ -92,7 +190,12 @@
   background: var(--jisho-hover-bg);
 }
 
-/* ── Seek slider ─────────────────────────────────────────────────────────── */
+.control[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* ── Seek slider ────────────────────────────────────────────────────────── */
 
 .slider {
   display: flex;
@@ -124,7 +227,7 @@
   cursor: pointer;
 }
 
-/* The rail itself, drawn as a pseudo-element so the track keeps a comfortable hit area around it. */
+/* The rail, as a pseudo-element so the track keeps a comfortable hit area around it. */
 .sliderTrack::before {
   content: "";
   position: absolute;
@@ -153,13 +256,4 @@
 .sliderThumb[data-focus-visible] {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 2px;
-}
-
-/* Respect reduced-motion: never animate; strokes are revealed by the seek position alone, which the
-   slider still controls. Users can press Play to force it. */
-@media (prefers-reduced-motion: reduce) {
-  .canvas:not([data-playing="true"]) :global(svg.acjk) path[clip-path] {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
 }
