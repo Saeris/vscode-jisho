@@ -82,6 +82,10 @@ export const App = (): React.ReactElement => {
           literal={view.literal}
           onBack={() => send({ type: "back" })}
           onHome={onHome}
+          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+          onFindByPart={(preselect) =>
+            send({ type: "openRadicals", preselect })
+          }
         />
       ) : null}
       {view.name === "nameDetail" ? (

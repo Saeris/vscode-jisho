@@ -114,6 +114,18 @@ test("capture: stroke order sub-page (player + chart)", async () => {
     app().window,
     "test-results/shots/15-stroke-order.png"
   );
+
+  // Part highlighting: hovering the inner 斤 hit-box must tint its strokes (radical ⻌'s box
+  // covers most of the canvas but paints underneath, so the inner part wins the hover).
+  // .first(): the chart cells repeat the SVG (their rects are display:none); the player's is first.
+  await frame
+    .locator('svg.acjk .parts rect[data-literal="斤"]')
+    .first()
+    .hover();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/15b-stroke-part-hover.png"
+  );
 });
 
 test("capture: handwriting view", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transform } from "../build-strokes";
+import { parseAcjk, transform, type AcjkPart } from "../build-strokes";
 
 // A real AnimCJK source SVG (近, U+8FD1), trimmed to what the transform reads: the embedded <style>,
 // the filled glyph paths, the clip-path defs, and the animated medians with their --d delays.
@@ -110,6 +110,52 @@ describe("stroke SVG transform", () => {
     expect(guides).toContain(">②</text>");
   });
 
+  it("stamps each stroke and glyph fill with its part ordinal", () => {
+    // WHY: highlighting a part must work at ANY playhead. Drawn strokes highlight via g.strokes,
+    // undrawn ones via the glyph underlay — so BOTH copies of each stroke carry --part, and CSS
+    // compares it to --hl-part with the same abs() equality the chart uses.
+    const parts: AcjkPart[] = [
+      { literal: "斤", radical: false, ranges: [{ start: 1, end: 1 }] },
+      { literal: "⻌", radical: true, ranges: [{ start: 2, end: 2 }] }
+    ];
+    const svg = transform(SOURCE, "近", parts);
+    for (const cls of ["strokes", "glyph"]) {
+      const g = groupOf(svg, cls);
+      expect(g).toContain(`style="--part:1"`);
+      expect(g).toContain(`style="--part:2"`);
+    }
+  });
+
+  it("emits per-part hit rects, largest first, with the radical marked", () => {
+    // WHY: the hit target is the part's bounding BOX (bigger than the strokes, per the KL&L-style
+    // click-a-region design) while hover styling goes on the strokes. Largest-first emission makes
+    // an enclosing part (kamae 囗) paint under its contents, so the inner part wins hit-testing.
+    const parts: AcjkPart[] = [
+      { literal: "斤", radical: false, ranges: [{ start: 1, end: 1 }] },
+      { literal: "⻌", radical: true, ranges: [{ start: 2, end: 2 }] }
+    ];
+    const rects = groupOf(transform(SOURCE, "近", parts), "parts");
+    expect([...rects.matchAll(/<rect/g)]).toHaveLength(2);
+    // Stroke 2's median spans a larger box than stroke 1's, so part 2 must come first.
+    expect(rects.startsWith(`<rect data-part="2"`)).toBe(true);
+    expect(rects).toContain(`data-literal="⻌" data-radical="true"`);
+    // Focusable and named — the rects are the feature's keyboard surface.
+    expect(rects).toContain(`aria-label="Part ⻌ (radical)"`);
+    expect([...rects.matchAll(/tabindex="0"/g)]).toHaveLength(2);
+  });
+
+  it("omits parts entirely when the decomposition disagrees with the stroke count", () => {
+    // WHY: acjk and the SVG come from the same upstream but are separate files; if they ever
+    // disagree, stamping would highlight the WRONG strokes — silently absent beats silently wrong.
+    const parts: AcjkPart[] = [
+      { literal: "斤", radical: false, ranges: [{ start: 1, end: 2 }] },
+      { literal: "⻌", radical: true, ranges: [{ start: 3, end: 3 }] }
+    ];
+    const svg = transform(SOURCE, "近", parts);
+    expect(svg).not.toContain(`class="parts"`);
+    expect(svg).not.toContain("--part:");
+  });
+
   it("separates the static glyph shapes from the animated strokes", () => {
     // WHY: AnimCJK ships the character twice — filled shapes plus medians clipped to them. The fills
     // are static, so at full opacity they show the whole character no matter where playback is (the
@@ -118,5 +164,55 @@ describe("stroke SVG transform", () => {
     const glyph = groupOf(out(), "glyph");
     expect([...glyph.matchAll(/<path/g)]).toHaveLength(2);
     expect(glyph).not.toContain("clip-path");
+  });
+});
+
+describe("acjk decomposition parsing", () => {
+  it("maps components to consecutive stroke ranges and marks the radical", () => {
+    // WHY: the acjk field is in DRAWING order, so ranges are cumulative — 原's 10 strokes come
+    // first, making 頁 strokes 11–19. Getting this wrong highlights the wrong half of the kanji.
+    expect(parseAcjk("願", "願⿰原10頁.9")).toEqual({
+      strokeTotal: 19,
+      parts: [
+        { literal: "原", radical: false, ranges: [{ start: 1, end: 10 }] },
+        { literal: "頁", radical: true, ranges: [{ start: 11, end: 19 }] }
+      ]
+    });
+  });
+
+  it("merges split components (:) into one part with multiple ranges", () => {
+    // WHY: an enclosure like 国's 囗 is drawn in two runs (strokes 1–2, then 8 closes the box).
+    // Both runs are the SAME part — hovering 囗 must highlight all three strokes, and there must be
+    // one hit rect, not two overlapping ones.
+    expect(parseAcjk("国", "国⿴囗.:2玉5囗.:1")).toEqual({
+      strokeTotal: 8,
+      parts: [
+        {
+          literal: "囗",
+          radical: true,
+          ranges: [
+            { start: 1, end: 2 },
+            { start: 8, end: 8 }
+          ]
+        },
+        { literal: "玉", radical: false, ranges: [{ start: 3, end: 7 }] }
+      ]
+    });
+  });
+
+  it("keeps repeated components separate when not split-marked", () => {
+    // WHY: 林-style repetition is two INSTANCES of the same shape, not one split shape — each gets
+    // its own hit rect. Only ':' signals continuation.
+    const result = parseAcjk("⺀", "⺀.⿱丶1丶1");
+    expect(result?.parts).toHaveLength(2);
+    expect(result?.parts.every((p) => !p.radical)).toBe(true);
+  });
+
+  it("returns null when there is nothing to tell apart or the field is malformed", () => {
+    // WHY: a single-part decomposition would put one rect over the whole character — a hit target
+    // that adds nothing. Malformed input must not produce garbage ranges.
+    expect(parseAcjk("丶", "丶丶1")).toBeNull();
+    expect(parseAcjk("⺄", "⺄.1")).toBeNull();
+    expect(parseAcjk("近", "斤4⻌.3")).toBeNull();
   });
 });

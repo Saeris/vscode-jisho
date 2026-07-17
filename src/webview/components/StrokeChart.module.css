@@ -74,9 +74,10 @@
   );
 }
 
-/* Guides belong to the player; in a static cell they would stack a numeral and an arrow on every
-   stroke. The cell's own number label carries the ordering. */
-.canvas :global(svg.acjk .guides) {
+/* Guides and part hit-targets belong to the player; in a static cell the guides would stack a
+   numeral and an arrow on every stroke, and the rects would swallow clicks. */
+.canvas :global(svg.acjk .guides),
+.canvas :global(svg.acjk .parts) {
   display: none;
 }
 

@@ -249,7 +249,9 @@ That is exactly the "which stroke indices are the radical" mapping radical highl
 
 **The guide arrows are NOT a trivial derivation.** `addGuidelines.ts` (guide-to-japanese) classifies each stroke by its start _and_ end heading (H/V/O × L/R × T/B) and uses a ~250-line decision table to pick an offset and taper so the guide runs alongside the stroke without overlapping it. A naive "short tick at the start point" discards all of that and looks wrong. Known drawback of the offset approach: guides can render outside the character's bounding box (observed when importing to Figma). **Duolingo** keeps direction paths aligned to the median instead. **Decision: emit both and interpolate** via a registered `@property --guide-offset` (0 = median-aligned/Duolingo, 1 = offset/current) — variable-font-style control, real CSS interpolation, no JS.
 
-### 30. Radical position categories + click-a-stroke-to-look-up-its-radical (feature)
+### 30. Radical position categories + click-a-stroke-to-look-up-its-radical (feature) — application 2 DONE (2026-07-17)
+
+> **Status:** application 2 (click-a-region) shipped: the transform stamps `--part` + emits per-part hit rects (largest-first for the kamae overlap), the player highlights strokes+glyph via `--hl-part`, and clicking routes to the part's kanji detail or the radical picker. 3,571/3,821 SVGs carry part data. Application 1 (position-category filter in the radical picker) remains open.
 
 From the Kanji Look & Learn references: radicals fall into **seven positional categories** — ① left (_hen_), ② top (_kanmuri_), ③ bottom (_ashi_), ④ enclosure (_kamae_), ⑤ upper-left (_tare_), ⑥ lower-left (_nyō_), ⑦ right (_tsukuri_) — and its "Kanji Parts" pages highlight the radical's region within the character.
 

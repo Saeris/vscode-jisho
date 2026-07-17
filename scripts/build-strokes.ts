@@ -21,6 +21,7 @@ const OUT_DIR = join(root, "assets", "kanji-svgs");
 // something that silently rewrites 3,821 assets the next time this runs.
 const ANIMCJK_SHA = "ec5e17cca76c87587790bcbce5ea0b4d4fb753d6";
 const SOURCE_BASE = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/svgsJa`;
+const DICT_URL = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/dictionaryJa.txt`;
 
 /**
  * The offset distance the guide path is pushed away from its stroke, in viewBox units (0-1024).
@@ -438,12 +439,116 @@ const ARROW_MARKER =
   `<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" ` +
   `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker>`;
 
+/** One top-level component of a kanji, with its 1-based inclusive stroke ranges in drawing order. */
+export interface AcjkPart {
+  literal: string;
+  radical: boolean;
+  ranges: Array<{ start: number; end: number }>;
+}
+
+/**
+ * Parse dictionaryJa.txt's `acjk` field (e.g. `願⿰原10頁.9`) into components with stroke ranges.
+ * `.` marks the radical, `:` marks a split component (an enclosure drawn in two runs, like 国's 囗 —
+ * split segments of the same character merge into one part with multiple ranges). IDC layout
+ * characters (⿰⿱…) carry no stroke data and are skipped. Returns null when the field describes
+ * fewer than two parts (nothing to tell apart) or doesn't parse.
+ */
+export const parseAcjk = (
+  character: string,
+  acjk: string
+): { parts: AcjkPart[]; strokeTotal: number } | null => {
+  if (!acjk.startsWith(character)) return null;
+  const rest = acjk.slice(character.length);
+  // A leading '.' means the whole character is its own radical — no per-part radical to mark.
+  let i = rest.startsWith(".") ? 1 : 0;
+  const segments: Array<{
+    literal: string;
+    radical: boolean;
+    split: boolean;
+    count: number;
+  }> = [];
+  while (i < rest.length) {
+    const cp = rest[i].codePointAt(0) ?? 0;
+    if (cp >= 0x2ff0 && cp <= 0x2fff) {
+      i++;
+      continue;
+    }
+    const literal = rest[i++];
+    let radical = false;
+    let split = false;
+    while (rest[i] === "." || rest[i] === ":") {
+      if (rest[i] === ".") radical = true;
+      else split = true;
+      i++;
+    }
+    let digits = "";
+    while (i < rest.length && rest[i] >= "0" && rest[i] <= "9") {
+      digits += rest[i++];
+    }
+    if (digits === "") return null;
+    segments.push({ literal, radical, split, count: Number(digits) });
+  }
+
+  const parts: AcjkPart[] = [];
+  let cursor = 0;
+  for (const s of segments) {
+    const range = { start: cursor + 1, end: cursor + s.count };
+    cursor = range.end;
+    const merged = s.split
+      ? parts.find((p) => p.literal === s.literal)
+      : undefined;
+    if (merged) {
+      merged.ranges.push(range);
+      merged.radical ||= s.radical;
+    } else {
+      parts.push({ literal: s.literal, radical: s.radical, ranges: [range] });
+    }
+  }
+  return parts.length < 2 ? null : { parts, strokeTotal: cursor };
+};
+
+/** Padding around a part's median bounds, in viewBox units — covers stroke width plus a hit margin. */
+const PART_PAD = 72;
+
+/**
+ * Invisible hit rectangles, one per part, sized to the part's stroke medians. Emitted largest-first
+ * so an enclosing part (kamae like 囗) paints under the parts it encloses and the inner part wins
+ * hit-testing.
+ */
+const partRects = (parts: AcjkPart[], strokeDs: string[]): string =>
+  parts
+    .map((p, idx) => {
+      const points = p.ranges.flatMap((r) =>
+        strokeDs.slice(r.start - 1, r.end).flatMap((d) => medianPoints(d))
+      );
+      const b = boundsOf(points);
+      const x = Math.max(0, b.xMin - PART_PAD);
+      const y = Math.max(0, b.yMin - PART_PAD);
+      const w = Math.min(1024, b.xMax + PART_PAD) - x;
+      const h = Math.min(1024, b.yMax + PART_PAD) - y;
+      const label = `Part ${p.literal}${p.radical ? " (radical)" : ""}`;
+      return {
+        area: w * h,
+        tag:
+          `<rect data-part="${idx + 1}" data-literal="${p.literal}"` +
+          `${p.radical ? ` data-radical="true"` : ""} role="button" tabindex="0" ` +
+          `aria-label="${label}" x="${x}" y="${y}" width="${w}" height="${h}"/>`
+      };
+    })
+    .sort((a, b) => b.area - a.area)
+    .map((r) => r.tag)
+    .join("");
+
 /**
  * Rewrite one AnimCJK source SVG into our glyph/defs/strokes/guides shape, no <style> — the format
  * the player and chart render from (spec: docs/STROKE-ORDER.md). g.strokes must contain the medians
  * and nothing else, so sibling-index() is the stroke number.
  */
-export const transform = (source: string, literal: string): string => {
+export const transform = (
+  source: string,
+  literal: string,
+  parts: AcjkPart[] | null = null
+): string => {
   const viewBox = /viewBox="([^"]*)"/.exec(source)?.[1] ?? "0 0 1024 1024";
   const id = /<svg id="([^"]*)"/.exec(source)?.[1] ?? "";
 
@@ -466,6 +571,40 @@ export const transform = (source: string, literal: string): string => {
   );
   const guides = cleanStrokes.map((s, i) => guideFor(dOf(s), i)).join("");
 
+  // Parts are only stamped when the acjk decomposition exactly covers the strokes AND the glyph
+  // fills pair 1:1 with the medians — anything else means the datasets disagree, and stamping the
+  // wrong strokes is worse than not offering the feature for that character.
+  const usable =
+    parts !== null &&
+    parts.reduce(
+      (n, p) => n + p.ranges.reduce((m, r) => m + (r.end - r.start + 1), 0),
+      0
+    ) === cleanStrokes.length &&
+    glyph.length === cleanStrokes.length
+      ? parts
+      : null;
+  const partOf = (stroke: number): number =>
+    usable === null
+      ? 0
+      : usable.findIndex((p) =>
+          p.ranges.some((r) => stroke >= r.start && stroke <= r.end)
+        ) + 1;
+  const stamp = (tag: string, stroke: number): string => {
+    const part = partOf(stroke);
+    return part === 0
+      ? tag
+      : tag.replace("<path ", `<path style="--part:${part}" `);
+  };
+  const stampedStrokes = cleanStrokes.map((s, i) => stamp(s, i + 1));
+  const stampedGlyph = glyph.map((g, i) => stamp(g, i + 1));
+  const rects =
+    usable === null
+      ? ""
+      : partRects(
+          usable,
+          cleanStrokes.map((s) => dOf(s))
+        );
+
   return [
     `<!--`,
     `  Stroke-order data for ${literal}, derived from AnimCJK (https://github.com/parsimonhi/animCJK),`,
@@ -473,10 +612,11 @@ export const transform = (source: string, literal: string): string => {
     `  (see ARPHICPL.TXT). Regenerated by scripts/build-strokes.ts — do not edit by hand.`,
     `-->`,
     `<svg id="${id}" class="acjk" viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg">`,
-    `<g class="glyph">${glyph.join("")}</g>`,
+    `<g class="glyph">${stampedGlyph.join("")}</g>`,
     `<defs>${defs.trim()}${ARROW_MARKER}</defs>`,
-    `<g class="strokes">${cleanStrokes.join("")}</g>`,
+    `<g class="strokes">${stampedStrokes.join("")}</g>`,
     `<g class="guides">${guides}</g>`,
+    ...(rects === "" ? [] : [`<g class="parts">${rects}</g>`]),
     `</svg>`,
     ``
   ].join("\n");
@@ -484,6 +624,35 @@ export const transform = (source: string, literal: string): string => {
 
 /** How many source files to fetch at once. Enough to be quick, gentle enough not to get rate-limited. */
 const CONCURRENCY = 16;
+
+/** char → acjk decomposition string, from AnimCJK's dictionaryJa.txt (one JSON object per line). */
+const fetchAcjkMap = async (): Promise<Map<string, string>> => {
+  const res = await fetch(DICT_URL, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok) throw new Error(`dictionaryJa.txt fetch failed: ${res.status}`);
+  const map = new Map<string, string>();
+  for (const line of (await res.text()).split("\n")) {
+    const t = line.trim().replace(/,$/, "");
+    if (!t.startsWith("{")) continue;
+    try {
+      const row: unknown = JSON.parse(t);
+      if (
+        typeof row === "object" &&
+        row !== null &&
+        "character" in row &&
+        typeof row.character === "string" &&
+        "acjk" in row &&
+        typeof row.acjk === "string"
+      ) {
+        map.set(row.character, row.acjk);
+      }
+    } catch {
+      // Non-JSON lines (array brackets, comments) carry no data.
+    }
+  }
+  return map;
+};
 
 /**
  * Fetch and transform every kanji in the manifest (the Japanese subset our dictionary surfaces).
@@ -495,8 +664,10 @@ const main = async (): Promise<void> => {
     .split(/\r?\n/)
     .filter((l) => l.trim() !== "");
   mkdirSync(OUT_DIR, { recursive: true });
+  const acjkMap = await fetchAcjkMap();
 
   let done = 0;
+  let withParts = 0;
   const missing: string[] = [];
   const broken: Array<{ literal: string; error: string }> = [];
 
@@ -512,11 +683,11 @@ const main = async (): Promise<void> => {
     }
     const source = await res.text();
     try {
-      writeFileSync(
-        join(OUT_DIR, `${literal}.svg`),
-        transform(source, literal),
-        "utf8"
-      );
+      const acjk = acjkMap.get(literal);
+      const parsed = acjk === undefined ? null : parseAcjk(literal, acjk);
+      const svg = transform(source, literal, parsed?.parts ?? null);
+      writeFileSync(join(OUT_DIR, `${literal}.svg`), svg, "utf8");
+      if (svg.includes(`<g class="parts">`)) withParts++;
       done++;
     } catch (error) {
       broken.push({
@@ -542,6 +713,7 @@ const main = async (): Promise<void> => {
   );
 
   console.log(`Transformed ${done}/${literals.length} stroke SVGs.`);
+  console.log(`  ${withParts} carry part hit-targets (acjk decomposition).`);
   if (missing.length > 0) {
     console.log(
       `  ${missing.length} not in AnimCJK upstream: ${missing.slice(0, 20).join("")}${missing.length > 20 ? "…" : ""}`

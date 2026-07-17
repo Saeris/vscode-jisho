@@ -14,6 +14,10 @@ export const MS_PER_STROKE = 600;
 const prefersReducedMotion = (): boolean =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** The part hit-rect (if any) at or above an event target — the delegation lookup. */
+const partRect = (target: EventTarget | null): SVGRectElement | null =>
+  target instanceof Element ? target.closest("rect[data-part]") : null;
+
 /**
  * Stroke-order player. One Web Animation (the "clock") drives `--stroke-index` — the playhead —
  * from 0 to the stroke count; the stylesheet turns that single number into the drawn strokes and
@@ -24,10 +28,13 @@ const prefersReducedMotion = (): boolean =>
  */
 export const StrokePlayer = ({
   svg,
-  strokeCount
+  strokeCount,
+  onOpenPart
 }: {
   svg: string;
   strokeCount: number;
+  /** Called with a part's literal when its hit-target is clicked or keyboard-activated. */
+  onOpenPart?: (literal: string) => void;
 }): React.ReactElement => {
   const canvas = useRef<HTMLDivElement>(null);
   const clock = useRef<Animation | null>(null);
@@ -118,11 +125,40 @@ export const StrokePlayer = ({
     setPlaying(true);
   };
 
+  // Part highlighting bypasses React state on purpose: hover writes one CSS variable, the
+  // stylesheet does the rest — no re-render per pointer move. The rects live inside injected
+  // markup, so events are handled by delegation on the canvas.
+  const highlight = (target: EventTarget | null): void => {
+    canvas.current?.style.setProperty(
+      "--hl-part",
+      partRect(target)?.dataset.part ?? "0"
+    );
+  };
+  const openPart = (target: EventTarget | null): void => {
+    const literal = partRect(target)?.dataset.literal;
+    if (literal !== undefined) onOpenPart?.(literal);
+  };
+
   return (
     <div className={styles.container}>
+      {/* The interactive elements are the injected rects (role="button", tabindex="0"); the div
+          only relays their events. */}
+      {/* oxlint-disable-next-line click-events-have-key-events, no-static-element-interactions */}
       <div
         ref={canvas}
         className={styles.canvas}
+        onPointerOver={(e) => highlight(e.target)}
+        onPointerLeave={() => highlight(null)}
+        onFocus={(e) => highlight(e.target)}
+        onBlur={() => highlight(null)}
+        onClick={(e) => openPart(e.target)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            if (partRect(e.target) === null) return;
+            e.preventDefault();
+            openPart(e.target);
+          }
+        }}
         // Our own build output (assets/kanji-svgs), not user input — safe to inject.
         // oxlint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: svg }}

@@ -24,6 +24,7 @@ The SVGs ship as **files in the extension package**, not rows in `jisho.db`. The
   <defs>               clip paths + the guide arrowhead marker
   <g class="strokes">  the animated medians, and NOTHING else
   <g class="guides">   per stroke: numbered marker (①…) + two direction-arrow variants
+  <g class="parts">    invisible per-component hit rects (only when acjk data exists)
 ```
 
 Load-bearing details:
@@ -35,6 +36,7 @@ Load-bearing details:
 - **Two guide-arrow variants per stroke**: `aligned` traces the median (Duolingo style); `offset` sits clear of the stroke using the heading-classification + offset table ported from guide-to-japanese's `addGuidelines.ts`. `--guide-offset` (0–1) cross-fades between them at runtime.
 - **Start markers are circled numerals** ①–㉙ (`U+2460–2473`, then `U+3251+` for 21+). Max stroke count in the set is 29 (鬱); glyph coverage was probed in the real webview — all render.
 - The guide-offset port preserves an apparent bug in the original: `Math.round(360 / 2π) = 57` rounds the radians→degrees _constant_ before multiplying. The H/V/O heading thresholds were hand-tuned against those skewed values across thousands of characters, so "fixing" the maths would silently reclassify strokes near every boundary. Match the tuned behaviour, not the textbook formula.
+- **Parts** come from dictionaryJa.txt's `acjk` field (`願⿰原10頁.9` — drawing-order components with stroke counts, `.` = radical, `:` = a split run of the same component, e.g. 国's 囗 drawn 1–2 then 8). The transform stamps every stroke _and_ glyph path with `--part:N` inline (glyph too, so highlight works on undrawn strokes), and emits one `<rect>` per part sized to its strokes' median bounds + padding — **largest-first**, so an enclosing part paints under its contents and the inner part wins hit-testing. Parts are stamped only when the acjk stroke total and the glyph count both agree with the median count; on any mismatch the group is omitted (silently absent beats silently wrong). Rects carry `data-part`/`data-literal`/`data-radical`, `role="button"` and `tabindex="0"` — they're the feature's pointer _and_ keyboard surface. The player highlights via one delegated handler writing `--hl-part` on the canvas; CSS does the rest with the chart's `abs()` equality idiom (`--part` registers with initial `-1` so unstamped paths never match the resting `0`).
 
 ## The player
 

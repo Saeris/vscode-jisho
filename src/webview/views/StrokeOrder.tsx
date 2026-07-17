@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { strokeSvgQuery } from "../queries";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { kanjiQuery, strokeSvgQuery } from "../queries";
 import { DetailHeader } from "../components/DetailHeader";
 import { StrokeChart } from "../components/StrokeChart";
 import { StrokePlayer } from "../components/StrokePlayer";
@@ -13,6 +13,8 @@ interface StrokeOrderProps {
   literal: string;
   onBack: () => void;
   onHome?: () => void;
+  onOpenKanji: (literal: string) => void;
+  onFindByPart: (parts: string[]) => void;
 }
 
 /**
@@ -23,9 +25,20 @@ interface StrokeOrderProps {
 export const StrokeOrder = ({
   literal,
   onBack,
-  onHome
+  onHome,
+  onOpenKanji,
+  onFindByPart
 }: StrokeOrderProps): React.ReactElement => {
   const { data: svg, isPending, isError } = useQuery(strokeSvgQuery(literal));
+  const queryClient = useQueryClient();
+
+  // A part is a kanji in its own right (頁) or a radical-only shape (⻌). Route by which detail
+  // page can actually exist — a Kanjidic entry wins; otherwise preselect it in the radical picker.
+  const openPart = async (part: string): Promise<void> => {
+    const kanji = await queryClient.fetchQuery(kanjiQuery(part));
+    if (kanji !== null) onOpenKanji(part);
+    else onFindByPart([part]);
+  };
 
   return (
     <div className={styles.container}>
@@ -44,7 +57,11 @@ export const StrokeOrder = ({
             No stroke-order drawing is available for this character.
           </p>
         ) : (
-          <StrokeBody svg={svg} literal={literal} />
+          <StrokeBody
+            svg={svg}
+            literal={literal}
+            onOpenPart={(part) => void openPart(part)}
+          />
         )}
       </div>
     </div>
@@ -53,15 +70,21 @@ export const StrokeOrder = ({
 
 const StrokeBody = ({
   svg,
-  literal
+  literal,
+  onOpenPart
 }: {
   svg: string;
   literal: string;
+  onOpenPart: (literal: string) => void;
 }): React.ReactElement => {
   const strokeCount = countStrokes(svg);
   return (
     <>
-      <StrokePlayer svg={svg} strokeCount={strokeCount} />
+      <StrokePlayer
+        svg={svg}
+        strokeCount={strokeCount}
+        onOpenPart={onOpenPart}
+      />
       <section className={styles.section}>
         <h2 className={styles.heading}>
           Chart

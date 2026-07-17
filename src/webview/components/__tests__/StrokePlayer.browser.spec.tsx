@@ -248,3 +248,93 @@ describe("stroke player: guides", () => {
     for (let n = 1; n <= 7; n++) expect(guideOpacity(n)).toBe(0);
   });
 });
+
+describe("stroke player: parts", () => {
+  afterEach(cleanup);
+
+  // 近's acjk decomposition: 斤 = strokes 1–4 (drawn first), ⻌ = strokes 5–7 and the radical.
+  const rectOf = (literal: string): SVGRectElement => {
+    const rect = document.querySelector<SVGRectElement>(
+      `svg.acjk .parts rect[data-literal="${literal}"]`
+    );
+    if (!rect) throw new Error(`no hit rect for ${literal}`);
+    return rect;
+  };
+
+  const partHl = (el: Element): string =>
+    getComputedStyle(el).getPropertyValue("--part-hl").trim();
+
+  it("ships a hit box per part, inner part on top, radical marked", () => {
+    // WHY: the boxes are the whole click/keyboard surface. ⻌ sweeps under the entire character, so
+    // its box covers 斤's — only largest-first emission lets the inner part win pointer hits.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    const rects = [
+      ...document.querySelectorAll<SVGRectElement>("svg.acjk .parts rect")
+    ];
+    expect(rects).toHaveLength(2);
+    expect(rects[0].dataset.literal).toBe("⻌"); // biggest box painted first (underneath)
+    expect(rects[1].dataset.literal).toBe("斤"); // inner box on top
+    expect(rectOf("⻌").dataset.radical).toBe("true");
+    expect(rectOf("斤").dataset.radical).toBeUndefined();
+  });
+
+  it("hovering a part highlights exactly its strokes, drawn or not", async () => {
+    // WHY: the user's spec — box for hitting, STROKES for showing. At playhead 0 nothing is drawn,
+    // so the highlight must reach the glyph underlay too, not just the stroke paths.
+    document.documentElement.style.setProperty("--jisho-fg", "#888888");
+    document.documentElement.style.setProperty(
+      "--jisho-guide-accent",
+      "#1a7f37"
+    );
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await userEvent.hover(rectOf("斤"));
+    const paths = strokes();
+    for (const i of [0, 1, 2, 3]) expect(partHl(paths[i])).toBe("1");
+    for (const i of [4, 5, 6]) expect(partHl(paths[i])).toBe("0");
+    // The highlight is visible, not just computed: in-part strokes render a different colour.
+    expect(getComputedStyle(paths[0]).stroke).not.toBe(
+      getComputedStyle(paths[6]).stroke
+    );
+    const glyph = [
+      ...document.querySelectorAll<SVGPathElement>("svg.acjk .glyph path")
+    ];
+    expect(partHl(glyph[0])).toBe("1");
+    expect(partHl(glyph[6])).toBe("0");
+    await userEvent.unhover(rectOf("斤"));
+    expect(partHl(paths[0])).toBe("0");
+  });
+
+  it("clicking a part reports its literal for navigation", async () => {
+    // WHY: the boxes are link targets (KL&L-style click-a-region) — a click must surface WHICH
+    // component was chosen so the view can route to its detail page or the radical picker.
+    const opened: string[] = [];
+    render(
+      <StrokePlayer
+        svg={svg}
+        strokeCount={7}
+        onOpenPart={(l) => opened.push(l)}
+      />
+    );
+    await userEvent.click(rectOf("斤"));
+    expect(opened).toEqual(["斤"]);
+  });
+
+  it("keyboard: focusing a box highlights its part and Enter activates it", async () => {
+    // WHY: invisible pointer targets exclude keyboard users unless the rects are focusable and
+    // wired to the same highlight + activation. Focus also reaches the OVERLAPPED ⻌ box directly,
+    // which pointer hit-testing cannot.
+    const opened: string[] = [];
+    render(
+      <StrokePlayer
+        svg={svg}
+        strokeCount={7}
+        onOpenPart={(l) => opened.push(l)}
+      />
+    );
+    rectOf("⻌").focus();
+    expect(partHl(strokes()[6])).toBe("1");
+    expect(partHl(strokes()[0])).toBe("0");
+    await userEvent.keyboard("{Enter}");
+    expect(opened).toEqual(["⻌"]);
+  });
+});

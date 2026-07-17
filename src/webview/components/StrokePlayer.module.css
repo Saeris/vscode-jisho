@@ -27,6 +27,29 @@
   initial-value: 1;
 }
 
+/* Which part (1-based) is highlighted; 0 = none. Set on the canvas by the component's pointer/focus
+   delegation. */
+@property --hl-part {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/* A path's own part ordinal, stamped inline by the transform. -1 keeps unstamped paths (kanji
+   without part data) from ever matching --hl-part's resting 0. */
+@property --part {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: -1;
+}
+
+/* 1 when this path belongs to the highlighted part, else 0 — the chart's abs() equality idiom. */
+@property --part-hl {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .container {
   display: flex;
   flex-direction: column;
@@ -50,10 +73,17 @@
 
 /* ── The character ──────────────────────────────────────────────────────── */
 
-/* The static filled glyph: a faint "where the strokes will go" underlay. */
+/* The static filled glyph: a faint "where the strokes will go" underlay. When its part is
+   highlighted it lifts and tints, so hover shows the part even at playhead 0 (strokes not drawn). */
 .canvas :global(svg.acjk .glyph path) {
-  fill: var(--jisho-fg);
-  opacity: 0.12;
+  --part-hl: clamp(0, calc(1 - abs(var(--hl-part) - var(--part))), 1);
+
+  fill: color-mix(
+    in srgb,
+    var(--jisho-guide-accent) calc(var(--part-hl) * 100%),
+    var(--jisho-fg) calc((1 - var(--part-hl)) * 100%)
+  );
+  opacity: calc(0.12 + 0.38 * var(--part-hl));
 }
 
 /* Draw-on effect. pathLength normalises every median to 3333, and stroke N draws while the playhead
@@ -66,13 +96,37 @@
     calc(var(--stroke-index) - (sibling-index() - 1)),
     1
   );
+  --part-hl: clamp(0, calc(1 - abs(var(--hl-part) - var(--part))), 1);
 
   fill: none;
-  stroke: var(--jisho-fg);
+  stroke: color-mix(
+    in srgb,
+    var(--jisho-guide-accent) calc(var(--part-hl) * 100%),
+    var(--jisho-fg) calc((1 - var(--part-hl)) * 100%)
+  );
   stroke-width: 128;
   stroke-linecap: round;
   stroke-dasharray: 3337;
   stroke-dashoffset: calc(3339 * (1 - var(--stroke-progress)));
+}
+
+/* ── Part hit-targets ───────────────────────────────────────────────────── */
+
+/* Invisible boxes over each component: the BOX is the hit/focus target, but hover styling goes on
+   the strokes (via --hl-part) — never on the box. Emitted after the guides, so they sit on top for
+   hit-testing. */
+.canvas :global(svg.acjk .parts rect) {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Keyboard users need to see which box holds focus; a dashed frame marks it without competing with
+   the stroke highlight. */
+.canvas :global(svg.acjk .parts rect:focus-visible) {
+  stroke: var(--vscode-focusBorder, var(--jisho-fg));
+  stroke-width: 8;
+  stroke-dasharray: 24 16;
 }
 
 /* ── Guides ─────────────────────────────────────────────────────────────── */
