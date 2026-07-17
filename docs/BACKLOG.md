@@ -280,6 +280,19 @@ From the Kanji Look & Learn references: radicals fall into **seven positional ca
 
    Needs the #29 transform first (strokes wrapped in their own `<g>`, so `sibling-index()` is the stroke number and a CSS range check can target a component).
 
+### 31. Ship stroke SVGs as files in the .vsix, not rows in the database (refactor — medium)
+
+`stroke_svgs` holds 3,821 SVGs (~27MB) inside the 82MB `jisho.db`. They're there because `assets/**` is `.vscodeignore`d — nothing in `assets/` ships, and the DB is downloaded from a GitHub Release on first run, so the SVGs ride along inside it.
+
+**Why change it.** The coupling is invisible and it bites: `vp run build:strokes` regenerates the FILES, but the extension serves the DB, so nothing changes until `vp run build:data` re-ingests them. Unit tests (`?raw` file imports) pass against the new data while the running extension renders the old — the two disagree silently, and the symptoms look like broken CSS rather than stale data. That cost a full debugging session. Beyond the trap: the SVGs are ~⅓ of the DB, and today a stroke-data fix forces users to re-download the entire dictionary.
+
+**Approach.** Un-ignore `assets/kanji-svgs/**` so the SVGs ship in the .vsix, and have `getStrokeSvg` read from `context.extensionUri` instead of querying `stroke_svgs`. The message protocol and the webview don't change at all — only where the host gets the bytes.
+
+- The **webview CSP blocks `fetch()`** (the reason `patterns.data.ts` is base64, #24), but this is a **host-side** read: the extension host is Node, so `readFile` is fine and CSP never enters into it.
+- Adds ~27MB to the .vsix (currently small — the DB is downloaded). Weigh against removing 27MB from the download that every user must complete before the extension works at all, and against decoupling stroke fixes from dictionary releases.
+- Drops `stroke_svgs` from the schema, and the SVG-ingest pass from `build-data.ts`.
+- Consider `?raw` dynamic imports in the webview instead of a host round-trip; the bundler would inline 27MB, so probably not — but worth measuring.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

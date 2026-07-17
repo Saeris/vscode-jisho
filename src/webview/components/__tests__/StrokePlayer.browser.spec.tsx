@@ -23,10 +23,25 @@ const strokes = (): SVGPathElement[] => [
   ...document.querySelectorAll<SVGPathElement>("svg.acjk .strokes path")
 ];
 
-/** How many strokes are actually drawn on screen (dash offset pulled to 0). */
-const drawn = (): number =>
-  strokes().filter((p) => getComputedStyle(p).strokeDashoffset === "0px")
-    .length;
+/** A stroke's dash offset as a number, whatever form the engine reports it in. */
+const dashOffset = (path: SVGPathElement): number =>
+  Number.parseFloat(
+    getComputedStyle(path).strokeDashoffset.replace(/^calc\(|px\)?$/g, "")
+  );
+
+/** How many strokes are FULLY drawn (offset pulled all the way to 0). */
+const drawn = (): number => strokes().filter((p) => dashOffset(p) === 0).length;
+
+/**
+ * How many strokes are partway drawn. Should be at most 1 — the one the playhead is crossing.
+ * This is the measurement the old suite lacked: it only counted offset === 0, so a player that
+ * SNAPPED each stroke from hidden to complete (no drawing at all) passed every assertion.
+ */
+const partial = (): number =>
+  strokes().filter((p) => {
+    const offset = dashOffset(p);
+    return offset > 0 && offset < 3339;
+  }).length;
 
 const clock = (): Animation => {
   const anim = document
@@ -70,6 +85,35 @@ describe("stroke player: playback", () => {
     expect(mid).toBeLessThan(7);
     await wait(ms(2));
     expect(sliderValue()).toBeGreaterThan(mid); // still climbing
+  });
+
+  it("draws each stroke progressively rather than snapping it on", async () => {
+    // WHY: the bug this suite missed. The old rule was `if(playhead >= index: 0; else: 3339)` — two
+    // possible values, so a stroke was either invisible or complete and could never animate. It
+    // looked like jumping from keyframe to keyframe. Every assertion still passed, because they only
+    // ever counted fully-drawn strokes: the measurement was blind to the failure.
+    // Mid-playback there must be exactly one stroke caught in the act of being drawn.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await play();
+    await wait(ms(2.5));
+    expect(partial()).toBe(1);
+    // …and it must be the one right after the finished ones.
+    const offsets = strokes().map(dashOffset);
+    const drawing = offsets.findIndex((o) => o > 0 && o < 3339);
+    expect(drawing).toBe(drawn()); // 0-indexed: strokes before it are done
+  });
+
+  it("draws a stroke smoothly across its own span", async () => {
+    // WHY: "partial" isn't enough — the offset must actually TRAVEL. Sampling the same stroke twice
+    // shows the dash retracting, which is the drawing effect itself.
+    render(<StrokePlayer svg={svg} strokeCount={7} />);
+    await play();
+    await wait(ms(0.25));
+    const early = dashOffset(strokes()[0]);
+    await wait(ms(0.5));
+    const later = dashOffset(strokes()[0]);
+    expect(early).toBeGreaterThan(0);
+    expect(later).toBeLessThan(early); // the dash is retracting = the stroke is being drawn
   });
 
   it("resumes from where it paused instead of restarting", async () => {

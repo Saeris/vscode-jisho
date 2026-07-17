@@ -39,7 +39,11 @@ export const StrokePlayer = ({
 }): React.ReactElement => {
   const canvas = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
-  /** Mirrors the clock for rendering only — never written back to it. */
+  /**
+   * The slider's controlled value, in WHOLE strokes. Mirrors the clock for rendering only — never
+   * written back to it. Kept whole (not fractional) so the value handed to the slider always matches
+   * what the slider itself reports; a re-derived value makes the thumb fight the pointer.
+   */
   const [position, setPosition] = useState(0);
 
   /**
@@ -61,14 +65,19 @@ export const StrokePlayer = ({
   // Follow the clock while it runs. The Web Animations API fires no progress event, so tracking a
   // running animation means polling — this is what makes the handle travel with the drawing instead
   // of sitting at 0 until the user touches it.
+  //
+  // Floored on the way IN: `position` is the slider's controlled value, and the slider deals in whole
+  // strokes. Storing the clock's fractional time here and flooring at render made the value React
+  // Aria received differ from the one it just reported during a drag, so the thumb fought the pointer
+  // and stuck at the ends of the track.
   useEffect((): (() => void) | undefined => {
     if (!playing) return undefined;
     let frame = 0;
     const follow = (): void => {
       const anim = clock();
       if (!anim) return;
-      const time = Number(anim.currentTime ?? 0);
-      setPosition(time / MS_PER_STROKE);
+      const strokesDrawn = Number(anim.currentTime ?? 0) / MS_PER_STROKE;
+      setPosition(Math.min(Math.floor(strokesDrawn), strokeCount));
       if (anim.playState === "finished") {
         setPlaying(false);
         return;
@@ -77,7 +86,7 @@ export const StrokePlayer = ({
     };
     frame = requestAnimationFrame(follow);
     return (): void => cancelAnimationFrame(frame);
-  }, [playing]);
+  }, [playing, strokeCount]);
 
   /** Move the playhead and take control: any manual seek stops playback at that exact position. */
   const seekTo = (strokeNumber: number): void => {
@@ -86,6 +95,8 @@ export const StrokePlayer = ({
     anim.pause();
     anim.currentTime = strokeNumber * MS_PER_STROKE;
     setPlaying(false);
+    // Exactly what the slider reported — never a re-derived value, or the thumb jumps under the
+    // pointer.
     setPosition(strokeNumber);
   };
 
@@ -96,7 +107,9 @@ export const StrokePlayer = ({
       // pause() holds the playhead where it is — no seek, or we'd lose the position mid-stroke.
       anim.pause();
       setPlaying(false);
-      setPosition(Number(anim.currentTime ?? 0) / MS_PER_STROKE);
+      // Floor: mid-draw the clock reads e.g. 3.7 strokes, but only 3 are finished. Rounding up would
+      // make the slider claim a stroke the user can't see yet.
+      setPosition(Math.floor(Number(anim.currentTime ?? 0) / MS_PER_STROKE));
       return;
     }
     // Replay the run once it's over; otherwise play() resumes from wherever it was paused.
@@ -114,9 +127,9 @@ export const StrokePlayer = ({
     setPosition(0);
   };
 
-  // The slider reports whole strokes; the clock runs continuously. Floor rather than round, so the
-  // handle never claims a stroke that isn't finished drawing.
-  const sliderValue = Math.min(Math.floor(position), strokeCount);
+  // `position` is already whole strokes — floored where the clock is read, not here, so the value
+  // React Aria gets back is exactly the one it reported.
+  const sliderValue = position;
 
   return (
     <div className={styles.container}>

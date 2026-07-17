@@ -42,6 +42,16 @@
   }
 }
 
+/* One stroke's own drawing progress: 0 = not started, 1 = complete, fractional = mid-draw.
+   MUST be registered: an unregistered custom property is a token stream, not a number, so
+   `calc(3339 * (1 - var(--stroke-progress)))` would be an invalid expression and the whole
+   declaration would be dropped. Registration is what makes it usable in arithmetic at all. */
+@property --stroke-progress {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 /* 0 = guides trace the median exactly (Duolingo-style); 1 = guides sit clear of the stroke
    (guide-to-japanese style, but can spill outside the character's box). The transform emits both
    paths, so this is a real dial rather than a baked-in choice. */
@@ -95,19 +105,29 @@
   opacity: 0.12;
 }
 
-/* Each median is drawn by pulling its dash offset to zero. pathLength="3333" normalises every stroke
-   to the same length, so these are constants — nothing has to be measured at runtime. */
+/* Each median is drawn by pulling its dash offset from 3339 to 0. pathLength="3333" normalises every
+   stroke to the same length, so these are constants — nothing is measured at runtime.
+
+   `--stroke-progress` is this stroke's OWN progress: 0 before the playhead reaches it, 1 once past,
+   and fractional while it's being drawn. Continuous arithmetic, not a condition — an earlier version
+   used `if(playhead >= sibling-index(): 0; else: 3339)`, which has only two possible values, so each
+   stroke snapped from invisible to complete and nothing ever animated.
+
+   The engine evaluates sibling-index() per element, so this one rule draws every stroke of every
+   character, in order, with no per-stroke JS. */
 .canvas :global(svg.acjk .strokes path) {
+  --stroke-progress: clamp(
+    0,
+    calc(var(--stroke-index) - (sibling-index() - 1)),
+    1
+  );
+
   fill: none;
   stroke: var(--jisho-fg);
   stroke-width: 128;
   stroke-linecap: round;
   stroke-dasharray: 3337;
-  /* Fully drawn once the playhead reaches this stroke, hidden before. The engine evaluates
-     sibling-index() per element, so one rule covers every stroke of every character. */
-  stroke-dashoffset: if(
-    style(--stroke-index >= sibling-index()): 0; else: 3339
-  );
+  stroke-dashoffset: calc(3339 * (1 - var(--stroke-progress)));
 }
 
 /* ── Guides ─────────────────────────────────────────────────────────────── */
@@ -130,25 +150,28 @@
   opacity: var(--gs-visible);
 }
 
+/* The numbered start marker. Proportions follow the reference Figma styles: a 24px glyph with a 4px
+   stroke — a 1:6 stroke-to-size ratio, kept here at 96/16 in viewBox units (0-1024). `paint-order`
+   puts the stroke behind the fill, so it reads as an outline that separates the numeral from the
+   character underneath without needing a backing shape. */
 .canvas :global(svg.acjk .guides text) {
-  /* Sized in viewBox units (0-1024), so it scales with the canvas. 96 was unreadable at the sidebar's
-     ~220px; the numeral has to be legible at the size it actually renders. */
-  font-size: 150px;
+  font-size: 96px;
   fill: var(--vscode-charts-green, #0f6);
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  /* Stroked in the canvas colour so the numeral stays legible over the character beneath it,
-     without needing a backing shape. */
   stroke: var(--vscode-editor-background, #1f1f1f);
-  stroke-width: 12;
+  stroke-width: 16;
 }
 
+/* The direction arrow: dashed, so it reads as an instruction rather than part of the character —
+   the same distinction the reference makes between a drawn stroke and a guide. */
 .canvas :global(svg.acjk .guides path) {
   fill: none;
   stroke: var(--vscode-charts-red, #f77);
   stroke-width: 16;
   stroke-linecap: round;
+  stroke-dasharray: 32 28;
   marker-end: url(#guide-arrow);
 }
 
