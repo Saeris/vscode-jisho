@@ -3,14 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Heading } from "react-aria-components";
 import type {
   KanaDto,
+  KanjiDto,
   SenseDto,
   SentenceDto,
   WordDetailDto
 } from "../../shared/messages";
-import { wordQuery } from "../queries";
+import { kanjiQuery, wordQuery } from "../queries";
 import { conjugate } from "../conjugate";
 import { Badge } from "../components/Badge";
-import { JlptBadge } from "../components/JlptBadge";
 import { PitchAccent } from "../components/PitchAccent";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import { DetailHeader } from "../components/DetailHeader";
@@ -59,12 +59,52 @@ export const WordDetail = ({
   );
 };
 
+/**
+ * Single-kanji markers for JMdict form tags, Shirabe-style (喰べる探): a superscript flag on the
+ * writing plus a legend line under the senses. Only tags that mark a FORM's status get one.
+ */
+const FORM_MARKERS: Record<string, { mark: string; note: string } | undefined> =
+  {
+    sK: { mark: "探", note: "search-only form" },
+    sk: { mark: "探", note: "search-only form" },
+    rK: { mark: "稀", note: "rarely-used form" },
+    rk: { mark: "稀", note: "rarely-used form" },
+    iK: { mark: "異", note: "irregular form" },
+    ik: { mark: "異", note: "irregular form" },
+    oK: { mark: "旧", note: "outdated form" },
+    ok: { mark: "旧", note: "outdated form" },
+    io: { mark: "送", note: "irregular okurigana" },
+    ateji: { mark: "当", note: "ateji (kanji chosen for sound)" },
+    gikun: { mark: "訓", note: "gikun/jukujikun (reading by meaning)" }
+  };
+
+const marksOf = (tags: string[]): string[] => [
+  ...new Set(
+    tags
+      .map((t) => FORM_MARKERS[t]?.mark)
+      .filter((m): m is string => m !== undefined)
+  )
+];
+
+/** Superscript form flags for a writing or reading; nothing when untagged. */
+const Marks = ({ tags }: { tags: string[] }): React.ReactElement | null => {
+  const marks = marksOf(tags);
+  if (marks.length === 0) return null;
+  return (
+    <sup className={styles.formMark} lang="ja">
+      {marks.join("")}
+    </sup>
+  );
+};
+
 /** The kanji writings a reading applies to (Shirabe's 【】group): all of them, or its subset. */
-const writingsFor = (kana: KanaDto, word: WordDetailDto): string[] => {
+const writingsFor = (kana: KanaDto, word: WordDetailDto): KanjiDto[] => {
   if (word.kanji.length === 0) return [];
   const universal =
     kana.appliesToKanji.length === 0 || kana.appliesToKanji.includes("*");
-  return universal ? word.kanji.map((k) => k.text) : kana.appliesToKanji;
+  return universal
+    ? word.kanji
+    : word.kanji.filter((k) => kana.appliesToKanji.includes(k.text));
 };
 
 const WordBody = ({
@@ -99,14 +139,18 @@ const WordBody = ({
               ) : (
                 kana.text
               )}
+              <Marks tags={kana.tags} />
             </span>
             {writingsFor(kana, word).length > 0 ? (
               <span className={styles.headWritings}>
                 【
-                <Headword
-                  text={writingsFor(kana, word).join(", ")}
-                  onOpenKanji={onOpenKanji}
-                />
+                {writingsFor(kana, word).map((w, j) => (
+                  <span key={w.text} className={styles.writingItem}>
+                    {j > 0 ? ", " : null}
+                    <Headword text={w.text} onOpenKanji={onOpenKanji} />
+                    <Marks tags={w.tags} />
+                  </span>
+                ))}
                 】
               </span>
             ) : null}
@@ -118,15 +162,141 @@ const WordBody = ({
         ))}
         <div className={styles.tagRow}>
           {word.common ? <Badge kind="common">common</Badge> : null}
-          <JlptBadge level={word.jlpt} />
-          <WaniKaniLink term={headword} />
         </div>
       </div>
 
       <SenseList word={word} onSearchTerm={onSearchTerm} />
+      <MarkLegend word={word} />
 
+      <Info word={word} headword={headword} />
+      <KanjiSection word={word} onOpenKanji={onOpenKanji} />
       <Conjugations headword={headword} word={word} />
     </>
+  );
+};
+
+/** Legend for the form marks in use on this word — Shirabe's "探 search-only kanji form" lines. */
+const MarkLegend = ({
+  word
+}: {
+  word: WordDetailDto;
+}): React.ReactElement | null => {
+  const used = new Map<string, string>();
+  for (const tags of [...word.kanji, ...word.kana].map((x) => x.tags)) {
+    for (const tag of tags) {
+      const marker = FORM_MARKERS[tag];
+      if (marker) used.set(marker.mark, marker.note);
+    }
+  }
+  if (used.size === 0) return null;
+  return (
+    <div className={styles.legend}>
+      {[...used].map(([mark, note]) => (
+        <p key={mark}>
+          <span lang="ja">{mark}</span> {note}
+        </p>
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Shirabe's Info section: labelled fact rows. Deliberately thin for now — a frequency row needs a
+ * better source than nfXX's newspaper skew (BACKLOG #32/#26).
+ */
+const Info = ({
+  word,
+  headword
+}: {
+  word: WordDetailDto;
+  headword: string;
+}): React.ReactElement => (
+  <section className={styles.pageSection}>
+    <Heading level={3} className={styles.sectionHeading}>
+      Info
+    </Heading>
+    <dl className={styles.infoList}>
+      {word.jlpt === null ? null : (
+        <>
+          <dt>JLPT</dt>
+          <dd>N{word.jlpt}</dd>
+        </>
+      )}
+      <dt>WaniKani</dt>
+      <dd>
+        <WaniKaniLink term={headword} />
+      </dd>
+    </dl>
+  </section>
+);
+
+/** Every distinct CJK character across the word's writings, in first-appearance order. */
+const kanjiChars = (word: WordDetailDto): string[] => [
+  ...new Set(
+    word.kanji.flatMap((k) => Array.from(k.text)).filter((c) => CJK.test(c))
+  )
+];
+
+/** Shirabe's Kanji section: one tappable row per character, opening its kanji detail. */
+const KanjiSection = ({
+  word,
+  onOpenKanji
+}: {
+  word: WordDetailDto;
+  onOpenKanji: (literal: string) => void;
+}): React.ReactElement | null => {
+  const chars = kanjiChars(word);
+  if (chars.length === 0) return null;
+  return (
+    <section className={styles.pageSection}>
+      <Heading level={3} className={styles.sectionHeading}>
+        Kanji
+      </Heading>
+      {chars.map((c) => (
+        <KanjiRow key={c} literal={c} onOpen={() => onOpenKanji(c)} />
+      ))}
+    </section>
+  );
+};
+
+const KanjiRow = ({
+  literal,
+  onOpen
+}: {
+  literal: string;
+  onOpen: () => void;
+}): React.ReactElement | null => {
+  const { data } = useQuery(kanjiQuery(literal));
+  // Loading or no Kanjidic entry: no row. The section never dead-ends into "Kanji not found".
+  if (data === undefined || data === null) return null;
+  return (
+    <Button
+      className={styles.kanjiRow}
+      onPress={onOpen}
+      aria-label={`View kanji ${literal}`}
+    >
+      <span className={styles.kanjiRowLiteral} lang="ja">
+        {literal}
+      </span>
+      <span className={styles.kanjiRowInfo}>
+        <span className={styles.kanjiRowMeanings}>
+          {data.meanings.slice(0, 5).join(", ")}
+        </span>
+        {data.kun.length > 0 ? (
+          <span className={styles.kanjiRowReadings} lang="ja">
+            {data.kun.slice(0, 5).join(", ")}
+          </span>
+        ) : null}
+        {data.on.length > 0 ? (
+          <span className={styles.kanjiRowReadings} lang="ja">
+            {data.on.join(", ")}
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.kanjiRowChevron} aria-hidden="true">
+        ›
+      </span>
+    </Button>
   );
 };
 
@@ -173,7 +343,7 @@ const Conjugations = ({
   );
   if (rows === null) return null;
   return (
-    <section className={styles.conjugations}>
+    <section className={`${styles.pageSection} ${styles.conjugations}`}>
       <Heading level={3} className={styles.sectionHeading}>
         Conjugations
       </Heading>

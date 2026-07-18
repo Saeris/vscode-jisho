@@ -316,7 +316,9 @@ Ingredients already decided by adjacent feedback: explicit section splits with t
 
 **Round 1 shipped (2026-07-17):** headline is now kana-first with each reading's applicable kanji writings in 【】 (renders appliesToKanji properly — 一月: ひとつき【一月, ひと月】 / いちげつ【一月】); pitch contour rides the headline kana (kana in fg, only the mark colored); POS/misc as a muted spelled-out line shown once per run of senses and again only when it changes; senses as Ⓐ Ⓑ Ⓒ circled letters with comma-joined glosses and inline muted annotations; xrefs inline as "(see also: 拙い)" / "(antonyms: 熱い)" links.
 
-**Still to do from the references:** search-only/rare-form markers on writings (探/稀 superscripts — needs the JMdict kanji tags surfaced); an Info section absorbing the JLPT/Common/WK badges (Shirabe's green-label rows); a Kanji section with per-character rows (literal + meanings + kun/on + chevron); word-level Examples with furigana and the target word bolded, then per-sense "Examples Ⓐ" sections at the bottom (#20's restructure); bold target-word in sentences. Notes are out of scope forever.
+**Round 2 shipped (2026-07-17):** form markers on writings AND readings (探/稀/異/旧/送/当/訓 from the JMdict tags already in the DTO — 喰べる探, ビョーキ探) with a legend under the senses listing only the marks in use; an Info section (JLPT + WaniKani rows — a frequency row is deliberately deferred: words.freq_rank is nfXX-bucket data whose newspaper skew misleads, e.g. 見せる = bucket 35 vs Shirabe's "1–2k"; needs a better source, see #26 BCCWJ); a Kanji section with one tappable row per distinct character (literal, meanings, kun/on, chevron → kanji detail; characters without a Kanjidic entry get no row, never a dead end).
+
+**Still to do from the references:** word-level Examples with furigana and the target word bolded, then per-sense "Examples Ⓐ" sections at the bottom (#20's restructure); bold target-word in sentences. Notes are out of scope forever.
 
 ### 33. Editor integrations: lookup, translate-replace, and furigana authoring tools (feature — large, user priority)
 
@@ -332,13 +334,14 @@ User direction (2026-07-17): _"these are the kind of deeper integrations that ma
 
 **Additional ideas (proposed, not yet user-approved):**
 
-- **Markdown preview integration** — `contributes.markdown.markdownItPlugins` + `extendMarkdownIt(md.use(mditRuby))`: ship `@mirrordown/mdit-ruby` so the `{base|reading}` syntax renders as real ruby in VS Code's built-in markdown preview. Cheap, and makes the authoring loop WYSIWYG.
-- **Hover provider** — hover Japanese text in any file → reading + top glosses (a built-in Yomitan). Tokenizer finds the word boundary; the dictionary supplies the entry; hover links "open in Jisho".
+- ~~Markdown preview integration~~ — unnecessary: the mirrordown monorepo already ships that exact VS Code preview extension (user, 2026-07-17).
+- **Hover provider** — hover Japanese text in any file → reading + top glosses (a built-in Yomitan). Tokenizer finds the word boundary; the dictionary supplies the entry; hover links "open in Jisho". User: promising but wants to SEE it before refining — build a minimal prototype first, expect iteration.
+- **Speak selection** — via the existing TTS. Explicitly user-endorsed; small — good early ship.
 - **Strip furigana** — inverse of Add: unwrap ruby syntax back to plain text.
-- **Kana ↔ romaji conversion** on selection; **Speak selection** via the existing TTS.
+- **Kana ↔ romaji conversion** on selection.
 - **Editor context-menu group** — one "Jisho" submenu collecting lookup/translate/furigana so discoverability doesn't depend on the command palette.
 
-Sequencing: lookup-selection + context menu is small and independent (do first); preview integration is small; copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing check: mirrordown packages' license before bundling mdit-ruby into the preview.
+Sequencing: lookup-selection + context menu and speak-selection are small and independent (do first); copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing: mirrordown is MIT and the user's own project — integrate freely.
 
 ## Suggested sequencing
 

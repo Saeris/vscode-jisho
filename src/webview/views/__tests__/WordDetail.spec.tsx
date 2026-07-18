@@ -46,15 +46,25 @@ const word = (
 });
 
 let current: WordDetailDto;
+/** Per-literal kanji details for the Kanji section; anything absent resolves to null (no row). */
+let kanjiDetails: Record<string, unknown> = {};
 vi.mock("../../queries", () => ({
   wordQuery: (id: string) => ({
     queryKey: ["word", id],
     queryFn: () => current
+  }),
+  kanjiQuery: (literal: string) => ({
+    queryKey: ["kanji", literal],
+    queryFn: () => kanjiDetails[literal] ?? null
   })
 }));
 
-const renderView = (w: WordDetailDto): void => {
+const renderView = (
+  w: WordDetailDto,
+  kanji: Record<string, unknown> = {}
+): void => {
   current = w;
+  kanjiDetails = kanji;
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
@@ -107,6 +117,63 @@ describe("word detail conjugations", () => {
     await screen.findByText("to eat"); // senses rendered
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Conjugations" })).toBeNull();
+  });
+});
+
+describe("word detail form marks & sections", () => {
+  afterEach(cleanup);
+
+  it("flags search-only writings with 探 and explains it in the legend", async () => {
+    // WHY (Shirabe reference): 喰べる exists so searches FIND it, but presenting it as a normal
+    // alternative teaches learners a form nobody writes — the mark plus legend says so.
+    const w = word("食べる", ["v1"]);
+    w.kanji.push({ text: "喰べる", common: false, tags: ["sK"] });
+    renderView(w);
+    await screen.findByText("to eat");
+    // Twice: the superscript on the writing AND the legend line explaining it.
+    expect(screen.getAllByText("探")).toHaveLength(2);
+    screen.getByText(/search-only form/);
+  });
+
+  it("shows no legend when no writing carries a form tag", async () => {
+    renderView(word("食べる", ["v1"]));
+    await screen.findByText("to eat");
+    expect(screen.queryByText(/search-only form/)).toBeNull();
+  });
+
+  it("renders a kanji row per character with an entry, none for gaps", async () => {
+    // WHY: the Kanji section must never dead-end — a character without a Kanjidic entry gets no
+    // row at all rather than a row that opens "Kanji not found".
+    const onOpenKanji = vi.fn<(literal: string) => void>();
+    current = word("食べる", ["v1"]);
+    kanjiDetails = {
+      食: {
+        literal: "食",
+        meanings: ["eat", "food"],
+        on: ["ショク"],
+        kun: ["た.べる"]
+      }
+    };
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false, staleTime: Infinity } }
+          })
+        }
+      >
+        <WordDetail
+          id="1"
+          onBack={vi.fn<() => void>()}
+          onSearchTerm={vi.fn<(term: string) => void>()}
+          onOpenKanji={onOpenKanji}
+        />
+      </QueryClientProvider>
+    );
+    const row = await screen.findByRole("button", { name: "View kanji 食" });
+    expect(row.textContent).toContain("eat, food");
+    await userEvent.click(row);
+    expect(onOpenKanji).toHaveBeenCalledWith("食");
   });
 });
 

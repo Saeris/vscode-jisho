@@ -154,13 +154,9 @@
   font-size: 0.9em;
 }
 
-/* An explicit section split (border + spaced uppercase heading), not a collapse — the table is
-   the content, so it's visible by default. The section is a size container so the table can drop
-   to its stacked two-column layout when the sidebar is narrow. */
+/* The conjugation section is additionally a size container so the table can drop to its stacked
+   two-column layout when the sidebar is narrow (chrome comes from .pageSection). */
 .conjugations {
-  margin-top: 16px;
-  padding-top: 10px;
-  border-top: 1px solid var(--jisho-border);
   container-type: inline-size;
 }
 
@@ -232,4 +228,100 @@
     padding-bottom: 0;
     border-bottom: none;
   }
+}
+
+/* ── Shirabe-style page sections ────────────────────────────────────────── */
+
+.pageSection {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--jisho-border);
+}
+
+/* Superscript form flag on a writing/reading (探 = search-only, 稀 = rare, …). */
+.formMark {
+  color: var(--jisho-muted);
+  font-size: 0.55em;
+}
+
+/* Legend for the form flags in use, under the senses. */
+.legend {
+  margin-top: 8px;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+}
+
+.legend p {
+  margin: 0;
+}
+
+.writingItem {
+  white-space: nowrap;
+}
+
+.infoList {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 0;
+}
+
+.infoList dt {
+  color: var(--jisho-muted);
+}
+
+.infoList dd {
+  margin: 0;
+}
+
+/* One tappable row per kanji: big literal, meanings + readings stack, chevron. */
+.kanjiRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  padding: 6px 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.kanjiRow:hover {
+  background: var(--jisho-hover-bg);
+}
+
+.kanjiRow + .kanjiRow {
+  border-top: 1px solid var(--jisho-border);
+}
+
+.kanjiRowLiteral {
+  font-size: 1.9em;
+  line-height: 1.1;
+}
+
+.kanjiRowInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Shirabe truncates long meaning lists with an ellipsis rather than wrapping the row taller. */
+.kanjiRowMeanings {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanjiRowReadings {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.kanjiRowChevron {
+  color: var(--jisho-muted);
+  font-size: 1.2em;
 }

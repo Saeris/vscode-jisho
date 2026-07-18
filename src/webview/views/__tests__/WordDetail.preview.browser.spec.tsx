@@ -19,7 +19,10 @@ const word: WordDetailDto = {
   id: "1",
   common: true,
   jlpt: 5,
-  kanji: [{ text: "食べる", common: true, tags: [] }],
+  kanji: [
+    { text: "食べる", common: true, tags: [] },
+    { text: "喰べる", common: false, tags: ["sK"] }
+  ],
   kana: [
     {
       text: "たべる",
@@ -72,6 +75,13 @@ describe("word detail preview", () => {
       defaultOptions: { queries: { retry: false } }
     });
     client.setQueryData(["word", "1"], word);
+    client.setQueryData(["kanji", "食"], {
+      literal: "食",
+      meanings: ["eat", "food"],
+      on: ["ショク", "ジキ"],
+      kun: ["く.う", "た.べる"]
+    });
+    client.setQueryData(["kanji", "喰"], null);
     render(
       <QueryClientProvider client={client}>
         <div style={{ display: "flex", gap: "16px", alignItems: "start" }}>
