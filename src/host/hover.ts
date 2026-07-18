@@ -35,10 +35,94 @@ export const japaneseRunAt = (
   return { text: line.slice(start, end), start };
 };
 
+/**
+ * A line with mirrordown ruby markup ({食|た}べます) stripped to its base text, plus per-character
+ * maps back to the original line. Hover logic runs on `text`; `starts`/`ends` give each stripped
+ * character's original span — widened at group edges so a highlight covering a ruby group covers
+ * the whole `{…|…}` construct, and so a cursor on the reading or braces maps into the base.
+ */
+export interface RubyStripped {
+  text: string;
+  /** starts[i]: original index where stripped char i's unit begins. */
+  starts: number[];
+  /** ends[i]: original index just past stripped char i's unit. */
+  ends: number[];
+}
+
+const RUBY = /\{([^|{}\n]+)\|([^{}\n]*)\}/g;
+
+export const stripRuby = (line: string): RubyStripped => {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let text = "";
+  let cursor = 0;
+  for (const match of line.matchAll(RUBY)) {
+    for (let i = cursor; i < match.index; i++) {
+      text += line[i];
+      starts.push(i);
+      ends.push(i + 1);
+    }
+    const base = match[1];
+    const baseStart = match.index + 1; // past "{"
+    const groupEnd = match.index + match[0].length;
+    for (let k = 0; k < base.length; k++) {
+      text += base[k];
+      starts.push(k === 0 ? match.index : baseStart + k);
+      ends.push(k === base.length - 1 ? groupEnd : baseStart + k + 1);
+    }
+    cursor = groupEnd;
+  }
+  for (let i = cursor; i < line.length; i++) {
+    text += line[i];
+    starts.push(i);
+    ends.push(i + 1);
+  }
+  return { text, starts, ends };
+};
+
+/** The stripped index whose original span contains `origChar` (clamped to the nearest unit). */
+export const toStrippedIndex = (
+  stripped: RubyStripped,
+  origChar: number
+): number => {
+  for (let i = 0; i < stripped.text.length; i++) {
+    if (origChar < stripped.ends[i]) return i;
+  }
+  return stripped.text.length;
+};
+
 export interface RunSegment {
   surface: string;
   lemma: string;
 }
+
+export interface PosSegment extends RunSegment {
+  pos: string;
+}
+
+/**
+ * Merge each auxiliary (and a verb's て/で) onto the group before it, so a conjugated form is one
+ * unit: 食べ|たく|なかっ|た → 食べたくなかった with head lemma 食べる. Hovering any part of the
+ * conjugation then describes the word, not the fragment — the "suffixes detached from verbs"
+ * problem. Particles otherwise stay their own group (を belongs to no word).
+ */
+export const groupSegments = (
+  segments: PosSegment[]
+): Array<{ surface: string; lemma: string }> => {
+  const groups: Array<{ surface: string; lemma: string; headPos: string }> = [];
+  for (const s of segments) {
+    const last = groups.at(-1);
+    const attaches =
+      last !== undefined &&
+      (s.pos === "auxiliary" ||
+        (s.pos === "particle" &&
+          (s.surface === "て" || s.surface === "で") &&
+          last.headPos === "verb"));
+    if (attaches) last.surface += s.surface;
+    else groups.push({ surface: s.surface, lemma: s.lemma, headPos: s.pos });
+  }
+  return groups.map(({ surface, lemma }) => ({ surface, lemma }));
+};
 
 /**
  * The segment covering `offset` within the run the segments tile, plus the offset where it starts

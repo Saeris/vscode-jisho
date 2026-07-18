@@ -112,6 +112,7 @@ A settings view accumulating user preferences, reachable from the search bar (�
 - **TTS voice picker** — let the user choose from the Japanese voices the OS actually exposes (`getVoices()` filtered to `ja`), overriding the name-preference default from #13. Persist the choice (see persistence note below).
 - **Furigana toggle** — the on/off switch for #15.
 - **Text size** (added 2026-07-17) — a user-adjustable scale multiplier over the base font. The base got a fixed 1.08× lift (kanji need more pixels than latin to stay legible; the user found 13px kanji hard to read), but comfortable size is personal — expose the multiplier.
+- **Editor hover toggle** (added 2026-07-18) — on/off for the Japanese dictionary hover (#33); the user expects some users to find it distracting. Ship as a plain VS Code setting (`vscode-jisho.hover.enabled`, checked in provideHover) so it works before the settings VIEW exists; surface in the view later.
 
 **Persistence:** webview state doesn't survive reloads on its own. Persist prefs via a `setState`/`getState` message to the host, stored in the extension's `Memento` (`context.globalState`) — a small new message pair. Defer building the view until there are ≥2–3 real preferences to justify the chrome (voice + furigana is enough to start).
 
@@ -322,6 +323,8 @@ Ingredients already decided by adjacent feedback: explicit section splits with t
 
 ### 33. Editor integrations: lookup, translate-replace, and furigana authoring tools (feature — large, user priority)
 
+> See also #34 (contextual grammar notes) — born from this item's hover work.
+
 User direction (2026-07-17): _"these are the kind of deeper integrations that make this extension useful for people authoring text in Japanese"_ — the user edits Japanese in markdown documents regularly. The ruby syntax target is **mirrordown's** (`@mirrordown/mdit-ruby` + `@mirrordown/remd-ruby` render it identically): `{漢字|かんじ}` → `<ruby>漢字<rt>かんじ</rt></ruby>`, with tests and context in the parent monorepo (github.com/mirrordown/mirrordown).
 
 **Shipped (2026-07-17):** "Jisho: Look Up Selection" and "Jisho: Speak Selection" — palette + editor context menu (shown when a selection exists). Plumbing: a `HostPush` channel from host to webview with a `webviewReady` handshake, so a command issued before the sidebar ever opened queues and flushes once the bridge attaches; lookup reveals the view and drives the same `searchFor` path as tap-through (deinflection included — 食べました finds 食べる). Word-under-cursor (no selection) remains open below.
@@ -337,13 +340,25 @@ User direction (2026-07-17): _"these are the kind of deeper integrations that ma
 **Additional ideas (proposed, not yet user-approved):**
 
 - ~~Markdown preview integration~~ — unnecessary: the mirrordown monorepo already ships that exact VS Code preview extension (user, 2026-07-17).
-- **Hover provider** — PROTOTYPE SHIPPED (2026-07-18) for markdown + plaintext: hovering Japanese shows headword + reading, POS line, first-sense glosses, and an "Open in Jisho" command link; the tokenizer isolates the hovered word within its run (pure-kana runs search whole, ≤12 chars). Awaiting the user's hands-on refinement pass — candidates: more languages/schemes (code comments), richer content (pitch, more senses), a settings toggle, kana-run word isolation once hovered.
+- **Hover provider** — PROTOTYPE SHIPPED (2026-07-18), user verdict: "that kind of codelens feature is killer"; UI polish welcome. Round 2 same day, from the user's real authoring docs: (a) **mirrordown-ruby aware** — {食|た}べました hovers as 食べました (the line is stripped to base text with an index map back; a cursor on the braces or the reading resolves the base; the highlight covers the whole {…|…} construct); (b) **auxiliary grouping** — たくなかった attaches to its verb so hovering any fragment of 食べたくなかった describes 食べる, not たい (the "suffixes detached from verbs" report); a verb's て/で attaches too, case particles stay separate. Still open: **settings toggle** (user: "some users might find it distracting" — add to #14), richer content (pitch, more senses), more languages/schemes, particle hovers (see #34). Test fixtures: the user's sample docs (scripts.md, lesson-06.md, chapter-5 excerpts — mixed EN/JA with and without ruby markup) should land in e2e/fixtures/ from the originals (the copies shared in-conversation were encoding-mangled).
 - ~~Speak selection~~ — shipped with the first slice. Latency note (user, 2026-07-18): TTS onset is noticeably non-instant everywhere; our share (the up-to-1s getVoices wait on first use) is now pre-warmed at webview startup, the rest is Windows SAPI5 engine spin-up — out of our control via the Web Speech API (the neural OneCore voices aren't exposed to Chromium at all; see speech.ts header).
 - **Strip furigana** — inverse of Add: unwrap ruby syntax back to plain text.
 - **Kana ↔ romaji conversion** on selection.
 - ~~Editor context-menu group~~ — shipped (2026-07-18): a "Jisho" submenu in the editor context menu holds both commands (user feedback: the flat items lacked context that they belonged to the extension / Japanese).
 
 Sequencing: lookup-selection + context menu and speak-selection are small and independent (do first); copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing: mirrordown is MIT and the user's own project — integrate freely.
+
+### 34. Contextual grammar notes: explain particles, auxiliaries, and conjugation fragments (feature — large, content-heavy)
+
+User direction (2026-07-18), prompted by hovering grammatical fragments: dictionary entries explain WORDS, but a learner hovering は, を, 〜たくなかった, or 〜てしまう needs a GRAMMAR explanation — what the construct does, when it's used, its register. Quality bar: **Tae Kim's Guide to Japanese** and **Tofugu's grammar articles** are the user's reference standard for explaining nuance. Neither can be consumed as-is (Tae Kim is CC BY-NC-SA; Tofugu is plainly copyrighted) — **we derive our own original content**, using them only as models of what good explanations cover.
+
+Shape: a curated grammar-notes dataset (our own writing, versioned in-repo — it's content, not scraped data), keyed by grammar point: particles (は/が/を/に/で/へ/と/から/まで/より…), auxiliaries and endings (ます/た/ない/たい/そう/らしい/〜ている/〜てしまう…), conjunctive forms. Each note: one-paragraph explanation + a canonical example. Surfaces, in order of value:
+
+1. **Hover** — a particle/auxiliary segment under the cursor gets its grammar note (today it gets a thin JMdict entry at best). The auxiliary grouping (#33) already identifies the fragments.
+2. **Conjugation table** — deepen the existing Term tooltips with the same notes (single source).
+3. **Word page / grammar pages** — possibly a small grammar reference view later.
+
+Start small: the ~15 N5 particles and the auxiliary chain the conjugation table already generates. This is a writing task as much as a coding one — budget accordingly.
 
 ## Suggested sequencing
 

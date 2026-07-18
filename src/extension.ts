@@ -2,7 +2,13 @@ import * as vscode from "vscode";
 import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
-import { japaneseRunAt, wordAt } from "./host/hover";
+import {
+  groupSegments,
+  japaneseRunAt,
+  stripRuby,
+  toStrippedIndex,
+  wordAt
+} from "./host/hover";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
   GetStrokeSvgRequest,
@@ -134,17 +140,24 @@ class JishoViewProvider
     position: vscode.Position,
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | undefined> {
+    // Work on the line with mirrordown ruby markup stripped ({食|た}べました → 食べました): the
+    // braces would otherwise split the Japanese run and the hover would see fragments. All
+    // indexes below are stripped-space; the maps translate back for the highlight range.
     const line = document.lineAt(position.line).text;
-    const run = japaneseRunAt(line, position.character);
+    const stripped = stripRuby(line);
+    const cursor = toStrippedIndex(stripped, position.character);
+    const run = japaneseRunAt(stripped.text, cursor);
     if (run === null) return undefined;
 
     let surface = run.text;
     let lookup = run.text;
     let wordStart = run.start;
     if (HAS_KANJI.test(run.text)) {
-      const segments = await segment(run.text);
+      // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
+      // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
+      const groups = groupSegments(await segment(run.text));
       if (token.isCancellationRequested) return undefined;
-      const hit = wordAt(segments, position.character - run.start);
+      const hit = wordAt(groups, cursor - run.start);
       if (hit !== null) {
         surface = hit.segment.surface;
         lookup = hit.segment.lemma === "" ? surface : hit.segment.lemma;
@@ -177,9 +190,9 @@ class JishoViewProvider
       md,
       new vscode.Range(
         position.line,
-        wordStart,
+        stripped.starts[wordStart],
         position.line,
-        wordStart + surface.length
+        stripped.ends[wordStart + surface.length - 1]
       )
     );
   }

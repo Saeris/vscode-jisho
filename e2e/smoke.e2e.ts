@@ -105,10 +105,12 @@ test("hovering Japanese text shows a dictionary hover", async () => {
     .click({ position: { x: 200, y: 200 } });
   await win.keyboard.press("Control+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
-  await win.keyboard.type("食べました");
-  const word = win.locator(".view-line", { hasText: "食べました" }).first();
+  // The hardest case in one line: mirrordown ruby markup AND a complex conjugation. The braces
+  // must not split the run, the cursor lands on "{" and maps into the base, the auxiliaries
+  // (たくなかった) group onto the verb, and the lemma 食べる resolves the entry.
+  await win.keyboard.type("{食|た}べたくなかった");
+  const word = win.locator(".view-line", { hasText: "べたくなかった" }).first();
   await word.waitFor();
-  // Hover the word: the tokenizer isolates 食べました and its lemma 食べる resolves the entry.
   await word.locator("span span").first().hover();
   // Each editor owns an (empty) hover container; filter to the one that actually populated.
   const hover = win
