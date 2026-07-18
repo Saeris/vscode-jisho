@@ -19,7 +19,8 @@ test.beforeAll(async () => {
   vscode = await launchVSCode({
     "vscode-jisho.appearance.textScale": 1.5,
     "vscode-jisho.strokeOrder.guideStyle": "aligned",
-    "vscode-jisho.hover.enabled": false
+    "vscode-jisho.hover.enabled": false,
+    "vscode-jisho.highlighting.enabled": true
   });
   await openJishoSidebar(app().window);
 });
@@ -83,4 +84,37 @@ test("hover.enabled=false suppresses the dictionary hover", async () => {
   await expect(
     win.locator(".monaco-hover-content").filter({ hasText: "to eat" })
   ).toHaveCount(0);
+});
+
+test("highlighting.enabled colors Japanese by part of speech", async () => {
+  const win = app().window;
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  // noun + particle + conjugated verb: at least three token types land on one line.
+  await win.keyboard.type("写真を見せました");
+  const word = win
+    .locator(".view-line", { hasText: "写真を見せました" })
+    .first();
+  await word.waitFor();
+  // Semantic tokens apply asynchronously; poll until the line renders more than one color.
+  await expect
+    .poll(
+      async () =>
+        word.evaluate(
+          (el) =>
+            new Set(
+              [...el.querySelectorAll("span")].map(
+                (s) => getComputedStyle(s).color
+              )
+            ).size
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(1);
+  // Reference shot for the POS-coloring design iteration (BACKLOG #38).
+  await win.screenshot({ path: "test-results/shots/03-pos-highlighting.png" });
 });

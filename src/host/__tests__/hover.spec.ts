@@ -3,6 +3,7 @@ import {
   describeGroup,
   groupSegments,
   japaneseRunAt,
+  japaneseRuns,
   stripRuby,
   toStrippedIndex,
   wordAt
@@ -173,5 +174,16 @@ describe("groupSegments with pre-folded segments", () => {
     expect(describeGroup(group)).toBe(
       "食べたくなかった = 食べる + 〜たい (want to) + 〜ない (negation) + 〜た (past)"
     );
+  });
+});
+
+describe("japaneseRuns", () => {
+  it("finds every Japanese run in a mixed line, in order with offsets", () => {
+    // WHY: the semantic-highlighting walk — miss a run and its words silently stay uncolored.
+    expect(japaneseRuns("I ate 食べました and 寿司 today")).toEqual([
+      { text: "食べました", start: 6 },
+      { text: "寿司", start: 16 }
+    ]);
+    expect(japaneseRuns("no japanese here")).toEqual([]);
   });
 });

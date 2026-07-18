@@ -6,6 +6,8 @@
 
 /** Kana, CJK ideographs (+ compat), the prolonged-sound mark and iteration marks. */
 const JA_CHAR = /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ]/;
+/** Same class, as whole runs (fresh regex per call — a shared /g regex carries lastIndex state). */
+const JA_RUNS = (): RegExp => /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ]+/g;
 
 export interface JaRun {
   text: string;
@@ -34,6 +36,10 @@ export const japaneseRunAt = (
   while (at(end)) end++;
   return { text: line.slice(start, end), start };
 };
+
+/** Every Japanese run in a line, in order — the semantic-highlighting walk. */
+export const japaneseRuns = (line: string): JaRun[] =>
+  [...line.matchAll(JA_RUNS())].map((m) => ({ text: m[0], start: m.index }));
 
 /**
  * A line with mirrordown ruby markup ({食|た}べます) stripped to its base text, plus per-character

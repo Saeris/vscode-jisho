@@ -76,6 +76,11 @@
     "configuration": {
       "title": "Jisho",
       "properties": {
+        "vscode-jisho.highlighting.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Color Japanese text by part of speech in Markdown and plain-text files — a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get a theme color), making word boundaries visible."
+        },
         "vscode-jisho.hover.enabled": {
           "type": "boolean",
           "default": true,
