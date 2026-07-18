@@ -360,6 +360,35 @@ Shape: a curated grammar-notes dataset (our own writing, versioned in-repo — i
 
 Start small: the ~15 N5 particles and the auxiliary chain the conjugation table already generates. This is a writing task as much as a coding one — budget accordingly.
 
+### 35. Sort browseable lists by reading — gojūon order (fix — small)
+
+Codepoint order over kanji is meaningless; Japanese "alphabetical" order is 五十音順 applied to the READING — and we already store readings for everything, so proper Japanese collation is nearly free. Apply to any browseable list (kanji detail's word list, name results, radical-picker matches): normalize katakana → hiragana, fold small kana and voiced marks (JIS X 4061 is the reference standard for the comparison rules), sort. Most Western dictionary apps get this wrong; getting it right is cheap differentiation. Note: search RESULTS keep relevance order — this is for lists a user scans like an index.
+
+### 36. Name-reading fallback in the hover (JMnedict) — gated against false positives (feature — medium)
+
+Hovering 田中 or 由紀子 in a document should resolve name readings — the "name readings are unknowable data" problem the whole Japanese ecosystem (furigana form fields, the 2025 Family Register reading requirement) is built around, and we already ship JMnedict. **User-flagged risk (2026-07-18): false positives** — JMnedict is enormous and nearly every common word is also somebody's name; an unconditional fallback would caption half the vocabulary with "female given name". Design gates from the start: (a) fire only when the WORD dictionary misses entirely; (b) boost confidence on adjacent name markers (さん/様/氏/くん/ちゃん); (c) render as a clearly-secondary line ("as a name: タナカ — surname"). Depends on the names DB being provisioned (it's an opt-in download — degrade to nothing, never prompt from a hover).
+
+### 37. Misconversion & learner-grammar lint — "Jisho lint" diagnostics (feature — large)
+
+The dominant Japanese text error is 誤変換 (IME homophone misconversion: 機会/機械, 保証/保障/補償), and the checking tradition is proofreading-shaped (Word's 校正, Just Right!, ATOK's hints, textlint's ja presets). A DiagnosticProvider on markdown/plaintext could flag, with learner-oriented explanations (#34's notes, not terse flags):
+
+- homophone confusables: tokenizer + dictionary find same-reading/different-kanji candidates in context;
+- ら抜き言葉 and friends: the conjugation engine GENERATES ら抜き forms (#19), so it can DETECT them — one table, both directions;
+- register mixing (です・ます vs だ・である) — cheap to detect from the auxiliary chain the hover already extracts.
+
+Prior art to study for rule shape (not content): textlint-rule-preset-ja-technical-writing. Fold into #38's server if that lands first.
+
+### 38. Japanese-as-a-language-server: POS highlighting, lemma references, wakachigaki formatting (umbrella — large, remark-ayaji lineage)
+
+User direction (2026-07-18). Tree-sitter itself doesn't fit — natural Japanese isn't context-free, and the morphological analyzer already plays Tree-sitter's role (Lindera's token stream IS the parse). But the programming-tools mapping is real, delivered through VS Code's own surfaces (and eventually an LSP wrapper so it all works in any editor — LSP as packaging, not feature):
+
+- **POS semantic highlighting** — remark-ayaji's goal, editor-native: a DocumentSemanticTokensProvider colors particles/verbs/nouns/adjectives in markdown/plaintext, so learners can see the word boundaries spaces don't mark. Theme-aware token colors; #14 toggle.
+- **分かち書き formatter** — the user manually inserts spaces to break down sentences (see their sample docs; also for pasting into Figma slides). Deterministic with the tokenizer: "Format Document (learner spacing)" inserts spaces at word boundaries; the inverse strips them. Prettier for Japanese prose; round-trippable.
+- **Lemma-aware occurrences** — find-references/rename analogs: highlight all occurrences of a word regardless of conjugation (食べる matches 食べたくなかった via the lemma index the hover already computes). Self-editing aid: overuse detection.
+- **Readability profiling** — code-metrics analog: per-document JLPT-level breakdown ("82% N5, 3 words above N3") via the word-level JLPT data we ship; ideal for authoring course material at a target level (the user teaches with these docs).
+
+Sequencing within: semantic highlighting first (pure win, reuses everything), then the formatter (small, high personal value to the user), references, profiling; LSP extraction last, once the services stabilize. #37's diagnostics ride the same infrastructure.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
