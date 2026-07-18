@@ -66,8 +66,43 @@
         "command": "vscode-jisho.speakSelection",
         "title": "Speak Selection",
         "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.openSettings",
+        "title": "Open Settings",
+        "category": "Jisho"
       }
     ],
+    "configuration": {
+      "title": "Jisho",
+      "properties": {
+        "vscode-jisho.hover.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a dictionary hover (reading, meanings, conjugation breakdown) over Japanese text in Markdown and plain-text files."
+        },
+        "vscode-jisho.appearance.textScale": {
+          "type": "number",
+          "default": 1.08,
+          "minimum": 0.8,
+          "maximum": 2,
+          "description": "Text size in the Jisho panel, as a multiplier over VS Code's font size. Kanji often need a little more room than Latin text."
+        },
+        "vscode-jisho.strokeOrder.guideStyle": {
+          "type": "string",
+          "enum": [
+            "offset",
+            "aligned"
+          ],
+          "enumDescriptions": [
+            "Direction arrows sit beside the stroke, leaving it visible while it draws.",
+            "Direction arrows trace the stroke's own path (Duolingo-style)."
+          ],
+          "default": "offset",
+          "description": "How the stroke-order player draws its direction guides."
+        }
+      }
+    },
     "submenus": [
       {
         "id": "vscode-jisho.editorSubmenu",

@@ -134,3 +134,25 @@ describe("host pushes", () => {
     expect(seen).toHaveLength(1);
   });
 });
+
+describe("host settings", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("routes settings snapshots to subscribers, outside the request correlation", async () => {
+    // WHY: settings are pushed (initial + on every Settings-UI edit), not requested — if they fell
+    // into the correlation path they'd be dropped as unmatched responses.
+    const { bridge, deliver } = await setup();
+    const seen: unknown[] = [];
+    bridge.onHostSettings((s) => seen.push(s));
+    deliver({
+      type: "hostSettings",
+      settings: { textScale: 1.5, guideStyle: "aligned" }
+    });
+    expect(seen).toEqual([{ textScale: 1.5, guideStyle: "aligned" }]);
+  });
+});

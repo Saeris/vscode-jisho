@@ -12,6 +12,7 @@ import { namesQuery, searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
 import { SegmentBar } from "../components/SegmentBar";
+import { openSettings } from "../bridge";
 import styles from "./SearchResults.module.css";
 
 interface SearchResultsProps {
@@ -117,6 +118,13 @@ export const SearchResults = ({
           aria-label="Draw a kanji to search"
         >
           ✏️
+        </Button>
+        <Button
+          className={styles.iconButton}
+          onPress={() => void openSettings()}
+          aria-label="Open Jisho settings"
+        >
+          ⚙
         </Button>
         <Button
           className={styles.iconButton}

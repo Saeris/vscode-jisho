@@ -11,6 +11,7 @@ import type {
   GetStrokeSvgResponse,
   GetWordResponse,
   HostPush,
+  HostSettings,
   LookupRadicalsResponse,
   Request,
   Response,
@@ -40,11 +41,30 @@ export const onHostPush = (handler: (push: HostPush) => void): (() => void) => {
   };
 };
 
+/** Subscribers to host settings snapshots (initial + on every Settings-UI edit). */
+const settingsHandlers = new Set<
+  (settings: HostSettings["settings"]) => void
+>();
+
+/** Subscribe to settings snapshots; returns the unsubscribe. */
+export const onHostSettings = (
+  handler: (settings: HostSettings["settings"]) => void
+): (() => void) => {
+  settingsHandlers.add(handler);
+  return (): void => {
+    settingsHandlers.delete(handler);
+  };
+};
+
 // `event.data` is whatever the host posted; validate its shape before trusting it.
 window.addEventListener("message", (event: MessageEvent<unknown>) => {
   const message = event.data;
   if (isHostPush(message)) {
     for (const handler of pushHandlers) handler(message);
+    return;
+  }
+  if (isHostSettings(message)) {
+    for (const handler of settingsHandlers) handler(message.settings);
     return;
   }
   if (!isResponse(message)) return;
@@ -66,6 +86,13 @@ const isHostPush = (value: unknown): value is HostPush =>
   "action" in value &&
   "text" in value &&
   typeof value.text === "string";
+
+const isHostSettings = (value: unknown): value is HostSettings =>
+  typeof value === "object" &&
+  value !== null &&
+  "type" in value &&
+  value.type === "hostSettings" &&
+  "settings" in value;
 
 const isResponse = (value: unknown): value is Response =>
   typeof value === "object" &&
@@ -190,4 +217,9 @@ export const getName = async (id: string): Promise<GetNameResponse> => {
   if (response.type !== "getName")
     throw new Error("Unexpected response for getName");
   return response;
+};
+
+/** Ask the host to open VS Code's Settings UI at the Jisho section (the sidebar's ⚙). */
+export const openSettings = async (): Promise<void> => {
+  await send({ type: "openSettings", requestId: nextRequestId() });
 };

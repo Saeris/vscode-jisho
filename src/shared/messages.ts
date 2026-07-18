@@ -285,6 +285,12 @@ export interface GetNameRequest {
   id: string;
 }
 
+/** Open VS Code's Settings UI filtered to this extension's section (the sidebar's ⚙). */
+export interface OpenSettingsRequest {
+  type: "openSettings";
+  requestId: string;
+}
+
 export type Request =
   | SearchRequest
   | GetWordRequest
@@ -294,7 +300,8 @@ export type Request =
   | LookupRadicalsRequest
   | GetAboutRequest
   | SearchNamesRequest
-  | GetNameRequest;
+  | GetNameRequest
+  | OpenSettingsRequest;
 
 export interface SearchResponse {
   type: "search";
@@ -358,6 +365,11 @@ export interface SearchNamesResponse {
   names: NameResultDto[];
 }
 
+export interface OpenSettingsResponse {
+  type: "openSettings";
+  requestId: string;
+}
+
 export interface GetNameResponse {
   type: "getName";
   requestId: string;
@@ -391,6 +403,20 @@ export interface WebviewReady {
   type: "webviewReady";
 }
 
+/**
+ * Settings snapshot pushed host → webview: once on `webviewReady`, again whenever the user edits
+ * the extension's section in VS Code's Settings UI. The webview applies these as CSS variables.
+ */
+export interface HostSettings {
+  type: "hostSettings";
+  settings: {
+    /** Multiplier over VS Code's base font size for the whole panel. */
+    textScale: number;
+    /** Stroke-order guide arrows: clear of the stroke ("offset") or tracing it ("aligned"). */
+    guideStyle: "offset" | "aligned";
+  };
+}
+
 export type Response =
   | SearchResponse
   | GetWordResponse
@@ -401,4 +427,5 @@ export type Response =
   | GetAboutResponse
   | SearchNamesResponse
   | GetNameResponse
+  | OpenSettingsResponse
   | ErrorResponse;

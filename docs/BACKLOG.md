@@ -105,9 +105,15 @@ Play buttons on word/kanji detail pages speak readings via the Web Speech API, w
 
 **As-built voice-quality finding:** Chromium/Electron's Web Speech API exposes only the OS's **classic SAPI5** Japanese voices (on Windows: Ayumi/Haruka/Ichiro/Sayaka), never the modern "Natural"/OneCore neural voices — a Chromium limitation. `localService` is uniformly `true`, so it's useless as a quality signal; selection now walks a name-preference list (`src/webview/speech.ts` `PREFERRED_VOICE_HINTS`) and defaults to a sensible SAPI5 voice. The genuine quality upgrade (bundled/downloaded audio) stays deferred — larger data effort, only worth it if synthesis quality proves unacceptable.
 
-### 14. Preferences / settings view (feature — medium)
+### 14. Preferences — native VS Code settings (decision changed 2026-07-18; groundwork SHIPPED)
 
-A settings view accumulating user preferences, reachable from the search bar (⚙ affordance) as another navigation-stack view. First candidates:
+**User decision:** no custom settings view — settings live in VS Code's native Settings UI via `contributes.configuration`, and the sidebar's ⚙ (search toolbar) opens the Jisho section (`workbench.action.openSettings @ext:saeris.vscode-jisho`; also palette: "Jisho: Open Settings"). Groundwork shipped with three settings proving both delivery paths:
+
+- `vscode-jisho.hover.enabled` — host-side gate, read per hover.
+- `vscode-jisho.appearance.textScale` — webview-side: settings snapshots push host → webview (`hostSettings` on `webviewReady` + on every `onDidChangeConfiguration`) and land as CSS variables (`--jisho-text-scale`), so components never read configuration directly and edits apply live without a reload.
+- `vscode-jisho.strokeOrder.guideStyle` — exposes the `--guide-offset` dial (aligned/offset arrows) that had been sitting unwired since the stroke player work.
+
+`e2e/settings.e2e.ts` launches with all three overridden in the seeded profile and verifies each path. Remaining candidates below — add each as a plain contributed setting; webview-affecting ones ride the same push:
 
 - **TTS voice picker** — let the user choose from the Japanese voices the OS actually exposes (`getVoices()` filtered to `ja`), overriding the name-preference default from #13. Persist the choice (see persistence note below).
 - **Furigana toggle** — the on/off switch for #15.

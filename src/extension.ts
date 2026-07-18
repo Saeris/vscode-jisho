@@ -14,6 +14,8 @@ import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
   GetStrokeSvgRequest,
   HostPush,
+  HostSettings,
+  OpenSettingsRequest,
   Request,
   Response,
   SegmentDto,
@@ -56,6 +58,15 @@ const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   return { segments, lemmas };
 };
 
+/** Snapshot of the webview-relevant settings, read fresh so edits apply without a reload. */
+const currentSettings = (): HostSettings["settings"] => {
+  const config = vscode.workspace.getConfiguration("vscode-jisho");
+  return {
+    textScale: config.get("appearance.textScale", 1.08),
+    guideStyle: config.get("strokeOrder.guideStyle", "offset")
+  };
+};
+
 /** The active editor's selected text, trimmed; undefined when there is none. */
 const selectionText = (): string | undefined => {
   const editor = vscode.window.activeTextEditor;
@@ -84,6 +95,16 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("vscode-jisho.lookupText", (text: string) =>
       provider.push({ type: "hostPush", action: "search", text })
     ),
+    vscode.commands.registerCommand("vscode-jisho.openSettings", () => {
+      void vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@ext:saeris.vscode-jisho"
+      );
+    }),
+    // Live settings: re-push the snapshot whenever the user edits the Jisho section.
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("vscode-jisho")) provider.pushSettings();
+    }),
     vscode.languages.registerHoverProvider(["markdown", "plaintext"], {
       provideHover: async (document, position, token) =>
         provider.hover(document, position, token)
@@ -130,6 +151,17 @@ class JishoViewProvider
     }
   }
 
+  /** Push the current settings snapshot to a live webview (no-op until webviewReady). */
+  pushSettings(): void {
+    if (this.#ready && this.#view) {
+      const message: HostSettings = {
+        type: "hostSettings",
+        settings: currentSettings()
+      };
+      void this.#view.webview.postMessage(message);
+    }
+  }
+
   /**
    * Dictionary hover for Japanese text (prototype, BACKLOG #33): the run under the cursor is
    * tokenized to isolate the hovered word, its dictionary entry renders as reading + first-sense
@@ -141,6 +173,11 @@ class JishoViewProvider
     position: vscode.Position,
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | undefined> {
+    // The #14 toggle: some users will find an always-on hover distracting.
+    const enabled = vscode.workspace
+      .getConfiguration("vscode-jisho")
+      .get<boolean>("hover.enabled", true);
+    if (!enabled) return undefined;
     // Work on the line with mirrordown ruby markup stripped ({食|た}べました → 食べました): the
     // braces would otherwise split the Japanese run and the hover would see fragments. All
     // indexes below are stripped-space; the maps translate back for the highlight range.
@@ -249,6 +286,8 @@ class JishoViewProvider
     view.webview.onDidReceiveMessage((msg: Request | WebviewReady) => {
       if (msg.type === "webviewReady") {
         this.#ready = true;
+        // Settings first, so the panel is styled before any queued command lands.
+        this.pushSettings();
         for (const queued of this.#queuedPushes.splice(0)) {
           void view.webview.postMessage(queued);
         }
@@ -261,11 +300,13 @@ class JishoViewProvider
   async #handle(webview: vscode.Webview, request: Request): Promise<void> {
     try {
       const response =
-        request.type === "getStrokeSvg"
-          ? await this.#strokeSvg(request)
-          : request.type === "searchNames" || request.type === "getName"
-            ? await respondNames(await this.#namesDict(), request)
-            : await respond(await this.#dict(), request);
+        request.type === "openSettings"
+          ? openSettings(request)
+          : request.type === "getStrokeSvg"
+            ? await this.#strokeSvg(request)
+            : request.type === "searchNames" || request.type === "getName"
+              ? await respondNames(await this.#namesDict(), request)
+              : await respond(await this.#dict(), request);
       await webview.postMessage(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -352,10 +393,22 @@ class JishoViewProvider
   }
 }
 
+/** The sidebar's ⚙: open VS Code's Settings UI filtered to this extension's section. */
+const openSettings = (request: OpenSettingsRequest): Response => {
+  void vscode.commands.executeCommand(
+    "workbench.action.openSettings",
+    "@ext:saeris.vscode-jisho"
+  );
+  return { type: "openSettings", requestId: request.requestId };
+};
+
 /** Requests served by the word/kanji dictionary (not the names DB, not the file-backed SVGs). */
 type WordRequest = Exclude<
   Request,
-  { type: "searchNames" } | { type: "getName" } | { type: "getStrokeSvg" }
+  | { type: "searchNames" }
+  | { type: "getName" }
+  | { type: "getStrokeSvg" }
+  | { type: "openSettings" }
 >;
 
 /** Dispatch a word/kanji request to the dictionary and build its response. */
