@@ -29,7 +29,7 @@ const words: SearchResultDto[] = [
 // SearchResults imports the bridge directly for the settings gear; the real module calls
 // acquireVsCodeApi at load, which jsdom doesn't have.
 vi.mock("../../bridge", () => ({
-  openSettings: vi.fn(async () => undefined)
+  openSettings: vi.fn<() => Promise<void>>(async () => undefined)
 }));
 
 vi.mock("../../queries", () => ({
