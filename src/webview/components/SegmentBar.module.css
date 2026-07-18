@@ -18,7 +18,7 @@
   /* Colored by POS via the data-pos attribute below; the color tints text + border. */
   color: var(--pos-color, var(--jisho-fg));
   border-color: color-mix(
-    in srgb,
+    in oklch,
     var(--pos-color, transparent) 40%,
     transparent
   );

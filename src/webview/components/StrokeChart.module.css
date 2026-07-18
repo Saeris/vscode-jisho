@@ -68,7 +68,7 @@
   stroke-dasharray: 3337;
   stroke-dashoffset: calc(3339 * (1 - var(--stroke-progress)));
   stroke: color-mix(
-    in srgb,
+    in oklch,
     var(--jisho-guide-arrow) calc(var(--stroke-newest) * 100%),
     var(--jisho-fg) calc((1 - var(--stroke-newest)) * 100%)
   );

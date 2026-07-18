@@ -79,7 +79,7 @@
   --part-hl: clamp(0, calc(1 - abs(var(--hl-part) - var(--part))), 1);
 
   fill: color-mix(
-    in srgb,
+    in oklch,
     var(--jisho-guide-accent) calc(var(--part-hl) * 100%),
     var(--jisho-fg) calc((1 - var(--part-hl)) * 100%)
   );
@@ -100,7 +100,7 @@
 
   fill: none;
   stroke: color-mix(
-    in srgb,
+    in oklch,
     var(--jisho-guide-accent) calc(var(--part-hl) * 100%),
     var(--jisho-fg) calc((1 - var(--part-hl)) * 100%)
   );

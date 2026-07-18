@@ -30,16 +30,12 @@
    */
   --jisho-guide-accent: var(--vscode-charts-green, #1a7f37);
   --jisho-guide-arrow: var(--vscode-charts-red, #d1242f);
-  /* Conjugation-suffix emphasis. charts-orange alone reads fine on dark themes but washes out on
-     light ones (user report, "Tomorrow" theme) — mixing the hue toward the theme's own foreground
-     pulls it darker on light themes and lighter on dark ones, keeping the tint while tracking the
-     text's contrast direction. Judge changes here by APCA legibility in BOTH modes (the light-theme
-     E2E capture exists for exactly this). */
-  --jisho-inflection: color-mix(
-    in srgb,
-    var(--vscode-charts-orange, #bc4c00) 60%,
-    var(--jisho-fg) 40%
-  );
+  /* Conjugation-suffix emphasis. Not a mix: srgb blending muddied both hue and lightness (two
+     user reports). Instead, take the LIGHTNESS from the theme's own foreground — which contrasts
+     with the background by definition, so the accent inherits body-text legibility exactly — and
+     paint the orange hue/chroma onto it. APCA contrast tracks lightness difference, so this holds
+     in any theme. Verify with the light-theme E2E capture. */
+  --jisho-inflection: oklch(from var(--jisho-fg) l 0.14 60);
 
   --jisho-radius: 4px;
   --jisho-gap: 8px;
