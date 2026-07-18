@@ -14,14 +14,18 @@ const row = (
 };
 
 describe("conjugate: verb classes", () => {
-  it("conjugates an ichidan verb, ら抜き potential in parens", () => {
+  it("conjugates an ichidan verb, with the ら抜き potential variant", () => {
     // WHY: Shirabe shows the colloquial 食べれる alongside the standard form (BACKLOG #19) —
     // learners meet the ら抜き form constantly and need to see it's the same word.
     expect(row("食べる", ["v1"], "Non-past")).toEqual(["食べる", "食べない"]);
     expect(row("食べる", ["v1"], "Potential")).toEqual([
-      "食べられる (食べれる)",
+      "食べられる",
       "食べられない"
     ]);
+    expect(
+      conjugate("食べる", ["v1"])?.find((r) => r.form === "Potential")
+        ?.colloquial
+    ).toBe("食べれる");
     expect(row("食べる", ["v1"], "Volitional")).toEqual(["食べよう", ""]);
   });
 

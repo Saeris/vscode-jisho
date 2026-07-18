@@ -126,22 +126,18 @@
   text-decoration: underline;
 }
 
-/* Example sentences: a collapsible disclosure per sense (collapsed by default so long lists don't
-   dominate the detail view). */
+/* Example sentences: the first couple inline, the rest behind "Show all". */
 .examples {
   margin-top: 6px;
-}
-
-.examplesHeading {
-  margin: 0;
-  font-size: 0.9em;
 }
 
 .examplesTrigger {
   background: transparent;
   border: none;
   padding: 0;
+  margin-top: 4px;
   font: inherit;
+  font-size: 0.85em;
   color: var(--jisho-link);
   cursor: pointer;
 }
@@ -173,10 +169,29 @@
   font-size: 0.9em;
 }
 
+/* An explicit section split (border + spaced uppercase heading), not a collapse — the table is
+   the content, so it's visible by default. The section is a size container so the table can drop
+   to its stacked two-column layout when the sidebar is narrow. */
 .conjugations {
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 16px;
+  padding-top: 10px;
   border-top: 1px solid var(--jisho-border);
+  container-type: inline-size;
+}
+
+/* Section heading, matching the app-wide convention (StrokeOrder's Chart heading). */
+.sectionHeading {
+  margin: 0 0 6px;
+  font-size: 0.85em;
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+}
+
+/* The part of a form that differs from the dictionary form. */
+.inflection {
+  color: var(--jisho-inflection);
 }
 
 .conjTable {
@@ -205,4 +220,31 @@
   color: var(--jisho-muted);
   font-weight: normal;
   white-space: nowrap;
+}
+
+/* Narrow sidebars: three columns pinch the Japanese into vertical shreds, so stack instead —
+   form name on its own line, affirmative and negative side by side under it. The thead is
+   visually hidden but kept in the tree so the cells stay labelled. */
+@container (max-width: 379px) {
+  .conjTable thead {
+    position: absolute;
+    clip-path: inset(50%);
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .conjTable tr {
+    display: grid;
+    /* Affirmative hugs its content so the (usually longer) negative gets the slack — an even
+       split wrapped 食べませんでした while the left column sat half empty. */
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    column-gap: 14px;
+  }
+
+  .conjTable tbody th {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
 }

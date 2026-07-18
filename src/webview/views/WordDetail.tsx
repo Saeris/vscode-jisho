@@ -1,10 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Button,
-  Disclosure,
-  DisclosurePanel,
-  Heading
-} from "react-aria-components";
+import { Button, Heading } from "react-aria-components";
 import type {
   KanaDto,
   SenseDto,
@@ -128,8 +124,34 @@ const WordBody = ({
 };
 
 /**
- * Word-level conjugation table (Shirabe-style), collapsed by default. Renders nothing for
- * non-conjugable words — the engine's null IS the gate.
+ * A conjugated form with the part that differs from the dictionary form emphasised — the eye can
+ * find "what got added" without re-deriving the stem. Longest common code-point prefix against the
+ * dictionary form; forms that replace the whole word (ある → ない) emphasise everything, which is
+ * exactly the warning they deserve.
+ */
+const Inflected = ({
+  dict,
+  text
+}: {
+  dict: string;
+  text: string;
+}): React.ReactElement => {
+  const base = Array.from(dict);
+  const chars = Array.from(text);
+  let i = 0;
+  while (i < chars.length && i < base.length && chars[i] === base[i]) i++;
+  return (
+    <>
+      {chars.slice(0, i).join("")}
+      <span className={styles.inflection}>{chars.slice(i).join("")}</span>
+    </>
+  );
+};
+
+/**
+ * Word-level conjugation table (Shirabe-style), a plain visible section — the split from the
+ * senses is the heading, not a collapse. Renders nothing for non-conjugable words — the engine's
+ * null IS the gate.
  */
 const Conjugations = ({
   headword,
@@ -144,35 +166,46 @@ const Conjugations = ({
   );
   if (rows === null) return null;
   return (
-    <Disclosure className={styles.conjugations}>
-      <Heading level={3} className={styles.examplesHeading}>
-        <Button slot="trigger" className={styles.examplesTrigger}>
-          Conjugations
-        </Button>
+    <section className={styles.conjugations}>
+      <Heading level={3} className={styles.sectionHeading}>
+        Conjugations
       </Heading>
-      <DisclosurePanel>
-        <table className={styles.conjTable}>
-          <thead>
-            <tr>
-              <th scope="col">Form</th>
-              <th scope="col">Affirmative</th>
-              <th scope="col">Negative</th>
+      <table className={styles.conjTable}>
+        <thead>
+          <tr>
+            <th scope="col">Form</th>
+            <th scope="col">Affirmative</th>
+            <th scope="col">Negative</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.form}>
+              <th scope="row">
+                <Term>{r.form}</Term>
+              </th>
+              <td lang="ja">
+                <Inflected dict={headword} text={r.affirmative} />
+                {r.colloquial === undefined ? null : (
+                  <>
+                    {" ("}
+                    <Inflected dict={headword} text={r.colloquial} />
+                    {")"}
+                  </>
+                )}
+              </td>
+              <td lang="ja">
+                {r.negative === "" ? (
+                  "—"
+                ) : (
+                  <Inflected dict={headword} text={r.negative} />
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.form}>
-                <th scope="row">
-                  <Term>{r.form}</Term>
-                </th>
-                <td lang="ja">{r.affirmative}</td>
-                <td lang="ja">{r.negative === "" ? "—" : r.negative}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </DisclosurePanel>
-    </Disclosure>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 };
 
@@ -255,21 +288,25 @@ const Sense = ({
   </li>
 );
 
-/** Collapsible example-sentence section for a sense: Japanese sentence over its English gloss. */
+/** How many example sentences a sense shows before "Show all". */
+const EXAMPLE_PREVIEW = 2;
+
+/**
+ * Example sentences for a sense: the first couple visible inline (no collapse — hiding them made
+ * the page read as if it had none), the rest behind "Show all". A dedicated examples page will
+ * replace the in-place expansion once it exists (BACKLOG #20c).
+ */
 const Examples = ({
   sentences
 }: {
   sentences: SentenceDto[];
-}): React.ReactElement => (
-  <Disclosure className={styles.examples}>
-    <Heading level={4} className={styles.examplesHeading}>
-      <Button slot="trigger" className={styles.examplesTrigger}>
-        Examples ({sentences.length})
-      </Button>
-    </Heading>
-    <DisclosurePanel>
+}): React.ReactElement => {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? sentences : sentences.slice(0, EXAMPLE_PREVIEW);
+  return (
+    <div className={styles.examples}>
       <ul className={styles.exampleList}>
-        {sentences.map((s, i) => (
+        {visible.map((s, i) => (
           <li key={i} className={styles.example}>
             <span className={styles.exampleJa} lang="ja">
               {s.ja}
@@ -278,9 +315,17 @@ const Examples = ({
           </li>
         ))}
       </ul>
-    </DisclosurePanel>
-  </Disclosure>
-);
+      {sentences.length > EXAMPLE_PREVIEW && !expanded ? (
+        <Button
+          className={styles.examplesTrigger}
+          onPress={() => setExpanded(true)}
+        >
+          Show all ({sentences.length})
+        </Button>
+      ) : null}
+    </div>
+  );
+};
 
 /** Cross-references as tappable links: clicking one searches for that term. */
 const XrefLine = ({

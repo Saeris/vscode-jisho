@@ -53,8 +53,9 @@ test("capture: word detail (pitch contour, JLPT badge, examples)", async () => {
   );
 });
 
-test("capture: word detail — examples expanded", async () => {
-  // Self-contained: navigate from search rather than depending on the previous capture's state.
+test("capture: word detail — conjugation table", async () => {
+  // Examples render inline on the base word-detail capture now, and the conjugation table is a
+  // visible section — no disclosure to open first.
   const frame = await jishoFrame(app().window);
   const back = frame.getByRole("button", { name: /back/i });
   if (await back.isVisible().catch(() => false)) await back.click();
@@ -63,29 +64,7 @@ test("capture: word detail — examples expanded", async () => {
     .getByRole("option", { name: /食べる/ })
     .first()
     .click();
-  // The disclosure trigger is a plain <button> whose text is "Examples (n)" (confirmed by dumping
-  // the live DOM — getByRole with a name filter proved unreliable across the mounted-but-hidden
-  // search view that <Activity> keeps in the tree).
-  await frame
-    .locator("button", { hasText: /^Examples/ })
-    .first()
-    .click();
-  await screenshotSidebar(
-    app().window,
-    "test-results/shots/12b-word-detail-examples.png"
-  );
-});
-
-test("capture: word detail — conjugation table expanded", async () => {
-  const frame = await jishoFrame(app().window);
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
-  await frame.getByRole("searchbox").fill("食べる");
-  await frame
-    .getByRole("option", { name: /食べる/ })
-    .first()
-    .click();
-  await frame.getByRole("button", { name: "Conjugations" }).click();
+  await frame.getByRole("heading", { name: "Conjugations" }).waitFor();
   await screenshotSidebar(
     app().window,
     "test-results/shots/12c-word-detail-conjugations.png"

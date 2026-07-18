@@ -12,6 +12,8 @@ export interface ConjugationRow {
   affirmative: string;
   /** Empty when the form has no standard negative (e.g. volitional). */
   negative: string;
+  /** Colloquial variant of the affirmative (the ら抜き potential), when one exists. */
+  colloquial?: string;
 }
 
 /** The five bases + te/ta endings for each godan class, keyed by the POS code's consonant letter.
@@ -187,11 +189,11 @@ const verbRows = (b: VerbBases): ConjugationRow[] => [
   { form: "Te-form", affirmative: b.te, negative: `${b.nai}なくて` },
   {
     form: "Potential",
-    affirmative:
-      b.potentialColloquial === undefined
-        ? b.potential
-        : `${b.potential} (${b.potentialColloquial})`,
-    negative: derivedNegative(b.potential)
+    affirmative: b.potential,
+    negative: derivedNegative(b.potential),
+    ...(b.potentialColloquial === undefined
+      ? {}
+      : { colloquial: b.potentialColloquial })
   },
   {
     form: "Passive",

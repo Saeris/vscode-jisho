@@ -145,7 +145,9 @@ Shirabe shows a full conjugation reference on the word page: Positive / Negative
 
 ### 20. Two-tier examples + dedicated example pages (feature — medium, depends on M6 #2)
 
-Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied to each sense, (b) a word-level "Examples" section aggregating across senses, (c) a "More…" link to a full **Example sentences** page, and (d) tapping a sentence opens an **example-sentence breakdown** page — the sentence with furigana, a play button, and a "Words" list (each word tokenized out with reading + gloss, tappable). We ship only (a) as a collapsed disclosure. Enhancements, each independent:
+Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied to each sense, (b) a word-level "Examples" section aggregating across senses, (c) a "More…" link to a full **Example sentences** page, and (d) tapping a sentence opens an **example-sentence breakdown** page — the sentence with furigana, a play button, and a "Words" list (each word tokenized out with reading + gloss, tappable). We ship only (a). Enhancements, each independent:
+
+> **2026-07-17:** (a) is no longer a collapsed disclosure — per user feedback ("we shouldn't be aggressively collapsing"), the first two sentences now show inline with a "Show all (n)" in-place expander. That expander is a stopgap: the user's preferred end state is a **"More…" link to the dedicated page** — i.e. (c) — so when (c) lands, replace "Show all" with the page link. The user is also lukewarm on per-sense placement itself (it's explicit about sense association, which Shirabe obscures, but the layout cost is real) — revisit per-sense vs word-level (b) during the word-detail layout redesign.
 
 - **(c) full examples page** — a new navigation-stack view listing all sentences for a word when it has more than the per-sense cap. Small once #2 exists.
 - **(d) sentence breakdown page** — tap a sentence → tokenize it with the **M5 tokenizer** (the M6 #2 "tap-through deferred until M5's tokenizer exists" note — M5 now exists) → list its words with readings/glosses, each tappable to its word detail. This is the SegmentBar treatment applied to a full sentence. Medium.
@@ -305,6 +307,12 @@ Implemented: `!assets/kanji-svgs/**` re-included in the package (licence files s
 - Adds ~27MB to the .vsix (currently small — the DB is downloaded). Weigh against removing 27MB from the download that every user must complete before the extension works at all, and against decoupling stroke fixes from dictionary releases.
 - Drops `stroke_svgs` from the schema, and the SVG-ingest pass from `build-data.ts`.
 - Consider `?raw` dynamic imports in the webview instead of a host round-trip; the bundler would inline 27MB, so probably not — but worth measuring.
+
+### 32. Word-detail layout redesign toward Shirabe's definition formatting (design — medium)
+
+User direction (2026-07-17): the sense/definition layout — and the labeling around it — should move toward Shirabe Jisho's formatting, which the user prefers over ours. Broader framing: _"a good amount of our design still reads as being done 'by an engineer'… I think we can do better than that."_ This is the umbrella for the next visual-iteration cycle on WordDetail specifically.
+
+Ingredients already decided by adjacent feedback: explicit section splits with the uppercase-muted heading convention instead of collapsed disclosures (done for Conjugations/Examples); inline example previews with a More→page link (#20); suffix-emphasis coloring in the conjugation table (done). **Blocked on a current reference screenshot of Shirabe's word/definition page** — iterate against real pixels, not memory. Use the E2E capture loop (and theme switching) for the compare-refine cycle.
 
 ## Suggested sequencing
 
