@@ -14,9 +14,28 @@
   margin-bottom: 12px;
 }
 
-.headword {
-  font-size: 2em;
-  line-height: 1.2;
+/* One line per reading, Shirabe-style: kana first (large), that reading's kanji writings in 【】
+   (large but muted), speaker at the end. Baseline alignment keeps the mixed sizes level. */
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  /* Bottom-edge alignment, not baseline: a pitch-annotated kana block is two rows tall (contour
+     strip over kana) and its flex baseline resolves to the contour strip, floating the 【】
+     writings up beside the contour. All the items share a line-height, so bottoms read level. */
+  align-items: flex-end;
+  column-gap: 4px;
+  line-height: 1.3;
+}
+
+.headKana {
+  font-size: 1.8em;
+}
+
+.headWritings {
+  font-size: 1.4em;
+  color: var(--jisho-muted);
+  /* Break between writings (at the comma), never inside one. */
+  word-break: keep-all;
 }
 
 /* Each CJK character of the headword is a button opening its kanji detail; keep it visually
@@ -35,30 +54,6 @@
   color: var(--jisho-link);
 }
 
-.headwordAlt {
-  font-size: 1.2em;
-  color: var(--jisho-muted);
-  margin-left: 8px;
-  /* CJK breaks anywhere by default; keep each alternate writing whole and break at the 、. */
-  word-break: keep-all;
-}
-
-.readings {
-  color: var(--jisho-muted);
-  margin-top: 2px;
-}
-
-/* Each reading is now its own inline group (reading text + its pitch badge), so readings wrap
-   cleanly and the pitch number stays attached to the right reading. */
-.reading {
-  display: inline-flex;
-  align-items: center;
-}
-
-.readingSep {
-  margin-inline-end: 2px;
-}
-
 .tagRow {
   display: flex;
   flex-wrap: wrap;
@@ -67,48 +62,36 @@
 }
 
 .senses {
-  list-style: none;
   margin: 0;
-  padding: 0;
-  counter-reset: sense;
 }
 
+/* The grammar line governing the senses below it (until the next one). */
+.posLine {
+  margin: 8px 0 2px;
+  color: var(--jisho-muted);
+  font-size: 0.95em;
+}
+
+/* Marker column + gloss paragraph. The circled letter hangs in its own column so wrapped gloss
+   lines stay aligned with the text, not the marker. */
 .sense {
-  padding: 8px 0;
-  border-top: 1px solid var(--jisho-border);
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  padding: 2px 0;
 }
 
-.senseHead {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
+.senseMarker {
+  color: var(--jisho-muted);
 }
 
-.glossList {
+.senseBody {
   margin: 0;
-  padding-left: 1.5em;
 }
 
-.gloss {
-  counter-increment: sense;
-}
-
-.info {
+/* Muted inline annotation: usage notes and cross-references ride along in parens. */
+.senseNote {
   color: var(--jisho-muted);
-  font-size: 0.9em;
-  font-style: italic;
-  margin-top: 2px;
-}
-
-.xrefs {
-  margin-top: 4px;
-  font-size: 0.9em;
-  color: var(--jisho-muted);
-}
-
-.xrefLabel {
-  font-style: italic;
+  font-size: 0.95em;
 }
 
 /* Tappable cross-reference: link-colored with hover underline so interactivity is visible —
@@ -126,9 +109,11 @@
   text-decoration: underline;
 }
 
-/* Example sentences: the first couple inline, the rest behind "Show all". */
+/* Example sentences: the first couple inline, the rest behind "Show all". Inside a sense's grid
+   they sit in the text column, aligned under the glosses rather than the marker. */
 .examples {
-  margin-top: 6px;
+  grid-column: 2;
+  margin-top: 4px;
 }
 
 .examplesTrigger {

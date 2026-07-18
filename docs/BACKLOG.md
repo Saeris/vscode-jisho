@@ -312,7 +312,11 @@ Implemented: `!assets/kanji-svgs/**` re-included in the package (licence files s
 
 User direction (2026-07-17): the sense/definition layout — and the labeling around it — should move toward Shirabe Jisho's formatting, which the user prefers over ours. Broader framing: _"a good amount of our design still reads as being done 'by an engineer'… I think we can do better than that."_ This is the umbrella for the next visual-iteration cycle on WordDetail specifically.
 
-Ingredients already decided by adjacent feedback: explicit section splits with the uppercase-muted heading convention instead of collapsed disclosures (done for Conjugations/Examples); inline example previews with a More→page link (#20); suffix-emphasis coloring in the conjugation table (done). **Blocked on a current reference screenshot of Shirabe's word/definition page** — iterate against real pixels, not memory. Use the E2E capture loop (and theme switching) for the compare-refine cycle.
+Ingredients already decided by adjacent feedback: explicit section splits with the uppercase-muted heading convention instead of collapsed disclosures (done for Conjugations/Examples); inline example previews with a More→page link (#20); suffix-emphasis coloring in the conjugation table (done). Reference screenshots (9 Shirabe vocab pages: 見せる, まっすぐ, 不味い, 古い, 病気, 一月, 冷たい) supplied 2026-07-17.
+
+**Round 1 shipped (2026-07-17):** headline is now kana-first with each reading's applicable kanji writings in 【】 (renders appliesToKanji properly — 一月: ひとつき【一月, ひと月】 / いちげつ【一月】); pitch contour rides the headline kana (kana in fg, only the mark colored); POS/misc as a muted spelled-out line shown once per run of senses and again only when it changes; senses as Ⓐ Ⓑ Ⓒ circled letters with comma-joined glosses and inline muted annotations; xrefs inline as "(see also: 拙い)" / "(antonyms: 熱い)" links.
+
+**Still to do from the references:** search-only/rare-form markers on writings (探/稀 superscripts — needs the JMdict kanji tags surfaced); an Info section absorbing the JLPT/Common/WK badges (Shirabe's green-label rows); a Kanji section with per-character rows (literal + meanings + kun/on + chevron); word-level Examples with furigana and the target word bolded, then per-sense "Examples Ⓐ" sections at the bottom (#20's restructure); bold target-word in sentences. Notes are out of scope forever.
 
 ## Suggested sequencing
 

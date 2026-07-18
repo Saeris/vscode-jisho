@@ -59,6 +59,14 @@ export const WordDetail = ({
   );
 };
 
+/** The kanji writings a reading applies to (Shirabe's 【】group): all of them, or its subset. */
+const writingsFor = (kana: KanaDto, word: WordDetailDto): string[] => {
+  if (word.kanji.length === 0) return [];
+  const universal =
+    kana.appliesToKanji.length === 0 || kana.appliesToKanji.includes("*");
+  return universal ? word.kanji.map((k) => k.text) : kana.appliesToKanji;
+};
+
 const WordBody = ({
   word,
   onSearchTerm,
@@ -70,53 +78,52 @@ const WordBody = ({
 }): React.ReactElement => {
   // `word.kanji`/`word.kana` may be empty (kana-only words have no kanji); guard on length
   // rather than optional-chaining, which the array element type reports as always-present.
-  const primaryKanji = word.kanji.length > 0 ? word.kanji[0].text : undefined;
-  const altKanji = word.kanji.slice(1).map((k) => k.text);
-  const primaryReading = word.kana.length > 0 ? word.kana[0].text : "";
-  const headword = primaryKanji ?? primaryReading;
+  const headword =
+    word.kanji.length > 0
+      ? word.kanji[0].text
+      : word.kana.length > 0
+        ? word.kana[0].text
+        : "";
 
   return (
     <>
+      {/* Shirabe-style headword: each reading on its own line — kana first, then the kanji
+          writings THAT reading applies to in 【】. This renders appliesToKanji for free
+          (一月: ひとつき【一月, ひと月】 over いちげつ【一月】). */}
       <div className={styles.writing}>
-        <span className={styles.headword} lang="ja">
-          <Headword text={headword} onOpenKanji={onOpenKanji} />
-        </span>
-        <PlayButton
-          text={primaryReading || headword}
-          label={`Play pronunciation of ${headword}`}
-        />
-        {word.common ? <Badge kind="common">common</Badge> : null}
-        <JlptBadge level={word.jlpt} />
-        <WaniKaniLink term={headword} />
-        {/* Kana-only words show their reading as the headword, so surface pitch here. */}
-        {!primaryKanji && word.kana.length > 0 ? (
-          <PitchAccent
-            reading={word.kana[0].text}
-            accents={word.kana[0].pitchAccents}
-          />
-        ) : null}
-        {altKanji.length > 0 ? (
-          <span className={styles.headwordAlt} lang="ja">
-            {altKanji.join("、")}
-          </span>
-        ) : null}
-        {primaryKanji ? (
-          <div className={styles.readings} lang="ja">
-            {word.kana.map((k, i) => (
-              <span key={i} className={styles.reading}>
-                {i > 0 ? <span className={styles.readingSep}>、</span> : null}
-                <Reading kana={k} />
+        {word.kana.map((kana, i) => (
+          <div key={i} className={styles.headline} lang="ja">
+            <span className={styles.headKana}>
+              {kana.pitchAccents.length > 0 ? (
+                <PitchAccent reading={kana.text} accents={kana.pitchAccents} />
+              ) : (
+                kana.text
+              )}
+            </span>
+            {writingsFor(kana, word).length > 0 ? (
+              <span className={styles.headWritings}>
+                【
+                <Headword
+                  text={writingsFor(kana, word).join(", ")}
+                  onOpenKanji={onOpenKanji}
+                />
+                】
               </span>
-            ))}
+            ) : null}
+            <PlayButton
+              text={kana.text}
+              label={`Play pronunciation of ${kana.text}`}
+            />
           </div>
-        ) : null}
+        ))}
+        <div className={styles.tagRow}>
+          {word.common ? <Badge kind="common">common</Badge> : null}
+          <JlptBadge level={word.jlpt} />
+          <WaniKaniLink term={headword} />
+        </div>
       </div>
 
-      <ol className={styles.senses}>
-        {word.senses.map((sense, i) => (
-          <Sense key={i} sense={sense} onSearchTerm={onSearchTerm} />
-        ))}
-      </ol>
+      <SenseList word={word} onSearchTerm={onSearchTerm} />
 
       <Conjugations headword={headword} word={word} />
     </>
@@ -237,56 +244,116 @@ const Headword = ({
   </>
 );
 
+/** The muted grammar line above a run of senses: parts of speech plus usage tags, spelled out. */
+const senseLabel = (sense: SenseDto): string =>
+  [...sense.partOfSpeech, ...sense.misc].map((t) => t.description).join(", ");
+
+/** Ⓐ Ⓑ Ⓒ … — Shirabe's sense markers; they double as keys for per-sense example sections. */
+const senseMarker = (index: number): string =>
+  index < 26 ? String.fromCodePoint(0x24b6 + index) : `(${index + 1})`;
+
+/**
+ * Senses grouped Shirabe-style: the POS/usage line appears once above the run of senses it
+ * governs and again only when it changes (見せる: "Ichidan verb, transitive verb" for Ⓐ–Ⓔ, then
+ * "auxiliary verb" for Ⓕ–Ⓖ). Sense letters run through the whole word, not per group.
+ */
+const SenseList = ({
+  word,
+  onSearchTerm
+}: {
+  word: WordDetailDto;
+  onSearchTerm: (term: string) => void;
+}): React.ReactElement => (
+  <div className={styles.senses}>
+    {word.senses.map((sense, i) => {
+      const label = senseLabel(sense);
+      const changed = i === 0 || label !== senseLabel(word.senses[i - 1]);
+      return (
+        <div key={i} className={styles.senseRun}>
+          {changed && label !== "" ? (
+            <p className={styles.posLine}>{label}</p>
+          ) : null}
+          <Sense sense={sense} index={i} onSearchTerm={onSearchTerm} />
+        </div>
+      );
+    })}
+  </div>
+);
+
+/** A muted inline annotation: " (label: linked terms)" — Shirabe's xref formatting. */
+const InlineXrefs = ({
+  label,
+  terms,
+  onSearchTerm
+}: {
+  label: string;
+  terms: string[];
+  onSearchTerm: (term: string) => void;
+}): React.ReactElement | null => {
+  if (terms.length === 0) return null;
+  return (
+    <span className={styles.senseNote} lang="ja">
+      {" ("}
+      {label}
+      {": "}
+      {terms.map((term, i) => (
+        <span key={term}>
+          {i > 0 ? ", " : null}
+          <Button
+            className={styles.xrefLink}
+            onPress={() => onSearchTerm(term)}
+            aria-label={`Search for ${term}`}
+          >
+            {term}
+          </Button>
+        </span>
+      ))}
+      {")"}
+    </span>
+  );
+};
+
 const Sense = ({
   sense,
+  index,
   onSearchTerm
 }: {
   sense: SenseDto;
+  index: number;
   onSearchTerm: (term: string) => void;
-}): React.ReactElement => (
-  <li className={styles.sense}>
-    <div className={styles.senseHead}>
-      {sense.partOfSpeech.map((t) => (
-        <Badge key={t.code} kind="pos" title={t.description}>
-          {t.description}
-        </Badge>
-      ))}
-      {sense.field.map((t) => (
-        <Badge key={t.code} kind="misc" title={t.description}>
-          {t.description}
-        </Badge>
-      ))}
-      {sense.misc.map((t) => (
-        <Badge key={t.code} kind="misc" title={t.description}>
-          {t.description}
-        </Badge>
-      ))}
+}): React.ReactElement => {
+  const notes = [
+    ...sense.field.map((t) => t.description),
+    ...sense.dialect.map((t) => t.description),
+    ...sense.info
+  ];
+  return (
+    <div className={styles.sense}>
+      <span className={styles.senseMarker} aria-hidden="true">
+        {senseMarker(index)}
+      </span>
+      <p className={styles.senseBody}>
+        {sense.glosses.join(", ")}
+        {notes.length > 0 ? (
+          <span className={styles.senseNote}> ({notes.join("; ")})</span>
+        ) : null}
+        <InlineXrefs
+          label="see also"
+          terms={sense.related}
+          onSearchTerm={onSearchTerm}
+        />
+        <InlineXrefs
+          label="antonyms"
+          terms={sense.antonym}
+          onSearchTerm={onSearchTerm}
+        />
+      </p>
+      {sense.sentences.length > 0 ? (
+        <Examples sentences={sense.sentences} />
+      ) : null}
     </div>
-    <ol className={styles.glossList}>
-      {sense.glosses.map((g, i) => (
-        <li key={i} className={styles.gloss}>
-          {g}
-        </li>
-      ))}
-    </ol>
-    {sense.info.length > 0 ? (
-      <p className={styles.info}>{sense.info.join("; ")}</p>
-    ) : null}
-    <XrefLine
-      label="See also"
-      terms={sense.related}
-      onSearchTerm={onSearchTerm}
-    />
-    <XrefLine
-      label="Antonym"
-      terms={sense.antonym}
-      onSearchTerm={onSearchTerm}
-    />
-    {sense.sentences.length > 0 ? (
-      <Examples sentences={sense.sentences} />
-    ) : null}
-  </li>
-);
+  );
+};
 
 /** How many example sentences a sense shows before "Show all". */
 const EXAMPLE_PREVIEW = 2;
@@ -324,54 +391,5 @@ const Examples = ({
         </Button>
       ) : null}
     </div>
-  );
-};
-
-/** Cross-references as tappable links: clicking one searches for that term. */
-const XrefLine = ({
-  label,
-  terms,
-  onSearchTerm
-}: {
-  label: string;
-  terms: string[];
-  onSearchTerm: (term: string) => void;
-}): React.ReactElement | null => {
-  if (terms.length === 0) return null;
-  return (
-    <p className={styles.xrefs} lang="ja">
-      <span className={styles.xrefLabel}>{label}: </span>
-      {terms.map((term, i) => (
-        <span key={term}>
-          {i > 0 ? "、" : null}
-          <Button
-            className={styles.xrefLink}
-            onPress={() => onSearchTerm(term)}
-            aria-label={`Search for ${term}`}
-          >
-            {term}
-          </Button>
-        </span>
-      ))}
-    </p>
-  );
-};
-
-/**
- * A reading: the kana with its pitch-accent contour drawn over it when known (else plain kana),
- * plus a "(applies to …)" note when the reading isn't universal across the word's kanji writings.
- */
-const Reading = ({ kana }: { kana: KanaDto }): React.ReactElement => {
-  const universal =
-    kana.appliesToKanji.length === 0 || kana.appliesToKanji.includes("*");
-  return (
-    <>
-      {kana.pitchAccents.length > 0 ? (
-        <PitchAccent reading={kana.text} accents={kana.pitchAccents} />
-      ) : (
-        kana.text
-      )}
-      {universal ? null : ` (${kana.appliesToKanji.join("、")})`}
-    </>
   );
 };

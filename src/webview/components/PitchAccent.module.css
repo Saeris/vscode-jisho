@@ -3,15 +3,12 @@
    pitch change. See PitchAccent.tsx for why this is one SVG polyline and not per-mora borders. */
 
 .contour {
-  /* Height of the contour band. Scales with the font so the mark keeps its proportions wherever it's
-     used (headword row vs. reading list). */
+  /* Height of the contour band. Scales with the font so the mark keeps its proportions wherever
+     it's used. */
   --pitch-band: 0.8em;
 
   display: inline-flex;
   align-items: center;
-  margin-inline-start: 6px;
-  color: var(--vscode-charts-blue, var(--jisho-fg));
-  font-size: 0.95em;
   white-space: nowrap;
 }
 
@@ -47,7 +44,8 @@
 
 .line polyline {
   fill: none;
-  stroke: currentColor;
+  /* The mark is colored; the kana it annotates inherit the surrounding text color. */
+  stroke: var(--vscode-charts-blue, currentColor);
   stroke-width: 1.4;
   /* The SVG is stretched non-uniformly (preserveAspectRatio="none"), which would smear the stroke
      with the default behaviour: verticals thick, horizontals thin. Pinning the stroke to the
