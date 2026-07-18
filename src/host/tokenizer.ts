@@ -55,13 +55,31 @@ const getTokenizer = async (): Promise<Tokenizer> => {
  * "segment" is a searchable unit (勉強する stays one verb segment, not 勉強 + し + ます). The
  * segment's `lemma` is the content word's dictionary form — what a search should look up.
  */
-export const segment = async (text: string): Promise<SegmentDto[]> => {
+/** One raw morpheme inside a (possibly folded) segment. */
+export interface MorphemeDto {
+  surface: string;
+  lemma: string;
+  pos: PartOfSpeech;
+}
+
+/** A segment plus the raw morphemes folded into it — the hover's conjugation breakdown reads
+    these; the search/breakdown-bar consumers ignore them. */
+export interface DetailedSegment extends SegmentDto {
+  parts: MorphemeDto[];
+}
+
+export const segment = async (text: string): Promise<DetailedSegment[]> => {
   const tokenizer = await getTokenizer();
   const tokens = tokenizer.tokenize(text);
-  const segments: SegmentDto[] = [];
+  const segments: DetailedSegment[] = [];
   for (const token of tokens) {
     const pos = toPartOfSpeech(token.partOfSpeech);
-    // Explicit length guard so `prev` is genuinely `SegmentDto | undefined` (index access is
+    const morpheme: MorphemeDto = {
+      surface: token.surface,
+      lemma: token.baseForm === "*" ? token.surface : token.baseForm,
+      pos
+    };
+    // Explicit length guard so `prev` is genuinely defined-or-undefined (index access is
     // otherwise typed non-null with noUncheckedIndexedAccess off).
     const prev =
       segments.length > 0 ? segments[segments.length - 1] : undefined;
@@ -74,15 +92,17 @@ export const segment = async (text: string): Promise<SegmentDto[]> => {
       token.partOfSpeechSubcategory1 === "非自立";
     if (isSuffix && prev && prev.pos !== "particle") {
       prev.surface += token.surface;
+      prev.parts.push(morpheme);
       // Promote noun + する → verb (サ変); otherwise keep the content word's lemma/pos.
       if (prev.pos === "noun" && token.baseForm === "する") prev.pos = "verb";
       continue;
     }
     segments.push({
       surface: token.surface,
-      lemma: token.baseForm === "*" ? token.surface : token.baseForm,
+      lemma: morpheme.lemma,
       reading: token.reading === "*" ? "" : token.reading,
-      pos
+      pos,
+      parts: [morpheme]
     });
   }
   return segments;

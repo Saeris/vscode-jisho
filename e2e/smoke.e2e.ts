@@ -97,6 +97,10 @@ test("editor command: Look Up Selection drives the sidebar search", async () => 
 test("hovering Japanese text shows a dictionary hover", async () => {
   // Self-contained: its own untitled editor, so the test runs standalone (and under --grep).
   const win = app().window;
+  // The hover provider only exists once the extension ACTIVATES, and activation rides on the
+  // sidebar view — in a standalone run nothing else has opened it (found via a failure screenshot
+  // showing the Explorer and a dead hover).
+  await openJishoSidebar(win);
   // Focus the editor area first — keystrokes die if focus sits in a webview or is unset at
   // launch (the F1-in-webview lesson again).
   await win
@@ -119,6 +123,9 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   // Generous timeout: a standalone run pays tokenizer + dictionary warm-up on this first hover.
   await expect(hover).toBeVisible({ timeout: 20_000 });
   await expect(hover).toContainText("食べる");
+  // The conjugation chain of the detected form, labelled (user request: contextual meaning).
+  await expect(hover).toContainText("want to");
+  await expect(hover).toContainText("past");
   await expect(hover).toContainText("Open in Jisho");
   // Reference shot for the hover-design iteration (BACKLOG #33: user wants to refine it visually).
   await app().window.screenshot({ path: "test-results/shots/02-hover.png" });

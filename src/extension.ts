@@ -3,6 +3,7 @@ import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import {
+  describeGroup,
   groupSegments,
   japaneseRunAt,
   stripRuby,
@@ -152,6 +153,7 @@ class JishoViewProvider
     let surface = run.text;
     let lookup = run.text;
     let wordStart = run.start;
+    let breakdown: string | null = null;
     if (HAS_KANJI.test(run.text)) {
       // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
       // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
@@ -162,6 +164,8 @@ class JishoViewProvider
         surface = hit.segment.surface;
         lookup = hit.segment.lemma === "" ? surface : hit.segment.lemma;
         wordStart = run.start + hit.start;
+        // The detected form's structure — what the conjugation MEANS here (user request).
+        breakdown = describeGroup(hit.segment);
       }
     }
     // Guard the whole-run fallback: hovering a long kana-only sentence isn't a word lookup.
@@ -181,11 +185,13 @@ class JishoViewProvider
       .join(", ");
     const md = new vscode.MarkdownString(undefined, true);
     md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
-    md.appendMarkdown(
-      `**${results[0].headword}**${reading === "" ? "" : ` ${reading}`}\n\n` +
-        `${pos === "" ? "" : `*${pos}* — `}${glosses}\n\n` +
-        `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
-    );
+    const blocks = [
+      `**${results[0].headword}**${reading === "" ? "" : ` ${reading}`}`,
+      `${pos === "" ? "" : `*${pos}* — `}${glosses}`,
+      ...(breakdown === null ? [] : [breakdown]),
+      `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
+    ];
+    md.appendMarkdown(blocks.join("\n\n"));
     return new vscode.Hover(
       md,
       new vscode.Range(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeGroup,
   groupSegments,
   japaneseRunAt,
   stripRuby,
@@ -95,7 +96,15 @@ describe("groupSegments", () => {
       { surface: "なかっ", lemma: "ない", pos: "auxiliary" },
       { surface: "た", lemma: "た", pos: "auxiliary" }
     ]);
-    expect(groups).toEqual([{ surface: "食べたくなかった", lemma: "食べる" }]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].surface).toBe("食べたくなかった");
+    expect(groups[0].lemma).toBe("食べる");
+    expect(groups[0].parts.map((p) => p.surface)).toEqual([
+      "食べ",
+      "たく",
+      "なかっ",
+      "た"
+    ]);
   });
 
   it("attaches a verb's て but keeps case particles separate", () => {
@@ -105,10 +114,64 @@ describe("groupSegments", () => {
       { surface: "見せ", lemma: "見せる", pos: "verb" },
       { surface: "て", lemma: "て", pos: "particle" }
     ]);
-    expect(groups).toEqual([
-      { surface: "写真", lemma: "写真" },
-      { surface: "を", lemma: "を" },
-      { surface: "見せて", lemma: "見せる" }
+    expect(groups.map((g) => ({ surface: g.surface, lemma: g.lemma }))).toEqual(
+      [
+        { surface: "写真", lemma: "写真" },
+        { surface: "を", lemma: "を" },
+        { surface: "見せて", lemma: "見せる" }
+      ]
+    );
+  });
+});
+
+describe("describeGroup", () => {
+  it("reads a conjugation chain back as base + labelled auxiliaries", () => {
+    // WHY (user request): the hover should say what the DETECTED form means in context, not just
+    // define the base word — 食べたくなかった carries desire+negation+past on top of 食べる.
+    const [group] = groupSegments([
+      { surface: "食べ", lemma: "食べる", pos: "verb" },
+      { surface: "たく", lemma: "たい", pos: "auxiliary" },
+      { surface: "なかっ", lemma: "ない", pos: "auxiliary" },
+      { surface: "た", lemma: "た", pos: "auxiliary" }
     ]);
+    expect(describeGroup(group)).toBe(
+      "食べたくなかった = 食べる + 〜たい (want to) + 〜ない (negation) + 〜た (past)"
+    );
+  });
+
+  it("labels unknown auxiliaries with their lemma alone, and bare words with nothing", () => {
+    // WHY: a wrong grammar label is worse than none; a plain word has nothing to explain.
+    const [group] = groupSegments([
+      { surface: "行っ", lemma: "行く", pos: "verb" },
+      { surface: "けれ", lemma: "けり", pos: "auxiliary" }
+    ]);
+    expect(describeGroup(group)).toBe("行っけれ = 行く + 〜けり");
+    const [bare] = groupSegments([
+      { surface: "写真", lemma: "写真", pos: "noun" }
+    ]);
+    expect(describeGroup(bare)).toBeNull();
+  });
+});
+
+describe("groupSegments with pre-folded segments", () => {
+  it("carries the tokenizer's folded morphemes into the group parts", () => {
+    // WHY: the real tokenizer already merges 食べたくなかった into ONE segment (lemma 食べる) and
+    // records the raw morphemes in `parts` — the breakdown must read those, not re-tokenize.
+    const [group] = groupSegments([
+      {
+        surface: "食べたくなかった",
+        lemma: "食べる",
+        pos: "verb",
+        parts: [
+          { surface: "食べ", lemma: "食べる", pos: "verb" },
+          { surface: "たく", lemma: "たい", pos: "auxiliary" },
+          { surface: "なかっ", lemma: "ない", pos: "auxiliary" },
+          { surface: "た", lemma: "た", pos: "auxiliary" }
+        ]
+      }
+    ]);
+    expect(describeGroup(group)).toBe(
+      "食べたくなかった = 食べる + 〜たい (want to) + 〜ない (negation) + 〜た (past)"
+    );
   });
 });

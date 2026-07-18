@@ -98,7 +98,12 @@ export interface RunSegment {
 
 export interface PosSegment extends RunSegment {
   pos: string;
+  /** Raw morphemes already folded into this segment (the tokenizer merges verb+auxiliaries). */
+  parts?: Array<RunSegment & { pos: string }>;
 }
+
+const partsOf = (s: PosSegment): Array<RunSegment & { pos: string }> =>
+  s.parts ?? [{ surface: s.surface, lemma: s.lemma, pos: s.pos }];
 
 /**
  * Merge each auxiliary (and a verb's て/で) onto the group before it, so a conjugated form is one
@@ -106,10 +111,15 @@ export interface PosSegment extends RunSegment {
  * conjugation then describes the word, not the fragment — the "suffixes detached from verbs"
  * problem. Particles otherwise stay their own group (を belongs to no word).
  */
-export const groupSegments = (
-  segments: PosSegment[]
-): Array<{ surface: string; lemma: string }> => {
-  const groups: Array<{ surface: string; lemma: string; headPos: string }> = [];
+export interface SegmentGroup {
+  surface: string;
+  lemma: string;
+  /** The head morpheme plus every auxiliary attached to it, in order. */
+  parts: Array<RunSegment & { pos: string }>;
+}
+
+export const groupSegments = (segments: PosSegment[]): SegmentGroup[] => {
+  const groups: Array<SegmentGroup & { headPos: string }> = [];
   for (const s of segments) {
     const last = groups.at(-1);
     const attaches =
@@ -118,10 +128,78 @@ export const groupSegments = (
         (s.pos === "particle" &&
           (s.surface === "て" || s.surface === "で") &&
           last.headPos === "verb"));
-    if (attaches) last.surface += s.surface;
-    else groups.push({ surface: s.surface, lemma: s.lemma, headPos: s.pos });
+    if (attaches) {
+      last.surface += s.surface;
+      last.parts.push(...partsOf(s));
+    } else {
+      groups.push({
+        surface: s.surface,
+        lemma: s.lemma,
+        headPos: s.pos,
+        parts: [...partsOf(s)]
+      });
+    }
   }
-  return groups.map(({ surface, lemma }) => ({ surface, lemma }));
+  return groups.map(({ surface, lemma, parts }) => ({
+    surface,
+    lemma,
+    parts
+  }));
+};
+
+/**
+ * One-word glosses for the auxiliary lemmas the tokenizer attaches to verbs/adjectives — the
+ * seed of BACKLOG #34's grammar notes. Unknown lemmas render without a label rather than wrongly.
+ */
+const AUX_GLOSS: Record<string, string | undefined> = {
+  た: "past",
+  だ: "copula",
+  です: "polite copula",
+  ます: "polite",
+  ない: "negation",
+  ん: "negation",
+  ぬ: "negation",
+  たい: "want to",
+  て: "connective",
+  で: "connective",
+  れる: "passive/potential",
+  られる: "passive/potential",
+  せる: "causative",
+  させる: "causative",
+  う: "volitional",
+  よう: "volitional",
+  まい: "negative volitional",
+  そう: "appearance",
+  そうだ: "appearance/hearsay",
+  ようだ: "seeming",
+  らしい: "apparently",
+  いる: "continuous",
+  ある: "resultative",
+  しまう: "completion",
+  ちゃう: "completion (casual)",
+  おく: "in advance",
+  くれる: "for me",
+  もらう: "receiving",
+  あげる: "giving"
+};
+
+/**
+ * A compact reading of a conjugated group's structure, e.g.
+ * `食べたくなかった = 食べる + 〜たい (want to) + 〜ない (negation) + 〜た (past)`.
+ * Null when the group is a bare word — nothing to explain.
+ */
+export const describeGroup = (group: SegmentGroup): string | null => {
+  if (group.parts.length < 2) return null;
+  const chain = group.parts
+    .slice(1)
+    .map((part) => {
+      const gloss = AUX_GLOSS[part.lemma];
+      return gloss === undefined
+        ? `〜${part.lemma}`
+        : `〜${part.lemma} (${gloss})`;
+    })
+    .join(" + ");
+  return `${group.surface} = ${group.parts[0].lemma || group.parts[0].surface} + ${chain}`;
 };
 
 /**
