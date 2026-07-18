@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
+import { japaneseRunAt, wordAt } from "./host/hover";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
   GetStrokeSvgRequest,
@@ -72,6 +73,14 @@ export function activate(context: vscode.ExtensionContext): void {
       "vscode-jisho.speakSelection",
       pushSelection("speak")
     ),
+    // Internal (not in contributes): the hover's "Open in Jisho" link runs this with its word.
+    vscode.commands.registerCommand("vscode-jisho.lookupText", (text: string) =>
+      provider.push({ type: "hostPush", action: "search", text })
+    ),
+    vscode.languages.registerHoverProvider(["markdown", "plaintext"], {
+      provideHover: async (document, position, token) =>
+        provider.hover(document, position, token)
+    }),
     provider
   );
 }
@@ -112,6 +121,67 @@ class JishoViewProvider
     } else {
       this.#queuedPushes.push(message);
     }
+  }
+
+  /**
+   * Dictionary hover for Japanese text (prototype, BACKLOG #33): the run under the cursor is
+   * tokenized to isolate the hovered word, its dictionary entry renders as reading + first-sense
+   * glosses, and "Open in Jisho" pushes the word into the sidebar. Pure-kana runs skip the
+   * tokenizer (it needs kanji↔kana transitions) and search the run whole — deinflection covers it.
+   */
+  async hover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken
+  ): Promise<vscode.Hover | undefined> {
+    const line = document.lineAt(position.line).text;
+    const run = japaneseRunAt(line, position.character);
+    if (run === null) return undefined;
+
+    let surface = run.text;
+    let lookup = run.text;
+    let wordStart = run.start;
+    if (HAS_KANJI.test(run.text)) {
+      const segments = await segment(run.text);
+      if (token.isCancellationRequested) return undefined;
+      const hit = wordAt(segments, position.character - run.start);
+      if (hit !== null) {
+        surface = hit.segment.surface;
+        lookup = hit.segment.lemma === "" ? surface : hit.segment.lemma;
+        wordStart = run.start + hit.start;
+      }
+    }
+    // Guard the whole-run fallback: hovering a long kana-only sentence isn't a word lookup.
+    if (Array.from(lookup).length > 12) return undefined;
+
+    const dict = await this.#dict();
+    const results = await dict.search(lookup, 1);
+    if (token.isCancellationRequested || results.length === 0) return undefined;
+    // No further cancellation check: VS Code discards a stale hover result on its own.
+    const word = await dict.getWord(results[0].id);
+    if (word === null) return undefined;
+
+    const reading = word.kana.length > 0 ? word.kana[0].text : "";
+    const glosses = word.senses[0]?.glosses.slice(0, 3).join("; ") ?? "";
+    const pos = word.senses[0]?.partOfSpeech
+      .map((t) => t.description)
+      .join(", ");
+    const md = new vscode.MarkdownString(undefined, true);
+    md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
+    md.appendMarkdown(
+      `**${results[0].headword}**${reading === "" ? "" : ` ${reading}`}\n\n` +
+        `${pos === "" ? "" : `*${pos}* — `}${glosses}\n\n` +
+        `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
+    );
+    return new vscode.Hover(
+      md,
+      new vscode.Range(
+        position.line,
+        wordStart,
+        position.line,
+        wordStart + surface.length
+      )
+    );
   }
 
   async #dict(): Promise<Dictionary> {

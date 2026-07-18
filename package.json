@@ -68,17 +68,28 @@
         "category": "Jisho"
       }
     ],
+    "submenus": [
+      {
+        "id": "vscode-jisho.editorSubmenu",
+        "label": "Jisho"
+      }
+    ],
     "menus": {
       "editor/context": [
         {
-          "command": "vscode-jisho.lookupSelection",
+          "submenu": "vscode-jisho.editorSubmenu",
           "when": "editorHasSelection",
-          "group": "1_jisho@1"
+          "group": "1_jisho"
+        }
+      ],
+      "vscode-jisho.editorSubmenu": [
+        {
+          "command": "vscode-jisho.lookupSelection",
+          "group": "1_actions@1"
         },
         {
           "command": "vscode-jisho.speakSelection",
-          "when": "editorHasSelection",
-          "group": "1_jisho@2"
+          "group": "1_actions@2"
         }
       ]
     }

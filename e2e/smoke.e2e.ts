@@ -93,3 +93,31 @@ test("editor command: Look Up Selection drives the sidebar search", async () => 
   await expect(frame.getByRole("searchbox")).toHaveValue("食べました");
   await expect(frame.getByText("to eat").first()).toBeVisible();
 });
+
+test("hovering Japanese text shows a dictionary hover", async () => {
+  // Self-contained: its own untitled editor, so the test runs standalone (and under --grep).
+  const win = app().window;
+  // Focus the editor area first — keystrokes die if focus sits in a webview or is unset at
+  // launch (the F1-in-webview lesson again).
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  await win.keyboard.type("食べました");
+  const word = win.locator(".view-line", { hasText: "食べました" }).first();
+  await word.waitFor();
+  // Hover the word: the tokenizer isolates 食べました and its lemma 食べる resolves the entry.
+  await word.locator("span span").first().hover();
+  // Each editor owns an (empty) hover container; filter to the one that actually populated.
+  const hover = win
+    .locator(".monaco-hover-content")
+    .filter({ hasText: "to eat" });
+  // Generous timeout: a standalone run pays tokenizer + dictionary warm-up on this first hover.
+  await expect(hover).toBeVisible({ timeout: 20_000 });
+  await expect(hover).toContainText("食べる");
+  await expect(hover).toContainText("Open in Jisho");
+  // Reference shot for the hover-design iteration (BACKLOG #33: user wants to refine it visually).
+  await app().window.screenshot({ path: "test-results/shots/02-hover.png" });
+});

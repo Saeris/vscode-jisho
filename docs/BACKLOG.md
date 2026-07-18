@@ -337,11 +337,11 @@ User direction (2026-07-17): _"these are the kind of deeper integrations that ma
 **Additional ideas (proposed, not yet user-approved):**
 
 - ~~Markdown preview integration~~ — unnecessary: the mirrordown monorepo already ships that exact VS Code preview extension (user, 2026-07-17).
-- **Hover provider** — hover Japanese text in any file → reading + top glosses (a built-in Yomitan). Tokenizer finds the word boundary; the dictionary supplies the entry; hover links "open in Jisho". User: promising but wants to SEE it before refining — build a minimal prototype first, expect iteration.
-- **Speak selection** — via the existing TTS. Explicitly user-endorsed; small — good early ship.
+- **Hover provider** — PROTOTYPE SHIPPED (2026-07-18) for markdown + plaintext: hovering Japanese shows headword + reading, POS line, first-sense glosses, and an "Open in Jisho" command link; the tokenizer isolates the hovered word within its run (pure-kana runs search whole, ≤12 chars). Awaiting the user's hands-on refinement pass — candidates: more languages/schemes (code comments), richer content (pitch, more senses), a settings toggle, kana-run word isolation once hovered.
+- ~~Speak selection~~ — shipped with the first slice. Latency note (user, 2026-07-18): TTS onset is noticeably non-instant everywhere; our share (the up-to-1s getVoices wait on first use) is now pre-warmed at webview startup, the rest is Windows SAPI5 engine spin-up — out of our control via the Web Speech API (the neural OneCore voices aren't exposed to Chromium at all; see speech.ts header).
 - **Strip furigana** — inverse of Add: unwrap ruby syntax back to plain text.
 - **Kana ↔ romaji conversion** on selection.
-- **Editor context-menu group** — one "Jisho" submenu collecting lookup/translate/furigana so discoverability doesn't depend on the command palette.
+- ~~Editor context-menu group~~ — shipped (2026-07-18): a "Jisho" submenu in the editor context menu holds both commands (user feedback: the flat items lacked context that they belonged to the extension / Japanese).
 
 Sequencing: lookup-selection + context menu and speak-selection are small and independent (do first); copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing: mirrordown is MIT and the user's own project — integrate freely.
 
