@@ -90,13 +90,17 @@ const connectWithRetry = async (): Promise<Browser> => {
  * workbench — breaking clicks and contaminating screenshots. Seeding is deterministic; dismissing
  * modals after the fact would be racy and version-fragile.
  */
-const seedUserData = (userDataDir: string): void => {
+const seedUserData = (
+  userDataDir: string,
+  settings: Record<string, unknown> = {}
+): void => {
   const userDir = join(userDataDir, "User");
   mkdirSync(userDir, { recursive: true });
   writeFileSync(
     join(userDir, "settings.json"),
     JSON.stringify(
       {
+        ...settings,
         // No sign-in / sync prompts.
         "settingsSync.keybindingsPerPlatform": false,
         "workbench.settings.enableNaturalLanguageSearch": false,
@@ -142,7 +146,9 @@ const assertPortFree = async (): Promise<void> => {
   }
 };
 
-export const launchVSCode = async (): Promise<Launched> => {
+export const launchVSCode = async (
+  settings: Record<string, unknown> = {}
+): Promise<Launched> => {
   await assertPortFree();
   const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
   const userDataDir = mkdtempSync(join(tmpdir(), "jisho-e2e-user-"));
@@ -161,7 +167,7 @@ export const launchVSCode = async (): Promise<Launched> => {
   delete env.VSCODE_IPC_HOOK_CLI;
   delete env.VSCODE_NLS_CONFIG;
 
-  seedUserData(userDataDir);
+  seedUserData(userDataDir, settings);
 
   const proc: ChildProcess = spawn(
     executablePath,

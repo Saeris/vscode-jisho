@@ -37,3 +37,9 @@ Read this before executing any milestone plan. It captures workflow rules and en
 - `@tursodatabase/*` is `neverBundle`d and ships in the `.vsix` from `node_modules`; everything else the host imports gets bundled into `dist/extension.cjs` (verify externals stay `vscode` + `@tursodatabase/database` only: `grep -oE 'require\("[^"]+"\)' dist/extension.cjs`).
 - `vsce` always with `--no-yarn` (its yarn integration is Yarn-v1-only). Per-platform packages: `vp run build:platforms` (4 targets; **no darwin-x64** — turso ships no Intel-Mac binary). Bumpy's build/publish commands already point at the platform scripts.
 - The manifest has **no `browser` field** until M8 — the host is Node-only today.
+
+## Theming & contrast
+
+- All colors derive from `--vscode-*` variables (via the `--jisho-*` bridge in `theme.css`) so the UI follows the user's theme. The cost: we don't control the resolved values, so **every derived color must be judged in BOTH light and dark modes** — a hue that reads fine on dark can wash out on light (charts-orange did exactly this).
+- Standard: aim for APCA-level legibility, not just "looks okay on my theme". For accent hues used as TEXT, mix toward the theme's own foreground (`color-mix(in srgb, <hue> 60%, var(--jisho-fg) 40%)`) so the tint tracks the text's contrast direction in either mode. For accents over the stroke canvas, an outline in `--jisho-bg` (paint-order: stroke) is the working pattern.
+- Verify with pixels, not guesses: `e2e/visual-light.e2e.ts` launches VS Code with a stock light theme (`launchVSCode({ "workbench.colorTheme": ... })`) and captures the contrast-sensitive pages. Add a capture there whenever a new derived color ships.

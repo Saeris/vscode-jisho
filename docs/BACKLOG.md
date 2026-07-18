@@ -318,6 +318,28 @@ Ingredients already decided by adjacent feedback: explicit section splits with t
 
 **Still to do from the references:** search-only/rare-form markers on writings (探/稀 superscripts — needs the JMdict kanji tags surfaced); an Info section absorbing the JLPT/Common/WK badges (Shirabe's green-label rows); a Kanji section with per-character rows (literal + meanings + kun/on + chevron); word-level Examples with furigana and the target word bolded, then per-sense "Examples Ⓐ" sections at the bottom (#20's restructure); bold target-word in sentences. Notes are out of scope forever.
 
+### 33. Editor integrations: lookup, translate-replace, and furigana authoring tools (feature — large, user priority)
+
+User direction (2026-07-17): _"these are the kind of deeper integrations that make this extension useful for people authoring text in Japanese"_ — the user edits Japanese in markdown documents regularly. The ruby syntax target is **mirrordown's** (`@mirrordown/mdit-ruby` + `@mirrordown/remd-ruby` render it identically): `{漢字|かんじ}` → `<ruby>漢字<rt>かんじ</rt></ruby>`, with tests and context in the parent monorepo (github.com/mirrordown/mirrordown).
+
+**User-requested:**
+
+- **Lookup selection** — select text in any editor → command/context-menu/keybinding opens the sidebar with that query (word under cursor when nothing is selected).
+- **Translate & replace selection** — en→ja and ja→en: replace the selection with its best dictionary match (headword or gloss). Needs a confirm affordance (quick-pick of candidates) — silent best-match will guess wrong.
+- **Copy with furigana** — Mintlify/Figma-style "Copy as…" on the word page: plain / kana / romaji / `{漢字|かんじ}` ruby markdown / HTML `<ruby>`.
+- **Paste with furigana** — editor command pasting the current word (or clipboard text) pre-formatted in ruby syntax.
+- **Add furigana to selection** — tokenize the selection (M5 Lindera, already in the host), look up each word's reading, and rewrap kanji runs in ruby syntax. NOTE: wrap only the kanji run — `{食|た}べる`, not `{食べる|たべる}` — which needs the kanji↔kana span data; that is exactly #15's JMdict furigana asset. Whole-word fallback until it lands.
+
+**Additional ideas (proposed, not yet user-approved):**
+
+- **Markdown preview integration** — `contributes.markdown.markdownItPlugins` + `extendMarkdownIt(md.use(mditRuby))`: ship `@mirrordown/mdit-ruby` so the `{base|reading}` syntax renders as real ruby in VS Code's built-in markdown preview. Cheap, and makes the authoring loop WYSIWYG.
+- **Hover provider** — hover Japanese text in any file → reading + top glosses (a built-in Yomitan). Tokenizer finds the word boundary; the dictionary supplies the entry; hover links "open in Jisho".
+- **Strip furigana** — inverse of Add: unwrap ruby syntax back to plain text.
+- **Kana ↔ romaji conversion** on selection; **Speak selection** via the existing TTS.
+- **Editor context-menu group** — one "Jisho" submenu collecting lookup/translate/furigana so discoverability doesn't depend on the command palette.
+
+Sequencing: lookup-selection + context menu is small and independent (do first); preview integration is small; copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing check: mirrordown packages' license before bundling mdit-ruby into the preview.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
