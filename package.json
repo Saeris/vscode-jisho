@@ -71,6 +71,16 @@
         "command": "vscode-jisho.openSettings",
         "title": "Open Settings",
         "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.addSpacing",
+        "title": "Add Word Spacing (分かち書き)",
+        "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.removeSpacing",
+        "title": "Remove Word Spacing",
+        "category": "Jisho"
       }
     ],
     "configuration": {
@@ -130,6 +140,14 @@
         {
           "command": "vscode-jisho.speakSelection",
           "group": "1_actions@2"
+        },
+        {
+          "command": "vscode-jisho.addSpacing",
+          "group": "2_spacing@1"
+        },
+        {
+          "command": "vscode-jisho.removeSpacing",
+          "group": "2_spacing@2"
         }
       ]
     }

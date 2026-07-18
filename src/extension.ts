@@ -11,6 +11,7 @@ import {
   toStrippedIndex,
   wordAt
 } from "./host/hover";
+import { addSpacing, removeSpacing } from "./host/spacing";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
   GetStrokeSvgRequest,
@@ -140,6 +141,33 @@ const selectionText = (): string | undefined => {
   return text === "" ? undefined : text;
 };
 
+/**
+ * Apply a text transform to the selection (expanded to whole lines, so a partial-line selection
+ * can't cut a word) or, with no selection, the whole document.
+ */
+const transformEditorText = async (
+  transform: (text: string) => Promise<string>
+): Promise<void> => {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const { document, selection } = editor;
+  const range = selection.isEmpty
+    ? new vscode.Range(
+        0,
+        0,
+        document.lineCount - 1,
+        document.lineAt(document.lineCount - 1).text.length
+      )
+    : new vscode.Range(
+        selection.start.line,
+        0,
+        selection.end.line,
+        document.lineAt(selection.end.line).text.length
+      );
+  const replaced = await transform(document.getText(range));
+  await editor.edit((edit) => edit.replace(range, replaced));
+};
+
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new JishoViewProvider(context);
   const semanticTokensChanged = new vscode.EventEmitter<void>();
@@ -160,6 +188,13 @@ export function activate(context: vscode.ExtensionContext): void {
     // Internal (not in contributes): the hover's "Open in Jisho" link runs this with its word.
     vscode.commands.registerCommand("vscode-jisho.lookupText", (text: string) =>
       provider.push({ type: "hostPush", action: "search", text })
+    ),
+    // 分かち書き: learner word-spacing as a deterministic transform (BACKLOG #38).
+    vscode.commands.registerCommand("vscode-jisho.addSpacing", async () =>
+      transformEditorText(addSpacing)
+    ),
+    vscode.commands.registerCommand("vscode-jisho.removeSpacing", async () =>
+      transformEditorText(removeSpacing)
     ),
     vscode.commands.registerCommand("vscode-jisho.openSettings", () => {
       void vscode.commands.executeCommand(

@@ -130,3 +130,36 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   // Reference shot for the hover-design iteration (BACKLOG #33: user wants to refine it visually).
   await app().window.screenshot({ path: "test-results/shots/02-hover.png" });
 });
+
+test("editor commands: word spacing round-trips through the palette", async () => {
+  const win = app().window;
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  await win.keyboard.type("写真を見せました");
+  await win.keyboard.press("Control+a");
+
+  const runCommand = async (name: string): Promise<void> => {
+    await win.keyboard.press("F1");
+    await win.locator(".quick-input-widget").waitFor();
+    await win.keyboard.type(`Jisho: ${name}`);
+    await win
+      .locator(".quick-input-list .monaco-list-row", { hasText: name })
+      .first()
+      .waitFor();
+    await win.keyboard.press("Enter");
+  };
+
+  await runCommand("Add Word Spacing");
+  await expect(
+    win.locator(".view-line", { hasText: "写真 を 見せました" }).first()
+  ).toBeVisible({ timeout: 15_000 });
+
+  await runCommand("Remove Word Spacing");
+  await expect(
+    win.locator(".view-line", { hasText: /^写真を見せました$/ }).first()
+  ).toBeVisible({ timeout: 15_000 });
+});
