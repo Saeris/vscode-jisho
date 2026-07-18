@@ -1,5 +1,7 @@
-import { Activity } from "react";
+import { Activity, useEffect } from "react";
 import { useMachine } from "@xstate/react";
+import { onHostPush } from "./bridge";
+import { speak } from "./speech";
 import {
   activeView,
   canGoHome,
@@ -18,6 +20,19 @@ import { WordDetail } from "./views/WordDetail";
 export const App = (): React.ReactElement => {
   const [state, send] = useMachine(navigationMachine);
   const view = activeView(state.context);
+
+  // Editor commands arrive as host pushes: "Look Up Selection" searches (and navigates to the
+  // search view), "Speak Selection" goes straight to TTS. An external event subscription is the
+  // one legitimate useEffect.
+  useEffect(
+    () =>
+      onHostPush((push) => {
+        if (push.action === "search")
+          send({ type: "searchFor", term: push.text });
+        else void speak(push.text);
+      }),
+    [send]
+  );
   // The Home escape hatch is only offered when it differs from Back (drilled >1 level deep).
   const onHome: (() => void) | undefined = canGoHome(state.context)
     ? (): void => send({ type: "home" })

@@ -5,9 +5,11 @@ import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
   GetStrokeSvgRequest,
+  HostPush,
   Request,
   Response,
-  SegmentDto
+  SegmentDto,
+  WebviewReady
 } from "./shared/messages";
 
 const VIEW_ID = "vscode-jisho.searchView";
@@ -46,10 +48,30 @@ const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   return { segments, lemmas };
 };
 
+/** The active editor's selected text, trimmed; undefined when there is none. */
+const selectionText = (): string | undefined => {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return undefined;
+  const text = editor.document.getText(editor.selection).trim();
+  return text === "" ? undefined : text;
+};
+
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new JishoViewProvider(context);
+  const pushSelection = (action: HostPush["action"]) => (): void => {
+    const text = selectionText();
+    if (text !== undefined) provider.push({ type: "hostPush", action, text });
+  };
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider),
+    vscode.commands.registerCommand(
+      "vscode-jisho.lookupSelection",
+      pushSelection("search")
+    ),
+    vscode.commands.registerCommand(
+      "vscode-jisho.speakSelection",
+      pushSelection("speak")
+    ),
     provider
   );
 }
@@ -67,9 +89,29 @@ class JishoViewProvider
   #context: vscode.ExtensionContext;
   #dictionary: Promise<Dictionary> | undefined;
   #names: Promise<NamesDictionary> | undefined;
+  #view: vscode.WebviewView | undefined;
+  /** Set when the webview's bridge has said `webviewReady` — pushes before that would be lost. */
+  #ready = false;
+  #queuedPushes: HostPush[] = [];
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
+  }
+
+  /**
+   * Deliver an editor-command push, revealing the sidebar. A webview that isn't resolved (or whose
+   * bridge hasn't attached yet) can't receive messages — those pushes queue and flush on
+   * `webviewReady`, so a command issued before the panel ever opened still lands.
+   */
+  push(message: HostPush): void {
+    // The `<viewId>.focus` command is auto-registered by VS Code; it opens and reveals the view,
+    // triggering resolveWebviewView when needed.
+    void vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+    if (this.#ready && this.#view) {
+      void this.#view.webview.postMessage(message);
+    } else {
+      this.#queuedPushes.push(message);
+    }
   }
 
   async #dict(): Promise<Dictionary> {
@@ -102,6 +144,12 @@ class JishoViewProvider
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
+    this.#view = view;
+    this.#ready = false;
+    view.onDidDispose(() => {
+      this.#view = undefined;
+      this.#ready = false;
+    });
     view.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -109,7 +157,14 @@ class JishoViewProvider
       ]
     };
     view.webview.html = this.#html(view.webview);
-    view.webview.onDidReceiveMessage((msg: Request) => {
+    view.webview.onDidReceiveMessage((msg: Request | WebviewReady) => {
+      if (msg.type === "webviewReady") {
+        this.#ready = true;
+        for (const queued of this.#queuedPushes.splice(0)) {
+          void view.webview.postMessage(queued);
+        }
+        return;
+      }
       void this.#handle(view.webview, msg);
     });
   }

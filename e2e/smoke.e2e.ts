@@ -66,3 +66,30 @@ test("tapping a result opens its word detail", async () => {
       .first()
   ).toBeVisible();
 });
+
+test("editor command: Look Up Selection drives the sidebar search", async () => {
+  const win = app().window;
+  // A real editor with Japanese text, selected. Focus sits in the editor, so the palette works
+  // (inside the webview, F1 goes to the extension's own search box instead).
+  await win.keyboard.press("Control+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  await win.keyboard.type("食べました");
+  await win.keyboard.press("Control+a");
+
+  await win.keyboard.press("F1");
+  await win.locator(".quick-input-widget").waitFor();
+  await win.keyboard.type("Jisho: Look Up Selection");
+  await win
+    .locator(".quick-input-list .monaco-list-row", {
+      hasText: "Look Up Selection"
+    })
+    .first()
+    .waitFor();
+  await win.keyboard.press("Enter");
+
+  // The command reveals the sidebar and pushes the query through: the search box carries the
+  // selection and deinflected results (食べました → 食べる) arrive from the real DB.
+  const frame = await jishoFrame(win);
+  await expect(frame.getByRole("searchbox")).toHaveValue("食べました");
+  await expect(frame.getByText("to eat").first()).toBeVisible();
+});

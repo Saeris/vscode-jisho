@@ -10,6 +10,7 @@ import type {
   GetComponentTreeResponse,
   GetStrokeSvgResponse,
   GetWordResponse,
+  HostPush,
   LookupRadicalsResponse,
   Request,
   Response,
@@ -28,16 +29,43 @@ const vscode = acquireVsCodeApi();
 let nextId = 0;
 const pending = new Map<string, (response: Response) => void>();
 
-// `event.data` is whatever the host posted; validate its shape before trusting it as a Response.
+/** Subscribers to host-initiated pushes (editor commands). */
+const pushHandlers = new Set<(push: HostPush) => void>();
+
+/** Subscribe to host pushes; returns the unsubscribe. */
+export const onHostPush = (handler: (push: HostPush) => void): (() => void) => {
+  pushHandlers.add(handler);
+  return (): void => {
+    pushHandlers.delete(handler);
+  };
+};
+
+// `event.data` is whatever the host posted; validate its shape before trusting it.
 window.addEventListener("message", (event: MessageEvent<unknown>) => {
-  const response = event.data;
-  if (!isResponse(response)) return;
-  const resolve = pending.get(response.requestId);
+  const message = event.data;
+  if (isHostPush(message)) {
+    for (const handler of pushHandlers) handler(message);
+    return;
+  }
+  if (!isResponse(message)) return;
+  const resolve = pending.get(message.requestId);
   if (resolve) {
-    pending.delete(response.requestId);
-    resolve(response);
+    pending.delete(message.requestId);
+    resolve(message);
   }
 });
+
+// Tell the host the bridge is listening — it queues editor-command pushes until this arrives.
+vscode.postMessage({ type: "webviewReady" });
+
+const isHostPush = (value: unknown): value is HostPush =>
+  typeof value === "object" &&
+  value !== null &&
+  "type" in value &&
+  value.type === "hostPush" &&
+  "action" in value &&
+  "text" in value &&
+  typeof value.text === "string";
 
 const isResponse = (value: unknown): value is Response =>
   typeof value === "object" &&

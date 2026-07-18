@@ -371,6 +371,26 @@ export interface ErrorResponse {
   message: string;
 }
 
+// ── Host-initiated pushes (editor commands) ──────────────────────────────────
+
+/**
+ * A push from the host to the webview, outside the request/response correlation — editor commands
+ * ("Look Up Selection", "Speak Selection") drive the webview through these.
+ */
+export interface HostPush {
+  type: "hostPush";
+  action: "search" | "speak";
+  text: string;
+}
+
+/**
+ * The webview's one fire-and-forget notification: its bridge is attached and pushes can be
+ * delivered. The host queues pushes for a not-yet-resolved webview until this arrives.
+ */
+export interface WebviewReady {
+  type: "webviewReady";
+}
+
 export type Response =
   | SearchResponse
   | GetWordResponse

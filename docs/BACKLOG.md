@@ -324,9 +324,11 @@ Ingredients already decided by adjacent feedback: explicit section splits with t
 
 User direction (2026-07-17): _"these are the kind of deeper integrations that make this extension useful for people authoring text in Japanese"_ — the user edits Japanese in markdown documents regularly. The ruby syntax target is **mirrordown's** (`@mirrordown/mdit-ruby` + `@mirrordown/remd-ruby` render it identically): `{漢字|かんじ}` → `<ruby>漢字<rt>かんじ</rt></ruby>`, with tests and context in the parent monorepo (github.com/mirrordown/mirrordown).
 
-**User-requested:**
+**Shipped (2026-07-17):** "Jisho: Look Up Selection" and "Jisho: Speak Selection" — palette + editor context menu (shown when a selection exists). Plumbing: a `HostPush` channel from host to webview with a `webviewReady` handshake, so a command issued before the sidebar ever opened queues and flushes once the bridge attaches; lookup reveals the view and drives the same `searchFor` path as tap-through (deinflection included — 食べました finds 食べる). Word-under-cursor (no selection) remains open below.
 
-- **Lookup selection** — select text in any editor → command/context-menu/keybinding opens the sidebar with that query (word under cursor when nothing is selected).
+**User-requested (remaining):**
+
+- **Lookup selection** — ~~select text in any editor → command opens the sidebar with that query~~ shipped; still open: word under cursor when nothing is selected (needs the tokenizer to find the boundary).
 - **Translate & replace selection** — en→ja and ja→en: replace the selection with its best dictionary match (headword or gloss). Needs a confirm affordance (quick-pick of candidates) — silent best-match will guess wrong.
 - **Copy with furigana** — Mintlify/Figma-style "Copy as…" on the word page: plain / kana / romaji / `{漢字|かんじ}` ruby markdown / HTML `<ruby>`.
 - **Paste with furigana** — editor command pasting the current word (or clipboard text) pre-formatted in ruby syntax.

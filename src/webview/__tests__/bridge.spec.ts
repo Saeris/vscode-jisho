@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Response } from "../../shared/messages";
 
 // The bridge touches browser globals at import time (`acquireVsCodeApi`, `window`). Stub them
 // before importing the module, and reset modules between tests so its internal pending-map is
@@ -8,10 +7,17 @@ type MessageListener = (event: { data: unknown }) => void;
 
 const setup = async () => {
   const posted: unknown[] = [];
+  const notifications: unknown[] = [];
   const listeners: MessageListener[] = [];
 
   vi.stubGlobal("acquireVsCodeApi", () => ({
-    postMessage: (m: unknown) => posted.push(m)
+    postMessage: (m: unknown) => {
+      // The bridge announces `webviewReady` at load; keep `posted` as requests only so tests can
+      // index them positionally.
+      if ((m as { type?: string }).type === "webviewReady")
+        notifications.push(m);
+      else posted.push(m);
+    }
   }));
   vi.stubGlobal("window", {
     addEventListener: (_type: string, listener: MessageListener) =>
@@ -20,10 +26,10 @@ const setup = async () => {
 
   const bridge = await import("../bridge");
   // Simulate the host posting a message back to the webview by invoking the registered listeners.
-  const deliver = (response: Response): void => {
+  const deliver = (response: unknown): void => {
     for (const notify of listeners) notify({ data: response });
   };
-  return { bridge, posted, deliver };
+  return { bridge, posted, notifications, deliver };
 };
 
 describe("webview bridge", () => {
@@ -94,5 +100,37 @@ describe("webview bridge", () => {
     const sent = posted[0] as { requestId: string };
     deliver({ type: "error", requestId: sent.requestId, message: "boom" });
     await expect(promise).rejects.toThrow("boom");
+  });
+});
+
+describe("host pushes", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("announces readiness on load so queued editor commands can flush", async () => {
+    // WHY: a push posted before the bridge attaches is silently lost — the host queues until this
+    // notification, so a command issued with the sidebar closed still lands.
+    const { notifications } = await setup();
+    expect(notifications).toEqual([{ type: "webviewReady" }]);
+  });
+
+  it("routes host pushes to subscribers, outside the request correlation", async () => {
+    // WHY: pushes have no requestId; if they fell into the correlation path they'd be dropped,
+    // and if responses reached push handlers every query would double-fire an action.
+    const { bridge, deliver } = await setup();
+    const seen: unknown[] = [];
+    const unsubscribe = bridge.onHostPush((p) => seen.push(p));
+    deliver({ type: "hostPush", action: "search", text: "食べる" });
+    deliver({ type: "notAPush", something: 1 });
+    expect(seen).toEqual([
+      { type: "hostPush", action: "search", text: "食べる" }
+    ]);
+    unsubscribe();
+    deliver({ type: "hostPush", action: "speak", text: "x" });
+    expect(seen).toHaveLength(1);
   });
 });

@@ -55,6 +55,32 @@
           "type": "webview"
         }
       ]
+    },
+    "commands": [
+      {
+        "command": "vscode-jisho.lookupSelection",
+        "title": "Look Up Selection",
+        "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.speakSelection",
+        "title": "Speak Selection",
+        "category": "Jisho"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vscode-jisho.lookupSelection",
+          "when": "editorHasSelection",
+          "group": "1_jisho@1"
+        },
+        {
+          "command": "vscode-jisho.speakSelection",
+          "when": "editorHasSelection",
+          "group": "1_jisho@2"
+        }
+      ]
     }
   },
   "activationEvents": [],
