@@ -141,6 +141,18 @@ const coarseClassification = (
   return candidates;
 };
 
+/**
+ * How many coarse candidates the fine pass re-ranks. Inherited from the KanjiCanvas reference.
+ *
+ * Do NOT lower this to save time. Measured against the corpus (315 characters), dropping it to 25
+ * left the top-1 answer intact in 272 of 274 changed cases — but changed the CANDIDATE LIST for
+ * 87% of inputs, and the handwriting panel shows eight chips that a user picks from. The coarse
+ * ranking is a crude endpoint metric; the fine pass genuinely reorders far down the list, so the
+ * "wasted" evaluations are what makes chips 2-8 trustworthy. A ~1.2x speedup is not worth
+ * degrading the visible result set.
+ */
+const FINE_CANDIDATES = 100;
+
 /** Fine pass: re-rank the top coarse candidates with the initial-map + weighted whole-whole metric. */
 const fineClassification = (
   input: Pattern,
@@ -149,7 +161,7 @@ const fineClassification = (
 ): Scored[] => {
   const inputLength = input.length;
   const candidates: Scored[] = [];
-  for (let i = 0; i < Math.min(coarse.length, 100); i++) {
+  for (let i = 0; i < Math.min(coarse.length, FINE_CANDIDATES); i++) {
     const j = coarse[i].index;
     const refLength = refPatterns[j][1];
     const refPattern = refPatterns[j][2];

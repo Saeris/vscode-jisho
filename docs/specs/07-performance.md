@@ -117,7 +117,22 @@ User-facing latency: **p95 22.5 ms → 12.8 ms**, and total profile ticks 1,223 
 
 **The profile confirms the mechanism**: `endPointDistance` fell from 608 self-ticks (50%) to 23 (3%) — V8 inlined the specialised comparison into `getMapEndPoints`. Correctness is unchanged: 228 tests pass, including the recognizer's ported reference-fidelity tests, plus 8/8 E2E.
 
-**Next target, if wanted**: the now-dominant cost is the _generic_ `getMap` (156 self-ticks) called by the **fine** pass with `initialDistance`. That metric walks every point rather than endpoints, so the same trick does not transfer directly — but the fine pass only examines the top 100 candidates, so shrinking that cutoff is the cheaper lever.
+## 0.6 A rejected optimization, and why (2026-07-19)
+
+The obvious next lever was the fine pass's **top-100 candidate cutoff** — an unexamined constant inherited from the KanjiCanvas reference, gating the now-dominant `getMap`. Measuring first killed it, which is the point of measuring.
+
+**The tempting evidence**: across 130 corpus-sampled characters, distorted with jitter plus scale and skew to mimic an uneven hand, the correct answer never ranked below **4th** in the coarse pass. That suggests ~96 of the 100 fine evaluations cannot change the answer, and cutting to 25 keeps an 8× margin.
+
+**What that measurement missed**: it asked whether the _correct answer_ survives, not whether the _candidate list_ does. Capturing full top-8 outputs across 315 characters before and after:
+
+- top-1 answer unchanged in **272 of 274** changed cases — the headline accuracy holds
+- but **87% of candidate lists changed** (only 41/315 identical)
+
+The handwriting panel shows **eight chips** and the user picks from them. The coarse ranking is a crude endpoint metric; the fine pass genuinely reorders far down the list, so those "wasted" evaluations are exactly what makes chips 2–8 trustworthy. A ~1.2× speedup is not worth degrading the visible result set — especially since a user reaches for chips 2–8 precisely when their handwriting was poor, i.e. when the coarse ranking is least reliable.
+
+Reverted, with the reasoning recorded at `FINE_CANDIDATES` so the next person does not re-derive it.
+
+**Remaining target**: the generic `getMap` (156 of 697 self-ticks, ~22%) with `initialDistance`, which walks every point rather than endpoints. The same flattening trick applies in principle, but reference strokes have **variable point counts** (2–36), so it needs an offset table rather than a fixed stride — more invasive, for a smaller share, on a path that is now comfortably fast (p95 11 ms). Worth doing only if handwriting still feels laggy in practice.
 
 ## 1. Keep the benchmark, use it as a regression gate
 
