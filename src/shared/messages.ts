@@ -291,6 +291,17 @@ export interface OpenSettingsRequest {
   requestId: string;
 }
 
+/**
+ * Put text on the system clipboard. Routed through the host because a webview's
+ * `navigator.clipboard` needs transient user activation and can be refused outright — the
+ * extension host's clipboard API has neither constraint.
+ */
+export interface CopyTextRequest {
+  type: "copyText";
+  requestId: string;
+  text: string;
+}
+
 export type Request =
   | SearchRequest
   | GetWordRequest
@@ -301,7 +312,8 @@ export type Request =
   | GetAboutRequest
   | SearchNamesRequest
   | GetNameRequest
-  | OpenSettingsRequest;
+  | OpenSettingsRequest
+  | CopyTextRequest;
 
 export interface SearchResponse {
   type: "search";
@@ -370,6 +382,11 @@ export interface OpenSettingsResponse {
   requestId: string;
 }
 
+export interface CopyTextResponse {
+  type: "copyText";
+  requestId: string;
+}
+
 export interface GetNameResponse {
   type: "getName";
   requestId: string;
@@ -428,4 +445,5 @@ export type Response =
   | SearchNamesResponse
   | GetNameResponse
   | OpenSettingsResponse
+  | CopyTextResponse
   | ErrorResponse;

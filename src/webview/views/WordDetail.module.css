@@ -27,6 +27,14 @@
   line-height: 1.3;
 }
 
+/* Play + copy travel together: on a narrow sidebar they should wrap as a pair rather than the
+   second one stranding itself on its own line. */
+.headActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .headKana {
   font-size: 1.8em;
 }

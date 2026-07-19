@@ -11,6 +11,7 @@ import type {
 import { kanjiQuery, wordQuery } from "../queries";
 import { conjugate } from "../conjugate";
 import { Badge } from "../components/Badge";
+import { CopyAsMenu } from "../components/CopyAsMenu";
 import { PitchAccent } from "../components/PitchAccent";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import { DetailHeader } from "../components/DetailHeader";
@@ -154,10 +155,20 @@ const WordBody = ({
                 】
               </span>
             ) : null}
-            <PlayButton
-              text={kana.text}
-              label={`Play pronunciation of ${kana.text}`}
-            />
+            {/* The two controls act on the same reading, so they wrap together rather than the
+                copy button dropping to a line of its own on a narrow sidebar. */}
+            <span className={styles.headActions}>
+              <PlayButton
+                text={kana.text}
+                label={`Play pronunciation of ${kana.text}`}
+              />
+              {/* Per reading line, so the furigana variants pair THIS reading with the writings
+                  it actually applies to (一月 is ひとつき on one line, いちげつ on the other). */}
+              <CopyAsMenu
+                headword={writingsFor(kana, word)[0]?.text ?? kana.text}
+                reading={kana.text}
+              />
+            </span>
           </div>
         ))}
         <div className={styles.tagRow}>

@@ -144,3 +144,22 @@ test("capture: handwriting view", async () => {
     "test-results/shots/14-handwriting.png"
   );
 });
+
+test("capture: copy-as menu on the word detail", async () => {
+  const frame = await jishoFrame(app().window);
+  const back = frame.getByRole("button", { name: /back/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await frame
+    .getByRole("button", { name: /Copy 食べる as/ })
+    .first()
+    .click();
+  await frame
+    .getByRole("menuitem", { name: /Furigana \(Markdown\)/ })
+    .waitFor();
+  await screenshotSidebar(app().window, "test-results/shots/17-copy-as.png");
+});

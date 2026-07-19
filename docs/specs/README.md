@@ -25,5 +25,16 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | #   | Spec                                                                                                            | Backlog | Status                                           |
 | --- | --------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------ |
 | 01  | [Palette engine: decoration-based POS palettes, 11-way taxonomy, CVD + typeface channels](01-palette-engine.md) | #38     | Ready except palette hex values (user to supply) |
+| 02  | [Grammar notes: particles, auxiliaries, conjugation forms](02-grammar-notes.md)                                 | #34     | Ready — content-heavy; user reviews all notes    |
+| 03  | [Copy-as variants, Add Furigana, word-under-cursor](03-copy-as-and-furigana.md)                                 | #33     | **Implemented** (see below)                      |
+| 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild            |
 
-More specs follow, one per session item.
+Not yet specced: the #32/#20 examples restructure, and the visual-regression baseline procedure.
+
+## Spec 03 as built (deviations worth knowing)
+
+- **`useCopyStatus` hook**, not a forked menu component: the existing `CopyButton` used `navigator.clipboard` — exactly the flaky path the spec rejected — so the write moved into a shared hook routed through the host, and both the kanji-page copy button and the new `CopyAsMenu` use it. One clipboard path, one feedback implementation.
+- **Copy-as sits per READING line**, not once in the headline: each line pairs a reading with the writings it applies to, so the furigana variants annotate the right pairing (一月 → ひとつき【一月, ひと月】 vs いちげつ【一月】).
+- **`resolveWord`** (in `hover.ts`) is the shared helper §4 asked for, taking the run + its groups rather than doing its own tokenizing, so it stays pure and the hover keeps ownership of the async part.
+- **Component-project setup file** (`src/webview/__tests__/setup.ts`, wired in `vite.config.ts`): views that reach the bridge failed to LOAD under jsdom once WordDetail imported it. Stubbing `acquireVsCodeApi` once beats a `vi.mock` in every spec.
+- **E2E helpers hoisted** in `smoke.e2e.ts` (`runCommand`, `editorWith`) and reused by the spacing/furigana/copy-as tests.

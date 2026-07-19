@@ -7,13 +7,15 @@ import {
   groupSegments,
   japaneseRunAt,
   japaneseRuns,
+  resolveWord,
   stripRuby,
-  toStrippedIndex,
-  wordAt
+  toStrippedIndex
 } from "./host/hover";
+import { addFurigana, removeFurigana } from "./host/furigana";
 import { addSpacing, removeSpacing } from "./host/spacing";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
+  CopyTextRequest,
   GetStrokeSvgRequest,
   HostPush,
   HostSettings,
@@ -133,12 +135,30 @@ const provideSemanticTokens = async (
   return builder.build();
 };
 
-/** The active editor's selected text, trimmed; undefined when there is none. */
-const selectionText = (): string | undefined => {
+/**
+ * The word the command should act on: the selection when there is one, otherwise the word under
+ * the cursor — resolved through the same machinery as the hover, so "the word here" means the
+ * same thing whether you hover it or right-click it. Returns the surface as written (speaking a
+ * lemma would say a form the user didn't write) with the dictionary form alongside.
+ */
+const targetWord = async (): Promise<
+  { surface: string; lookup: string } | undefined
+> => {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return undefined;
-  const text = editor.document.getText(editor.selection).trim();
-  return text === "" ? undefined : text;
+  const selected = editor.document.getText(editor.selection).trim();
+  if (selected !== "") return { surface: selected, lookup: selected };
+
+  const position = editor.selection.active;
+  const stripped = stripRuby(editor.document.lineAt(position.line).text);
+  const cursor = toStrippedIndex(stripped, position.character);
+  const run = japaneseRunAt(stripped.text, cursor);
+  if (run === null) return undefined;
+  const groups = HAS_KANJI.test(run.text)
+    ? groupSegments(await segment(run.text))
+    : [];
+  const { surface, lookup } = resolveWord(run, groups, cursor);
+  return { surface, lookup };
 };
 
 /**
@@ -171,19 +191,26 @@ const transformEditorText = async (
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new JishoViewProvider(context);
   const semanticTokensChanged = new vscode.EventEmitter<void>();
-  const pushSelection = (action: HostPush["action"]) => (): void => {
-    const text = selectionText();
-    if (text !== undefined) provider.push({ type: "hostPush", action, text });
+  // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
+  // as written, since reading back a lemma would say a word the user didn't write.
+  const pushWord = (action: HostPush["action"]) => async (): Promise<void> => {
+    const word = await targetWord();
+    if (word === undefined) return;
+    provider.push({
+      type: "hostPush",
+      action,
+      text: action === "speak" ? word.surface : word.lookup
+    });
   };
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider),
     vscode.commands.registerCommand(
       "vscode-jisho.lookupSelection",
-      pushSelection("search")
+      pushWord("search")
     ),
     vscode.commands.registerCommand(
       "vscode-jisho.speakSelection",
-      pushSelection("speak")
+      pushWord("speak")
     ),
     // Internal (not in contributes): the hover's "Open in Jisho" link runs this with its word.
     vscode.commands.registerCommand("vscode-jisho.lookupText", (text: string) =>
@@ -195,6 +222,13 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("vscode-jisho.removeSpacing", async () =>
       transformEditorText(removeSpacing)
+    ),
+    // Furigana annotation in mirrordown ruby syntax (BACKLOG #33).
+    vscode.commands.registerCommand("vscode-jisho.addFurigana", async () =>
+      transformEditorText(addFurigana)
+    ),
+    vscode.commands.registerCommand("vscode-jisho.removeFurigana", async () =>
+      transformEditorText(removeFurigana)
     ),
     vscode.commands.registerCommand("vscode-jisho.openSettings", () => {
       void vscode.commands.executeCommand(
@@ -301,24 +335,19 @@ class JishoViewProvider
     const run = japaneseRunAt(stripped.text, cursor);
     if (run === null) return undefined;
 
-    let surface = run.text;
-    let lookup = run.text;
-    let wordStart = run.start;
-    let breakdown: string | null = null;
-    if (HAS_KANJI.test(run.text)) {
-      // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
-      // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
-      const groups = groupSegments(await segment(run.text));
-      if (token.isCancellationRequested) return undefined;
-      const hit = wordAt(groups, cursor - run.start);
-      if (hit !== null) {
-        surface = hit.segment.surface;
-        lookup = hit.segment.lemma === "" ? surface : hit.segment.lemma;
-        wordStart = run.start + hit.start;
-        // The detected form's structure — what the conjugation MEANS here (user request).
-        breakdown = describeGroup(hit.segment);
-      }
-    }
+    // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
+    // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
+    const groups = HAS_KANJI.test(run.text)
+      ? groupSegments(await segment(run.text))
+      : [];
+    const {
+      surface,
+      lookup,
+      start: wordStart,
+      group
+    } = resolveWord(run, groups, cursor);
+    // The detected form's structure — what the conjugation MEANS here (user request).
+    const breakdown = group ? describeGroup(group) : null;
     // Guard the whole-run fallback: hovering a long kana-only sentence isn't a word lookup.
     if (Array.from(lookup).length > 12) return undefined;
 
@@ -416,11 +445,13 @@ class JishoViewProvider
       const response =
         request.type === "openSettings"
           ? openSettings(request)
-          : request.type === "getStrokeSvg"
-            ? await this.#strokeSvg(request)
-            : request.type === "searchNames" || request.type === "getName"
-              ? await respondNames(await this.#namesDict(), request)
-              : await respond(await this.#dict(), request);
+          : request.type === "copyText"
+            ? await copyText(request)
+            : request.type === "getStrokeSvg"
+              ? await this.#strokeSvg(request)
+              : request.type === "searchNames" || request.type === "getName"
+                ? await respondNames(await this.#namesDict(), request)
+                : await respond(await this.#dict(), request);
       await webview.postMessage(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -516,6 +547,12 @@ const openSettings = (request: OpenSettingsRequest): Response => {
   return { type: "openSettings", requestId: request.requestId };
 };
 
+/** Copy-as: the host owns the clipboard, since the webview's needs user activation. */
+const copyText = async (request: CopyTextRequest): Promise<Response> => {
+  await vscode.env.clipboard.writeText(request.text);
+  return { type: "copyText", requestId: request.requestId };
+};
+
 /** Requests served by the word/kanji dictionary (not the names DB, not the file-backed SVGs). */
 type WordRequest = Exclude<
   Request,
@@ -523,6 +560,7 @@ type WordRequest = Exclude<
   | { type: "getName" }
   | { type: "getStrokeSvg" }
   | { type: "openSettings" }
+  | { type: "copyText" }
 >;
 
 /** Dispatch a word/kanji request to the dictionary and build its response. */

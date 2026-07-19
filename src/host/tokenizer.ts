@@ -59,6 +59,8 @@ const getTokenizer = async (): Promise<Tokenizer> => {
 export interface MorphemeDto {
   surface: string;
   lemma: string;
+  /** Katakana reading, or "" when the dictionary has none (unknown words, symbols). */
+  reading: string;
   pos: PartOfSpeech;
 }
 
@@ -77,6 +79,7 @@ export const segment = async (text: string): Promise<DetailedSegment[]> => {
     const morpheme: MorphemeDto = {
       surface: token.surface,
       lemma: token.baseForm === "*" ? token.surface : token.baseForm,
+      reading: token.reading === "*" ? "" : token.reading,
       pos
     };
     // Explicit length guard so `prev` is genuinely defined-or-undefined (index access is
@@ -92,6 +95,10 @@ export const segment = async (text: string): Promise<DetailedSegment[]> => {
       token.partOfSpeechSubcategory1 === "非自立";
     if (isSuffix && prev && prev.pos !== "particle") {
       prev.surface += token.surface;
+      // The reading has to grow with the surface: furigana alignment reads the WHOLE segment
+      // (見せました needs ミセマシタ, not the head's ミセ), and a short reading would make every
+      // conjugated verb fail to align.
+      prev.reading += morpheme.reading;
       prev.parts.push(morpheme);
       // Promote noun + する → verb (サ変); otherwise keep the content word's lemma/pos.
       if (prev.pos === "noun" && token.baseForm === "する") prev.pos = "verb";

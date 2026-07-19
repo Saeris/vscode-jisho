@@ -102,14 +102,23 @@ export interface RunSegment {
   lemma: string;
 }
 
-export interface PosSegment extends RunSegment {
+/** A morpheme as the grouping logic sees it: optional reading, so plain fixtures stay simple. */
+export interface Morpheme extends RunSegment {
   pos: string;
-  /** Raw morphemes already folded into this segment (the tokenizer merges verb+auxiliaries). */
-  parts?: Array<RunSegment & { pos: string }>;
+  reading?: string;
 }
 
-const partsOf = (s: PosSegment): Array<RunSegment & { pos: string }> =>
-  s.parts ?? [{ surface: s.surface, lemma: s.lemma, pos: s.pos }];
+export interface PosSegment extends RunSegment {
+  pos: string;
+  reading?: string;
+  /** Raw morphemes already folded into this segment (the tokenizer merges verb+auxiliaries). */
+  parts?: Morpheme[];
+}
+
+const partsOf = (s: PosSegment): Morpheme[] =>
+  s.parts ?? [
+    { surface: s.surface, lemma: s.lemma, pos: s.pos, reading: s.reading }
+  ];
 
 /**
  * Merge each auxiliary (and a verb's て/で) onto the group before it, so a conjugated form is one
@@ -121,7 +130,7 @@ export interface SegmentGroup {
   surface: string;
   lemma: string;
   /** The head morpheme plus every auxiliary attached to it, in order. */
-  parts: Array<RunSegment & { pos: string }>;
+  parts: Morpheme[];
 }
 
 export const groupSegments = (segments: PosSegment[]): SegmentGroup[] => {
@@ -208,6 +217,18 @@ export const describeGroup = (group: SegmentGroup): string | null => {
   return `${group.surface} = ${group.parts[0].lemma || group.parts[0].surface} + ${chain}`;
 };
 
+/** A word resolved at a cursor: what was written, what to look up, and where it sits. */
+export interface ResolvedWord {
+  /** The conjugated form as written — what to highlight, and what to speak. */
+  surface: string;
+  /** The dictionary form to search (the lemma when known, else the surface). */
+  lookup: string;
+  /** Stripped-space index where the word starts, for mapping back to the original line. */
+  start: number;
+  /** The matched group, when tokenization produced one (carries the conjugation chain). */
+  group?: SegmentGroup;
+}
+
 /**
  * The segment covering `offset` within the run the segments tile, plus the offset where it starts
  * — the hover's lookup candidate and highlight range. Null when offset falls past the segments
@@ -224,4 +245,29 @@ export const wordAt = <S extends RunSegment>(
     start = end;
   }
   return null;
+};
+
+/**
+ * Resolve the word at a cursor inside a Japanese run, given that run's grouped segmentation.
+ *
+ * Pure, so the hover and the editor commands share ONE definition of "the word under the cursor" —
+ * two implementations would eventually disagree about which word a click means. Callers do the
+ * async part (tokenizing the run) and hand the groups in. With no groups (a kana-only run nobody
+ * tokenized), the whole run is the word.
+ */
+export const resolveWord = (
+  run: JaRun,
+  groups: SegmentGroup[],
+  cursor: number
+): ResolvedWord => {
+  const hit = wordAt(groups, cursor - run.start);
+  if (hit === null) {
+    return { surface: run.text, lookup: run.text, start: run.start };
+  }
+  return {
+    surface: hit.segment.surface,
+    lookup: hit.segment.lemma === "" ? hit.segment.surface : hit.segment.lemma,
+    start: run.start + hit.start,
+    group: hit.segment
+  };
 };

@@ -81,6 +81,16 @@
         "command": "vscode-jisho.removeSpacing",
         "title": "Remove Word Spacing",
         "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.addFurigana",
+        "title": "Add Furigana (ふりがな)",
+        "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.removeFurigana",
+        "title": "Remove Furigana",
+        "category": "Jisho"
       }
     ],
     "configuration": {
@@ -128,7 +138,6 @@
       "editor/context": [
         {
           "submenu": "vscode-jisho.editorSubmenu",
-          "when": "editorHasSelection",
           "group": "1_jisho"
         }
       ],
@@ -148,6 +157,14 @@
         {
           "command": "vscode-jisho.removeSpacing",
           "group": "2_spacing@2"
+        },
+        {
+          "command": "vscode-jisho.addFurigana",
+          "group": "2_spacing@3"
+        },
+        {
+          "command": "vscode-jisho.removeFurigana",
+          "group": "2_spacing@4"
         }
       ]
     }

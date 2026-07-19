@@ -1,0 +1,49 @@
+/* The copy-as popover. Chrome comes from VS Code's own widget tokens so the menu reads as part of
+   the editor rather than a web page floating inside it. */
+.popover {
+  background: var(--vscode-editorWidget-background, var(--jisho-input-bg));
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
+  padding: 4px;
+  max-width: min(320px, 90vw);
+}
+
+.menu {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Label above, the exact text below: the preview is the point — you pick a format by seeing what
+   lands on the clipboard, not by decoding its name. */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 8px;
+  border-radius: var(--jisho-radius);
+  cursor: pointer;
+  outline: none;
+}
+
+.item[data-focused],
+.item[data-hovered] {
+  background: var(--jisho-hover-bg);
+}
+
+.item[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.itemLabel {
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+}
+
+.itemValue {
+  /* Ruby markup can be long; wrap rather than widen the popover past the sidebar. */
+  overflow-wrap: anywhere;
+}

@@ -223,3 +223,11 @@ export const getName = async (id: string): Promise<GetNameResponse> => {
 export const openSettings = async (): Promise<void> => {
   await send({ type: "openSettings", requestId: nextRequestId() });
 };
+
+/**
+ * Put text on the clipboard via the host. Rejects (through the error response) when the write
+ * fails, so callers can report it rather than silently claiming success.
+ */
+export const copyText = async (text: string): Promise<void> => {
+  await send({ type: "copyText", requestId: nextRequestId(), text });
+};

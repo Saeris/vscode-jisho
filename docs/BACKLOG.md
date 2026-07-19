@@ -335,13 +335,14 @@ User direction (2026-07-17): _"these are the kind of deeper integrations that ma
 
 **Shipped (2026-07-17):** "Jisho: Look Up Selection" and "Jisho: Speak Selection" — palette + editor context menu (shown when a selection exists). Plumbing: a `HostPush` channel from host to webview with a `webviewReady` handshake, so a command issued before the sidebar ever opened queues and flushes once the bridge attaches; lookup reveals the view and drives the same `searchFor` path as tap-through (deinflection included — 食べました finds 食べる). Word-under-cursor (no selection) remains open below.
 
+**Shipped (2026-07-18, spec 03):** the authoring set — **Copy as…** (a ⧉ menu per reading line on the word page: word / reading / romaji / furigana markdown / furigana HTML, with live previews), **Add & Remove Furigana** commands, and **word-under-cursor** for lookup/speak (empty selection resolves the word at the cursor through the hover's own `resolveWord`, so both agree on what "the word here" means; speak says the surface as written, search uses the lemma). Clipboard writes route through the host (`copyText` request → `vscode.env.clipboard`), replacing the webview's `navigator.clipboard`.
+
+**Key finding: furigana did NOT need #15's JMdict span asset.** `src/shared/ruby.ts` aligns readings algorithmically — the surface splits into kanji/kana runs, kana runs become literal anchors in a regex over the reading, and the captures pair with the kanji runs — so `{食|た}べる` and `{買|か}い{物|もの}` come out right from (surface, reading) alone, with a whole-word `{食べる|のむ}` fallback when nothing matches. #15 remains the better source for DICTIONARY display (it is curated, not inferred), but authoring works today.
+
 **User-requested (remaining):**
 
-- **Lookup selection** — ~~select text in any editor → command opens the sidebar with that query~~ shipped; still open: word under cursor when nothing is selected (needs the tokenizer to find the boundary).
 - **Translate & replace selection** — en→ja and ja→en: replace the selection with its best dictionary match (headword or gloss). Needs a confirm affordance (quick-pick of candidates) — silent best-match will guess wrong.
-- **Copy with furigana** — Mintlify/Figma-style "Copy as…" on the word page: plain / kana / romaji / `{漢字|かんじ}` ruby markdown / HTML `<ruby>`.
-- **Paste with furigana** — editor command pasting the current word (or clipboard text) pre-formatted in ruby syntax.
-- **Add furigana to selection** — tokenize the selection (M5 Lindera, already in the host), look up each word's reading, and rewrap kanji runs in ruby syntax. NOTE: wrap only the kanji run — `{食|た}べる`, not `{食べる|たべる}` — which needs the kanji↔kana span data; that is exactly #15's JMdict furigana asset. Whole-word fallback until it lands.
+- ~~Paste with furigana~~ — subsumed: Copy as… exports the ruby form, Add Furigana annotates in place.
 
 **Additional ideas (proposed, not yet user-approved):**
 

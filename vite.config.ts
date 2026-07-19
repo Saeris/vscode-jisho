@@ -41,7 +41,10 @@ const componentProject: TestProjectConfiguration = {
     name: "component",
     include: ["src/**/*.{test,spec}.tsx"],
     exclude: [...configDefaults.exclude, "**/*.browser.{test,spec}.{ts,tsx}"],
-    environment: "jsdom"
+    environment: "jsdom",
+    // bridge.ts calls acquireVsCodeApi() at import; without a stub, every component that reaches
+    // the bridge fails to load under jsdom. See the setup file.
+    setupFiles: ["src/webview/__tests__/setup.ts"]
   }
 };
 
