@@ -96,6 +96,29 @@ Two configuration traps worth knowing, both hit while wiring this up:
 - The `benchmark.include` option is separate from `include`; the bench project sets both, so the
   deoptkit `*.bench.mjs` workloads (which export no Vitest suite) are not collected as benches.
 
+## 0.5 The optimization, verified (2026-07-19)
+
+The workflow's first real use, and it worked exactly as designed: profile → identify → change → compare.
+
+**What the profile said**: `endPointDistance` held 50% of CPU. It reads only four numbers per stroke (first and last point) but `getMap` calls it **~840,000 times** for one worst-case recognition, each call re-walking stroke → point → coordinate to find them again.
+
+**The change** (`correspondence.ts`, `index.ts`): precompute each pattern's endpoints once into a flat `Float64Array`, cache the reference set's (immutable, shared across every recognition — a `WeakMap` keyed on the array identity), and give the coarse pass a specialised `getMapEndPoints` that does flat array arithmetic instead of calling a metric. Same algorithm, same comparisons, same order — only the data layout changed. The generic `getMap` stays for the fine pass, which uses a metric that genuinely needs whole strokes.
+
+**Measured result** (`vp run bench:compare`, all far beyond the ~10% noise floor):
+
+| Case                          | Before  | After   | Speedup   |
+| ----------------------------- | ------- | ------- | --------- |
+| single: 20 strokes            | 6.7 ms  | 3.8 ms  | **1.76×** |
+| single: 9 strokes (peak)      | 17.5 ms | 10.1 ms | **1.73×** |
+| session: draw 食 (worst case) | 61.5 ms | 42.5 ms | **1.45×** |
+| session: draw 水 (typical)    | 5.8 ms  | 4.8 ms  | 1.20×     |
+
+User-facing latency: **p95 22.5 ms → 12.8 ms**, and total profile ticks 1,223 → 699 (43% less CPU).
+
+**The profile confirms the mechanism**: `endPointDistance` fell from 608 self-ticks (50%) to 23 (3%) — V8 inlined the specialised comparison into `getMapEndPoints`. Correctness is unchanged: 228 tests pass, including the recognizer's ported reference-fidelity tests, plus 8/8 E2E.
+
+**Next target, if wanted**: the now-dominant cost is the _generic_ `getMap` (156 self-ticks) called by the **fine** pass with `initialDistance`. That metric walks every point rather than endpoints, so the same trick does not transfer directly — but the fine pass only examines the top 100 candidates, so shrinking that cutoff is the cheaper lever.
+
 ## 1. Keep the benchmark, use it as a regression gate
 
 `bench/recognize.bench.mjs` + `bench/entry.ts` (a bundle entry, because deoptkit profiles **built** output — bundling changes shapes and inlining, so findings against source describe code that never ships). Build with `vp run bench:build`.

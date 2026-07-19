@@ -12,18 +12,41 @@ import {
   completeMap,
   concatStrokes,
   endPointDistance,
+  endPointsOf,
   getMap,
+  getMapEndPoints,
   initialDistance,
   wholeWholeDistance
 } from "./correspondence";
 import { extractFeatures, momentNormalize } from "./geometry";
 import type { DistanceMetric, Pattern, RefPattern, StrokeMap } from "./types";
+import type { EndPoints } from "./correspondence";
 
 /** Only compare patterns whose stroke counts are within the reference's ±2 window. */
 const strokeCountCompatible = (
   inputLength: number,
   refLength: number
 ): boolean => inputLength < refLength + 2 && inputLength > refLength - 3;
+
+/**
+ * Endpoints for a reference set, computed once and reused.
+ *
+ * The reference patterns are immutable and shared across every recognition, so deriving their
+ * endpoints per call would repeat identical work on each stroke the user draws. Keyed by the array
+ * identity (a WeakMap, so a caller passing a different set — the tests do — gets its own entry and
+ * nothing leaks).
+ */
+const endPointCache = new WeakMap<object, EndPoints[]>();
+
+const referenceEndPoints = (
+  refPatterns: readonly RefPattern[]
+): EndPoints[] => {
+  const cached = endPointCache.get(refPatterns);
+  if (cached) return cached;
+  const computed = refPatterns.map((p) => endPointsOf(p[2]));
+  endPointCache.set(refPatterns, computed);
+  return computed;
+};
 
 /**
  * Overall distance between two patterns given an M–N map: for each reference stroke, concatenate the
@@ -93,11 +116,20 @@ const coarseClassification = (
 ): Scored[] => {
   const inputLength = input.length;
   const candidates: Scored[] = [];
+  // Hoisted out of the loop: the input's endpoints are the same for every candidate, and this pass
+  // compares against hundreds of them.
+  const inputEnds = endPointsOf(input);
+  const refEnds = referenceEndPoints(refPatterns);
   for (let i = 0; i < refPatterns.length; i++) {
     const refLength = refPatterns[i][1];
     if (!strokeCountCompatible(inputLength, refLength)) continue;
     const refPattern = refPatterns[i][2];
-    let map = getMap(refPattern, input, endPointDistance);
+    let map = getMapEndPoints(
+      refEnds[i],
+      refPattern.length,
+      inputEnds,
+      inputLength
+    );
     map = completeMap(refPattern, input, endPointDistance, map);
     const dist = computeDistance(refPattern, input, endPointDistance, map);
     let m = refLength;

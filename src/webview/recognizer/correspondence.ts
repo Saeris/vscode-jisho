@@ -17,6 +17,50 @@ export const endPointDistance: DistanceMetric = (a, b) => {
   return manhattan(a[0], b[0]) + manhattan(a[l1 - 1], b[l2 - 1]);
 };
 
+/**
+ * A pattern's endpoints flattened to `[firstX, firstY, lastX, lastY]` per stroke.
+ *
+ * `endPointDistance` reads only those four numbers, but `getMap` calls it ~840,000 times for a
+ * single worst-case recognition — each call re-reading `a.length`, then indexing three levels deep
+ * (stroke → point → coordinate) to find them again. Extracting them once per stroke turns the hot
+ * comparison into flat Float64Array arithmetic with no property loads at all.
+ */
+export type EndPoints = Float64Array;
+
+export const endPointsOf = (pattern: Pattern): EndPoints => {
+  const out = new Float64Array(pattern.length * 4);
+  for (let i = 0; i < pattern.length; i++) {
+    const stroke = pattern[i];
+    const last = stroke.length - 1;
+    const base = i * 4;
+    // A zero-length stroke would have no endpoints; the metric treats those as distance 0, and
+    // callers filter them out before this point (recognize() drops strokes shorter than 2 points).
+    if (last < 0) continue;
+    out[base] = stroke[0][0];
+    out[base + 1] = stroke[0][1];
+    out[base + 2] = stroke[last][0];
+    out[base + 3] = stroke[last][1];
+  }
+  return out;
+};
+
+/** `endPointDistance` over precomputed endpoints — same value, no property loads. */
+const endPointDistanceAt = (
+  a: EndPoints,
+  ai: number,
+  b: EndPoints,
+  bi: number
+): number => {
+  const p = ai * 4;
+  const q = bi * 4;
+  return (
+    Math.abs(a[p] - b[q]) +
+    Math.abs(a[p + 1] - b[q + 1]) +
+    Math.abs(a[p + 2] - b[q + 2]) +
+    Math.abs(a[p + 3] - b[q + 3])
+  );
+};
+
 /** Point-by-point distance over the shorter stroke, scaled by the length ratio. */
 export const initialDistance: DistanceMetric = (a, b) => {
   const lmin = Math.min(a.length, b.length);
@@ -112,6 +156,80 @@ export const getMap = (
           }
         } else {
           const dij = metric(k1[j], k2[map[i]]);
+          if (dij < dii) {
+            map[j] = map[i];
+            map[i] = -1;
+            dii = dij;
+          }
+        }
+      }
+    }
+  }
+  return map;
+};
+
+/**
+ * `getMap` specialised for `endPointDistance`, reading precomputed endpoints.
+ *
+ * Identical algorithm to `getMap` — same greedy seed, same 3-pass hill-climb, same comparisons in
+ * the same order — but every `metric(k1[x], k2[y])` becomes flat Float64Array arithmetic instead of
+ * a call that re-walks stroke → point → coordinate. This is the coarse pass's inner loop, and it
+ * dominates recognition (~840k metric evaluations for one worst-case character).
+ *
+ * The generic `getMap` stays for the fine pass, which uses a different metric that genuinely needs
+ * whole strokes.
+ */
+export const getMapEndPoints = (
+  a: EndPoints,
+  aLength: number,
+  b: EndPoints,
+  bLength: number
+): StrokeMap => {
+  // Mirror largerAndSize: the map is indexed by the LONGER pattern's strokes.
+  const swap = aLength < bLength;
+  const k1 = swap ? b : a;
+  const k2 = swap ? a : b;
+  const n = swap ? bLength : aLength;
+  const m = swap ? aLength : bLength;
+
+  const map: StrokeMap = Array.from({ length: n }, () => -1);
+  const free = Array.from({ length: n }, () => true);
+  for (let i = 0; i < m; i++) {
+    let minDist = Number.POSITIVE_INFINITY;
+    let minJ = -1;
+    for (let j = 0; j < n; j++) {
+      if (free[j]) {
+        const d = endPointDistanceAt(k1, j, k2, i);
+        if (d < minDist) {
+          minDist = d;
+          minJ = j;
+        }
+      }
+    }
+    if (minJ !== -1) {
+      free[minJ] = false;
+      map[minJ] = i;
+    }
+  }
+
+  for (let l = 0; l < 3; l++) {
+    for (let i = 0; i < n; i++) {
+      if (map[i] === -1) continue;
+      let dii = endPointDistanceAt(k1, i, k2, map[i]);
+      for (let j = 0; j < n; j++) {
+        if (map[i] === -1) break; // map[i] may have been cleared within this inner loop
+        if (map[j] !== -1) {
+          const djj = endPointDistanceAt(k1, j, k2, map[j]);
+          const dij = endPointDistanceAt(k1, j, k2, map[i]);
+          const dji = endPointDistanceAt(k1, i, k2, map[j]);
+          if (dji + dij < dii + djj) {
+            const mapj = map[j];
+            map[j] = map[i];
+            map[i] = mapj;
+            dii = dij;
+          }
+        } else {
+          const dij = endPointDistanceAt(k1, j, k2, map[i]);
           if (dij < dii) {
             map[j] = map[i];
             map[i] = -1;
