@@ -29,6 +29,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 03  | [Copy-as variants, Add Furigana, word-under-cursor](03-copy-as-and-furigana.md)                                 | #33     | **Implemented** (see below)                      |
 | 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild            |
 | 05  | [Automated data builds, asset delivery, and update lifecycle](05-asset-delivery.md)                             | #39     | Ready — **last piece before the first release**  |
+| 06  | [Web extension viability: asset delivery without a filesystem](06-web-extension.md)                             | #40     | Analysis — viable; deliberately AFTER v1         |
 
 Not yet specced: the #32/#20 examples restructure, and the visual-regression baseline procedure.
 

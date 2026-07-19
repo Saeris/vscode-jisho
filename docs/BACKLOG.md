@@ -418,6 +418,14 @@ Scope: a `dictionary.yml` workflow that rebuilds on schema change (not schedule 
 
 Decided along the way: **stroke SVGs stay bundled in the .vsix** rather than being archived like the DB — the measured .vsix is only 30.6 MB, and a second delivery path would reintroduce the two-source-of-truth staleness bug #31 removed. Measured non-optimizations recorded in the spec (the 99%-duplicated `term_lower` is only ~5 MB of text that gzip already collapses; no `VACUUM` win — freelist is 0).
 
+### 40. Web extension support (feasibility settled — viable, post-v1)
+
+Full analysis: [specs/06-web-extension.md](specs/06-web-extension.md). A web extension runs in a Web Worker with no Node APIs, so the question was whether our asset delivery survives. Verified: **both hard dependencies have browser builds** — `@tursodatabase/database-wasm` v0.7.0 (MIT, OPFS-persisted, same version as our native build) and `lindera-wasm-ipadic` v2.1.0 — and the **stroke SVGs need no change at all**, since `vscode.workspace.fs` + `extensionUri` are VS Code APIs, not Node ones (#31's decision holds in both environments). Download/gunzip/sha256 map onto `fetch` + `DecompressionStream` + `crypto.subtle`.
+
+The real constraint is size, not capability: ~400 MB in OPFS is untenable (per-origin quotas, eviction, and a hostile first-run on vscode.dev). So the web build ships a **different data tier** — the existing 51 MB common subset by default, full DB as an explicit opt-in, names DB not offered. Known upstream risk, non-blocking: turso documents an OPFS **write**-path hang (mid-transaction cache spilling); our browser workload is read-only, and seeding should write the file to OPFS directly rather than INSERTing rows.
+
+Work is a platform seam (`"browser"` entry point + two thin backends), not a rewrite — the query layer, hover, spacing, furigana and the entire webview are already platform-free. Sequenced after the desktop release so we are not maintaining two unproven delivery paths at once.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
