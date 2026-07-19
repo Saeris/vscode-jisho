@@ -86,6 +86,32 @@ describe("startup trace", () => {
     expect(line).toMatch(/\b0ms\b/);
   });
 
+  it("attributes a blocking step to event-loop stalls, not just its own duration", async () => {
+    // The distinction the whole diagnostic turns on. A span credited with seconds while the thread
+    // was BLOCKED did not do seconds of work — it was queued. Reporting only the duration led to
+    // exactly the wrong conclusion once already (the 21s "provision dictionary" span, whose
+    // filesystem work measures ~1ms). Busy-wait, so the loop genuinely cannot run.
+    await timed("blocker", async () => {
+      const until = Date.now() + 600;
+      while (Date.now() < until) {
+        /* deliberately starve the loop */
+      }
+    });
+    // Let the heartbeat observe the stall it just missed.
+    await sleep(400);
+
+    const report = formatTrace();
+    expect(report).toContain("event-loop stalls:");
+    expect(report).not.toContain("the thread stayed responsive");
+  });
+
+  it("says so plainly when the thread never stalled", async () => {
+    // The negative case has to be unambiguous: absence of a stall section could otherwise read as
+    // "we didn't measure", which would send someone hunting for a blocker that isn't there.
+    await timed("quick", async () => sleep(5));
+    expect(formatTrace()).toContain("the thread stayed responsive");
+  });
+
   it("starts a fresh timeline when a new session begins", () => {
     // Without this, a reload would append to the previous session's spans and every "start" offset
     // would be measured from a stale origin, making the report unreadable.

@@ -12,7 +12,14 @@ import {
   toStrippedIndex
 } from "./host/hover";
 import { addFurigana, removeFurigana } from "./host/furigana";
-import { beginTrace, formatTrace, log, mark, timed } from "./host/log";
+import {
+  beginTrace,
+  endTrace,
+  formatTrace,
+  log,
+  mark,
+  timed
+} from "./host/log";
 import { addSpacing, removeSpacing } from "./host/spacing";
 import { contentSegmentCount, segment, warmTokenizer } from "./host/tokenizer";
 import type {
@@ -294,7 +301,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-export function deactivate(): void {}
+export function deactivate(): void {
+  endTrace();
+}
 
 /**
  * Serves the React webview into the sidebar and bridges its messages to the dictionary. The DB is

@@ -44,9 +44,55 @@ const spans: Span[] = [];
 /** Bounded so a long-lived session can't grow this without limit. */
 const MAX_SPANS = 500;
 
+/**
+ * Event-loop lag samples: how late a timer scheduled for `LAG_INTERVAL` actually fired.
+ *
+ * This is the difference between "our code is slow" and "our code is QUEUED". The extension host
+ * runs one JS thread, so an `await` that resolves in microseconds can still be credited with
+ * seconds of wall clock if something else monopolises the thread in between — and a span's duration
+ * cannot tell those apart. A heartbeat can: if lag spikes to 20s, nothing on this thread ran for
+ * 20s, whoever was to blame.
+ */
+interface LagSample {
+  /** ms after activation that the stall was observed. */
+  at: number;
+  /** How much later than scheduled the heartbeat fired. */
+  lag: number;
+}
+
+const LAG_INTERVAL = 250;
+/** Below this, lag is ordinary scheduling jitter and not worth recording. */
+const LAG_FLOOR = 100;
+const MAX_LAG_SAMPLES = 200;
+const lagSamples: LagSample[] = [];
+let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+const startHeartbeat = (): void => {
+  let previous = Date.now();
+  heartbeat = setInterval(() => {
+    const now = Date.now();
+    const lag = now - previous - LAG_INTERVAL;
+    previous = now;
+    if (lag >= LAG_FLOOR && lagSamples.length < MAX_LAG_SAMPLES) {
+      lagSamples.push({ at: now - origin, lag });
+    }
+  }, LAG_INTERVAL);
+  // Never keep the host alive for diagnostics.
+  heartbeat.unref();
+};
+
+/** Stop the heartbeat (extension deactivation). */
+export const endTrace = (): void => {
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = undefined;
+};
+
 export const beginTrace = (): void => {
   origin = Date.now();
   spans.length = 0;
+  lagSamples.length = 0;
+  endTrace();
+  startHeartbeat();
 };
 
 const record = (label: string, at: number, ms: number, ok: boolean): void => {
@@ -116,5 +162,36 @@ export const formatTrace = (): string => {
     "",
     `total span: ${previousEnd}ms of wall clock from activation to last step end`
   );
+
+  // Event-loop lag is what makes the durations above interpretable. A step credited with 20s while
+  // the loop was blocked for 19s of it did not do 20s of work — it sat in the queue. Without this,
+  // the two are indistinguishable and the blame lands on whatever span happened to be open.
+  if (lagSamples.length > 0) {
+    const total = lagSamples.reduce((sum, s) => sum + s.lag, 0);
+    const worst = [...lagSamples].sort((a, b) => b.lag - a.lag).slice(0, 10);
+    lines.push(
+      "",
+      `event-loop stalls: ${lagSamples.length} over ${LAG_FLOOR}ms, ${total}ms blocked in total`,
+      "(the JS thread ran NOTHING during these — our spans and VS Code's own work alike)",
+      "",
+      "        at      blocked",
+      "  --------      -------"
+    );
+    for (const sample of worst) {
+      lines.push(
+        `  ${`${sample.at}ms`.padStart(8)}      ${`${sample.lag}ms`.padStart(7)}`
+      );
+    }
+    lines.push(
+      "",
+      `blocked time is ${Math.round((total / Math.max(previousEnd, 1)) * 100)}% of the traced window`
+    );
+  } else {
+    lines.push(
+      "",
+      `event-loop stalls: none over ${LAG_FLOOR}ms — the thread stayed responsive, so the`,
+      "durations above are real work rather than queueing"
+    );
+  }
   return lines.join("\n");
 };
