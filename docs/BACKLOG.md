@@ -426,6 +426,14 @@ The real constraint is size, not capability: ~400 MB in OPFS is untenable (per-o
 
 Work is a platform seam (`"browser"` entry point + two thin backends), not a rewrite — the query layer, hover, spacing, furigana and the entire webview are already platform-free. Sequenced after the desktop release so we are not maintaining two unproven delivery paths at once.
 
+### 41. Benchmarking and performance strategy (infrastructure — pilot done)
+
+Full spec: [specs/07-performance.md](specs/07-performance.md). A working deoptkit benchmark exists (`bench/recognize.bench.mjs`, `vp run bench:build`) and the profile→findings→verify loop is proven against the real recognizer.
+
+The pilot's most useful result was a negative one: `recognize()` costs 17ms warm against 2,213 patterns, and **67% of that is `endPointDistance` + `initialDistance`, neither of which produced a deoptkit finding**. The 12 findings (4 eager deopts, 8 polymorphic ICs — no megamorphic sites, no deopt loops) sit in `coarseClassification`/`fineClassification`, worth ~2% of ticks. So shape-fixing here would be a rounding error; the real win is algorithmic (shrink the candidate set the coarse filter walks). The tool earned its keep by telling us what NOT to spend a day on.
+
+Tool boundaries matter and are recorded: deoptkit sees only JS we wrote — the database (native addon) and tokenizer (12MB WASM) are opaque calls, and the webview is another process. Database performance is tracked separately in the spec (EXPLAIN QUERY PLAN, the `searchNames` N+1, full-DB rather than dev-subset timings) and depends on spec 05 producing a full DB to measure against.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

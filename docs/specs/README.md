@@ -30,6 +30,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild            |
 | 05  | [Automated data builds, asset delivery, and update lifecycle](05-asset-delivery.md)                             | #39     | Ready — **last piece before the first release**  |
 | 06  | [Web extension viability: asset delivery without a filesystem](06-web-extension.md)                             | #40     | Analysis — viable; deliberately AFTER v1         |
+| 07  | [Benchmarking and performance strategy](07-performance.md)                                                      | #41     | Pilot run — benchmark exists and works           |
 
 Not yet specced: the #32/#20 examples restructure, and the visual-regression baseline procedure.
 
