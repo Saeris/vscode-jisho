@@ -132,7 +132,22 @@ The handwriting panel shows **eight chips** and the user picks from them. The co
 
 Reverted, with the reasoning recorded at `FINE_CANDIDATES` so the next person does not re-derive it.
 
-**Remaining target**: the generic `getMap` (156 of 697 self-ticks, ~22%) with `initialDistance`, which walks every point rather than endpoints. The same flattening trick applies in principle, but reference strokes have **variable point counts** (2–36), so it needs an offset table rather than a fixed stride — more invasive, for a smaller share, on a path that is now comfortably fast (p95 11 ms). Worth doing only if handwriting still feels laggy in practice.
+## 0.7 Allocation, not algorithm (2026-07-19)
+
+The plan after 0.5 was to flatten `initialDistance` the way `endPointDistance` had been flattened. Re-reading the profile first killed that plan too, and pointed at something better.
+
+`initialDistance` **does not appear in the profile at all** — V8 had inlined it into `getMap`. There was no function left to optimize. What the profile did show was `ArrayFrom` at **92 of 697 ticks (13%)**, trailed by `FastCreateDataProperty`, `GrowFastSmiOrObjectElements`, and `CloneFastJSArrayFillingHoles`: pure allocation overhead, invisible in source review.
+
+Both map builders allocate two arrays per candidate comparison, and the coarse pass compares hundreds of candidates per stroke — a 9-stroke input admits 863 patterns, so **~1,726 array allocations per stroke drawn**. `Array.from({ length: n }, () => -1)` runs a callback per element through the generic iteration protocol; `new Array(n).fill(-1)` writes the backing store directly. The `free` boolean array became a zero-filled `Uint8Array` (inverted to `taken`, so the allocator's zero fill _is_ the initial state).
+
+Measured: **1.11×–1.59×** across the five cases, ticks 697 → 562, p50 4.4 → 3.6 ms, and all four allocation builtins gone from the top functions. Top-8 candidate lists over 317 distorted characters are byte-identical — unlike the cutoff change, this one is arithmetic-identical by construction.
+
+**The lesson worth keeping**: the biggest remaining win was not in the metric everyone was looking at. Re-profile after every change rather than executing the plan the previous profile suggested — optimizing shifts the bottleneck, and sometimes deletes the target outright.
+
+**Remaining targets**, now that ~58% of ticks sit in the two map builders (`getMapEndPoints` 178, `getMap` 150) and allocation is handled:
+
+- The **coarse pass** is the larger share and is still `O(n²)` per candidate over hundreds of candidates. A cheaper pre-filter (bounding-box or centroid distance) could reject candidates before any map is built — this is an algorithmic change, so it would need the same output-diff verification, and it _can_ change results.
+- The recognizer is now comfortably fast (p95 ~11 ms, well inside a frame budget for per-stroke feedback). Further work here is optional; the honest next perf question is the **30 s cold start** from §0.2, which is worth more to users than another 20% on a path that already feels instant.
 
 ## 1. Keep the benchmark, use it as a regression gate
 
