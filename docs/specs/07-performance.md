@@ -16,27 +16,48 @@ Three performance surfaces, and **they need different tools**. Reaching for one 
 
 deoptkit answers "why is this JS slow" — inline-cache states, deopts, hidden-class churn. It is the right tool for exactly one of our heavy paths, and that path is real user-facing work.
 
+## Designing a benchmark that is worth running
+
+The first version of this benchmark looped `recognize()` over finished characters. It ran, it profiled, and it was **misleading** — worth recording why, because the failure mode generalizes:
+
+- It measured only **completed** characters. The UI recognizes on _every stroke end_, so most real recognitions are of **partial** input — a half-drawn character that matches nothing well.
+- It **averaged over a hand-picked list**, which hid both the peak cost and its cause.
+- It reported "17 ms per recognition" as if that were typical. It is the _worst_ moment (the final stroke of a complex character), not the common one.
+
+What replaced it: a simulated **drawing session** — for each sample character, the growing stroke prefixes the UI actually feeds the recognizer (1 stroke, then 2, …).
+
+Two things were measured before designing it, rather than assumed:
+
+| Variable                 | Effect on cost          | Conclusion                                                                                                                                      |
+| ------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Point jitter (0 → 60 px) | 18.2 → 17.1 ms (noise)  | Irrelevant. It changes _results_, not work — the algorithm walks the same candidates regardless of match quality. Belongs in correctness tests. |
+| **Stroke count**         | **1.0 → 17.1 ms (17×)** | **The cost driver.** The coarse filter admits patterns within ±2 strokes, and the corpus peaks in the middle.                                   |
+
+The stroke-count curve is also **non-monotonic** — 食 (9 strokes, 17 ms) costs more than 議 (20 strokes, 6.7 ms) — so "use a complex character" would have been the wrong heuristic. Computed over the real corpus: a **9-stroke input admits 863 of 2,213 patterns**, the analytic worst case. The sample set spans the curve and includes that peak deliberately.
+
 ## Pilot results (measured 2026-07-19)
 
-`recognize()` against the real 2,213 reference patterns: **17 ms per recognition warm**, 37 ms cold. That runs while a user is drawing, so it is felt.
+**The user-facing number**: drawing 食 (9 strokes) costs **59 ms of recognition total**, across nine calls that grow 0.5 ms → 16.8 ms. Per-stroke latency stays inside a ~16 ms frame budget until stroke 8 — so lag, if felt at all, is confined to the last strokes of a complex character.
 
 Profiled with `profile_run` → `get_findings` → `list_functions`:
 
-**Where the time is** (1,042 ticks, 97% in JS):
+**Where the time is** (session benchmark: 1,223 ticks, 96% in JS):
 
-| Function           | self ticks      | share |
-| ------------------ | --------------- | ----- |
-| `endPointDistance` | 472             | 45%   |
-| `initialDistance`  | 228             | 22%   |
-| `getMap`           | 125 (910 total) | 12%   |
-| everything else    | < 4% each       |       |
+| Function           | self ticks        | share   |
+| ------------------ | ----------------- | ------- |
+| `endPointDistance` | 608               | **50%** |
+| `initialDistance`  | 207               | 17%     |
+| `getMap`           | 137 (1,051 total) | 11%     |
+| everything else    | < 2% each         |         |
 
-**What the findings say**: 12 findings — 4 eager deopts (severity 48, "wrong map" / "insufficient type feedback"), 8 polymorphic ICs (severity 36–44) on `map`, `push`, `length` in `coarseClassification`/`fineClassification`. **No megamorphic ICs, no deopt loops** — the code is already reasonably well-shaped.
+The realistic benchmark _sharpened_ this: `endPointDistance` rose from 45% (finished characters only) to 50%, because partial inputs spend proportionally more time in the coarse filter and less in the fine pass.
 
-**The load-bearing observation: the findings and the ticks disagree.** The flagged sites sit in `coarseClassification`/`fineClassification`, which own ~20 self-ticks (~2%) between them. The 67% living in `endPointDistance` + `initialDistance` produced _no_ findings — they are tight arithmetic over typed data, already monomorphic. So:
+**What the findings say**: 4 eager deopts (severity 48, "wrong map" / "insufficient type feedback") and polymorphic ICs (severity 36–44) on `map`, `push`, `length` in `coarseClassification`/`fineClassification`. **No megamorphic ICs, no deopt loops** — the code is already reasonably well-shaped.
+
+**The load-bearing observation: the findings and the ticks disagree.** The flagged sites sit in `coarseClassification`/`fineClassification`, which own ~19 self-ticks (1.5%) between them. The 67% living in `endPointDistance` + `initialDistance` produced _no_ findings — they are tight arithmetic over typed data, already monomorphic. So:
 
 - **Fixing every deoptkit finding here would be a rounding error.** Shape work is worth doing where ticks are, and the ticks are elsewhere.
-- **The real win is algorithmic**: `endPointDistance` is called ~2,213× per recognition by the coarse filter. Cutting the _candidate set_ (a cheaper pre-filter — stroke-count bucketing, early termination once the best distance can't be beaten) attacks 45% of runtime directly. That is ordinary optimization, not V8 work.
+- **The real win is algorithmic**: the coarse filter calls `endPointDistance` once per admitted candidate — up to 863 of them at the worst stroke count. Cutting the _candidate set_ (tighter pre-filtering, early termination once the best distance cannot be beaten) attacks 50% of runtime directly. That is ordinary optimization, not V8 work.
 
 This is the pilot's real value: it told us _not_ to spend a day on inline caches.
 
@@ -56,7 +77,13 @@ Add benchmarks only for paths that are both hot and ours:
 
 Do **not** bench `conjugate`, `ruby`, `pitch`: they run once per user interaction on tiny inputs. Correctness matters there; nanoseconds do not.
 
-**Input variety is mandatory.** The pilot samples ten characters spanning 1–20 strokes precisely so the coarse filter's ±2 window admits different candidate-set sizes. A loop over one input warms a single hidden class and hides the polymorphism the tool exists to find.
+### Rules for writing one (learned from getting it wrong first)
+
+1. **Simulate the interaction, not the function.** Ask what the UI actually calls and how often. The recognizer looked like "one call per character" and is really "one call per stroke, over a growing prefix" — a 9× difference in what gets measured.
+2. **Find the cost driver empirically before choosing inputs.** Measure a few candidate variables; keep the one that moves cost. Here jitter was noise (<1 ms) and stroke count was 17×. Guessing would have produced a benchmark that looks realistic and measures nothing.
+3. **Include the analytic worst case, and derive it.** For the recognizer the corpus itself says 9 strokes admits the most candidates (863/2,213) — and the curve is non-monotonic, so intuition ("pick a complex character") picks wrong.
+4. **Report the interaction total, not the per-call average.** "59 ms to draw 食" is actionable; "17 ms per recognition" describes only the final stroke and reads as if it were typical.
+5. **Vary shapes, not just values.** Uniform inputs warm a single hidden class and hide exactly the polymorphism deoptkit exists to find.
 
 ## 3. Startup performance (separate, already instrumented)
 

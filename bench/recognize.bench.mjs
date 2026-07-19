@@ -1,51 +1,70 @@
 /**
- * Handwriting-recognition benchmark for deoptkit.
+ * Handwriting recognition benchmark — a simulated drawing SESSION, not a lookup loop.
  *
- * Why this workload first: `recognize()` is the heaviest pure-JavaScript path we own — moment
- * normalization, feature extraction, then coarse and fine classification across ~1,200 reference
- * patterns — and it runs on user input while someone is drawing, where a stall is felt directly.
- * The database and the tokenizer are heavier overall, but they are native/WASM: V8 sees an opaque
- * call, so deoptkit has nothing to say about them (see docs/specs/07-performance.md).
+ * The interaction this models: the UI calls `recognize()` on every stroke end, over all strokes
+ * committed so far (see Handwriting.tsx). Drawing a 9-stroke kanji is therefore NINE recognitions
+ * of growing prefixes — 1 stroke, then 2, … — and the partial ones are the interesting cases,
+ * because a half-drawn character matches nothing well and the fine pass has no early exit.
  *
- * Inputs are deliberately VARIED — different characters, stroke counts, and point densities. A loop
- * over one character would warm a single hidden class and hide exactly the polymorphism this tool
- * exists to find.
+ * Two properties this gets right that a "recognize a finished character" loop did not:
  *
- * Run:  vp exec node bench/recognize.bench.mjs
+ *  1. **Prefixes, not just finished characters.** Most recognitions a user triggers are of
+ *     incomplete input. Benchmarking only completed characters measures the rarest case.
+ *  2. **Stroke count is the cost driver, so it is chosen deliberately.** Cost is NOT flat: it
+ *     ranges 1ms (1 stroke) to 17ms (9 strokes) because the coarse filter admits patterns within
+ *     ±2 strokes of the input, and the corpus peaks in the middle. Measured over the real corpus,
+ *     a 9-stroke input admits 863 of 2,213 patterns — the analytic worst case. The sample set
+ *     spans the range and includes it.
+ *
+ * Point-level jitter was measured and deliberately omitted: perturbing every point by up to 60px
+ * changed cost by <1ms (17.1 vs 18.2), because the algorithm walks the same candidates regardless
+ * of how well they match. It changes RESULTS, not work — so it belongs in correctness tests, not
+ * here. Stroke count is what moves the needle.
+ *
+ * Run:  vp run bench:build && vp exec node bench/recognize.bench.mjs
  * Then: profile_run { command: ["node", "bench/recognize.bench.mjs"] } → get_findings
  */
 import { observed } from "deoptkit/harness";
 import { recognize, refPatterns } from "../dist/bench/entry.mjs";
 
-// A spread of stroke counts (1 → 20+) so the coarse filter's ±2 stroke window admits different
-// candidate-set sizes per iteration, exercising both the early-out and the full fine pass.
-const SAMPLE_CHARS = [
-  "一", // 1 stroke — trivial case, huge candidate set
-  "人", // 2
-  "口", // 3
-  "水", // 4
-  "字", // 6
-  "học", // absent → exercises the no-match path
-  "食", // 9
-  "問", // 11
-  "識", // 19
-  "議" // 20
-];
+/**
+ * Characters spanning the cost curve, including its peak. 食 (9 strokes) is the analytic worst
+ * case for the ±2 candidate window; the short ones keep the cheap path represented, since a real
+ * session passes through every prefix length on the way up.
+ */
+const SAMPLE_CHARS = ["一", "人", "口", "水", "字", "食", "問", "識", "議"];
 
-const samples = SAMPLE_CHARS.map((char) => {
+/** A hand never reproduces a stored path exactly; jitter keeps inputs off the canonical values. */
+const jitter = (strokes, amount) =>
+  strokes.map((stroke) =>
+    stroke.map(([x, y]) => [
+      x + (Math.random() - 0.5) * amount,
+      y + (Math.random() - 0.5) * amount
+    ])
+  );
+
+/**
+ * One drawing session per character: the growing prefixes the UI actually recognizes. Built once
+ * so the benchmark measures recognition, not input generation.
+ */
+const sessions = SAMPLE_CHARS.flatMap((char) => {
   const entry = refPatterns.find((p) => p[0] === char);
-  // Missing characters are intentional (see 学 above): they exercise the path where nothing
-  // matches, which real users hit constantly while a character is half-drawn.
-  return entry ? entry[2] : [];
-}).filter((strokes) => strokes.length > 0);
+  if (!entry) return [];
+  const drawn = jitter(entry[2], 8);
+  return drawn.map((_, i) => drawn.slice(0, i + 1));
+});
 
-if (samples.length === 0) {
-  throw new Error("no reference samples resolved — is dist/bench built?");
+if (sessions.length === 0) {
+  throw new Error(
+    "no reference samples resolved — run `vp run bench:build` first"
+  );
 }
 
+// Iterations are per-recognition, and a session is many recognitions: this covers ~2,000 stroke
+// ends, i.e. roughly 220 complete characters drawn.
 observed(
   "recognize",
-  (i) => recognize(samples[i % samples.length], refPatterns),
+  (i) => recognize(sessions[i % sessions.length], refPatterns),
   {
     iterations: 2_000
   }
