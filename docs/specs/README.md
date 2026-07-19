@@ -28,6 +28,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 02  | [Grammar notes: particles, auxiliaries, conjugation forms](02-grammar-notes.md)                                 | #34     | Ready — content-heavy; user reviews all notes    |
 | 03  | [Copy-as variants, Add Furigana, word-under-cursor](03-copy-as-and-furigana.md)                                 | #33     | **Implemented** (see below)                      |
 | 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild            |
+| 05  | [Automated data builds, asset delivery, and update lifecycle](05-asset-delivery.md)                             | #39     | Ready — **last piece before the first release**  |
 
 Not yet specced: the #32/#20 examples restructure, and the visual-regression baseline procedure.
 

@@ -410,6 +410,14 @@ User direction (2026-07-18). Tree-sitter itself doesn't fit — natural Japanese
 
 Sequencing within: semantic highlighting first (pure win, reuses everything), then the formatter (small, high personal value to the user), references, profiling; LSP extraction last, once the services stabilize. #37's diagnostics ride the same infrastructure.
 
+### 39. Automated data builds, asset delivery, and update lifecycle (infrastructure — large, RELEASE BLOCKER)
+
+Full spec: [specs/05-asset-delivery.md](specs/05-asset-delivery.md). The dictionary download client is complete (sha256-verified, atomic, version sidecars) but the **producer does not exist** — `dictionary-latest` has never been published, so no installed user could obtain a dictionary. This is the last major piece before the first release.
+
+Scope: a `dictionary.yml` workflow that rebuilds on schema change (not schedule alone — a release must never ship before its compatible artifact exists), **schema-version gating** so an extension only accepts a DB it can actually read (spec 04's new `radicals.position` column is exactly the mismatch this prevents), schema-namespaced artifacts so old clients keep working, a Wallaby-style automatic + manual update check, and `globalStorage` cleanup so superseded ~400 MB databases don't accumulate.
+
+Decided along the way: **stroke SVGs stay bundled in the .vsix** rather than being archived like the DB — the measured .vsix is only 30.6 MB, and a second delivery path would reintroduce the two-source-of-truth staleness bug #31 removed. Measured non-optimizations recorded in the spec (the 99%-duplicated `term_lower` is only ~5 MB of text that gzip already collapses; no `VACUUM` win — freelist is 0).
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
