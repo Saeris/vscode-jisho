@@ -207,23 +207,19 @@ export function activate(context: vscode.ExtensionContext): void {
   log().info(
     `activating (${context.extensionMode === vscode.ExtensionMode.Development ? "development" : "production"})`
   );
-  // Build the tokenizer in the background so the first Japanese search doesn't pay for it. Deferred
-  // rather than called inline: activation runs while VS Code is still starting every other
-  // extension, and a ~220ms synchronous-ish chunk there competes with the window coming up. A
-  // timer hands the work to a later, quieter tick. `unref` so it can never hold the host open.
   const provider = new JishoViewProvider(context);
-  const warmup = setTimeout(() => {
-    void timed("warm tokenizer", warmTokenizer);
-    // Open the WORD dictionary too — not the names one. Provisioning it during the first search is
-    // what put a database open on the critical path, and the trace showed both databases being
-    // provisioned in the same millisecond, with the 409MB names file competing against the words
-    // the user actually asked for. Names stay lazy: they are the secondary result, and plenty of
-    // users never search them.
-    void provider.warmDictionary();
-  }, 2_000);
+  // Two warmups on different timers, because they cost differently.
+  //
+  // The dictionary is cheap (provision 16ms, open 6ms) and never blocks the thread, so it runs
+  // almost immediately — just off the activation tick, where it would compete with the window
+  // coming up. Opening it during the first search is what put a database open on that search's
+  // critical path. The NAMES database stays lazy: it is the secondary result and plenty of users
+  // never search it.
+  const warmDb = setTimeout(() => void provider.warmDictionary(), 150);
+
   // Never hold the extension host open for speculative work.
-  warmup.unref();
-  context.subscriptions.push({ dispose: () => clearTimeout(warmup) });
+  warmDb.unref();
+  context.subscriptions.push({ dispose: () => clearTimeout(warmDb) });
   const semanticTokensChanged = new vscode.EventEmitter<void>();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
   // as written, since reading back a lemma would say a word the user didn't write.
@@ -328,6 +324,8 @@ class JishoViewProvider
   #queuedPushes: HostPush[] = [];
   /** Request kinds already served, so the trace times each kind's FIRST (cold) round trip. */
   #seen = new Set<Request["type"]>();
+  /** Set once the tokenizer warmup has been scheduled, so re-revealing the view doesn't re-arm it. */
+  #warmedTokenizer = false;
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
@@ -434,6 +432,26 @@ class JishoViewProvider
   }
 
   /**
+   * Kick off the tokenizer build once per session, shortly after the sidebar first opens.
+   *
+   * Guarded because `resolveWebviewView` runs again whenever the view is re-created (collapse and
+   * expand the sidebar, or move it between containers) — `warmTokenizer` is itself idempotent, but
+   * re-arming the timer on every reveal would keep scheduling work that has long since finished.
+   */
+  #warmTokenizerOnce(): void {
+    if (this.#warmedTokenizer) return;
+    this.#warmedTokenizer = true;
+    // A short delay so the build lands after the webview's own bundle has loaded and rendered,
+    // rather than competing with it for the same thread.
+    const timer = setTimeout(
+      () => void timed("warm tokenizer", warmTokenizer),
+      300
+    );
+    timer.unref();
+    this.#context.subscriptions.push({ dispose: () => clearTimeout(timer) });
+  }
+
+  /**
    * Provision and open the word dictionary ahead of the first query. Fire-and-forget: `#dict()`
    * caches the same promise, so a search arriving mid-warm awaits the in-flight open rather than
    * starting a second one, and a failure here is re-thrown where a user is actually waiting.
@@ -490,6 +508,19 @@ class JishoViewProvider
     // The sidebar was opened — this is when the extension becomes user-visible, and the gap from
     // activation to here is host/UI time rather than ours.
     mark("sidebar opened");
+    // Build the tokenizer now, tied to the sidebar rather than to activation.
+    //
+    // Two reasons it hangs off this event. First, `activationEvents` is empty: the hover and
+    // semantic-token providers mean the extension activates on ANY markdown or plaintext file, and
+    // a 197ms blocking build is not something to inflict on someone who just opened a README.
+    // Opening the sidebar is the signal that someone intends to search. Second, timing — the panel
+    // reaches "webview ready" around 320ms, and a trace caught a search at 1777ms beating a
+    // 2000ms warmup, which then stalled the thread twice AFTER the results. Starting here puts the
+    // build in the window where the user is still looking at an empty panel.
+    //
+    // The build itself cannot be improved from our side: a 5ms heartbeat gets ZERO ticks across
+    // `build()`, so it is one uninterruptible WASM call. All we control is when it lands.
+    this.#warmTokenizerOnce();
     this.#view = view;
     this.#ready = false;
     view.onDidDispose(() => {

@@ -147,7 +147,7 @@ Measured: **1.11×–1.59×** across the five cases, ticks 697 → 562, p50 4.4 
 **Remaining targets**, now that ~58% of ticks sit in the two map builders (`getMapEndPoints` 178, `getMap` 150) and allocation is handled:
 
 - The **coarse pass** is the larger share and is still `O(n²)` per candidate over hundreds of candidates. A cheaper pre-filter (bounding-box or centroid distance) could reject candidates before any map is built — this is an algorithmic change, so it would need the same output-diff verification, and it _can_ change results.
-- The recognizer is now comfortably fast (p95 ~11 ms, well inside a frame budget for per-stroke feedback). Further work here is optional; the honest next perf question is the **30 s cold start** from §0.2, which is worth more to users than another 20% on a path that already feels instant.
+- The recognizer is now comfortably fast (p95 ~11 ms, well inside a frame budget for per-stroke feedback). Further work here is optional; the honest next perf question was the **30 s cold start** from §0.2 — now diagnosed and fixed in §0.8 (54.6 s → 2.4 s).
 
 ## 1. Keep the benchmark, use it as a regression gate
 
@@ -200,6 +200,37 @@ Different process; deoptkit cannot see it. If a rendering problem appears, use t
 1. **Is recognizer latency actually a complaint?** 17 ms is fast enough to feel instant. The optimization above is worth doing only if handwriting feels laggy in practice — otherwise this benchmark's job is regression-gating, not tuning.
 2. **Should `deoptkit ci` gate CI now or later?** Recommendation: later, once the recognizer's algorithmic work is done, so the baseline captures a state we are happy with.
 3. **Full-DB benchmarking needs the full DB** — which spec 05's build workflow produces. That sequencing means serious query-performance work lands after the data pipeline.
+
+## 0.8 The cold start, solved (2026-07-19)
+
+**54,641ms → 2,381ms** from activation to last step, first search from ~41s to 1.8s. The path there is worth recording, because every intermediate conclusion was wrong in an instructive way.
+
+**What the durations said, and why they lied.** The first trace credited `provision dictionary` with 21.3s. Every filesystem call it makes measures ~1ms; the version check correctly skips the copy; `connect()` is 4ms and "taberu" returns in 1ms. Four spans also began at the _same millisecond_ and finished 8s apart, and a `setTimeout(2000)` fired at 17,034ms.
+
+That last number is the one that cracked it. A timer 15s late means nothing on the thread ran for 15s. `await` means "queued", not "running": on the extension host's single JS thread, a span accrues wall clock for whatever else monopolises the thread while it waits, and **duration alone cannot separate work from queueing**. This is how a 1ms filesystem check got billed 21 seconds — and how an earlier, correct measurement ("the DB opens in 4ms") produced a wrong conclusion ("the DB is exonerated").
+
+**The fix was measurement, not optimization.** Adding an event-loop heartbeat turned the ambiguity into a direct reading:
+
+```
+event-loop stalls: 8 over 100ms, 8438ms blocked in total
+blocked time is 80% of the traced window
+```
+
+**The blocker was never ours.** The dev workspace had **168 installed extensions**, and VS Code runs all of them in one Node process on one JS thread; any extension doing synchronous work at activation stalls every other extension. A session screenshot even caught one failing to activate mid-search. This also explains the discrepancy that had been visible for three sessions and repeatedly misread: **E2E was always fast because the harness passes `--disable-extensions`.** The launch config now does too.
+
+**Three code changes survived the diagnosis**, all of which help shipped users rather than only the dev loop:
+
+1. **Names sequenced behind words.** Both queries shared one postMessage channel into a single-threaded host, so racing them made every names message a turn the word search waited behind — with the 409MB names DB answering first while the words the user asked for arrived seconds later.
+2. **Word dictionary warmed** (names deliberately not), taking provisioning off the first search's critical path.
+3. **Tokenizer warmup moved to sidebar-open**, not activation. `activationEvents` is empty, so the hover/semantic-token providers activate this extension on _any_ markdown or plaintext file — warming a blocking build there would inflict 197ms on someone who just opened a README.
+
+**What could not be fixed.** The tokenizer's `build()` is one uninterruptible WASM call: a 5ms heartbeat gets **zero** ticks across its ~197ms. It cannot be chunked or yielded from our side, so the only lever is _when_ it lands. The follow-up trace proved the point — the user searched at 1,777ms and beat the 2,000ms warmup, which then stalled the thread twice _after_ the results were on screen. A warmup that fires after the work it was meant to warm is strictly worse than none.
+
+**Generalizable lessons:**
+
+- A fast component measurement does not exonerate that component. It only rules out _its own work_ — never the queue it sits in.
+- When several spans start in the same millisecond and finish far apart, they are not measuring themselves.
+- Instrument the gaps, not just the steps. The gap and stall columns found in one trace what four sessions of component benchmarking had missed.
 
 ## Out of scope
 
