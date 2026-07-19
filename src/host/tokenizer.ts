@@ -48,6 +48,30 @@ const getTokenizer = async (): Promise<Tokenizer> => {
 };
 
 /**
+ * Start building the tokenizer without waiting for it.
+ *
+ * `search` awaits the tokenizer BEFORE querying the database (the lemmas refine ranking), so a
+ * cold tokenizer delays word results while the names query — which never tokenizes — answers
+ * immediately. That asymmetry is visible as names appearing first on the first Japanese search.
+ *
+ * Measured cold: 23ms to load/instantiate the WASM, 192ms to build, ~4ms for the first tokenize.
+ * Moving that ~220ms off the first query and into activation makes the tokenizer usually ready by
+ * the time anyone types. It is fire-and-forget: failures surface on the real call, which has to
+ * handle them anyway.
+ */
+export const warmTokenizer = async (): Promise<void> => {
+  try {
+    await getTokenizer();
+  } catch {
+    // Swallowed deliberately: this is speculative work with no caller to report to. A genuine
+    // failure re-throws from `segment()` where a user is actually waiting on it.
+  }
+};
+
+/** Whether the tokenizer has finished building — i.e. `segment()` will not pay init cost. */
+export const tokenizerStarted = (): boolean => cached !== undefined;
+
+/**
  * Segment Japanese text into meaningful units with part of speech and dictionary form.
  *
  * IPADIC splits サ変 compounds (勉強+する) and verb+auxiliary chains (食べ+まし+た). We coalesce

@@ -77,6 +77,11 @@
         "category": "Jisho"
       },
       {
+        "command": "vscode-jisho.showStartupTrace",
+        "title": "Show Startup Trace",
+        "category": "Jisho"
+      },
+      {
         "command": "vscode-jisho.addSpacing",
         "title": "Add Word Spacing (分かち書き)",
         "category": "Jisho"

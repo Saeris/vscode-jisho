@@ -12,9 +12,9 @@ import {
   toStrippedIndex
 } from "./host/hover";
 import { addFurigana, removeFurigana } from "./host/furigana";
-import { log, timed } from "./host/log";
+import { beginTrace, formatTrace, log, mark, timed } from "./host/log";
 import { addSpacing, removeSpacing } from "./host/spacing";
-import { contentSegmentCount, segment } from "./host/tokenizer";
+import { contentSegmentCount, segment, warmTokenizer } from "./host/tokenizer";
 import type {
   CopyTextRequest,
   GetStrokeSvgRequest,
@@ -196,9 +196,20 @@ export function activate(context: vscode.ExtensionContext): void {
   // The zero point for every duration below. Activation itself is cheap by design — the costly
   // resources load lazily — so this line plus the first "provision"/"open" timings show whether a
   // slow first search was the database, the tokenizer, or neither.
+  beginTrace();
   log().info(
     `activating (${context.extensionMode === vscode.ExtensionMode.Development ? "development" : "production"})`
   );
+  // Build the tokenizer in the background so the first Japanese search doesn't pay for it. Deferred
+  // rather than called inline: activation runs while VS Code is still starting every other
+  // extension, and a ~220ms synchronous-ish chunk there competes with the window coming up. A
+  // timer hands the work to a later, quieter tick. `unref` so it can never hold the host open.
+  const warmup = setTimeout(() => {
+    void timed("warm tokenizer", warmTokenizer);
+  }, 2_000);
+  // Never hold the extension host open for speculative work.
+  warmup.unref();
+  context.subscriptions.push({ dispose: () => clearTimeout(warmup) });
   const provider = new JishoViewProvider(context);
   const semanticTokensChanged = new vscode.EventEmitter<void>();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
@@ -239,6 +250,18 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("vscode-jisho.removeFurigana", async () =>
       transformEditorText(removeFurigana)
+    ),
+    // Startup diagnostics: dumps the wall-clock timeline (including the GAPS between steps) so a
+    // slow session can be reported as data rather than "it felt slow".
+    vscode.commands.registerCommand(
+      "vscode-jisho.showStartupTrace",
+      async () => {
+        const doc = await vscode.workspace.openTextDocument({
+          content: formatTrace(),
+          language: "plaintext"
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
+      }
     ),
     vscode.commands.registerCommand("vscode-jisho.openSettings", () => {
       void vscode.commands.executeCommand(
@@ -288,6 +311,8 @@ class JishoViewProvider
   /** Set when the webview's bridge has said `webviewReady` — pushes before that would be lost. */
   #ready = false;
   #queuedPushes: HostPush[] = [];
+  /** Request kinds already served, so the trace times each kind's FIRST (cold) round trip. */
+  #seen = new Set<Request["type"]>();
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
@@ -433,6 +458,9 @@ class JishoViewProvider
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
+    // The sidebar was opened — this is when the extension becomes user-visible, and the gap from
+    // activation to here is host/UI time rather than ours.
+    mark("sidebar opened");
     this.#view = view;
     this.#ready = false;
     view.onDidDispose(() => {
@@ -448,6 +476,9 @@ class JishoViewProvider
     view.webview.html = this.#html(view.webview);
     view.webview.onDidReceiveMessage((msg: Request | WebviewReady) => {
       if (msg.type === "webviewReady") {
+        // The React app has booted and attached its bridge. The gap from "sidebar opened" to here
+        // is webview bundle load + React mount — the one segment that is NOT extension-host work.
+        mark("webview ready");
         this.#ready = true;
         // Settings first, so the panel is styled before any queued command lands.
         this.pushSettings();
@@ -461,17 +492,17 @@ class JishoViewProvider
   }
 
   async #handle(webview: vscode.Webview, request: Request): Promise<void> {
+    // Time the FIRST request of each kind end-to-end. That is the number the user actually feels
+    // ("terms are searchable"), and it spans lazy DB provisioning + open + tokenizer + query —
+    // costs that no single inner measurement covers on its own.
+    const first = !this.#seen.has(request.type);
+    if (first) this.#seen.add(request.type);
     try {
-      const response =
-        request.type === "openSettings"
-          ? openSettings(request)
-          : request.type === "copyText"
-            ? await copyText(request)
-            : request.type === "getStrokeSvg"
-              ? await this.#strokeSvg(request)
-              : request.type === "searchNames" || request.type === "getName"
-                ? await respondNames(await this.#namesDict(), request)
-                : await respond(await this.#dict(), request);
+      const response = first
+        ? await timed(`first "${request.type}" request`, async () =>
+            this.#dispatch(request)
+          )
+        : await this.#dispatch(request);
       await webview.postMessage(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -482,6 +513,19 @@ class JishoViewProvider
       };
       await webview.postMessage(error);
     }
+  }
+
+  /** Route a request to whichever backend serves it. */
+  async #dispatch(request: Request): Promise<Response> {
+    return request.type === "openSettings"
+      ? openSettings(request)
+      : request.type === "copyText"
+        ? copyText(request)
+        : request.type === "getStrokeSvg"
+          ? this.#strokeSvg(request)
+          : request.type === "searchNames" || request.type === "getName"
+            ? respondNames(await this.#namesDict(), request)
+            : respond(await this.#dict(), request);
   }
 
   /**
