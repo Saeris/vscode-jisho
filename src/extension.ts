@@ -211,13 +211,19 @@ export function activate(context: vscode.ExtensionContext): void {
   // rather than called inline: activation runs while VS Code is still starting every other
   // extension, and a ~220ms synchronous-ish chunk there competes with the window coming up. A
   // timer hands the work to a later, quieter tick. `unref` so it can never hold the host open.
+  const provider = new JishoViewProvider(context);
   const warmup = setTimeout(() => {
     void timed("warm tokenizer", warmTokenizer);
+    // Open the WORD dictionary too — not the names one. Provisioning it during the first search is
+    // what put a database open on the critical path, and the trace showed both databases being
+    // provisioned in the same millisecond, with the 409MB names file competing against the words
+    // the user actually asked for. Names stay lazy: they are the secondary result, and plenty of
+    // users never search them.
+    void provider.warmDictionary();
   }, 2_000);
   // Never hold the extension host open for speculative work.
   warmup.unref();
   context.subscriptions.push({ dispose: () => clearTimeout(warmup) });
-  const provider = new JishoViewProvider(context);
   const semanticTokensChanged = new vscode.EventEmitter<void>();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
   // as written, since reading back a lemma would say a word the user didn't write.
@@ -425,6 +431,20 @@ class JishoViewProvider
         stripped.ends[wordStart + surface.length - 1]
       )
     );
+  }
+
+  /**
+   * Provision and open the word dictionary ahead of the first query. Fire-and-forget: `#dict()`
+   * caches the same promise, so a search arriving mid-warm awaits the in-flight open rather than
+   * starting a second one, and a failure here is re-thrown where a user is actually waiting.
+   */
+  async warmDictionary(): Promise<void> {
+    try {
+      await this.#dict();
+    } catch {
+      // Speculative work has no caller to report to; #dict() clears its cache so the real request
+      // retries and surfaces the error in the UI.
+    }
   }
 
   async #dict(): Promise<Dictionary> {

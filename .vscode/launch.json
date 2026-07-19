@@ -2,7 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     {
+      // Default for day-to-day work. `--disable-extensions` loads ONLY this extension.
+      //
+      // This is not a cosmetic flag. VS Code runs every extension in one shared Node process with a
+      // single JS thread, so any other extension doing synchronous work at activation blocks ours —
+      // and a trace of this workspace's dev host (168 installed extensions) showed 80% of the
+      // startup window as event-loop stall time, with our 1ms database work reported as 7.5s
+      // because its continuation could not be delivered. The E2E harness has always passed this
+      // flag, which is why E2E was fast while F5 was not.
+      //
+      // Use "Run Extension (with other extensions)" when you specifically need to test interaction
+      // with another extension, and expect it to feel slower for reasons outside this repo.
       "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--disable-extensions"
+      ],
+      "outFiles": ["${workspaceFolder}/dist/**/*.cjs"],
+      "preLaunchTask": "build"
+    },
+    {
+      "name": "Run Extension (with other extensions)",
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],

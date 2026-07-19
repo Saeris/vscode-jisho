@@ -40,12 +40,26 @@ export const SearchResults = ({
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
   const deferredQuery = useDeferredValue(query);
-  const { data, isFetching, isError, error } = useQuery(
-    searchQuery(deferredQuery)
-  );
+  const {
+    data,
+    isFetching,
+    isError,
+    error,
+    isPending: isPendingWords
+  } = useQuery(searchQuery(deferredQuery));
   // Names come from a separate, opt-in database queried independently — a failure or first-use
   // download of the names DB must not affect word/kanji results, so its errors are ignored here.
-  const { data: names } = useQuery(namesQuery(deferredQuery));
+  //
+  // Gated on the word search having settled, rather than fired alongside it. Both queries share one
+  // postMessage channel into a single-threaded host, so racing them means every names message is a
+  // turn the word search waits behind — and names are the secondary result. A startup trace showed
+  // both provisioning their databases in the same millisecond, with names (a 409MB file) answering
+  // first while the words the user actually searched for arrived seconds later. Sequencing costs
+  // names a round trip and buys the primary result that time back.
+  const { data: names } = useQuery({
+    ...namesQuery(deferredQuery),
+    enabled: deferredQuery.trim().length > 0 && !isPendingWords
+  });
   const words = data?.words ?? [];
   const kanji = data?.kanji ?? [];
   const nameResults = names ?? [];
