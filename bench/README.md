@@ -1,8 +1,36 @@
 # Benchmarks
 
-Workloads for profiling with [deoptkit](https://github.com/Saeris/deoptkit). Build the bundle
-first — `vp run bench:build` — because deoptkit profiles **built** output: bundling changes object
-shapes and inlining, so findings against source describe code that never ships.
+Two kinds of benchmark live here, answering two different questions. Both matter; neither replaces
+the other.
+
+|           | `*.bench.ts` (Vitest)                  | `*.bench.mjs` (deoptkit)                    |
+| --------- | -------------------------------------- | ------------------------------------------- |
+| Question  | **Did my change make it faster?**      | **Why is this slow?**                       |
+| Output    | ops/sec, percentiles, margin of error  | inline-cache states, deopts, where ticks go |
+| Use it to | gate regressions, compare before/after | decide what to optimize                     |
+
+## Throughput — "did my change help?"
+
+```
+vp run bench           # run, print ops/sec + p75/p99 + margin of error
+vp run bench:save      # record the current numbers as bench/baseline.json
+# …make a change…
+vp run bench:compare   # re-run, annotate each case [1.34x] ⇑ / [0.87x] ⇓
+```
+
+Baselines are **gitignored on purpose**: they are machine-specific, so comparing your numbers to
+CI's or a teammate's measures the hardware, not the change. Save a baseline, change code, compare
+on the same machine in the same session.
+
+**Read the margin of error before believing a delta.** Two runs of _identical_ code on this
+project's recognizer differ by up to ~9% (`[0.91x] ⇓` was observed with no code change at all), and
+`rme` is typically ±1–4%. A change under ~10% is noise unless it reproduces across several runs.
+Close other applications for anything you intend to act on.
+
+## Profiling — "why is it slow?"
+
+Build the bundle first (`vp run bench:build`): deoptkit profiles **built** output, because bundling
+changes object shapes and inlining, so findings against source describe code that never ships.
 
 ```
 vp run bench:build
@@ -12,6 +40,10 @@ vp exec node bench/recognize.bench.mjs        # run it
 #   get_findings { sessionId, fromMark: "recognize_start", toMark: "recognize_end" }
 #   list_functions { sessionId }               # where CPU actually goes
 ```
+
+**`list_functions` and `get_findings` often disagree — trust the ticks.** On the recognizer, the
+flagged inline-cache sites hold ~1.5% of CPU while the two functions holding 67% produce no
+findings at all. Findings tell you what is _shaped_ badly; ticks tell you what is _costing_ you.
 
 ## How to write one here
 

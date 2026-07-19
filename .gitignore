@@ -141,3 +141,7 @@ dist-vsix/
 **/__screenshots__/
 # Output of the *.preview.browser.spec.tsx visual benches — regenerated on every run.
 **/*-preview.png
+
+# Benchmark baselines are machine-specific: comparing your numbers to a teammate's (or CI's)
+# hardware measures the hardware, not the change. Generate locally with `vp run bench:save`.
+bench/baseline.json

@@ -26,12 +26,22 @@ import manifest from "./package.json" with { type: "json" };
 // per project is what TypeScript can't typecheck: comparing a project literal containing Vite's
 // Plugin type against TestProjectConfiguration overflows its recursion limit ("excessive stack
 // depth"), whatever the annotation.
+// Every project must exclude `bench/`: Vitest runs benchmark files in ANY project whose include
+// pattern matches them, so without this the benchmarks execute once per project — three redundant
+// runs, and results from environments (jsdom, a real browser) that the numbers do not claim to
+// describe.
+const NOT_BENCH = "bench/**";
+
 const unitProject: TestProjectConfiguration = {
   test: {
     name: "unit",
     // `scripts/` too: the data-build transforms are pure functions and belong at this layer.
     include: ["src/**/*.{test,spec}.ts", "scripts/**/*.{test,spec}.ts"],
-    exclude: [...configDefaults.exclude, "**/*.browser.{test,spec}.{ts,tsx}"],
+    exclude: [
+      ...configDefaults.exclude,
+      NOT_BENCH,
+      "**/*.browser.{test,spec}.{ts,tsx}"
+    ],
     environment: "node"
   }
 };
@@ -40,7 +50,11 @@ const componentProject: TestProjectConfiguration = {
   test: {
     name: "component",
     include: ["src/**/*.{test,spec}.tsx"],
-    exclude: [...configDefaults.exclude, "**/*.browser.{test,spec}.{ts,tsx}"],
+    exclude: [
+      ...configDefaults.exclude,
+      NOT_BENCH,
+      "**/*.browser.{test,spec}.{ts,tsx}"
+    ],
     environment: "jsdom",
     // bridge.ts calls acquireVsCodeApi() at import; without a stub, every component that reaches
     // the bridge fails to load under jsdom. See the setup file.
@@ -52,13 +66,35 @@ const browserProject: TestProjectConfiguration = {
   test: {
     name: "browser",
     include: ["src/**/*.browser.{test,spec}.{ts,tsx}"],
-    exclude: [...configDefaults.exclude],
+    exclude: [...configDefaults.exclude, NOT_BENCH],
     browser: {
       enabled: true,
       provider: playwright(),
       headless: true,
       instances: [{ browser: "chromium" }]
     }
+  }
+};
+
+/**
+ * Throughput benchmarks (`vp test bench`). Separate from the test projects because these answer a
+ * different question: deoptkit explains WHY a path is slow, while these measure WHETHER a change
+ * made it faster — the before/after signal that can gate a regression.
+ *
+ * Node environment: every benchmarked path is host-side or pure logic, and jsdom would add overhead
+ * to the measurement without adding realism.
+ */
+const benchProject: TestProjectConfiguration = {
+  test: {
+    name: "bench",
+    // `include` is deliberately EMPTY: these files contain benches, not tests, so a plain
+    // `vp test` (what CI runs) must not try to collect them — it would fail with "No test suite
+    // found". Only `benchmark.include` claims them, which `vp test bench` reads.
+    include: [],
+    // Only .ts: the sibling `*.bench.mjs` files are deoptkit PROFILING workloads, run under V8
+    // logging flags rather than by Vitest — they export no Vitest suite at all.
+    benchmark: { include: ["bench/**/*.bench.ts"] },
+    environment: "node"
   }
 };
 
@@ -115,6 +151,6 @@ export default defineConfig({
     name: manifest.name,
     globals: true,
     passWithNoTests: true,
-    projects: [unitProject, componentProject, browserProject]
+    projects: [unitProject, componentProject, browserProject, benchProject]
   }
 });

@@ -61,6 +61,41 @@ The realistic benchmark _sharpened_ this: `endPointDistance` rose from 45% (fini
 
 This is the pilot's real value: it told us _not_ to spend a day on inline caches.
 
+## 0. Two benchmark kinds, two questions
+
+deoptkit explains **why** a path is slow; it cannot tell you whether a change helped. That needs
+throughput, so both exist side by side in `bench/`:
+
+|         | `*.bench.ts` (Vitest bench)                     | `*.bench.mjs` (deoptkit)       |
+| ------- | ----------------------------------------------- | ------------------------------ |
+| Answers | Did my change make it faster?                   | Why is this slow?              |
+| Output  | ops/sec, p75/p99, margin of error               | ICs, deopts, CPU ticks         |
+| Command | `vp run bench` / `bench:save` / `bench:compare` | `profile_run` → `get_findings` |
+
+Vitest's bench mode already provides the before/after workflow (`--outputJson` + `--compare`), so
+this needed configuration rather than tooling. Current baseline on the recognizer:
+
+| Case                                     | ops/sec | mean    |
+| ---------------------------------------- | ------- | ------- |
+| session: draw 食 (9 strokes, worst case) | 16.5    | 60.7 ms |
+| session: draw 水 (4 strokes, typical)    | 171     | 5.8 ms  |
+| single: 1 stroke                         | 4,105   | 0.24 ms |
+| single: 9 strokes (peak candidate set)   | 55.9    | 17.9 ms |
+| single: 20 strokes                       | 147     | 6.8 ms  |
+
+**Noise floor, measured**: re-running identical code moved individual cases by up to **9%**
+(`[0.91x] ⇓` with no change), with `rme` typically ±1–4%. Treat sub-10% deltas as noise unless they
+reproduce. Baselines are gitignored because they are machine-specific — comparing against CI's
+hardware would measure the hardware.
+
+Two configuration traps worth knowing, both hit while wiring this up:
+
+- Vitest runs `*.bench.*` in **every project whose patterns match**, so the benchmark initially ran
+  four times (unit, component, browser, bench) — including in a real browser, which the numbers do
+  not claim to describe. Fixed by scoping the scripts with `--project bench`.
+- The `benchmark.include` option is separate from `include`; the bench project sets both, so the
+  deoptkit `*.bench.mjs` workloads (which export no Vitest suite) are not collected as benches.
+
 ## 1. Keep the benchmark, use it as a regression gate
 
 `bench/recognize.bench.mjs` + `bench/entry.ts` (a bundle entry, because deoptkit profiles **built** output — bundling changes shapes and inlining, so findings against source describe code that never ships). Build with `vp run bench:build`.
