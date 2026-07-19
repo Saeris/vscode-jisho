@@ -12,6 +12,7 @@ import {
   toStrippedIndex
 } from "./host/hover";
 import { addFurigana, removeFurigana } from "./host/furigana";
+import { log, timed } from "./host/log";
 import { addSpacing, removeSpacing } from "./host/spacing";
 import { contentSegmentCount, segment } from "./host/tokenizer";
 import type {
@@ -53,7 +54,10 @@ const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   if (trimmed.length < 2 || !HAS_KANJI.test(trimmed)) {
     return { segments: [], lemmas: [] };
   }
-  const all = await segment(trimmed);
+  // The tokenizer's first call pays a WASM + IPADIC init (~200ms locally, but it is a 12MB
+  // dictionary and cold disk can be far worse) — and `search` awaits it BEFORE querying, so any
+  // stall here delays word results while the names query, which skips tokenizing, answers first.
+  const all = await timed("tokenize query", async () => segment(trimmed));
   const lemmas = all
     .filter((s) => s.pos !== "particle" && s.pos !== "auxiliary")
     .map((s) => s.lemma)
@@ -189,6 +193,12 @@ const transformEditorText = async (
 };
 
 export function activate(context: vscode.ExtensionContext): void {
+  // The zero point for every duration below. Activation itself is cheap by design — the costly
+  // resources load lazily — so this line plus the first "provision"/"open" timings show whether a
+  // slow first search was the database, the tokenizer, or neither.
+  log().info(
+    `activating (${context.extensionMode === vscode.ExtensionMode.Development ? "development" : "production"})`
+  );
   const provider = new JishoViewProvider(context);
   const semanticTokensChanged = new vscode.EventEmitter<void>();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
@@ -387,8 +397,14 @@ class JishoViewProvider
     // Open once, reuse. If opening fails, clear the cache so a later message can retry.
     this.#dictionary ??= (async (): Promise<Dictionary> => {
       try {
-        const path = await ensureDatabase(this.#context);
-        return await Dictionary.open(path);
+        // Timed separately: provisioning (a copy, or a download) and opening fail and stall for
+        // completely different reasons, and "the first search was slow" needs to say which.
+        const path = await timed("provision dictionary", async () =>
+          ensureDatabase(this.#context)
+        );
+        return await timed("open dictionary", async () =>
+          Dictionary.open(path)
+        );
       } catch (err) {
         this.#dictionary = undefined;
         throw err;
@@ -402,8 +418,12 @@ class JishoViewProvider
     // open-once/retry-on-failure discipline as the word DB.
     this.#names ??= (async (): Promise<NamesDictionary> => {
       try {
-        const path = await ensureNamesDatabase(this.#context);
-        return await NamesDictionary.open(path);
+        const path = await timed("provision names dictionary", async () =>
+          ensureNamesDatabase(this.#context)
+        );
+        return await timed("open names dictionary", async () =>
+          NamesDictionary.open(path)
+        );
       } catch (err) {
         this.#names = undefined;
         throw err;
