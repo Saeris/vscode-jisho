@@ -97,6 +97,24 @@ export const wholeWholeDistance: DistanceMetric = (p1, p2) => {
 
 // ── Correspondence map ────────────────────────────────────────────────────────
 
+/**
+ * An all-`-1` stroke map of length `n`.
+ *
+ * Both map builders allocate one of these per candidate comparison, and the coarse pass compares
+ * hundreds of candidates per stroke drawn — `Array.from({ length: n }, () => -1)` showed up as 13%
+ * of profile ticks (`ArrayFrom`), because it runs a callback per element through the generic
+ * iteration protocol. `fill` writes the backing store directly.
+ *
+ * Stays a plain `number[]`: `StrokeMap` is consumed by `completeMap` (which spreads and calls
+ * `.includes`) and by the callers' index arithmetic. A typed array would be faster still, but the
+ * `-1` sentinel and those array methods make that a wider change than the allocation is worth.
+ */
+// The rule's suggested alternative, `Array.from({ length: n })`, is precisely the allocation this
+// replaces. The length-vs-element ambiguity it guards against cannot arise here: the result is
+// immediately filled.
+// oxlint-disable-next-line unicorn/no-new-array
+const allocMap = (n: number): StrokeMap => new Array<number>(n).fill(-1);
+
 /** Greedy initial N-stroke map: assign each shorter-pattern stroke to its nearest free longer one. */
 const initStrokeMap = (
   p1: Pattern,
@@ -104,13 +122,13 @@ const initStrokeMap = (
   metric: DistanceMetric
 ): StrokeMap => {
   const [k1, k2, n, m] = largerAndSize(p1, p2);
-  const map: StrokeMap = Array.from({ length: n }, () => -1);
-  const free = Array.from({ length: n }, () => true);
+  const map: StrokeMap = allocMap(n);
+  const taken = new Uint8Array(n);
   for (let i = 0; i < m; i++) {
     let minDist = Number.POSITIVE_INFINITY;
     let minJ = -1;
     for (let j = 0; j < n; j++) {
-      if (free[j]) {
+      if (taken[j] === 0) {
         const d = metric(k1[j], k2[i]);
         if (d < minDist) {
           minDist = d;
@@ -119,7 +137,7 @@ const initStrokeMap = (
       }
     }
     if (minJ !== -1) {
-      free[minJ] = false;
+      taken[minJ] = 1;
       map[minJ] = i;
     }
   }
@@ -192,13 +210,13 @@ export const getMapEndPoints = (
   const n = swap ? bLength : aLength;
   const m = swap ? aLength : bLength;
 
-  const map: StrokeMap = Array.from({ length: n }, () => -1);
-  const free = Array.from({ length: n }, () => true);
+  const map: StrokeMap = allocMap(n);
+  const taken = new Uint8Array(n);
   for (let i = 0; i < m; i++) {
     let minDist = Number.POSITIVE_INFINITY;
     let minJ = -1;
     for (let j = 0; j < n; j++) {
-      if (free[j]) {
+      if (taken[j] === 0) {
         const d = endPointDistanceAt(k1, j, k2, i);
         if (d < minDist) {
           minDist = d;
@@ -207,7 +225,7 @@ export const getMapEndPoints = (
       }
     }
     if (minJ !== -1) {
-      free[minJ] = false;
+      taken[minJ] = 1;
       map[minJ] = i;
     }
   }
