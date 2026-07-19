@@ -25,5 +25,26 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: true
 
+      # The `browser` Vitest project runs in real Chromium (jsdom has no layout engine, and the
+      # bugs it catches are geometric). Without an installed browser the whole `vp test` run fails
+      # even when every test passes, so the binary is a build requirement, not an optional extra.
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(vp exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the resolved version: a Playwright bump must miss the cache, or the restored
+      # browser would no longer match the client that drives it.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      # `--with-deps` on a miss: the runner needs Chromium's shared libraries too, and installing
+      # them is what a bare `playwright install` leaves out.
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: vp exec playwright install --with-deps chromium
+
       - run: vp check
       - run: vp test
