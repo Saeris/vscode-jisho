@@ -1,25 +1,24 @@
 /**
  * Handwriting recognition benchmark — a simulated drawing SESSION, not a lookup loop.
  *
- * The interaction this models: the UI calls `recognize()` on every stroke end, over all strokes
- * committed so far (see Handwriting.tsx). Drawing a 9-stroke kanji is therefore NINE recognitions
- * of growing prefixes — 1 stroke, then 2, … — and the partial ones are the interesting cases,
- * because a half-drawn character matches nothing well and the fine pass has no early exit.
+ * Methodology and the reasoning behind every choice here: bench/README.md.
  *
- * Two properties this gets right that a "recognize a finished character" loop did not:
+ * The interaction: the UI calls `recognize()` on every stroke end, over all strokes committed so
+ * far (Handwriting.tsx). Drawing a 9-stroke kanji is therefore NINE recognitions of growing
+ * prefixes — and the partial ones matter most, because a half-drawn character matches nothing well
+ * and the fine pass gets no early exit.
  *
- *  1. **Prefixes, not just finished characters.** Most recognitions a user triggers are of
- *     incomplete input. Benchmarking only completed characters measures the rarest case.
- *  2. **Stroke count is the cost driver, so it is chosen deliberately.** Cost is NOT flat: it
- *     ranges 1ms (1 stroke) to 17ms (9 strokes) because the coarse filter admits patterns within
- *     ±2 strokes of the input, and the corpus peaks in the middle. Measured over the real corpus,
- *     a 9-stroke input admits 863 of 2,213 patterns — the analytic worst case. The sample set
- *     spans the range and includes it.
- *
- * Point-level jitter was measured and deliberately omitted: perturbing every point by up to 60px
- * changed cost by <1ms (17.1 vs 18.2), because the algorithm walks the same candidates regardless
- * of how well they match. It changes RESULTS, not work — so it belongs in correctness tests, not
- * here. Stroke count is what moves the needle.
+ * Input design, measured rather than assumed:
+ *  - **Stroke count is the cost driver** (1 → 17 ms, a 17× spread); point jitter is noise (<1 ms
+ *    across a 0–60 px sweep). So the sample spans the stroke-count curve, and jitter exists only to
+ *    keep inputs off the canonical values.
+ *  - The curve is **non-monotonic**: 食 (9 strokes) costs more than 議 (20), because the coarse
+ *    filter admits patterns within ±2 strokes and the corpus peaks in the middle. Computed over the
+ *    real corpus, a 9-stroke input admits 863 of 2,213 patterns — the analytic worst case, included
+ *    deliberately.
+ *  - Repeating one input inflates results by only ~3.4% here (V8 confirms every input shares one
+ *    hidden class), so the JIT is not the thing to defend against — the input DISTRIBUTION is,
+ *    which moved results ~2×.
  *
  * Run:  vp run bench:build && vp exec node bench/recognize.bench.mjs
  * Then: profile_run { command: ["node", "bench/recognize.bench.mjs"] } → get_findings
@@ -27,14 +26,10 @@
 import { observed } from "deoptkit/harness";
 import { recognize, refPatterns } from "../dist/bench/entry.mjs";
 
-/**
- * Characters spanning the cost curve, including its peak. 食 (9 strokes) is the analytic worst
- * case for the ±2 candidate window; the short ones keep the cheap path represented, since a real
- * session passes through every prefix length on the way up.
- */
+/** Characters spanning the cost curve, including its 9-stroke peak. */
 const SAMPLE_CHARS = ["一", "人", "口", "水", "字", "食", "問", "識", "議"];
 
-/** A hand never reproduces a stored path exactly; jitter keeps inputs off the canonical values. */
+/** A hand never reproduces a stored path exactly; keeps inputs off the canonical values. */
 const jitter = (strokes, amount) =>
   strokes.map((stroke) =>
     stroke.map(([x, y]) => [
@@ -44,8 +39,8 @@ const jitter = (strokes, amount) =>
   );
 
 /**
- * One drawing session per character: the growing prefixes the UI actually recognizes. Built once
- * so the benchmark measures recognition, not input generation.
+ * One drawing session per character: the growing prefixes the UI actually recognizes. Built once,
+ * so the benchmark measures recognition rather than input generation.
  */
 const sessions = SAMPLE_CHARS.flatMap((char) => {
   const entry = refPatterns.find((p) => p[0] === char);
@@ -60,12 +55,35 @@ if (sessions.length === 0) {
   );
 }
 
-// Iterations are per-recognition, and a session is many recognitions: this covers ~2,000 stroke
-// ends, i.e. roughly 220 complete characters drawn.
+// Dead-code elimination will delete work whose result is never used; accumulating the output keeps
+// the call observable.
+let sink = 0;
+
+// ~2,000 stroke ends ≈ 220 complete characters drawn.
 observed(
   "recognize",
-  (i) => recognize(sessions[i % sessions.length], refPatterns),
-  {
-    iterations: 2_000
-  }
+  (i) => {
+    sink += recognize(sessions[i % sessions.length], refPatterns).length;
+  },
+  { iterations: 2_000 }
 );
+
+// A distribution, not a mean: the average is unremarkable while p95 is the moment a user finishes
+// a complex character — the only latency they actually notice.
+const timings = sessions
+  .map((strokes) => {
+    const started = performance.now();
+    sink += recognize(strokes, refPatterns).length;
+    return performance.now() - started;
+  })
+  .sort((a, b) => a - b);
+
+const at = (q) =>
+  timings[Math.min(timings.length - 1, Math.floor(timings.length * q))];
+console.log(
+  `recognitions=${timings.length} ` +
+    `p50=${at(0.5).toFixed(1)}ms p95=${at(0.95).toFixed(1)}ms max=${at(1).toFixed(1)}ms`
+);
+if (sink === 0) {
+  throw new Error("recognizer produced nothing — inputs are wrong");
+}

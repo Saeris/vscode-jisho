@@ -71,11 +71,13 @@ Adopt `deoptkit ci` once the recognizer is optimized, not before: baselines are 
 
 Add benchmarks only for paths that are both hot and ours:
 
-- **`recognize`** — done.
-- **`addFurigana` / `addSpacing` over a realistic document** — these walk every line, tokenize, and splice. The tokenizer call is opaque, but our splicing and `stripRuby` index-mapping are not, and they run over whole files.
-- **`provideSemanticTokens`** — runs over every visible line on every edit (debounced), and its per-morpheme walk is ours.
+- **`recognize`** — done. Current baseline: **p50 6.8 ms, p95 22.5 ms** across a realistic session mix. The p95 is what a user feels (finishing a complex character); the mean hides it.
+- ~~**`addFurigana` / `addSpacing` over a realistic document**~~ — **measured, not worth a benchmark.** A 200-line mixed EN/JA document (the shape of the user's lesson material) annotates in **24 ms total, 0.12 ms/line**, and it is a one-shot user-invoked command rather than a per-keystroke path. `removeFurigana` is sub-millisecond. Revisit only if documents get an order of magnitude larger.
+- **`provideSemanticTokens`** — the remaining strong candidate: it runs over every visible line on every edit (debounced), so unlike the furigana commands its cost recurs while typing. Benchmark against a long document, and report p95.
 
 Do **not** bench `conjugate`, `ruby`, `pitch`: they run once per user interaction on tiny inputs. Correctness matters there; nanoseconds do not.
+
+**Methodology lives in [`bench/README.md`](../../bench/README.md)** — the rules below in full, with the measurements behind each. Read it before adding a benchmark.
 
 ### Rules for writing one (learned from getting it wrong first)
 

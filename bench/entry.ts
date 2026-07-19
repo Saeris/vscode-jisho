@@ -7,3 +7,8 @@
  */
 export { recognize } from "../src/webview/recognizer/index";
 export { refPatterns } from "../src/webview/recognizer/patterns";
+export {
+  addFuriganaToLine,
+  removeFuriganaFromLine
+} from "../src/host/furigana";
+export { addSpacingToLine } from "../src/host/spacing";
