@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar } from "./webview";
+import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
 
 // The foundational end-to-end path: real VS Code launches, our extension activates, the sidebar
 // webview renders, and a search returns real DB-backed results. If this passes, the harness works
@@ -196,8 +196,7 @@ test("copy as: furigana markdown reaches the system clipboard", async () => {
   await openJishoSidebar(win);
   const frame = await jishoFrame(win);
   // Reset to search, then open a word with kanji so the ruby variants are offered.
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
   await frame.getByRole("searchbox").fill("食べる");
   await frame
     .getByRole("option", { name: /食べる/ })

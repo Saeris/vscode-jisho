@@ -5,7 +5,12 @@
  * whose src is a `vscode-webview://…` URL, and an inner iframe (`#active-frame`) that holds the
  * extension's actual HTML. So our React root lives two frame levels deep from the workbench page.
  */
-import { expect, type FrameLocator, type Page } from "@playwright/test";
+import {
+  expect,
+  type FrameLocator,
+  type Locator,
+  type Page
+} from "@playwright/test";
 
 /**
  * Screenshot just the Jisho sidebar, not the whole workbench.
@@ -33,6 +38,53 @@ export const openJishoSidebar = async (window: Page): Promise<void> => {
     '.activitybar [aria-label*="Jisho" i], .activitybar [aria-label*="Dictionary" i]'
   );
   await icon.first().click();
+};
+
+/**
+ * Put the sidebar back on the search view, from whatever view a previous test left it on.
+ *
+ * Tests in a file share one VS Code instance, so each inherits the last one's navigation state.
+ * That makes every test's starting view an implicit dependency on execution order — and when it is
+ * wrong the symptom is a 120s timeout, because a locator for a control that only exists on another
+ * view simply waits forever. One such hang cost more wall-clock time than the rest of the suite.
+ *
+ * Both buttons have to be handled, because the app offers them conditionally: `⌂ Home` appears
+ * only when drilled MORE than one level deep, since at one level it would just duplicate `← Back`
+ * (see `canGoHome` in App.tsx). So Home alone strands a word-detail view, and a single Back alone
+ * strands the stroke-order view (search → kanji → strokes). Pop with Home when offered, then Back
+ * until the searchbox is reachable.
+ *
+ * Names are matched exactly rather than with a loose /back/i, which matches BOTH buttons and trips
+ * Playwright's strict mode.
+ */
+export const returnToSearch = async (frame: FrameLocator): Promise<void> => {
+  const searchbox = frame.getByRole("searchbox");
+  const home = frame.getByRole("button", { name: "Back to search" });
+  const back = frame.getByRole("button", { name: "Back", exact: true });
+
+  // Short timeouts throughout: on the search view these buttons legitimately do not exist, which is
+  // the common case rather than an error, and the whole point of this helper is to not sit waiting.
+  const visible = async (locator: Locator): Promise<boolean> => {
+    try {
+      return await locator.isVisible({ timeout: 2_000 });
+    } catch {
+      return false;
+    }
+  };
+
+  // Bounded rather than `while (true)`: if navigation ever stops responding, failing on the
+  // postcondition below with a real message beats spinning until the test timeout.
+  for (let depth = 0; depth < 5; depth++) {
+    if (await visible(searchbox)) break;
+    if (await visible(home)) await home.click();
+    else if (await visible(back)) await back.click();
+    else break;
+  }
+
+  // Assert the postcondition rather than trusting the clicks. If this fails the message names the
+  // real problem ("never reached the search view") instead of surfacing later as a mystery timeout
+  // on whatever control the test looks for next.
+  await expect(searchbox).toBeVisible({ timeout: 10_000 });
 };
 
 /**

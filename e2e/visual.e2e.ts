@@ -1,6 +1,11 @@
 import { test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar, screenshotSidebar } from "./webview";
+import {
+  jishoFrame,
+  openJishoSidebar,
+  returnToSearch,
+  screenshotSidebar
+} from "./webview";
 
 /**
  * The visual-iteration loop: drive each surface and capture the sidebar so the UI can be reviewed
@@ -57,8 +62,7 @@ test("capture: word detail — conjugation table", async () => {
   // Examples render inline on the base word-detail capture now, and the conjugation table is a
   // visible section — no disclosure to open first.
   const frame = await jishoFrame(app().window);
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
   await frame.getByRole("searchbox").fill("食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
@@ -82,8 +86,7 @@ test("capture: word detail — conjugation table", async () => {
 test("capture: kanji detail (readings, copy, stroke-order link)", async () => {
   const frame = await jishoFrame(app().window);
   // Get back to search first — a previous capture may have left a detail view on the stack.
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
 
   await frame.getByRole("searchbox").fill("食");
   // Target the Kanji section's listbox specifically. Both sections render `role=option`, and the
@@ -102,8 +105,7 @@ test("capture: kanji detail (readings, copy, stroke-order link)", async () => {
 
 test("capture: stroke order sub-page (player + chart)", async () => {
   const frame = await jishoFrame(app().window);
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
 
   await frame.getByRole("searchbox").fill("近");
   await frame
@@ -133,11 +135,11 @@ test("capture: stroke order sub-page (player + chart)", async () => {
 
 test("capture: handwriting view", async () => {
   const frame = await jishoFrame(app().window);
-  // Return to search if a previous capture left a detail view pushed — the toolbar only exists there.
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
-  // The ✏️ toolbar button (its accessible name comes from aria-label="Draw a kanji to search").
-  await frame.locator("button", { hasText: "✏️" }).first().click();
+  await returnToSearch(frame);
+  // By accessible name, not by its ✏️ glyph: the emoji is presentation that a restyle could change,
+  // while the label is the contract screen-reader users rely on. Matching the label also means this
+  // fails loudly if the button is renamed, rather than silently finding nothing and timing out.
+  await frame.getByRole("button", { name: "Draw a kanji to search" }).click();
   await frame.getByText(/stroke order and count/i).waitFor();
   await screenshotSidebar(
     app().window,
@@ -147,8 +149,7 @@ test("capture: handwriting view", async () => {
 
 test("capture: copy-as menu on the word detail", async () => {
   const frame = await jishoFrame(app().window);
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
   await frame.getByRole("searchbox").fill("食べる");
   await frame
     .getByRole("option", { name: /食べる/ })

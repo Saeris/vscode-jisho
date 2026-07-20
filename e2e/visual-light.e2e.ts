@@ -1,6 +1,11 @@
 import { test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar, screenshotSidebar } from "./webview";
+import {
+  jishoFrame,
+  openJishoSidebar,
+  returnToSearch,
+  screenshotSidebar
+} from "./webview";
 
 /**
  * Light-theme contrast audit: its own VS Code launch with the theme pre-seeded in settings —
@@ -43,8 +48,7 @@ test("capture: word detail in light theme (contrast audit)", async () => {
 
 test("capture: stroke order in light theme", async () => {
   const frame = await jishoFrame(app().window);
-  const back = frame.getByRole("button", { name: /back/i });
-  if (await back.isVisible().catch(() => false)) await back.click();
+  await returnToSearch(frame);
   await frame.getByRole("searchbox").fill("近");
   await frame
     .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
