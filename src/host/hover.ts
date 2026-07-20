@@ -3,6 +3,7 @@
  * pick which tokenized word within it the cursor is on. Kept free of vscode/tokenizer imports so
  * it unit-tests as plain string math.
  */
+import { AUX_GLOSS } from "../shared/grammar";
 
 /** Kana, CJK ideographs (+ compat), the prolonged-sound mark and iteration marks. */
 const JA_CHAR = /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ]/;
@@ -163,42 +164,6 @@ export const groupSegments = (segments: PosSegment[]): SegmentGroup[] => {
 };
 
 /**
- * One-word glosses for the auxiliary lemmas the tokenizer attaches to verbs/adjectives — the
- * seed of BACKLOG #34's grammar notes. Unknown lemmas render without a label rather than wrongly.
- */
-const AUX_GLOSS: Record<string, string | undefined> = {
-  た: "past",
-  だ: "copula",
-  です: "polite copula",
-  ます: "polite",
-  ない: "negation",
-  ん: "negation",
-  ぬ: "negation",
-  たい: "want to",
-  て: "connective",
-  で: "connective",
-  れる: "passive/potential",
-  られる: "passive/potential",
-  せる: "causative",
-  させる: "causative",
-  う: "volitional",
-  よう: "volitional",
-  まい: "negative volitional",
-  そう: "appearance",
-  そうだ: "appearance/hearsay",
-  ようだ: "seeming",
-  らしい: "apparently",
-  いる: "continuous",
-  ある: "resultative",
-  しまう: "completion",
-  ちゃう: "completion (casual)",
-  おく: "in advance",
-  くれる: "for me",
-  もらう: "receiving",
-  あげる: "giving"
-};
-
-/**
  * A compact reading of a conjugated group's structure, e.g.
  * `食べたくなかった = 食べる + 〜たい (want to) + 〜ない (negation) + 〜た (past)`.
  * Null when the group is a bare word — nothing to explain.
@@ -270,4 +235,33 @@ export const resolveWord = (
     start: run.start + hit.start,
     group: hit.segment
   };
+};
+
+/**
+ * The lemma of the auxiliary morpheme under the cursor, or null.
+ *
+ * A conjugated group is one hover target (食べたくなかった all describes 食べる), but the cursor is
+ * still sitting on ONE of its pieces — and which piece it is, is the difference between explaining
+ * 〜たい and explaining 〜た. Walks the group's morphemes by surface length to find the one spanning
+ * the cursor, which is the same offset arithmetic `wordAt` does one level up.
+ *
+ * Returns null for the head word (the content morpheme is explained by its dictionary entry, not by
+ * a grammar note) and for any morpheme that is not an auxiliary.
+ */
+export const auxiliaryAt = (
+  group: SegmentGroup,
+  groupStart: number,
+  cursor: number
+): string | null => {
+  let offset = groupStart;
+  for (const [index, part] of group.parts.entries()) {
+    const end = offset + part.surface.length;
+    if (cursor >= offset && cursor < end) {
+      // Index 0 is the content word the group is built around; its meaning is the dictionary entry.
+      if (index === 0 || part.pos !== "auxiliary") return null;
+      return part.lemma === "" ? part.surface : part.lemma;
+    }
+    offset = end;
+  }
+  return null;
 };

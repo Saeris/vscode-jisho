@@ -115,6 +115,11 @@
           "default": true,
           "description": "Show a dictionary hover (reading, meanings, conjugation breakdown) over Japanese text in Markdown and plain-text files."
         },
+        "vscode-jisho.grammar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Explain grammar in hovers and the conjugation table: what a particle (は, を, に) does, and what an auxiliary (〜たい, 〜てしまう) adds to a conjugated verb. Turn off to keep hovers to dictionary definitions only."
+        },
         "vscode-jisho.appearance.textScale": {
           "type": "number",
           "default": 1.08,

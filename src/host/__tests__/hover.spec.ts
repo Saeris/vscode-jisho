@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeGroup,
+  auxiliaryAt,
   groupSegments,
   japaneseRunAt,
   japaneseRuns,
@@ -185,5 +186,43 @@ describe("japaneseRuns", () => {
       { text: "寿司", start: 16 }
     ]);
     expect(japaneseRuns("no japanese here")).toEqual([]);
+  });
+});
+
+describe("auxiliaryAt", () => {
+  // 食べたくなかった at offset 0: 食べ(0-1) たく(2-3) なかっ(4-6) た(7)
+  const group = groupSegments([
+    { surface: "食べ", lemma: "食べる", pos: "verb" },
+    { surface: "たく", lemma: "たい", pos: "auxiliary" },
+    { surface: "なかっ", lemma: "ない", pos: "auxiliary" },
+    { surface: "た", lemma: "た", pos: "auxiliary" }
+  ])[0];
+
+  it("names the auxiliary the cursor is actually on", () => {
+    // The point of the whole feature: a conjugation is ONE hover target, but the cursor still sits
+    // on one piece of it, and which piece decides whether the reader is told about 〜たい (want to)
+    // or 〜た (past). Getting this wrong explains the wrong grammar with total confidence.
+    expect(auxiliaryAt(group, 0, 2)).toBe("たい");
+    expect(auxiliaryAt(group, 0, 4)).toBe("ない");
+    expect(auxiliaryAt(group, 0, 7)).toBe("た");
+  });
+
+  it("says nothing for the content word itself", () => {
+    // Hovering 食べ should surface the dictionary entry for 食べる, not a grammar note. Returning a
+    // lemma here would append an auxiliary explanation to a plain verb lookup.
+    expect(auxiliaryAt(group, 0, 0)).toBeNull();
+    expect(auxiliaryAt(group, 0, 1)).toBeNull();
+  });
+
+  it("respects where the group starts in the line", () => {
+    // Groups rarely start at column 0. If the offset math ignored the group's own start, every
+    // hover past the first word would read the wrong morpheme — off-by-N rather than off-by-one,
+    // so it would look plausible instead of obviously broken.
+    expect(auxiliaryAt(group, 10, 12)).toBe("たい");
+    expect(auxiliaryAt(group, 10, 10)).toBeNull();
+  });
+
+  it("returns null when the cursor is outside the group", () => {
+    expect(auxiliaryAt(group, 0, 99)).toBeNull();
   });
 });

@@ -31,13 +31,24 @@ export const screenshotSidebar = async (
   await window.locator(".part.sidebar").screenshot({ path });
 };
 
-/** Click the Jisho activity-bar icon to reveal its sidebar view. */
+/**
+ * Reveal the Jisho sidebar view, whether or not it is already showing.
+ *
+ * The activity-bar icon TOGGLES, so an unconditional click closes the sidebar when it is already
+ * open — and every test here calls this defensively at its start so it can run standalone. That is
+ * fine until one test leaves the sidebar open, at which point the next one's "open" call closes it
+ * and its `iframe.webview` lookup fails with no obvious connection to the real cause. Checking
+ * first makes the call mean "ensure open" rather than "toggle", which is what every caller assumes.
+ */
 export const openJishoSidebar = async (window: Page): Promise<void> => {
   // The activity-bar item carries an aria-label derived from the container title ("Jisho").
   const icon = window.locator(
     '.activitybar [aria-label*="Jisho" i], .activitybar [aria-label*="Dictionary" i]'
   );
+  const webview = window.locator("iframe.webview").first();
+  if (await webview.isVisible().catch(() => false)) return;
   await icon.first().click();
+  await expect(webview).toBeVisible({ timeout: 30_000 });
 };
 
 /**

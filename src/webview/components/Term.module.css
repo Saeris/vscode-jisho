@@ -11,7 +11,10 @@
 }
 
 .tooltip {
-  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 240px;
   padding: 6px 8px;
   font-size: 0.85em;
   line-height: 1.4;
@@ -19,4 +22,13 @@
   background: var(--vscode-editorHoverWidget-background, var(--jisho-input-bg));
   border: 1px solid var(--vscode-editorHoverWidget-border, var(--jisho-border));
   border-radius: var(--jisho-radius);
+}
+
+/* The worked example, set apart from the definition: a rule above it and dimmed, so the tooltip
+   reads as "what it is" then "what it looks like" rather than one run-on paragraph. */
+.example {
+  padding-top: 4px;
+  border-top: 1px solid
+    var(--vscode-editorHoverWidget-border, var(--jisho-border));
+  opacity: 0.85;
 }

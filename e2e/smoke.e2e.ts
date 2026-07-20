@@ -131,6 +131,53 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   await app().window.screenshot({ path: "test-results/shots/02-hover.png" });
 });
 
+test("hovering a particle explains its grammar", async () => {
+  // を here sits INSIDE a longer run (本を読みます is one continuous Japanese sequence), so it is
+  // reached by tokenizing and finding a particle segment — not by the standalone single-character
+  // path. That distinction cost a debugging round: the first version of this test assumed the
+  // particle would be its own run, and the hover never fired. Only a real editor exercises the
+  // real segmentation, which is why this is an E2E rather than a unit test.
+  const win = app().window;
+  await openJishoSidebar(win);
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  const editor = win.locator(".editor-group-container .monaco-editor").first();
+  await editor.waitFor();
+  // Click INTO the new editor before typing. Opening the sidebar leaves focus in the webview, and
+  // Ctrl+N alone does not reliably pull it back — the first run of this test typed the whole line
+  // into the sidebar's search box instead (visible in the failure screenshot), so the editor stayed
+  // empty and the locator below waited on text that was never there.
+  await editor.click();
+  await win.keyboard.type("本を読みます");
+
+  const line = win.locator(".view-line", { hasText: "本を読みます" }).first();
+  await line.waitFor();
+  // Hover を by POSITION, measured from the TEXT span rather than the line.
+  //
+  // Two wrong turns are baked into this, both caught by failure screenshots. A `{ hasText: "を" }`
+  // locator matches the enclosing span, which in a full-suite run was the entire line — Playwright
+  // hovered its centre and produced a 読む hover. And `.view-line` itself is full editor width, so
+  // splitting THAT box by character count aimed well past the end of the text and produced no
+  // hover at all. The inner span is the one that wraps just the glyphs.
+  const text = line.locator("span").first();
+  const box = await text.boundingBox();
+  if (!box) throw new Error("could not measure the rendered text");
+  const charWidth = box.width / 6; // 本 を 読 み ま す — fixed-width CJK glyphs
+  await win.mouse.move(box.x + charWidth * 1.5, box.y + box.height / 2);
+  const hover = win
+    .locator(".monaco-hover-content")
+    .filter({ hasText: "Direct object" });
+  await expect(hover).toBeVisible({ timeout: 20_000 });
+  // The worked example travels with the note — the part that makes it concrete.
+  await expect(hover).toContainText("本を読みます");
+  await app().window.screenshot({
+    path: "test-results/shots/02b-hover-particle.png"
+  });
+});
+
 /** Run a Jisho command through the palette. Focus must already be outside the webview. */
 const runCommand = async (win: Page, name: string): Promise<void> => {
   await win.keyboard.press("F1");

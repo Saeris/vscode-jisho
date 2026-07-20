@@ -3,6 +3,7 @@ import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import {
+  auxiliaryAt,
   describeGroup,
   groupSegments,
   japaneseRunAt,
@@ -11,6 +12,11 @@ import {
   stripRuby,
   toStrippedIndex
 } from "./host/hover";
+import {
+  AUXILIARY_NOTES,
+  PARTICLE_NOTES,
+  noteToMarkdown
+} from "./shared/grammar";
 import { addFurigana, removeFurigana } from "./host/furigana";
 import {
   beginTrace,
@@ -71,6 +77,22 @@ const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
     .filter((l) => l !== "" && l !== trimmed);
   const segments = contentSegmentCount(all) > 1 ? all : [];
   return { segments, lemmas };
+};
+
+/**
+ * Whether grammar notes are shown. Read per hover rather than cached, so toggling the setting
+ * applies to the next hover instead of requiring a reload — same discipline as `hover.enabled`.
+ */
+const grammarEnabled = (): boolean =>
+  vscode.workspace
+    .getConfiguration("vscode-jisho")
+    .get<boolean>("grammar.enabled", true);
+
+/** A grammar note as a hover body. Not trusted: notes contain no command links. */
+const grammarMarkdown = (markdown: string): vscode.MarkdownString => {
+  const md = new vscode.MarkdownString(undefined, true);
+  md.appendMarkdown(markdown);
+  return md;
 };
 
 /** Snapshot of the webview-relevant settings, read fresh so edits apply without a reload. */
@@ -383,6 +405,24 @@ class JishoViewProvider
     const run = japaneseRunAt(stripped.text, cursor);
     if (run === null) return undefined;
 
+    // A particle that is its own run (the は in これは、 with punctuation either side) never reaches
+    // the tokenizer path below, which only tokenizes kanji-bearing runs. Answer it directly: a
+    // single character involves no segmentation to get wrong.
+    if (grammarEnabled()) {
+      const particle = PARTICLE_NOTES[run.text];
+      if (particle && Array.from(run.text).length === 1) {
+        return new vscode.Hover(
+          grammarMarkdown(noteToMarkdown(run.text, particle)),
+          new vscode.Range(
+            position.line,
+            stripped.starts[run.start],
+            position.line,
+            stripped.ends[run.start]
+          )
+        );
+      }
+    }
+
     // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
     // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
     const groups = HAS_KANJI.test(run.text)
@@ -394,6 +434,26 @@ class JishoViewProvider
       start: wordStart,
       group
     } = resolveWord(run, groups, cursor);
+    // A particle inside a longer run (the を in 本を読みます) is its own segment — groupSegments
+    // deliberately keeps case particles separate from the verbs around them. Lead with the grammar
+    // note: JMdict does have entries for particles, but they are lexicographer's glosses
+    // ("indicates the direct object of an action"), which is what the reader is stuck on rather
+    // than a way out of it.
+    if (grammarEnabled() && group?.parts[0]?.pos === "particle") {
+      const particle = PARTICLE_NOTES[group.surface];
+      if (particle) {
+        return new vscode.Hover(
+          grammarMarkdown(noteToMarkdown(group.surface, particle)),
+          new vscode.Range(
+            position.line,
+            stripped.starts[wordStart],
+            position.line,
+            stripped.ends[wordStart + group.surface.length - 1]
+          )
+        );
+      }
+    }
+
     // The detected form's structure — what the conjugation MEANS here (user request).
     const breakdown = group ? describeGroup(group) : null;
     // Guard the whole-run fallback: hovering a long kana-only sentence isn't a word lookup.
@@ -413,10 +473,19 @@ class JishoViewProvider
       .join(", ");
     const md = new vscode.MarkdownString(undefined, true);
     md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
+    // The note for the auxiliary actually under the cursor — only that one. Stacking every
+    // auxiliary's note would bury the word's own meaning under three paragraphs of grammar for a
+    // form like 食べたくなかった.
+    const auxLemma =
+      group && grammarEnabled() ? auxiliaryAt(group, wordStart, cursor) : null;
+    const auxNote = auxLemma === null ? undefined : AUXILIARY_NOTES[auxLemma];
     const blocks = [
       `**${results[0].headword}**${reading === "" ? "" : ` ${reading}`}`,
       `${pos === "" ? "" : `*${pos}* — `}${glosses}`,
       ...(breakdown === null ? [] : [breakdown]),
+      ...(auxNote === undefined || auxLemma === null
+        ? []
+        : [noteToMarkdown(`〜${auxLemma}`, auxNote)]),
       `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
     ];
     md.appendMarkdown(blocks.join("\n\n"));
