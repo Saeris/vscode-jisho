@@ -166,13 +166,29 @@ test("hovering a particle explains its grammar", async () => {
   const box = await text.boundingBox();
   if (!box) throw new Error("could not measure the rendered text");
   const charWidth = box.width / 6; // 本 を 読 み ま す — fixed-width CJK glyphs
-  await win.mouse.move(box.x + charWidth * 1.5, box.y + box.height / 2);
+  const x = box.x + charWidth * 1.5;
+  const y = box.y + box.height / 2;
+  // Move away first, THEN onto the target. VS Code only shows a hover on a mouse-move INTO a new
+  // position: typing leaves the pointer wherever it was, and if that is already over the target the
+  // move is a no-op and no hover ever fires. This test passed in a full run purely because an
+  // earlier test had left the pointer elsewhere — standalone (`--grep`) it failed on the committed
+  // version too, so it was a latent order dependency rather than a regression.
+  await win.mouse.move(x, box.y + box.height * 4);
+  await win.mouse.move(x, y);
   const hover = win
     .locator(".monaco-hover-content")
     .filter({ hasText: "Direct object" });
   await expect(hover).toBeVisible({ timeout: 20_000 });
-  // The worked example travels with the note — the part that makes it concrete.
-  await expect(hover).toContainText("本を読みます");
+  // The example arrives as two lines — the sentence as written, then its kana reading — with the
+  // stored ruby markup resolved away.
+  //
+  // Not <ruby> furigana, though VS Code does render it: a probe measured <rt> at 7px against a 14px
+  // body and confirmed the sanitizer strips `style`, so an extension cannot enlarge it. Legible in
+  // principle, unreadable in practice. The SIDEBAR tooltip uses real furigana, where our own
+  // stylesheet applies.
+  await expect(hover).toContainText("本 を 読みます");
+  await expect(hover).toContainText("ほん を よみます");
+  await expect(hover).not.toContainText("{");
   await app().window.screenshot({
     path: "test-results/shots/02b-hover-particle.png"
   });

@@ -88,7 +88,15 @@ const grammarEnabled = (): boolean =>
     .getConfiguration("vscode-jisho")
     .get<boolean>("grammar.enabled", true);
 
-/** A grammar note as a hover body. Not trusted: notes contain no command links. */
+/**
+ * A grammar note as a hover body. Not trusted: notes contain no command links. A reader who cannot
+ * yet decode the kanji still gets each example's reading, on its own line beneath it.
+ *
+ * Deliberately NOT `supportHtml`. An earlier draft emitted `<ruby>` furigana, which VS Code does
+ * render — but a probe measured `<rt>` at 7px against a 14px body and confirmed the sanitizer strips
+ * `style`, so it could not be enlarged. Worse, enabling it on the word hover (which sets `isTrusted`
+ * for its command link) stopped that hover rendering at all. Plain Markdown, no HTML.
+ */
 const grammarMarkdown = (markdown: string): vscode.MarkdownString => {
   const md = new vscode.MarkdownString(undefined, true);
   md.appendMarkdown(markdown);

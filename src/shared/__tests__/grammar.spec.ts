@@ -4,6 +4,9 @@ import {
   AUX_GLOSS,
   FORM_NOTES,
   PARTICLE_NOTES,
+  exampleReading,
+  exampleSurface,
+  noteToMarkdown,
   type GrammarNote
 } from "../grammar";
 import { conjugate } from "../../webview/conjugate";
@@ -123,12 +126,112 @@ describe("grammar note quality", () => {
 
   it("writes examples in Japanese script, never romaji", () => {
     // A stated content rule: romaji in an example would teach the wrong reading habit, and it is
-    // the kind of thing that slips in when adding entries quickly.
+    // the kind of thing that slips in when adding entries quickly. Contrast examples are held to
+    // the same rule — they render in the same places.
     const JAPANESE = /[ぁ-んァ-ヶ㐀-鿿]/;
     const romaji = all()
-      .filter(([, note]) => !JAPANESE.test(note.example.ja))
+      .filter(
+        ([, note]) =>
+          !JAPANESE.test(note.example.ja) ||
+          (note.contrast !== undefined && !JAPANESE.test(note.contrast.ja))
+      )
       .map(([key]) => key);
     expect(romaji).toEqual([]);
+  });
+
+  it("gives every contrast a translation and an explanation", () => {
+    // A contrast without its note is just a second sentence — the note is the part that says what
+    // the difference IS, which is the whole reason the field exists.
+    const incomplete = all()
+      .filter(
+        ([, note]) =>
+          note.contrast !== undefined &&
+          (note.contrast.en.trim() === "" || note.contrast.note.trim() === "")
+      )
+      .map(([key]) => key);
+    expect(incomplete).toEqual([]);
+  });
+
+  it("resolves ruby markup into a sentence and a readable reading line", () => {
+    // Examples are stored as `{本|ほん}` and must reach the hover resolved. Raw braces and pipes
+    // would be visible garbage, and because the hover still renders, nothing else would flag it.
+    //
+    // The reading goes on its own line rather than into <ruby>: VS Code renders ruby, but a probe
+    // measured <rt> at 7px against a 14px body and confirmed `style` attributes are stripped, so
+    // furigana here is legible-in-principle and unreadable in practice.
+    for (const [key, note] of all()) {
+      const rendered = noteToMarkdown(key, note);
+      expect(rendered, `${key} leaked ruby markup`).not.toMatch(/\{[^}]*\|/u);
+      if (/\{.*\|.*\}/u.test(note.example.ja)) {
+        // Both halves present: the sentence as written, and its kana reading.
+        expect(rendered, `${key} lost its written form`).toContain(
+          exampleSurface(note.example.ja)
+        );
+        expect(rendered, `${key} lost its reading`).toContain(
+          exampleReading(note.example.ja)
+        );
+      }
+    }
+  });
+
+  it("gives a reading that is kana only", () => {
+    // The reading line exists so a learner who cannot decode the kanji can still say the sentence.
+    // A kanji left in it defeats the entire point, and would come from a malformed ruby group.
+    const KANJI = /[一-鿿]/u;
+    const withKanji = all()
+      .filter(([, note]) => KANJI.test(exampleReading(note.example.ja)))
+      .map(([key]) => key);
+    expect(withKanji).toEqual([]);
+  });
+
+  it("spaces examples at word boundaries", () => {
+    // Japanese does not write spaces, so a learner cannot see where words end. The examples use the
+    // same 分かち書き the extension offers as an editor command — the spacing IS the teaching aid,
+    // and losing it in an edit would be silent.
+    // Keyed off ruby groups rather than character count: a sentence with two or more kanji words
+    // certainly has a boundary between them, whereas a single conjugated word (おいしそうです,
+    // 忘れちゃった) legitimately has none and would fail a length-based heuristic.
+    const multiWord = all().filter(
+      ([, note]) => (note.example.ja.match(/\{[^}]*\|/gu) ?? []).length >= 2
+    );
+    expect(multiWord.length).toBeGreaterThan(10);
+    const unspaced = multiWord
+      .filter(([, note]) => !note.example.ja.includes(" "))
+      .map(([key]) => key);
+    expect(unspaced).toEqual([]);
+  });
+
+  it("treats emphasis-not-meaning pairs as distinct, never interchangeable", () => {
+    // User correction, and the reason this test exists: an earlier draft called に and へ
+    // "interchangeable". They are not — に emphasises the destination, へ the direction — and
+    // teaching them as swappable trains a learner to stop noticing a distinction that carries real
+    // meaning in conversation. Japanese has a whole class of these, where two forms describe one
+    // situation and differ in what they put the weight on.
+    const emphasisPairs = ["へ", "が"];
+    for (const key of emphasisPairs) {
+      expect(PARTICLE_NOTES[key]?.detail.toLowerCase()).not.toContain(
+        "interchangeable"
+      );
+    }
+    // Each carries a second phrasing of the SAME situation: the only way to show emphasis, since
+    // there is no English contrast to define it against.
+    expect(PARTICLE_NOTES.へ?.contrast).toBeDefined();
+    expect(PARTICLE_NOTES.が?.contrast).toBeDefined();
+  });
+
+  it("shows the giving/receiving trio from each vantage point", () => {
+    // These three describe ONE event and differ only in whose perspective the sentence takes —
+    // the nuance the user flagged as hardest for English speakers, because English picks a single
+    // phrasing ("a friend taught me") where Japanese makes you choose a side. A definition alone
+    // cannot carry that, so each note has to show the same fact told the other way.
+    for (const lemma of ["あげる", "もらう", "くれる"]) {
+      const note = AUXILIARY_NOTES[lemma];
+      expect(
+        note?.contrast,
+        `${lemma} needs a contrasting phrasing`
+      ).toBeDefined();
+      expect(note?.contrast?.ja).not.toBe(note?.example.ja);
+    }
   });
 
   it("cross-references the pairs learners confuse", () => {
