@@ -1,7 +1,7 @@
 {
   "name": "vscode-jisho",
   "displayName": "Jisho — Japanese Dictionary",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "An offline Japanese dictionary in your sidebar: vocabulary and kanji search powered by JMdict, Kanjidic, and friends.",
   "categories": [
     "Education",
