@@ -250,6 +250,18 @@ With the novel-length corpus in place (spec 08), profiled `segment()` and the hi
 
 **Lesson (again):** the profile confirmed the up-front hypothesis rather than overturning it — but running it was still right, because "it's all WASM" was a guess until the tick breakdown made it a measurement, and it also surfaced the exact boundary builtins, which is what a future optimization (if ever warranted) would target.
 
+## 0.10 Deinflection deopt profile — a clean shape fix (2026-07-20)
+
+`deinflect()` runs on every search before the SQL query, and it is pure JS — the one unbenched hot path the coverage assessment flagged (`bench/deinflect.bench.{ts,mjs}`).
+
+**Cost driver, measured before benchmarking:** chain DEPTH, not branch width. Each derivation step re-scans all ~90 rules over the frontier, so a query that normalizes through intermediate forms (なかった → ない → verb stems) is the worst class. Spread: 0.49 µs (no-match noun) to 8.3 µs (negative chain), 17×. The obvious guess — broad branching (られる) is worst — was wrong; it is wide but shallow, so cheap (1.3 µs). This is why the inputs were measured first.
+
+**The path is fast** (40 profile ticks for 200k calls), but the profile found one real, actionable shape issue: the `IRREGULAR` irregular-verb table was a **plain object indexed by the query string**, so its lookup went **megamorphic** — V8 treats each distinct string key as a shape transition and gives up on a fast path. deoptkit reported ~43 such sites (one per key seen).
+
+**Fix:** `IRREGULAR` became a `Map`, the purpose-built string→value structure, whose lookup is monomorphic. `compare_sessions` verdict: **megamorphic sites 43 → 0, nothing introduced**; the remaining polymorphic `.length`/`.endsWith`/`.slice` sites are inherent (those methods read off both strings and arrays in the hot loop). Throughput moved 1.03–1.07× across all cases — within the ~10% noise floor, so reported as "not a regression" rather than a claimed win; the real, unambiguous result is the shape improvement. 46 tests confirm identical output.
+
+**Lesson:** a plain object used as a string-keyed hash map is always megamorphic on that access; reach for `Map` when the keys are data (arbitrary strings), not code (a fixed known set). When a profile hands you a clean shape win at no behavioral cost, take it even if the throughput delta is in the noise.
+
 ## Out of scope
 
 Micro-optimizing pure transforms that run once per keystroke on short strings; WASM-internal tokenizer performance (upstream); the JS↔WASM marshalling cost (wasm-bindgen-generated, ~11% and only reducible by batching calls — see §0.9); rewriting the recognizer in WASM (a large change to chase a cost we have not confirmed users feel).

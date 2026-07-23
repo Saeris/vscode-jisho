@@ -142,21 +142,26 @@ const RULES: ReadonlyArray<readonly [from: string, to: readonly string[]]> = [
  * Whole-word rewrites for the irregular verbs する/くる, whose conjugations replace the entire
  * word. These can't be suffix rules: the empty-stem guard (correctly) blocks a rule whose `from`
  * consumes the whole form, so bare します/きた/こない are handled here instead.
+ *
+ * A `Map`, not a plain object: the lookup below is keyed by the (arbitrary) query string, and a
+ * profile showed that as a plain-object access it goes megamorphic — V8 can't shape-specialize a
+ * dynamic string-keyed property load. A `Map` is the purpose-built structure for a string→value
+ * table and keeps that access monomorphic.
  */
-const IRREGULAR: Readonly<Record<string, readonly string[]>> = {
-  します: ["する"],
-  した: ["する"],
-  して: ["する"],
-  しない: ["する"],
-  しよう: ["する"],
-  すれば: ["する"],
-  きます: ["くる"],
-  きた: ["くる"],
-  きて: ["くる"],
-  こない: ["くる"],
-  こよう: ["くる"],
-  くれば: ["くる"]
-};
+const IRREGULAR = new Map<string, readonly string[]>([
+  ["します", ["する"]],
+  ["した", ["する"]],
+  ["して", ["する"]],
+  ["しない", ["する"]],
+  ["しよう", ["する"]],
+  ["すれば", ["する"]],
+  ["きます", ["くる"]],
+  ["きた", ["くる"]],
+  ["きて", ["くる"]],
+  ["こない", ["くる"]],
+  ["こよう", ["くる"]],
+  ["くれば", ["くる"]]
+]);
 
 const MAX_DEPTH = 4;
 const MAX_CANDIDATES = 24;
@@ -173,7 +178,7 @@ export const deinflect = (query: string): string[] => {
   for (let depth = 0; depth < MAX_DEPTH && frontier.length > 0; depth++) {
     const next: string[] = [];
     for (const form of frontier) {
-      for (const candidate of IRREGULAR[form] ?? []) {
+      for (const candidate of IRREGULAR.get(form) ?? []) {
         if (!seen.has(candidate)) {
           seen.add(candidate);
           out.push(candidate);
