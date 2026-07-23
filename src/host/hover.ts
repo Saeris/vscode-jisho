@@ -44,10 +44,15 @@ export const japaneseRuns = (line: string): JaRun[] =>
   [...line.matchAll(JA_RUNS())].map((m) => ({ text: m[0], start: m.index }));
 
 /**
- * A line with mirrordown ruby markup ({食|た}べます) stripped to its base text, plus per-character
- * maps back to the original line. Hover logic runs on `text`; `starts`/`ends` give each stripped
- * character's original span — widened at group edges so a highlight covering a ruby group covers
- * the whole `{…|…}` construct, and so a cursor on the reading or braces maps into the base.
+ * A line with mirrordown ruby markup ({食|た}べます) reduced to its base text AND inline markdown
+ * emphasis markers (`*`, `**`, `_`, `` ` ``, `==`, `~~`) removed, plus per-character maps back to the
+ * original line. Both matter because a Japanese run must survive the markdown wrapped around it:
+ * `彼に*遅れない*ように` is one run, not three.
+ *
+ * Hover logic runs on `text`; `starts`/`ends` give each stripped character's original span — widened
+ * at ruby-group edges so a highlight covering a group covers the whole `{…|…}` construct, and so a
+ * cursor on the reading or braces maps into the base. Stripped markers fold into a neighbour's span,
+ * so no original index is lost.
  */
 export interface RubyStripped {
   text: string;
@@ -57,33 +62,62 @@ export interface RubyStripped {
   ends: number[];
 }
 
-const RUBY = /\{([^|{}\n]+)\|([^{}\n]*)\}/g;
+/**
+ * A ruby group: `{base|reading}`. The base and reading each allow an escaped pipe (`\|`, mirrordown's
+ * way of putting a literal pipe inside either side), so a `\|` no longer prematurely ends the base.
+ * `(?:\\.|[^…])` = an escaped anything, or a normal char.
+ */
+const RUBY = /\{((?:\\.|[^|{}\n])+)\|((?:\\.|[^{}\n])*)\}/g;
+
+/** Undo mirrordown's `\x` escapes (`\|` → `|`, `\\` → `\`) in an extracted base/reading. */
+const unescape = (s: string): string => s.replace(/\\(.)/g, "$1");
+
+/**
+ * Inline markdown emphasis/marker runs that wrap Japanese but are not part of it. Stripped before
+ * run detection so `彼に*遅れない*ように` reads as ONE run, not three — the "gaps in coverage" the
+ * user reported. Order matters: the longer `**`/`__` before the single `*`/`_`. Backtick (code) and
+ * `==` (highlight) too. NOT a markdown parser — just the inline markers that fragment a Japanese run.
+ */
+const EMPHASIS = /(\*\*|__|~~|==|\*|_|`)/g;
 
 export const stripRuby = (line: string): RubyStripped => {
   const starts: number[] = [];
   const ends: number[] = [];
   let text = "";
+
+  // Emit one plain source char at `i` mapped 1:1.
+  const emitPlain = (i: number): void => {
+    text += line[i];
+    starts.push(i);
+    ends.push(i + 1);
+  };
+
+  // Positions covered by an emphasis marker — dropped from output, but their span is folded into a
+  // neighbouring char's map so no original index is lost.
+  const dropped = new Set<number>();
+  for (const m of line.matchAll(EMPHASIS)) {
+    for (let i = m.index; i < m.index + m[0].length; i++) dropped.add(i);
+  }
+
   let cursor = 0;
   for (const match of line.matchAll(RUBY)) {
+    // Plain (and emphasis) text before this ruby group.
     for (let i = cursor; i < match.index; i++) {
-      text += line[i];
-      starts.push(i);
-      ends.push(i + 1);
+      if (!dropped.has(i)) emitPlain(i);
     }
-    const base = match[1];
-    const baseStart = match.index + 1; // past "{"
+    const base = unescape(match[1]);
     const groupEnd = match.index + match[0].length;
+    // The whole group maps to the base characters; the first/last widen to cover the braces and
+    // reading so a highlight or cursor anywhere in `{…|…}` resolves to the base.
     for (let k = 0; k < base.length; k++) {
       text += base[k];
-      starts.push(k === 0 ? match.index : baseStart + k);
-      ends.push(k === base.length - 1 ? groupEnd : baseStart + k + 1);
+      starts.push(k === 0 ? match.index : match.index + 1 + k);
+      ends.push(k === base.length - 1 ? groupEnd : match.index + 2 + k);
     }
     cursor = groupEnd;
   }
   for (let i = cursor; i < line.length; i++) {
-    text += line[i];
-    starts.push(i);
-    ends.push(i + 1);
+    if (!dropped.has(i)) emitPlain(i);
   }
   return { text, starts, ends };
 };

@@ -87,6 +87,40 @@ describe("stripRuby", () => {
     const onReading = toStrippedIndex(s, "{漢字|か".length);
     expect(s.text[onReading]).toBe("字");
   });
+
+  it("keeps a Japanese run whole across inline markdown emphasis", () => {
+    // WHY (user report — "gaps in coverage"): markdown emphasis interleaved with Japanese used to
+    // fragment a run. 彼に*遅れない*ように is ONE Japanese sentence a reader wants hovered as a unit,
+    // but the * markers split it into 彼に / 遅れない / ように. Stripping the markers reunites it.
+    const s = stripRuby("彼に*遅れない*ように");
+    expect(s.text).toBe("彼に遅れないように");
+    // Bold, code, and highlight markers too — all fragment the same way.
+    expect(stripRuby("**強調**です").text).toBe("強調です");
+    expect(stripRuby("コード`変数`だ").text).toBe("コード変数だ");
+    expect(stripRuby("==状況説明==").text).toBe("状況説明");
+  });
+
+  it("still maps back to the original line through stripped emphasis", () => {
+    // The index map must survive the stripping, or a highlight would land on the wrong span. Every
+    // stripped char points at a real, in-bounds slice of the ORIGINAL line.
+    const line = "彼に*遅れない*ように";
+    const s = stripRuby(line);
+    for (let i = 0; i < s.text.length; i++) {
+      expect(s.starts[i]).toBeGreaterThanOrEqual(0);
+      expect(s.ends[i]).toBeLessThanOrEqual(line.length);
+      expect(s.starts[i]).toBeLessThan(s.ends[i]);
+    }
+    // 遅 is at original index 3 (past 彼 に *), so hovering there resolves it.
+    const at = toStrippedIndex(s, 3);
+    expect(s.text[at]).toBe("遅");
+  });
+
+  it("handles an escaped pipe inside a ruby group (mirrordown \\|)", () => {
+    // WHY (user's real docs): mirrordown escapes a literal pipe as \|. An escaped pipe in the base
+    // must not be read as the base/reading separator, and it is unescaped in the output.
+    expect(stripRuby(String.raw`{漢字|かん\|じ}`).text).toBe("漢字");
+    expect(stripRuby(String.raw`{バー\|線|ばーせん}`).text).toBe("バー|線");
+  });
 });
 
 describe("groupSegments", () => {
