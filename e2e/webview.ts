@@ -13,6 +13,62 @@ import {
 } from "@playwright/test";
 
 /**
+ * Hover a Japanese word in the editor and wait for its dictionary hover to appear.
+ *
+ * The editor hover is the flakiest thing to drive, and both prior approaches were unreliable — one
+ * test used Playwright's `.hover()` (moves to an element centre and fires synthetic events), the
+ * other an ad-hoc mouse dance. The failures look like "only passes when I hover manually," because:
+ *
+ *  1. VS Code's hover is triggered by a real `mousemove` and a DWELL timer, not by a DOM mouseover.
+ *     A move that lands and immediately asserts can beat the timer. So we move AWAY, then onto the
+ *     target — a genuine positional transition VS Code reacts to — and give it a beat.
+ *  2. The hovered word is computed from the PIXEL under the cursor. A `.view-line` spans the whole
+ *     editor width and Monaco chunks glyphs into arbitrary spans, so centre-of-element aims wrong.
+ *     We measure the first text span and index into it by character.
+ *  3. It is still occasionally missed (GC pause, first-hover warmup). So we RETRY the move a few
+ *     times rather than trust a single attempt — the one thing a manual tester does naturally.
+ *
+ * `charIndex` is 0-based into the run's characters; `charCount` is the run length (both needed to
+ * split the measured text box). Returns the populated hover locator, filtered by `contains`.
+ */
+export const hoverEditorWord = async (
+  window: Page,
+  lineText: string,
+  charIndex: number,
+  charCount: number,
+  contains: string
+): Promise<Locator> => {
+  const line = window.locator(".view-line", { hasText: lineText }).first();
+  await line.waitFor();
+  const span = line.locator("span").first();
+  const box = await span.boundingBox();
+  if (!box) throw new Error(`could not measure the text of "${lineText}"`);
+  const charWidth = box.width / charCount;
+  const x = box.x + charWidth * (charIndex + 0.5);
+  const y = box.y + box.height / 2;
+
+  const hover = window
+    .locator(".monaco-hover-content")
+    .filter({ hasText: contains });
+
+  // Up to 5 attempts: each is a real away→onto move plus a dwell. A single move is what made this
+  // "only works when I hover it myself" — a person naturally jiggles the mouse until it shows.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await window.mouse.move(x, box.y + box.height * 4);
+    await window.mouse.move(x, y);
+    await window.mouse.move(x + 1, y); // nudge, so a repeat attempt still counts as movement
+    try {
+      await expect(hover).toBeVisible({ timeout: attempt === 0 ? 8000 : 3000 });
+      return hover;
+    } catch {
+      if (attempt === 4)
+        throw new Error(`hover never appeared for "${contains}"`);
+    }
+  }
+  return hover;
+};
+
+/**
  * Screenshot just the Jisho sidebar, not the whole workbench.
  *
  * For visual iteration this is what we actually care about — a full-window shot is mostly VS Code

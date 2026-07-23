@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
+import {
+  hoverEditorWord,
+  jishoFrame,
+  openJishoSidebar,
+  returnToSearch
+} from "./webview";
 
 // The foundational end-to-end path: real VS Code launches, our extension activates, the sidebar
 // webview renders, and a search returns real DB-backed results. If this passes, the harness works
@@ -113,20 +118,18 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   // must not split the run, the cursor lands on "{" and maps into the base, the auxiliaries
   // (たくなかった) group onto the verb, and the lemma 食べる resolves the entry.
   await win.keyboard.type("{食|た}べたくなかった");
-  const word = win.locator(".view-line", { hasText: "べたくなかった" }).first();
-  await word.waitFor();
-  await word.locator("span span").first().hover();
-  // Each editor owns an (empty) hover container; filter to the one that actually populated.
-  const hover = win
-    .locator(".monaco-hover-content")
-    .filter({ hasText: "to eat" });
-  // Generous timeout: a standalone run pays tokenizer + dictionary warm-up on this first hover.
-  await expect(hover).toBeVisible({ timeout: 20_000 });
+  // {食|た}べたくなかった is 12 chars; hover the べ at index 4 (inside the word, past the ruby markup).
+  const hover = await hoverEditorWord(win, "べたくなかった", 4, 12, "to eat");
   await expect(hover).toContainText("食べる");
   // The conjugation chain of the detected form, labelled (user request: contextual meaning).
   await expect(hover).toContainText("want to");
   await expect(hover).toContainText("past");
   await expect(hover).toContainText("Open in Jisho");
+  // The rich layout renders against real DB data: the headword is a ruby heading, and POS is a
+  // <kbd> pill (一段動詞 for 食べる). Asserting the ELEMENTS confirms the HTML survived the sanitizer
+  // end-to-end, which only a live hover can — the unit tests check the markup string, not the DOM.
+  await expect(hover.locator("h1 ruby").first()).toBeVisible();
+  await expect(hover.locator("kbd").first()).toBeVisible();
   // Reference shot for the hover-design iteration (BACKLOG #33: user wants to refine it visually).
   await app().window.screenshot({ path: "test-results/shots/02-hover.png" });
 });
@@ -153,32 +156,14 @@ test("hovering a particle explains its grammar", async () => {
   await editor.click();
   await win.keyboard.type("本を読みます");
 
-  const line = win.locator(".view-line", { hasText: "本を読みます" }).first();
-  await line.waitFor();
-  // Hover を by POSITION, measured from the TEXT span rather than the line.
-  //
-  // Two wrong turns are baked into this, both caught by failure screenshots. A `{ hasText: "を" }`
-  // locator matches the enclosing span, which in a full-suite run was the entire line — Playwright
-  // hovered its centre and produced a 読む hover. And `.view-line` itself is full editor width, so
-  // splitting THAT box by character count aimed well past the end of the text and produced no
-  // hover at all. The inner span is the one that wraps just the glyphs.
-  const text = line.locator("span").first();
-  const box = await text.boundingBox();
-  if (!box) throw new Error("could not measure the rendered text");
-  const charWidth = box.width / 6; // 本 を 読 み ま す — fixed-width CJK glyphs
-  const x = box.x + charWidth * 1.5;
-  const y = box.y + box.height / 2;
-  // Move away first, THEN onto the target. VS Code only shows a hover on a mouse-move INTO a new
-  // position: typing leaves the pointer wherever it was, and if that is already over the target the
-  // move is a no-op and no hover ever fires. This test passed in a full run purely because an
-  // earlier test had left the pointer elsewhere — standalone (`--grep`) it failed on the committed
-  // version too, so it was a latent order dependency rather than a regression.
-  await win.mouse.move(x, box.y + box.height * 4);
-  await win.mouse.move(x, y);
-  const hover = win
-    .locator(".monaco-hover-content")
-    .filter({ hasText: "Direct object" });
-  await expect(hover).toBeVisible({ timeout: 20_000 });
+  // Hover を — the second of the six characters (本 を 読 み ま す).
+  const hover = await hoverEditorWord(
+    win,
+    "本を読みます",
+    1,
+    6,
+    "Direct object"
+  );
   // The example arrives as two lines — the sentence as written, then its kana reading — with the
   // stored ruby markup resolved away.
   //

@@ -17,6 +17,7 @@ import {
   PARTICLE_NOTES,
   noteToMarkdown
 } from "./shared/grammar";
+import { wordHoverMarkdown } from "./shared/hoverHtml";
 import { addFurigana, removeFurigana } from "./host/furigana";
 import {
   beginTrace,
@@ -475,28 +476,35 @@ class JishoViewProvider
     if (word === null) return undefined;
 
     const reading = word.kana.length > 0 ? word.kana[0].text : "";
-    const glosses = word.senses[0]?.glosses.slice(0, 3).join("; ") ?? "";
-    const pos = word.senses[0]?.partOfSpeech
-      .map((t) => t.description)
-      .join(", ");
-    const md = new vscode.MarkdownString(undefined, true);
-    md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
     // The note for the auxiliary actually under the cursor — only that one. Stacking every
     // auxiliary's note would bury the word's own meaning under three paragraphs of grammar for a
     // form like 食べたくなかった.
     const auxLemma =
       group && grammarEnabled() ? auxiliaryAt(group, wordStart, cursor) : null;
     const auxNote = auxLemma === null ? undefined : AUXILIARY_NOTES[auxLemma];
-    const blocks = [
-      `**${results[0].headword}**${reading === "" ? "" : ` ${reading}`}`,
-      `${pos === "" ? "" : `*${pos}* — `}${glosses}`,
-      ...(breakdown === null ? [] : [breakdown]),
+    const md = new vscode.MarkdownString(undefined, true);
+    md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
+    // Rich HTML layout: verified allowed in hovers (h1/ruby heading, <kbd> POS pills, blockquote
+    // example). supportHtml + isTrusted coexist as long as the markup is well-formed.
+    md.supportHtml = true;
+    const body = wordHoverMarkdown({
+      headword: results[0].headword,
+      reading,
+      breakdown,
+      senses: word.senses
+    });
+    // The auxiliary note (grammar for the piece under the cursor) and the trusted "Open in Jisho"
+    // link are appended here rather than in the pure renderer: the note is a cross-feature concern,
+    // and the link carries a command URL only this trusted MarkdownString may hold.
+    const tail = [
+      body,
       ...(auxNote === undefined || auxLemma === null
         ? []
         : [noteToMarkdown(`〜${auxLemma}`, auxNote)]),
+      "---",
       `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
     ];
-    md.appendMarkdown(blocks.join("\n\n"));
+    md.appendMarkdown(tail.join("\n\n"));
     return new vscode.Hover(
       md,
       new vscode.Range(
