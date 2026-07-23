@@ -8,6 +8,7 @@
 .gitignore
 scripts/**
 src/**
+bench/**
 media/**
 !media/jisho.svg
 **/__tests__/**

@@ -1,0 +1,181 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tokenizer over a real corpus — snapshots > segments: ある日の暮方の事である。 1`] = `
+[
+  {
+    "lemma": "ある",
+    "pos": "adjective",
+    "surface": "ある日",
+  },
+  {
+    "lemma": "の",
+    "pos": "particle",
+    "surface": "の",
+  },
+  {
+    "lemma": "暮方",
+    "pos": "noun",
+    "surface": "暮方",
+  },
+  {
+    "lemma": "の",
+    "pos": "particle",
+    "surface": "の",
+  },
+  {
+    "lemma": "事",
+    "pos": "noun",
+    "surface": "事である",
+  },
+  {
+    "lemma": "。",
+    "pos": "other",
+    "surface": "。",
+  },
+]
+`;
+
+exports[`tokenizer over a real corpus — snapshots > segments: 一人の下人が、羅生門の下で雨やみを待っていた。 1`] = `
+[
+  {
+    "lemma": "一",
+    "pos": "noun",
+    "surface": "一人",
+  },
+  {
+    "lemma": "の",
+    "pos": "particle",
+    "surface": "の",
+  },
+  {
+    "lemma": "下人",
+    "pos": "noun",
+    "surface": "下人",
+  },
+  {
+    "lemma": "が",
+    "pos": "particle",
+    "surface": "が",
+  },
+  {
+    "lemma": "、",
+    "pos": "other",
+    "surface": "、",
+  },
+  {
+    "lemma": "羅生門",
+    "pos": "noun",
+    "surface": "羅生門",
+  },
+  {
+    "lemma": "の",
+    "pos": "particle",
+    "surface": "の",
+  },
+  {
+    "lemma": "下",
+    "pos": "noun",
+    "surface": "下",
+  },
+  {
+    "lemma": "で",
+    "pos": "particle",
+    "surface": "で",
+  },
+  {
+    "lemma": "雨",
+    "pos": "noun",
+    "surface": "雨",
+  },
+  {
+    "lemma": "やみ",
+    "pos": "noun",
+    "surface": "やみ",
+  },
+  {
+    "lemma": "を",
+    "pos": "particle",
+    "surface": "を",
+  },
+  {
+    "lemma": "待つ",
+    "pos": "verb",
+    "surface": "待っ",
+  },
+  {
+    "lemma": "て",
+    "pos": "particle",
+    "surface": "て",
+  },
+  {
+    "lemma": "いる",
+    "pos": "verb",
+    "surface": "いた",
+  },
+  {
+    "lemma": "。",
+    "pos": "other",
+    "surface": "。",
+  },
+]
+`;
+
+exports[`tokenizer over a real corpus — snapshots > segments: 私は、このＣＤプレイヤーをただで得ました。 1`] = `
+[
+  {
+    "lemma": "私",
+    "pos": "noun",
+    "surface": "私",
+  },
+  {
+    "lemma": "は",
+    "pos": "particle",
+    "surface": "は",
+  },
+  {
+    "lemma": "、",
+    "pos": "other",
+    "surface": "、",
+  },
+  {
+    "lemma": "この",
+    "pos": "adjective",
+    "surface": "この",
+  },
+  {
+    "lemma": "ＣＤ",
+    "pos": "noun",
+    "surface": "ＣＤ",
+  },
+  {
+    "lemma": "プレイヤー",
+    "pos": "noun",
+    "surface": "プレイヤー",
+  },
+  {
+    "lemma": "を",
+    "pos": "particle",
+    "surface": "を",
+  },
+  {
+    "lemma": "ただ",
+    "pos": "noun",
+    "surface": "ただ",
+  },
+  {
+    "lemma": "で",
+    "pos": "particle",
+    "surface": "で",
+  },
+  {
+    "lemma": "得る",
+    "pos": "verb",
+    "surface": "得ました",
+  },
+  {
+    "lemma": "。",
+    "pos": "other",
+    "surface": "。",
+  },
+]
+`;
