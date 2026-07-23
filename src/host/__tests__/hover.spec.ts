@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeGroup,
+  describeGroupHtml,
   auxiliaryAt,
   groupSegments,
   japaneseRunAt,
@@ -152,6 +153,32 @@ describe("describeGroup", () => {
       { surface: "写真", lemma: "写真", pos: "noun" }
     ]);
     expect(describeGroup(bare)).toBeNull();
+  });
+});
+
+describe("describeGroupHtml", () => {
+  it("wraps each known auxiliary in an <ins title> tag instead of a parenthetical", () => {
+    // The gloss ("want to") moves from an inline "(…)" into the tooltip, so the breakdown line
+    // stays compact — the meaning is one hover away rather than crowding the text.
+    const [group] = groupSegments([
+      { surface: "食べ", lemma: "食べる", pos: "verb" },
+      { surface: "たく", lemma: "たい", pos: "auxiliary" },
+      { surface: "た", lemma: "た", pos: "auxiliary" }
+    ]);
+    expect(describeGroupHtml(group)).toBe(
+      '食べたくた = 食べる + <ins title="want to">〜たい</ins> + <ins title="past">〜た</ins>'
+    );
+  });
+
+  it("leaves an unknown auxiliary as plain text, and a bare word as null", () => {
+    // No gloss to put in a title → no tag; a plain word has nothing to break down.
+    const [group] = groupSegments([
+      { surface: "行っ", lemma: "行く", pos: "verb" },
+      { surface: "けれ", lemma: "けり", pos: "auxiliary" }
+    ]);
+    expect(describeGroupHtml(group)).toBe("行っけれ = 行く + 〜けり");
+    const [bare] = groupSegments([{ surface: "本", lemma: "本", pos: "noun" }]);
+    expect(describeGroupHtml(bare)).toBeNull();
   });
 });
 

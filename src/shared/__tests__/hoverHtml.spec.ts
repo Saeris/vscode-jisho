@@ -40,9 +40,31 @@ describe("posPill", () => {
     }
   });
 
-  it("falls back to the English label for an unmapped code", () => {
-    // An unknown POS code must degrade to something readable, not vanish or render an empty pill —
-    // JMdict has a long tail of rare codes we have not mapped.
+  it("resolves a whole verb family structurally, not code by code", () => {
+    // The reported bug: 有る's v5r-i showed the English "Godan verb with 'ru' ending (irregular
+    // verb)" because the old table listed v5 codes one at a time and missed that one. A code in a
+    // known family must resolve from its shape, so a newly-seen member never regresses.
+    for (const code of ["v5r-i", "v5aru", "v5u-s", "v5k-s", "v5b", "v5uru"]) {
+      expect(posPill(code, "x")).toContain(">五段動詞<");
+    }
+    for (const code of ["v1", "v1-s", "vz"]) {
+      expect(posPill(code, "x")).toContain(">一段動詞<");
+    }
+    // Classical verb classes resolve too rather than dumping an English sentence into a pill.
+    expect(posPill("v4r", "x")).toContain(">四段動詞<");
+    expect(posPill("v2m-s", "x")).toContain(">二段動詞<");
+  });
+
+  it("resolves adjective classes structurally", () => {
+    expect(posPill("adj-ix", "x")).toContain(">い形容詞<");
+    expect(posPill("adj-nari", "x")).toContain(">な形容詞<");
+    // A rare archaic class (taru/shiku/ku) still gets a generic adjective label, not English prose.
+    expect(posPill("adj-taru", "x")).toContain(">形容詞<");
+    expect(posPill("adj-shiku", "x")).toContain(">形容詞<");
+  });
+
+  it("falls back to the English label for a code outside every family", () => {
+    // The genuine long tail still degrades to readable rather than vanishing.
     const pill = posPill("zzz", "some rare pos");
     expect(pill).toContain(">some rare pos<");
   });

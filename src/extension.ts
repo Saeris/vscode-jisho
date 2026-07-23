@@ -3,8 +3,6 @@ import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import {
-  auxiliaryAt,
-  describeGroup,
   groupSegments,
   japaneseRunAt,
   japaneseRuns,
@@ -12,12 +10,7 @@ import {
   stripRuby,
   toStrippedIndex
 } from "./host/hover";
-import {
-  AUXILIARY_NOTES,
-  PARTICLE_NOTES,
-  noteToMarkdown
-} from "./shared/grammar";
-import { wordHoverMarkdown } from "./shared/hoverHtml";
+import { provideHover } from "./host/hoverProvider";
 import { addFurigana, removeFurigana } from "./host/furigana";
 import {
   beginTrace,
@@ -88,21 +81,6 @@ const grammarEnabled = (): boolean =>
   vscode.workspace
     .getConfiguration("vscode-jisho")
     .get<boolean>("grammar.enabled", true);
-
-/**
- * A grammar note as a hover body. Not trusted: notes contain no command links. A reader who cannot
- * yet decode the kanji still gets each example's reading, on its own line beneath it.
- *
- * Deliberately NOT `supportHtml`. An earlier draft emitted `<ruby>` furigana, which VS Code does
- * render — but a probe measured `<rt>` at 7px against a 14px body and confirmed the sanitizer strips
- * `style`, so it could not be enlarged. Worse, enabling it on the word hover (which sets `isTrusted`
- * for its command link) stopped that hover rendering at all. Plain Markdown, no HTML.
- */
-const grammarMarkdown = (markdown: string): vscode.MarkdownString => {
-  const md = new vscode.MarkdownString(undefined, true);
-  md.appendMarkdown(markdown);
-  return md;
-};
 
 /** Snapshot of the webview-relevant settings, read fresh so edits apply without a reload. */
 const currentSettings = (): HostSettings["settings"] => {
@@ -390,130 +368,26 @@ class JishoViewProvider
   }
 
   /**
-   * Dictionary hover for Japanese text (prototype, BACKLOG #33): the run under the cursor is
-   * tokenized to isolate the hovered word, its dictionary entry renders as reading + first-sense
-   * glosses, and "Open in Jisho" pushes the word into the sidebar. Pure-kana runs skip the
-   * tokenizer (it needs kanji↔kana transitions) and search the run whole — deinflection covers it.
+   * Dictionary hover for Japanese text (BACKLOG #33). Orchestration lives in
+   * `host/hoverProvider.ts`; this method just injects the vscode-facing dependencies (settings, the
+   * lazily-opened dictionary, the tokenizer).
    */
   async hover(
     document: vscode.TextDocument,
     position: vscode.Position,
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | undefined> {
-    // The #14 toggle: some users will find an always-on hover distracting.
-    const enabled = vscode.workspace
-      .getConfiguration("vscode-jisho")
-      .get<boolean>("hover.enabled", true);
-    if (!enabled) return undefined;
-    // Work on the line with mirrordown ruby markup stripped ({食|た}べました → 食べました): the
-    // braces would otherwise split the Japanese run and the hover would see fragments. All
-    // indexes below are stripped-space; the maps translate back for the highlight range.
-    const line = document.lineAt(position.line).text;
-    const stripped = stripRuby(line);
-    const cursor = toStrippedIndex(stripped, position.character);
-    const run = japaneseRunAt(stripped.text, cursor);
-    if (run === null) return undefined;
-
-    // A particle that is its own run (the は in これは、 with punctuation either side) never reaches
-    // the tokenizer path below, which only tokenizes kanji-bearing runs. Answer it directly: a
-    // single character involves no segmentation to get wrong.
-    if (grammarEnabled()) {
-      const particle = PARTICLE_NOTES[run.text];
-      if (particle && Array.from(run.text).length === 1) {
-        return new vscode.Hover(
-          grammarMarkdown(noteToMarkdown(run.text, particle)),
-          new vscode.Range(
-            position.line,
-            stripped.starts[run.start],
-            position.line,
-            stripped.ends[run.start]
-          )
-        );
-      }
-    }
-
-    // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
-    // 食べたくなかった describes 食べる — not the たい fragment under the cursor.
-    const groups = HAS_KANJI.test(run.text)
-      ? groupSegments(await segment(run.text))
-      : [];
-    const {
-      surface,
-      lookup,
-      start: wordStart,
-      group
-    } = resolveWord(run, groups, cursor);
-    // A particle inside a longer run (the を in 本を読みます) is its own segment — groupSegments
-    // deliberately keeps case particles separate from the verbs around them. Lead with the grammar
-    // note: JMdict does have entries for particles, but they are lexicographer's glosses
-    // ("indicates the direct object of an action"), which is what the reader is stuck on rather
-    // than a way out of it.
-    if (grammarEnabled() && group?.parts[0]?.pos === "particle") {
-      const particle = PARTICLE_NOTES[group.surface];
-      if (particle) {
-        return new vscode.Hover(
-          grammarMarkdown(noteToMarkdown(group.surface, particle)),
-          new vscode.Range(
-            position.line,
-            stripped.starts[wordStart],
-            position.line,
-            stripped.ends[wordStart + group.surface.length - 1]
-          )
-        );
-      }
-    }
-
-    // The detected form's structure — what the conjugation MEANS here (user request).
-    const breakdown = group ? describeGroup(group) : null;
-    // Guard the whole-run fallback: hovering a long kana-only sentence isn't a word lookup.
-    if (Array.from(lookup).length > 12) return undefined;
-
-    const dict = await this.#dict();
-    const results = await dict.search(lookup, 1);
-    if (token.isCancellationRequested || results.length === 0) return undefined;
-    // No further cancellation check: VS Code discards a stale hover result on its own.
-    const word = await dict.getWord(results[0].id);
-    if (word === null) return undefined;
-
-    const reading = word.kana.length > 0 ? word.kana[0].text : "";
-    // The note for the auxiliary actually under the cursor — only that one. Stacking every
-    // auxiliary's note would bury the word's own meaning under three paragraphs of grammar for a
-    // form like 食べたくなかった.
-    const auxLemma =
-      group && grammarEnabled() ? auxiliaryAt(group, wordStart, cursor) : null;
-    const auxNote = auxLemma === null ? undefined : AUXILIARY_NOTES[auxLemma];
-    const md = new vscode.MarkdownString(undefined, true);
-    md.isTrusted = { enabledCommands: ["vscode-jisho.lookupText"] };
-    // Rich HTML layout: verified allowed in hovers (h1/ruby heading, <kbd> POS pills, blockquote
-    // example). supportHtml + isTrusted coexist as long as the markup is well-formed.
-    md.supportHtml = true;
-    const body = wordHoverMarkdown({
-      headword: results[0].headword,
-      reading,
-      breakdown,
-      senses: word.senses
+    return provideHover(document, position, token, {
+      hoverEnabled: () =>
+        vscode.workspace
+          .getConfiguration("vscode-jisho")
+          .get<boolean>("hover.enabled", true),
+      grammarEnabled,
+      segment,
+      search: async (lookup, limit) =>
+        (await this.#dict()).search(lookup, limit),
+      getWord: async (id) => (await this.#dict()).getWord(id)
     });
-    // The auxiliary note (grammar for the piece under the cursor) and the trusted "Open in Jisho"
-    // link are appended here rather than in the pure renderer: the note is a cross-feature concern,
-    // and the link carries a command URL only this trusted MarkdownString may hold.
-    const tail = [
-      body,
-      ...(auxNote === undefined || auxLemma === null
-        ? []
-        : [noteToMarkdown(`〜${auxLemma}`, auxNote)]),
-      "---",
-      `[Open in Jisho](command:vscode-jisho.lookupText?${encodeURIComponent(JSON.stringify(results[0].headword))})`
-    ];
-    md.appendMarkdown(tail.join("\n\n"));
-    return new vscode.Hover(
-      md,
-      new vscode.Range(
-        position.line,
-        stripped.starts[wordStart],
-        position.line,
-        stripped.ends[wordStart + surface.length - 1]
-      )
-    );
   }
 
   /**

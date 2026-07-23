@@ -174,6 +174,17 @@ describe("grammar note quality", () => {
     }
   });
 
+  it("shares the word hover's frame: h1 heading, rule, blockquote example", () => {
+    // The alignment fix — a grammar hover and a definition hover should read as one design. The
+    // note leads with an h1 (matching the word hover's headword scale), a --- rule, then the
+    // example as a blockquote, mirroring wordHoverMarkdown's structure.
+    const md = noteToMarkdown("は", PARTICLE_NOTES.は!);
+    expect(md).toMatch(/^# は/);
+    expect(md).toContain("\n\n---\n\n");
+    expect(md).toContain("> "); // blockquote example
+    expect(md).toContain("<small>"); // dimmed translation, like the word hover
+  });
+
   it("gives a reading that is kana only", () => {
     // The reading line exists so a learner who cannot decode the kanji can still say the sentence.
     // A kanji left in it defeats the entire point, and would come from a malformed ruby group.

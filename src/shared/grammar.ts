@@ -566,23 +566,34 @@ export const exampleReading = (ja: string): string =>
   ja.replace(/\{[^|{}]+\|([^{}]+)\}/gu, "$1");
 
 /**
- * Render a note as hover Markdown: heading, gist, detail, then each example over two lines — the
- * sentence, and its reading beneath it.
+ * Render a note as hover Markdown, sharing the word hover's visual language so a grammar hover and a
+ * definition hover read as one design:
  *
- * Two lines rather than `<ruby>` furigana, which VS Code CAN render but not legibly. A probe against
- * a live hover measured `<rt>` at 7px against a 14px body (the CSS default of 50%), and found that
- * VS Code's sanitizer strips `style` attributes — so an extension has no way to enlarge it. Ruby was
- * the better-looking option and the unreadable one; a second line at full body size trades exact
- * per-kanji alignment for kana a learner can actually read.
+ *   # 〈heading〉        h1, matching the word hover's headword scale
+ *   〈gist〉             the one-line summary, as body under the heading
+ *   ---                 thematic break, as under a headword
+ *   〈detail〉           the explanation
+ *   > 〈example〉        blockquote, like the word hover's example
+ *   > 〈reading〉        the kana reading, plain (see below)
+ *   > <small>〈en〉</small>
  *
- * The data keeps its ruby markup regardless: it is the honest source of truth, it drives the webview
- * (whose own CSS has no such limit), and it makes this reversible if VS Code ever allows styling.
+ * Requires `supportHtml` on the MarkdownString (the `<small>` dim). The example's reading stays a
+ * PLAIN line rather than `<ruby>` furigana: a live probe measured `<rt>` at 7px in a blockquote too
+ * (not only in an h1-free body), and VS Code strips `style`, so furigana is unreadable anywhere but
+ * a heading. The word hover's examples make the same trade. Heading text is not ruby-annotated
+ * (particles/auxiliaries are kana), so the h1 needs no furigana.
  */
 export const noteToMarkdown = (heading: string, note: GrammarNote): string => {
   const example = (ex: { ja: string; en: string }): string =>
-    `${exampleSurface(ex.ja)} — ${ex.en}  \n${exampleReading(ex.ja)}`;
+    [
+      `> ${exampleSurface(ex.ja)}`,
+      `> ${exampleReading(ex.ja)}`,
+      `> <small>*${ex.en}*</small>`
+    ].join("  \n");
   return [
-    `**${heading}** — ${note.gist}`,
+    `# ${heading}`,
+    note.gist,
+    "---",
     note.detail,
     example(note.example),
     ...(note.contrast === undefined

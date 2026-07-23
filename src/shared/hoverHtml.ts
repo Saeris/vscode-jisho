@@ -26,15 +26,13 @@ const escapeAttr = (value: string): string =>
     .replace(/>/g, "&gt;");
 
 /**
- * JMdict part-of-speech code → compact Japanese pill label.
+ * JMdict part-of-speech code → compact Japanese pill label — the codes that don't follow a
+ * structural pattern (`posLabel` derives the rest from the code shape).
  *
  * The dictionary only carries the English description ("noun", "suru verb"). A learner scanning a
  * hover reads the Japanese grammatical term faster, and it is far shorter — 名詞 versus "noun",
  * する動詞 versus "noun or participle which takes the aux. verb suru". The English stays available
- * as the pill's `title`. Codes with no entry here fall back to their English description, so an
- * unmapped tag degrades to readable rather than vanishing.
- *
- * Covers the JMdict POS codes that actually occur on common entries; extend as gaps surface.
+ * as the pill's `title`.
  */
 const POS_LABEL: Record<string, string | undefined> = {
   n: "名詞",
@@ -43,34 +41,19 @@ const POS_LABEL: Record<string, string | undefined> = {
   "n-suf": "接尾名詞",
   "n-pref": "接頭名詞",
   pn: "代名詞",
-  adj_i: "い形容詞",
-  "adj-i": "い形容詞",
-  "adj-na": "な形容詞",
-  "adj-no": "の形容詞",
-  "adj-pn": "連体詞",
   adv: "副詞",
   "adv-to": "と副詞",
-  vs: "する動詞",
-  "vs-s": "する動詞",
-  "vs-i": "する動詞",
-  v1: "一段動詞",
-  v5: "五段動詞",
-  v5r: "五段動詞",
-  v5u: "五段動詞",
-  v5k: "五段動詞",
-  v5s: "五段動詞",
-  v5t: "五段動詞",
-  v5n: "五段動詞",
-  v5m: "五段動詞",
-  v5b: "五段動詞",
-  v5g: "五段動詞",
-  "v5k-s": "五段動詞",
-  vk: "不規則動詞",
+  vk: "不規則動詞", // 来る
+  vn: "不規則動詞", // 死ぬ-type ナ変
+  vr: "不規則動詞",
+  vz: "一段動詞", // ずる (一段-adjacent)
   vi: "自動詞",
   vt: "他動詞",
   aux: "助動詞",
   "aux-v": "助動詞",
   "aux-adj": "補助形容詞",
+  cop: "繋辞",
+  "cop-da": "繋辞",
   prt: "助詞",
   conj: "接続詞",
   int: "感動詞",
@@ -78,7 +61,34 @@ const POS_LABEL: Record<string, string | undefined> = {
   pref: "接頭辞",
   suf: "接尾辞",
   ctr: "助数詞",
-  num: "数詞"
+  num: "数詞",
+  unc: "未分類"
+};
+
+/**
+ * The Japanese label for a JMdict POS code.
+ *
+ * Prefers the explicit table, then derives from the code's STRUCTURE for the large regular families
+ * — every `v5*` is a 五段動詞, `v1*` a 一段動詞, `v4*`/`v2*` classical 四段/二段 verbs, `vs*` a
+ * する動詞, `adj-*` an adjective class — so a newly-seen code in a known family resolves rather than
+ * falling through. That structural fallback is what fixes the reported bug (v5r-i showed English
+ * because the old table listed codes one by one and missed it). Anything genuinely outside these
+ * families returns null and the caller shows the English description.
+ */
+const posLabel = (code: string): string | null => {
+  const explicit = POS_LABEL[code];
+  if (explicit !== undefined) return explicit;
+  if (code.startsWith("v5")) return "五段動詞";
+  if (code.startsWith("v1")) return "一段動詞";
+  if (code.startsWith("v4")) return "四段動詞"; // classical yodan
+  if (code.startsWith("v2")) return "二段動詞"; // classical nidan
+  if (code.startsWith("vs")) return "する動詞";
+  if (/^adj-i(x)?$/.test(code)) return "い形容詞";
+  if (code === "adj-na" || code === "adj-nari") return "な形容詞";
+  if (code === "adj-no") return "の形容詞";
+  if (code === "adj-pn") return "連体詞";
+  if (code.startsWith("adj-")) return "形容詞"; // taru/ku/shiku/f… archaic classes
+  return null;
 };
 
 /**
@@ -86,7 +96,7 @@ const POS_LABEL: Record<string, string | undefined> = {
  * description as the hover tooltip. Falls back to the English label when no Japanese one is known.
  */
 export const posPill = (code: string, description: string): string => {
-  const label = POS_LABEL[code] ?? description;
+  const label = posLabel(code) ?? description;
   return `<kbd title="${escapeAttr(description)}">${label}</kbd>`;
 };
 

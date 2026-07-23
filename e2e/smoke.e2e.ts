@@ -119,11 +119,14 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   // (たくなかった) group onto the verb, and the lemma 食べる resolves the entry.
   await win.keyboard.type("{食|た}べたくなかった");
   // {食|た}べたくなかった is 12 chars; hover the べ at index 4 (inside the word, past the ruby markup).
-  const hover = await hoverEditorWord(win, "べたくなかった", 4, 12, "to eat");
+  // Hover the 食べ stem (index 0-1), not an auxiliary — so the DEFINITION shows, not a grammar note.
+  const hover = await hoverEditorWord(win, "べたくなかった", 0, 12, "to eat");
   await expect(hover).toContainText("食べる");
-  // The conjugation chain of the detected form, labelled (user request: contextual meaning).
-  await expect(hover).toContainText("want to");
-  await expect(hover).toContainText("past");
+  // The conjugation chain of the detected form. Each auxiliary is now an <ins title="…"> tag, so
+  // the glosses ("want to", "past") live in TOOLTIPS, not visible text — assert on the title attr.
+  await expect(hover).toContainText("食べたくなかった");
+  await expect(hover.locator('ins[title="want to"]').first()).toBeVisible();
+  await expect(hover.locator('ins[title="past"]').first()).toBeVisible();
   await expect(hover).toContainText("Open in Jisho");
   // The rich layout renders against real DB data: the headword is a ruby heading, and POS is a
   // <kbd> pill (一段動詞 for 食べる). Asserting the ELEMENTS confirms the HTML survived the sanitizer
@@ -176,6 +179,34 @@ test("hovering a particle explains its grammar", async () => {
   await expect(hover).not.toContainText("{");
   await app().window.screenshot({
     path: "test-results/shots/02b-hover-particle.png"
+  });
+});
+
+test("hovering an auxiliary shows its grammar note alone, not the word definition", async () => {
+  // The double-match fix: the cursor sits on one thing and the hover explains THAT. On the たい of
+  // 食べたい, the hover is the 〜たい grammar note — NOT the 食べる definition stacked underneath it.
+  const win = app().window;
+  await openJishoSidebar(win);
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  const editor = win.locator(".editor-group-container .monaco-editor").first();
+  await editor.waitFor();
+  await editor.click();
+  await win.keyboard.type("食べたい");
+
+  // Hover the た of たい — index 2 of 食べたい (食=0 べ=1 た=2 い=3), the auxiliary.
+  const hover = await hoverEditorWord(win, "食べたい", 2, 4, "Want to");
+  // The grammar note is present…
+  await expect(hover).toContainText("Want to");
+  // …and the word definition is NOT: no "to eat" gloss, no POS pill, no Open-in-Jisho link.
+  await expect(hover).not.toContainText("to eat");
+  await expect(hover).not.toContainText("Open in Jisho");
+  await expect(hover.locator("kbd")).toHaveCount(0);
+  await app().window.screenshot({
+    path: "test-results/shots/02c-hover-auxiliary.png"
   });
 });
 

@@ -4,6 +4,7 @@
  * it unit-tests as plain string math.
  */
 import { AUX_GLOSS } from "../shared/grammar";
+import { glossTag } from "../shared/hoverHtml";
 
 /** Kana, CJK ideographs (+ compat), the prolonged-sound mark and iteration marks. */
 const JA_CHAR = /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ]/;
@@ -177,6 +178,26 @@ export const describeGroup = (group: SegmentGroup): string | null => {
       return gloss === undefined
         ? `〜${part.lemma}`
         : `〜${part.lemma} (${gloss})`;
+    })
+    .join(" + ");
+  return `${group.surface} = ${group.parts[0].lemma || group.parts[0].surface} + ${chain}`;
+};
+
+/**
+ * Like `describeGroup`, but each auxiliary is an `<ins title="…">〜lemma</ins>` tag: the short form
+ * stays inline and its meaning ("want to", "past") rides in the tooltip rather than crowding the
+ * line with parentheticals. For the HTML word hover. The plain `describeGroup` stays for any caller
+ * that cannot render HTML.
+ */
+export const describeGroupHtml = (group: SegmentGroup): string | null => {
+  if (group.parts.length < 2) return null;
+  const chain = group.parts
+    .slice(1)
+    .map((part) => {
+      const gloss = AUX_GLOSS[part.lemma];
+      return gloss === undefined
+        ? `〜${part.lemma}`
+        : glossTag(`〜${part.lemma}`, gloss);
     })
     .join(" + ");
   return `${group.surface} = ${group.parts[0].lemma || group.parts[0].surface} + ${chain}`;
