@@ -47,7 +47,7 @@ Two vendored public-domain corpora under `bench/fixtures/`: **羅生門** (Akuta
 
 ### H — Throughput bench (`bench/tokenize.bench.ts`)
 
-Tokenization and the highlighting walk over the 羅生門 fixture — the heavy-document "did my change help?" signal the recognizer bench lacked. Whole document ~80ms, highlight walk ~68ms, one sentence ~0.35ms. WASM is opaque to deoptkit (spec 07), so throughput only.
+Tokenization and the highlighting walk over a whole **novel** — 吾輩は猫である (Sōseki, ~2,255 lines / ~320K chars, `bench/fixtures/wagahai-neko.txt`) — the heavy-document "did my change help?" signal the recognizer bench lacked. A short excerpt hides per-call overhead and allocation churn; sustained novel-scale load is where perf work pays off. Whole document ~4.2s, highlight walk ~3.9s, one sentence ~0.22ms. The whole-document cases use a few fixed iterations (they are ~4s each) so `vp run bench` stays practical. WASM is opaque to deoptkit (spec 07), so throughput only. The correctness tests keep the smaller 羅生門 fixture, where fast stable runs matter more than weight.
 
 ## Findings surfaced by the corpus (recorded, not fixed here)
 
