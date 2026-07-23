@@ -232,6 +232,24 @@ blocked time is 80% of the traced window
 - When several spans start in the same millisecond and finish far apart, they are not measuring themselves.
 - Instrument the gaps, not just the steps. The gap and stall columns found in one trace what four sessions of component benchmarking had missed.
 
+## 0.9 Tokenizer deopt profile — the WASM boundary, confirmed (2026-07-20)
+
+With the novel-length corpus in place (spec 08), profiled `segment()` and the highlight walk over the whole of 吾輩は猫である with deoptkit (`bench/tokenize.bench.mjs`). This settles what is and isn't ours to optimize.
+
+**One finding, severity 10, and it is in the benchmark harness** (a `.length` access in the profile's own loop), not our code. The tick breakdown over 2,107 samples:
+
+| Where the time goes                                                                                                                             | self-ticks | share   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------- |
+| Lindera's WASM (`wasm-function[N]`)                                                                                                             | ~800+      | ~40%    |
+| JS↔WASM boundary (`CreateTypedArray`, `TypedArrayPrototypeSubArray`, `decode`/TextDecoder, `wasm-to-js`, wasm-bindgen `__wbg_*`/`__wbindgen_*`) | ~240       | ~11%    |
+| **Our JavaScript** (`segment` folding 15, `stripRuby` 2, `japaneseRuns` ~0)                                                                     | **~17**    | **<1%** |
+
+**Our own code is under 1% of the profile.** The folding loop, ruby stripping, and run detection do not register. There is nothing in the JS we wrote to optimize — as predicted (a WASM tokenizer is opaque to V8), the cost is Lindera's WASM plus the marshalling wasm-bindgen generates to move strings and typed arrays across the boundary. Both are upstream.
+
+**The only lever that is ours** is the _number of boundary crossings_. The ~11% boundary cost scales with call count: the highlight walk calls `segment()` once per Japanese run (many per line), the plain pass once per line. Fewer, larger calls would amortize the per-call encode/allocate — but the profile shows that is an ~11% ceiling on an already-fast path (whole novel in ~4s, and a real document is far shorter), so it is not worth pursuing now. Recorded so the next person does not re-derive it.
+
+**Lesson (again):** the profile confirmed the up-front hypothesis rather than overturning it — but running it was still right, because "it's all WASM" was a guess until the tick breakdown made it a measurement, and it also surfaced the exact boundary builtins, which is what a future optimization (if ever warranted) would target.
+
 ## Out of scope
 
-Micro-optimizing pure transforms that run once per keystroke on short strings; WASM-internal tokenizer performance (upstream); rewriting the recognizer in WASM (a large change to chase a cost we have not confirmed users feel).
+Micro-optimizing pure transforms that run once per keystroke on short strings; WASM-internal tokenizer performance (upstream); the JS↔WASM marshalling cost (wasm-bindgen-generated, ~11% and only reducible by batching calls — see §0.9); rewriting the recognizer in WASM (a large change to chase a cost we have not confirmed users feel).

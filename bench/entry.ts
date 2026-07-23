@@ -12,3 +12,7 @@ export {
   removeFuriganaFromLine
 } from "../src/host/furigana";
 export { addSpacingToLine } from "../src/host/spacing";
+// Tokenizer + the highlight-walk helpers, for the tokenization deopt profile. `segment` loads its
+// WASM lazily on first call, so importing this is cheap until the profile actually tokenizes.
+export { segment } from "../src/host/tokenizer";
+export { japaneseRuns, stripRuby } from "../src/host/hover";
