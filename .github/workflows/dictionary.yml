@@ -1,0 +1,80 @@
+name: Dictionary Data
+
+# Builds the full dictionary databases from source and publishes them to the rolling
+# `dictionary-latest` GitHub Release, which installed extensions download on first run (spec 05).
+#
+# Triggered on a SCHEMA change (not a schedule): the extension only accepts a DB whose schema it can
+# read, so a schema edit that ships without a rebuilt artifact would break every install. Also
+# runnable manually to refresh the data after an upstream dictionary update.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/data/**.sql"
+      - "src/shared/schema.ts"
+      - "scripts/build-data.ts"
+  workflow_dispatch:
+
+# One data publish at a time — concurrent uploads to the same release race on the asset swap.
+concurrency: dictionary-latest
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & publish dictionary
+    # Never run the publish flow from a fork.
+    if: github.repository == 'Saeris/vscode-jisho'
+    runs-on: ubuntu-latest
+    env:
+      # The full build holds parsed JSON in memory; 8 GiB is comfortably under the runner's 16 GB and
+      # avoids an OOM (measured local full build peaks well below this — no streaming needed).
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "lts"
+          cache: true
+
+      # Word DB (~218k entries) → assets/jisho.db + the jisho-full.db.zst trio (.zst, .sha256,
+      # .version). Then the names DB (~743k JMnedict entries) → its own jisho-names.db.zst trio.
+      - name: Build full word dictionary
+        run: vp run build:data:full
+
+      - name: Build names dictionary
+        run: vp run build:data:names
+
+      # Re-open each built DB and assert it answers, its schema version matches, and the compressed
+      # artifact matches its checksum sidecar. A corrupt artifact silently breaks every new install,
+      # so fail the publish here rather than shipping it.
+      - name: Verify word dictionary
+        run: vp exec node scripts/verify-db.ts assets/jisho.db --zst assets/jisho-full.db.zst
+
+      - name: Verify names dictionary
+        run: vp exec node scripts/verify-db.ts assets/jisho-names.db --zst assets/jisho-names.db.zst --names
+
+      # Publish to the rolling release. Upload the checksum + version sidecars FIRST and the large
+      # `.zst` archives LAST: the client fetches `.sha256`/`.version` before the archive, so uploading
+      # the archive before its checksum would leave a window where a mid-publish download fails
+      # verification. `--clobber` replaces the existing assets; the release is created if absent.
+      - name: Publish to dictionary-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Ensure the rolling release exists (idempotent: ignore "already exists").
+          gh release view dictionary-latest >/dev/null 2>&1 || \
+            gh release create dictionary-latest \
+              --title "Dictionary data" \
+              --notes "Rolling JMdict/JMnedict databases downloaded by the extension on first run. Rebuilt on schema changes; not tied to extension releases."
+
+          # Sidecars first (small), archives last (large) — see the note above.
+          gh release upload dictionary-latest --clobber \
+            assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version \
+            assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
+          gh release upload dictionary-latest --clobber \
+            assets/jisho-full.db.zst \
+            assets/jisho-names.db.zst

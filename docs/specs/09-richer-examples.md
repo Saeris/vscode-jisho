@@ -47,4 +47,4 @@ Tatoeba is **CC BY 2.0 FR** (already cited for the Tanaka examples). Extended in
 
 - Build: pool populated, `SUM(source='tatoeba') > SUM(source='tanaka')`, 0 rows where one Tatoeba id is both sources for a word, 0 rows with empty `ja_furigana`. (Pinned in `db.spec.ts` — "stores the Tatoeba example pool separately from the inline set".)
 - UI: a sense shows its inline example; the "more examples" surface renders sense-grouped + word-level pool with furigana and navigates.
-- Full-scale: pool row count + build time at 217k words is unmeasured (validated on the common build only) — measure with the full-scale latency pass.
+- Full-scale (measured 2026-07-24): the full build is 217,974 words, **32,031 inline + 157,261 pool** rows, 10m34s, no OOM at an 8 GiB heap. The pool grows sub-linearly (capped 20/word), so it is ~1.35× the common build's pool, not 10×. 0 dedup violations, 0 empty furigana at full scale. Search latency over the larger sentence set is still tracked separately (the full-scale latency pass).

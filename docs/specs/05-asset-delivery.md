@@ -46,11 +46,22 @@ Jobs (word DB and names DB **separate**, so a names failure never blocks the wor
 
 Runner limits (verified): 2 GiB per asset, no total-size or bandwidth caps, ~14 GB disk, 16 GB RAM. The build holds parsed JSON in memory — if the full build OOMs, raise Node's heap (`NODE_OPTIONS=--max-old-space-size=…`) before restructuring the script.
 
+**Measured full build (2026-07-24, with F1 examples + F3 similar-kanji, local):** 10m34s wall, exit 0, **no OOM at `--max-old-space-size=8192`** — no streaming needed. Output DB **405.9 MB raw → 114.4 MB zst (71.8% smaller)**; 217,974 words, 189,292 sentence rows (32,031 inline Tanaka + 157,261 Tatoeba pool — the pool grows sub-linearly because it is capped at 20/word), 24,207 similar-kanji rows. The 114 MB (vs the ~96 MB the pre-F1 estimate assumed) is F1's furigana: each sentence stores both `ja` and `ja_furigana`. Well within the runner's limits; the workflow sets the 8 GiB heap defensively and does not need the streaming path.
+
+### As built (2026-07-24) — where the workflow differs from the plan above, and why
+
+`dictionary.yml` and `scripts/verify-db.ts` are implemented. Two deliberate deviations from §1–§2, both correct for the v1 (single-schema-version) release:
+
+- **Artifacts are NOT schema-namespaced yet.** The plan called for `jisho-full.db@v3.zst`, but the download client (`download.ts`) fetches the unnamespaced `jisho-full.db.zst` / `jisho-names.db.zst`, and the schema version is frozen at v1 until publish (there is no second version for an old client to keep resolving). Namespacing only earns its keep once ≥2 schema versions coexist; it is a coordinated client+workflow change to make at the FIRST post-v1 schema bump, not now. Until then, unnamespaced matches the client exactly.
+- **Trigger is schema-change + manual, NOT scheduled.** The user's hard requirement — "release-triggered, not schedule-only" — is met via `paths:` on `src/data/**.sql`, `src/shared/schema.ts`, `scripts/build-data.ts`. The monthly `schedule` + skip-if-exists idempotence (§2 item 1) is dropped for now: JMdict data refreshes are a manual `workflow_dispatch` away, and a monthly rebuild without the skip-if-exists check would re-upload ~230 MB for no change. Add the schedule + existence-check together if data staleness becomes a real concern.
+
+The verify step (§2 item 3) is `scripts/verify-db.ts`: re-opens the DB, asserts `meta.schemaVersion` matches `SCHEMA_VERSION`, canaries 食べる + 食 + row counts, and re-checks the `.zst` against its `.sha256` sidecar. Word and names DBs verified separately. The `.zst`-LAST upload ordering (§2 item 4) is implemented (sidecars uploaded first, archives second).
+
 ## 3. Release ordering (the coupling that must not break)
 
 `release.yml` publishes the extension; `dictionary.yml` publishes its data. A release whose `REQUIRED_SCHEMA_VERSION` has no matching artifact ships a broken first-run experience.
 
-**Gate the release on artifact existence**: before `bumpy ci release`, check that `jisho-full.db@v<REQUIRED_SCHEMA_VERSION>.zst` (plus `.sha256`, `.version`) exist on `dictionary-latest`; fail the release with a clear message if not. Because artifacts are schema-namespaced, the data build can run _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition.
+**Gate the release on artifact existence**: before `bumpy ci release`, check that the data artifacts (plus their `.sha256`, `.version` sidecars) exist on `dictionary-latest`; fail the release with a clear message if not. The data build runs _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition. (This gate is part of task C — wiring the check into `release.yml`. Until artifacts are namespaced — see "As built" — check the plain `jisho-full.db.zst` name the client fetches, not `@v<N>.zst`.)
 
 ## 4. Update lifecycle (the Wallaby-style model the user asked for)
 

@@ -416,6 +416,8 @@ Full spec: [specs/05-asset-delivery.md](specs/05-asset-delivery.md). The diction
 
 Scope: a `dictionary.yml` workflow that rebuilds on schema change (not schedule alone — a release must never ship before its compatible artifact exists), **schema-version gating** so an extension only accepts a DB it can actually read (spec 04's new `radicals.position` column is exactly the mismatch this prevents), schema-namespaced artifacts so old clients keep working, a Wallaby-style automatic + manual update check, and `globalStorage` cleanup so superseded ~400 MB databases don't accumulate.
 
+**Progress (2026-07-24):** the build+publish workflow (`dictionary.yml`) and its pre-upload verifier (`scripts/verify-db.ts`) are **built** — schema-change/manual triggered, builds full word + names DBs, verifies each (schema version, canary queries, `.zst` checksum), uploads the trios `.zst`-last. Schema-version gating (B) shipped earlier. Deferred to their own tasks: schema-namespaced artifacts (unnecessary until a second schema version exists — see spec 05 "As built"), the release-ordering gate (C), and the update-check + cleanup lifecycle (D).
+
 Decided along the way: **stroke SVGs stay bundled in the .vsix** rather than being archived like the DB — the measured .vsix is only 30.6 MB, and a second delivery path would reintroduce the two-source-of-truth staleness bug #31 removed. Measured non-optimizations recorded in the spec (the 99%-duplicated `term_lower` is only ~5 MB of text that gzip already collapses; no `VACUUM` win — freelist is 0).
 
 ### 40. Web extension support (feasibility settled — viable, post-v1)
