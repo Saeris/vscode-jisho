@@ -27,7 +27,8 @@ Build a throwaway web extension (or a stripped branch of this one) and answer:
 
 ## 3. Web delivery: OPFS `ensureDatabase` backend
 
-- Abstract `ensureDatabase`'s storage side: Node path (current, unchanged) vs web path — download `jisho-full.db.gz` from `dictionary-latest`, decompress via `DecompressionStream("gzip")`, write into OPFS, then `connect()` by OPFS name.
+- Abstract `ensureDatabase`'s storage side: Node path (current, unchanged) vs web path — download `jisho-full.db.zst` from `dictionary-latest`, decompress, write into OPFS, then `connect()` by OPFS name.
+- **Decompression (the zstd cost, tied to the E decision):** the release artifacts are zstd (`.zst`), but the web `DecompressionStream` standard supports only `gzip`/`deflate`, NOT zstd — so the web path needs a small WASM zstd decoder (e.g. `fzstd`, ~30 KB) instead of `DecompressionStream`. The Node host never does (Node 26's `node:zlib` decodes zstd natively). This is the one documented consequence of choosing zstd for the ~29% smaller artifacts; web is deferred anyway.
 - **Integrity:** WebCrypto's `crypto.subtle.digest` is one-shot (no streaming); hashing 132MB means holding the compressed buffer in memory once — acceptable, but measure in the worker; if memory-tight, use a small streaming-sha256 JS implementation instead. Reuse the `.version` sidecar convention (stored as an OPFS file or `Memento`).
 - **Size lever (evaluate during the milestone):** a web-targeted DB could drop the biggest tables (e.g. ship common-only + on-demand full) if quota or download UX demands it — decide with item 1's quota numbers, and note M6's separate-names-artifact precedent for multi-artifact delivery.
 - Progress UI: `withProgress` works identically in web hosts.

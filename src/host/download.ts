@@ -1,12 +1,13 @@
 /**
- * Dictionary download: fetch the gzipped database from the rolling `dictionary-latest` GitHub
- * Release, verify its sha256, and gunzip it into place. Pure Node (fetch/zlib/fs) so it is
- * unit-testable without the vscode API — `ensureDatabase` wraps it in the progress UI.
+ * Dictionary download: fetch the zstd-compressed database from the rolling `dictionary-latest` GitHub
+ * Release, verify its sha256, and decompress it into place. Pure Node (fetch/zlib/fs) so it is
+ * unit-testable without the vscode API — `ensureDatabase` wraps it in the progress UI. Node 26 ships
+ * zstd in node:zlib, matching the build's `.zst` output — no runtime dependency.
  */
 import { createWriteStream } from "node:fs";
 import { rename, rm, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { createGunzip } from "node:zlib";
+import { createZstdDecompress } from "node:zlib";
 import { pipeline } from "node:stream/promises";
 import { Readable, Transform } from "node:stream";
 
@@ -30,9 +31,9 @@ const fetchOk = async (url: string): Promise<Response> => {
 };
 
 /**
- * Download `<base>/<prefix>.gz`, verify it against `<base>/<prefix>.gz.sha256`, and gunzip it to
- * `destPath` (written via a `.part` temp file, renamed only after verification). Returns the
- * release's version string (from `<base>/<prefix>.version`) for the sidecar. `prefix` selects the
+ * Download `<base>/<prefix>.zst`, verify it against `<base>/<prefix>.zst.sha256`, and decompress it
+ * to `destPath` (written via a `.part` temp file, renamed only after verification). Returns the
+ * release's version string (from `<base>/<prefix>.zst.version`) for the sidecar. `prefix` selects the
  * artifact — `jisho-full.db` (the word DB) or `jisho-names.db` (the optional names DB).
  */
 export const downloadDatabase = async (
@@ -42,13 +43,13 @@ export const downloadDatabase = async (
   prefix = "jisho-full.db"
 ): Promise<string> => {
   const expectedSha = (
-    await (await fetchOk(`${base}/${prefix}.gz.sha256`)).text()
+    await (await fetchOk(`${base}/${prefix}.zst.sha256`)).text()
   ).trim();
   const version = (
-    await (await fetchOk(`${base}/${prefix}.version`)).text()
+    await (await fetchOk(`${base}/${prefix}.zst.version`)).text()
   ).trim();
 
-  const res = await fetchOk(`${base}/${prefix}.gz`);
+  const res = await fetchOk(`${base}/${prefix}.zst`);
   // fetchOk already rejected null bodies, but the Response type can't carry that narrowing.
   const body = res.body;
   if (body === null) throw new Error("Download failed: empty response body");
@@ -56,7 +57,7 @@ export const downloadDatabase = async (
   const hash = createHash("sha256");
   let received = 0;
 
-  // Hash the compressed bytes as they stream past, then gunzip into the temp file.
+  // Hash the compressed bytes as they stream past, then decompress into the temp file.
   const hashTap = new Transform({
     transform(chunk: Buffer, _enc, done): void {
       hash.update(chunk);
@@ -73,7 +74,7 @@ export const downloadDatabase = async (
     await pipeline(
       Readable.from(body),
       hashTap,
-      createGunzip(),
+      createZstdDecompress(),
       createWriteStream(tempPath)
     );
     const actualSha = hash.digest("hex");

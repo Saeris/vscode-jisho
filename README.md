@@ -64,25 +64,25 @@ Marketplace releases are **per-platform packages**: `vp run build:platforms` bui
 
 ## 📚 Dictionary delivery
 
-The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, gunzipped, sha256-verified, with a progress notification — then everything is offline. In F5 development the workspace copy of `assets/jisho.db` is used directly instead (and refreshes automatically when you rebuild it).
+The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, zstd-decompressed, sha256-verified, with a progress notification — then everything is offline. In F5 development the workspace copy of `assets/jisho.db` is used directly instead (and refreshes automatically when you rebuild it).
 
 The download comes from the rolling **`dictionary-latest`** GitHub Release, which is decoupled from extension releases so dictionary refreshes don't require publishing a new extension version. To create or refresh it (maintainer task):
 
 ```bash
-vp run build:data:full   # builds assets/jisho.db + jisho-full.db.gz (+ .sha256, .version)
+vp run build:data:full   # builds assets/jisho.db + jisho-full.db.zst (+ .sha256, .version)
 gh release create dictionary-latest --title "Dictionary data" --notes "Rolling JMdict database" \
-  assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
+  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
 # or, to refresh an existing release:
 gh release upload dictionary-latest --clobber \
-  assets/jisho-full.db.gz assets/jisho-full.db.gz.sha256 assets/jisho-full.db.version
+  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
 ```
 
 The **names dictionary** (JMnedict, ~743k entries) is a separate optional artifact — downloaded on demand the first time a search could return names — built and uploaded the same way:
 
 ```bash
-vp run build:data:names  # builds assets/jisho-names.db + jisho-names.db.gz (+ .sha256, .version)
+vp run build:data:names  # builds assets/jisho-names.db + jisho-names.db.zst (+ .sha256, .version)
 gh release upload dictionary-latest --clobber \
-  assets/jisho-names.db.gz assets/jisho-names.db.gz.sha256 assets/jisho-names.db.version
+  assets/jisho-names.db.zst assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
 ```
 
 ## 📣 Data sources & attribution

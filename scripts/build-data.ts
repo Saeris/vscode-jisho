@@ -8,7 +8,12 @@
  * Pure Node (fetch + zlib + a minimal tar reader) so it runs anywhere without extra deps
  * or system tools. Node 26 executes this .ts file directly via type-stripping.
  */
-import { createGunzip, createGzip, gunzipSync } from "node:zlib";
+import {
+  constants as zlibConstants,
+  createGunzip,
+  createZstdCompress,
+  gunzipSync
+} from "node:zlib";
 import {
   createReadStream,
   createWriteStream,
@@ -57,7 +62,7 @@ const RELEASE_API =
   "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
 
 // `--names` builds the separate JMnedict names database (`jisho-names.db`), an optional download
-// delivered as its own `jisho-names.db.gz` trio on the dictionary-latest release. It's ~743k
+// delivered as its own `jisho-names.db.zst` trio on the dictionary-latest release. It's ~743k
 // entries and would roughly double the main DB, so it's never bundled into it. Runs independently
 // of the word/kanji build.
 const NAMES = process.argv.includes("--names");
@@ -105,6 +110,37 @@ const decodeCString = (bytes: Uint8Array): string => {
   return Buffer.from(bytes.subarray(0, nul === -1 ? bytes.length : nul))
     .toString("utf8")
     .trim();
+};
+
+// Release assets are zstd-compressed (measured ~29% smaller than gzip -9, and faster to decompress).
+// Node 26 ships zstd in node:zlib, so both this build and the host downloader use the built-in — no
+// runtime dependency. `download.ts` must decompress with the matching `.zst` convention.
+const ZSTD_LEVEL = 19;
+
+/**
+ * Compress the DB at `srcPath` to `<assetBase>.zst`, then write its `.sha256` (of the compressed
+ * bytes, which is what the downloader verifies as it streams) and `.version` siblings. `assetBase` is
+ * the release-asset name (e.g. `…/jisho-full.db`), which differs from the on-disk `srcPath` for the
+ * word DB (built as `jisho.db`, shipped as `jisho-full.db`). Returns the `.zst` path.
+ */
+const writeReleaseAsset = async (
+  srcPath: string,
+  assetBase: string,
+  version: string
+): Promise<string> => {
+  const zstPath = `${assetBase}.zst`;
+  await pipeline(
+    createReadStream(srcPath),
+    createZstdCompress({
+      params: { [zlibConstants.ZSTD_c_compressionLevel]: ZSTD_LEVEL }
+    }),
+    createWriteStream(zstPath)
+  );
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(zstPath), hash);
+  writeFileSync(`${zstPath}.sha256`, hash.digest("hex"), "utf8");
+  writeFileSync(`${zstPath}.version`, version, "utf8");
+  return zstPath;
 };
 
 // The build script trusts the shapes of the GitHub API / JMdict JSON it fetches; a generic return
@@ -698,25 +734,16 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   writeFileSync(`${OUT_DB}.version`, version, "utf8");
   console.log(`\nWrote ${OUT_DB} — ${total} entries (${VARIANT}).`);
 
-  // The full variant is delivered via the dictionary-latest GitHub Release: emit the gzipped
+  // The full variant is delivered via the dictionary-latest GitHub Release: emit the zstd-compressed
   // asset, its sha256, and the version string the downloader compares against its sidecar.
   if (FULL) {
     console.log("Compressing release asset…");
-    const gzPath = join(dirname(OUT_DB), "jisho-full.db.gz");
-    await pipeline(
-      createReadStream(OUT_DB),
-      createGzip({ level: 9 }),
-      createWriteStream(gzPath)
+    const zstPath = await writeReleaseAsset(
+      OUT_DB,
+      join(dirname(OUT_DB), "jisho-full.db"),
+      version
     );
-    const hash = createHash("sha256");
-    await pipeline(createReadStream(gzPath), hash);
-    writeFileSync(`${gzPath}.sha256`, hash.digest("hex"), "utf8");
-    writeFileSync(
-      join(dirname(OUT_DB), "jisho-full.db.version"),
-      version,
-      "utf8"
-    );
-    console.log(`Wrote ${gzPath} (+ .sha256, .version)`);
+    console.log(`Wrote ${zstPath} (+ .sha256, .version)`);
   }
 };
 
@@ -1051,19 +1078,10 @@ const buildNamesDatabase = async (): Promise<void> => {
   writeFileSync(`${NAMES_DB}.version`, version, "utf8");
   console.log(`\nWrote ${NAMES_DB} — ${total} names.`);
 
-  // Names ship only as a download (no bundled dev copy), so always emit the gzip trio.
+  // Names ship only as a download (no bundled dev copy), so always emit the zstd trio.
   console.log("Compressing release asset…");
-  const gzPath = join(dirname(NAMES_DB), "jisho-names.db.gz");
-  await pipeline(
-    createReadStream(NAMES_DB),
-    createGzip({ level: 9 }),
-    createWriteStream(gzPath)
-  );
-  const hash = createHash("sha256");
-  await pipeline(createReadStream(gzPath), hash);
-  writeFileSync(`${gzPath}.sha256`, hash.digest("hex"), "utf8");
-  writeFileSync(`${gzPath}.version`, version, "utf8");
-  console.log(`Wrote ${gzPath} (+ .sha256, .version)`);
+  const zstPath = await writeReleaseAsset(NAMES_DB, NAMES_DB, version);
+  console.log(`Wrote ${zstPath} (+ .sha256, .version)`);
 };
 
 interface NameStmts {

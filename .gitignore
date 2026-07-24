@@ -124,12 +124,12 @@ playwright-report/
 
 # Temp vsix extraction for packaging verification
 .vsix-verify.tmp/
-/assets/jisho-full.db.gz
-/assets/jisho-full.db.gz.sha256
-/assets/jisho-full.db.version
-/assets/jisho-names.db.gz
-/assets/jisho-names.db.gz.sha256
-/assets/jisho-names.db.gz.version
+/assets/jisho-full.db.zst
+/assets/jisho-full.db.zst.sha256
+/assets/jisho-full.db.zst.version
+/assets/jisho-names.db.zst
+/assets/jisho-names.db.zst.sha256
+/assets/jisho-names.db.zst.version
 
 # Per-platform packages built by scripts/package-platforms.ts
 dist-vsix/

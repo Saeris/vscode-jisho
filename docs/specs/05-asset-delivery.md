@@ -8,9 +8,9 @@ The dictionary database is too large to bundle (~400 MB built, ~129 MB gzipped) 
 
 ## What already exists (do not rebuild)
 
-- **`src/host/download.ts`** — fetches `<prefix>.gz`, verifies sha256, gunzips via a `.part` temp file, renames atomically, writes a `.version` sidecar. Handles both `jisho-full.db` and `jisho-names.db` prefixes.
+- **`src/host/download.ts`** — fetches `<prefix>.zst`, verifies sha256, zstd-decompresses via a `.part` temp file, renames atomically, writes a `.version` sidecar. Handles both `jisho-full.db` and `jisho-names.db` prefixes.
 - **`src/host/ensureDatabase.ts`** — dev backend (copy `assets/jisho.db`) vs installed backend (download); compares version sidecars and re-copies on mismatch; offline-first (never blocks activation on a network check).
-- **`scripts/build-data.ts --full` / `--names`** — already emits the full release trio per artifact: `.gz`, `.gz.sha256`, `.version`. Version string is `` `${VARIANT} ${dict.dictDate} ${builtAt}` ``.
+- **`scripts/build-data.ts --full` / `--names`** — already emits the full release trio per artifact: `.zst`, `.zst.sha256`, `.zst.version` (zstd level 19, measured ~29% smaller than gzip -9). Version string is `` `${VARIANT} ${dict.dictDate} ${builtAt}` ``.
 - **`.github/workflows/release.yml`** — Bumpy-driven extension publish (Marketplace + Open VSX) on push to main.
 
 ## Decisions already made
@@ -27,7 +27,7 @@ Today's version string encodes data freshness only. Spec 04 adds a `radicals.pos
 - `src/data/schema.sql` gains a **`SCHEMA_VERSION` constant** mirrored in `src/shared/schema-version.ts` as `REQUIRED_SCHEMA_VERSION` (a plain integer, bumped by hand in the same commit that edits the schema). Build writes it to `meta` as `schemaVersion`.
 - `ensureDatabase` reads the cached DB's `schemaVersion` **before** using it. Below `REQUIRED_SCHEMA_VERSION` → discard and re-download, regardless of data version. Above it (user downgraded the extension) → also re-download; a newer schema may have dropped a column this build reads.
 - Guard against the version living in two places drifting: a unit test asserts `meta.schemaVersion` in `assets/jisho.db` equals `REQUIRED_SCHEMA_VERSION` (skipped when the DB is absent, matching `db.spec.ts`).
-- **Artifacts are namespaced by schema version**: `jisho-full.db@v3.gz`. An old extension keeps resolving its own artifact after a new schema publishes, so upgrading the schema never breaks installed clients. This is what makes release-triggered rebuilds safe.
+- **Artifacts are namespaced by schema version**: `jisho-full.db@v3.zst`. An old extension keeps resolving its own artifact after a new schema publishes, so upgrading the schema never breaks installed clients. This is what makes release-triggered rebuilds safe.
 
 ## 2. Data build workflow (`.github/workflows/dictionary.yml`)
 
@@ -42,7 +42,7 @@ Jobs (word DB and names DB **separate**, so a names failure never blocks the wor
 1. Check whether the target artifact already exists for this schema version + JMdict date; skip unless `force` (keeps the monthly run cheap and idempotent).
 2. `vp run build:data:full` / `build:data:names`.
 3. **Verify before publishing** — re-open the built DB, assert a known query answers (食べる resolves, a kanji resolves, `meta.schemaVersion` is right) and the sha256 matches. A corrupt artifact silently breaks every new install.
-4. `gh release upload dictionary-latest --clobber`, **`.gz` LAST**: the client fetches `.sha256` and `.version` first, so uploading the archive before its checksum leaves a window where a mid-publish download fails verification. Ordering makes the swap effectively atomic.
+4. `gh release upload dictionary-latest --clobber`, **`.zst` LAST**: the client fetches `.sha256` and `.version` first, so uploading the archive before its checksum leaves a window where a mid-publish download fails verification. Ordering makes the swap effectively atomic.
 
 Runner limits (verified): 2 GiB per asset, no total-size or bandwidth caps, ~14 GB disk, 16 GB RAM. The build holds parsed JSON in memory — if the full build OOMs, raise Node's heap (`NODE_OPTIONS=--max-old-space-size=…`) before restructuring the script.
 
@@ -50,7 +50,7 @@ Runner limits (verified): 2 GiB per asset, no total-size or bandwidth caps, ~14 
 
 `release.yml` publishes the extension; `dictionary.yml` publishes its data. A release whose `REQUIRED_SCHEMA_VERSION` has no matching artifact ships a broken first-run experience.
 
-**Gate the release on artifact existence**: before `bumpy ci release`, check that `jisho-full.db@v<REQUIRED_SCHEMA_VERSION>.gz` (plus `.sha256`, `.version`) exist on `dictionary-latest`; fail the release with a clear message if not. Because artifacts are schema-namespaced, the data build can run _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition.
+**Gate the release on artifact existence**: before `bumpy ci release`, check that `jisho-full.db@v<REQUIRED_SCHEMA_VERSION>.zst` (plus `.sha256`, `.version`) exist on `dictionary-latest`; fail the release with a clear message if not. Because artifacts are schema-namespaced, the data build can run _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition.
 
 ## 4. Update lifecycle (the Wallaby-style model the user asked for)
 

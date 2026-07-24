@@ -20,8 +20,8 @@ Read this before executing any milestone plan. It captures workflow rules and en
 
 ## Data build & delivery
 
-- `vp run build:data` = common-only dev/test fixture (~30MB, ~16s). `vp run build:data:full` = full dictionary (~320MB, ~4min) + the gzipped release asset trio (`jisho-full.db.gz`, `.sha256`, `.version`).
-- **Any schema or data change requires rebuilding both variants** and re-uploading the full trio to the rolling `dictionary-latest` GitHub Release (`gh release upload dictionary-latest --clobber assets/jisho-full.db.gz*`). The `.version` sidecar propagates the refresh to installed clients automatically; the bundled-dev path refreshes F5 automatically.
+- `vp run build:data` = common-only dev/test fixture (~30MB, ~16s). `vp run build:data:full` = full dictionary (~320MB, ~4min) + the zstd-compressed release asset trio (`jisho-full.db.zst`, `.zst.sha256`, `.zst.version`).
+- **Any schema or data change requires rebuilding both variants** and re-uploading the full trio to the rolling `dictionary-latest` GitHub Release (`gh release upload dictionary-latest --clobber assets/jisho-full.db.zst*`). The `.version` sidecar propagates the refresh to installed clients automatically; the bundled-dev path refreshes F5 automatically.
 - Ranking-sensitive changes must keep the db.spec ranking tests green ("study"→勉強, "eat"→食べる above 飲食, "water"→水, "cat"→猫; deinflection: はなします→話す) and should re-run the latency probe on the **full** DB (budget: <150ms; current: 2–75ms).
 - **Every new dataset must extend attribution in the same change:** the About view ([src/webview/views/About.tsx](../src/webview/views/About.tsx)), the README's data-sources section, and provenance keys in the DB `meta` table.
 
