@@ -102,15 +102,27 @@ CREATE TABLE pitch_accents (
   PRIMARY KEY (word_id, reading)
 );
 
--- Example sentences (Tanaka corpus via Tatoeba, embedded per sense in jmdict-examples-eng). One
--- row per (word, sense, example); `position` retains source order, and examples are capped per
--- sense at build time. Read whole when rendering a word's detail, never queried across words.
+-- Example sentences from two sources, unified in one table (see docs/specs/05, F1):
+--   * source='tanaka'  — the curated per-sense examples embedded in jmdict-examples-eng (Jim Breen's
+--     JMdict <ex_srce> links). ~1/sense; these are the accurate INLINE example shown under a sense.
+--   * source='tatoeba' — the fuller Tatoeba jpn corpus, joined at build time via jpn_indices. These
+--     populate the "more examples" page. `sense_position` carries the B-line [NN] sense number when
+--     it resolved in-range, else the word-level sentinel -1 (the token had no sense tag or it was
+--     out of range) — so the pool is sense-aware where the data allows and word-level otherwise.
+-- `position` retains source order within its (word, sense_position) group; both sources are capped
+-- at build time. `tatoeba_id` is the Tatoeba sentence id, kept for provenance and to dedup a pool
+-- sentence against the inline one already shown for that sense. `ja_furigana` is the Japanese text
+-- pre-annotated with mirrordown ruby ({漢字|かんじ}) at build time. Read whole when rendering a
+-- word's detail, never queried across words.
 CREATE TABLE sentences (
   word_id        TEXT NOT NULL REFERENCES words(id),
-  sense_position INTEGER NOT NULL, -- which sense of the word (matches senses.position)
-  position       INTEGER NOT NULL, -- order within the sense
+  sense_position INTEGER NOT NULL, -- sense index (matches senses.position); -1 = word-level pool
+  position       INTEGER NOT NULL, -- order within the (word, sense_position) group
   ja             TEXT NOT NULL,
+  ja_furigana    TEXT NOT NULL,    -- ja with build-time ruby markup ({漢字|かんじ})
   en             TEXT NOT NULL,
+  tatoeba_id     INTEGER,          -- Tatoeba sentence id (provenance + dedup); null if unknown
+  source         TEXT NOT NULL DEFAULT 'tanaka', -- 'tanaka' (inline) | 'tatoeba' (pool)
   PRIMARY KEY (word_id, sense_position, position)
 );
 
