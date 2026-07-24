@@ -85,12 +85,14 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             .
           </p>
           <p>
-            Example sentences come from the Tanaka corpus, maintained by the{" "}
+            Example sentences come from the{" "}
             <a href="https://tatoeba.org/">Tatoeba</a> project (
             <a href="https://creativecommons.org/licenses/by/2.0/fr/deed.en">
               CC BY 2.0 FR
             </a>
-            ), embedded in JMdict via jmdict-simplified.
+            ): the curated Tanaka-corpus subset embedded in JMdict provides the
+            per-sense inline examples, and the fuller Tatoeba corpus provides
+            the word-level “more examples” pool.
           </p>
           <p>
             The names dictionary (optional download) uses{" "}

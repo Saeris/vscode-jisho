@@ -24,10 +24,12 @@ import {
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { finished, pipeline } from "node:stream/promises";
+import { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { connect } from "@tursodatabase/database";
-import { toRomaji } from "wanakana";
+import { toHiragana, toRomaji } from "wanakana";
+import bz2 from "unbzip2-stream";
 import type {
   JMdict,
   JMdictWord,
@@ -38,7 +40,14 @@ import type {
   Kradfile,
   Radkfile
 } from "@scriptin/jmdict-simplified-types";
-import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../src/shared/schema";
+import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../src/shared/schema.ts";
+// Build-local furigana: the host's addFuriganaToLine pulls in hover.ts → shared/grammar, whose own
+// imports don't all resolve under `vp exec node`, but the two primitives it needs DO — so annotate
+// example sentences here with just the tokenizer + ruby renderer. Relative TS imports need explicit
+// `.ts` extensions: `vp exec node` runs the .ts directly (Node type-stripping) with no extension
+// rewriting, so extensionless specifiers fail to resolve here (unlike inside the bundled extension).
+import { segment } from "../src/host/tokenizer.ts";
+import { toRubyMarkdown } from "../src/shared/ruby.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
 // don't cover (their README notes this). Declare the extra shape locally — verified against the
@@ -191,6 +200,39 @@ const JLPT_LEVELS: Array<{ file: string; level: number }> = [
 const CJK_DECOMP_SHA = "c29b391fd6267e7a3541387e03a3dd60b1cd34d1";
 const CJK_DECOMP_URL = `https://raw.githubusercontent.com/amake/cjk-decomp/${CJK_DECOMP_SHA}/cjk-decomp.txt`;
 
+// Tatoeba example-sentence corpus (CC-BY 2.0 FR — same licence and project as the Tanaka examples we
+// already ship, so no new licensing surface). The jmdict-examples-eng set is only Jim Breen's curated
+// Tanaka SUBSET (~1 sentence/sense); Jisho.org shows more because it links the fuller Tatoeba corpus by
+// word. We import that here to populate a word-level "more examples" pool (F1).
+//
+// Three per-language exports, joined at build time (all rolling weekly; pinned only by their
+// last-modified date, recorded in `meta`):
+//   jpn_indices  — the word-index: one row per Japanese sentence, `sentence_id ⇥ meaning_id ⇥ B-line`.
+//                  The B-line lists the dictionary head-words the sentence contains (see BLINE_TOKEN).
+//   jpn_sentences — `id ⇥ jpn ⇥ text`: the Japanese sentence text, looked up by the index's sentence_id.
+//   eng_sentences — `id ⇥ eng ⇥ text`: English text, looked up by the index's meaning_id (which IS an
+//                  English sentence id; ~98% resolve). Gives each example its translation.
+const TATOEBA_BASE = "https://downloads.tatoeba.org/exports";
+const TATOEBA_JPN_INDICES_URL = `${TATOEBA_BASE}/jpn_indices.tar.bz2`;
+const TATOEBA_JPN_SENTENCES_URL = `${TATOEBA_BASE}/per_language/jpn/jpn_sentences.tsv.bz2`;
+const TATOEBA_ENG_SENTENCES_URL = `${TATOEBA_BASE}/per_language/eng/eng_sentences.tsv.bz2`;
+
+// One head-word token in a B-line: `headword(reading)[NN]{surface}~`, all but the headword optional.
+//   headword   — the dictionary form (kanji or kana) we resolve to a words.id.
+//   (reading)  — disambiguates homographs to the right entry.
+//   [NN]       — 1-based zero-padded SENSE number (present on ~20% of tokens); attaches the sentence
+//                to that specific sense when it resolves in-range, else the word-level pool (-1).
+//   {surface}  — the form as written in the sentence (unused for the pool; we store the whole sentence).
+//   ~          — a "good/checked" marker (ignored).
+const BLINE_TOKEN =
+  /^(?<headword>[^([{~]+)(?:\((?<reading>[^)]*)\))?(?:\[(?<sense>\d+)\])?(?:\{[^}]*\})?~?/u;
+
+// The word-level pool sense_position sentinel (mirrors the schema comment): a Tatoeba sentence whose
+// B-line token carried no in-range [NN] sense tag is attached to the word, not a sense.
+const WORD_LEVEL_SENSE = -1;
+// Cap stored Tatoeba pool sentences per word, spread across its senses + the word-level bucket.
+const MAX_POOL_SENTENCES_PER_WORD = 20;
+
 // JMdict priority tags (EDRDG, CC-BY-SA-4.0 — the same licence and source as our main dictionary,
 // so no new licensing surface). jmdict-simplified deliberately collapses JMdict's `ke_pri`/`re_pri`
 // fields into a single boolean `common`, discarding the underlying gradient; their own type docs say
@@ -257,6 +299,147 @@ const fetchDecomposition = async (): Promise<Map<string, string[]>> => {
   }
   console.log(`  ${map.size} decomposition records`);
   return map;
+};
+
+// ── Tatoeba example-sentence pool (F1) ─────────────────────────────────────────
+
+/** Download a `.bz2` URL and return its decompressed bytes, plus the `Last-Modified` header. */
+const fetchBz2 = async (
+  url: string
+): Promise<{ data: Buffer; lastModified: string }> => {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok || res.body === null) {
+    throw new Error(`Tatoeba ${url} → ${res.status} ${res.statusText}`);
+  }
+  const lastModified = res.headers.get("last-modified") ?? "";
+  const chunks: Buffer[] = [];
+  const sink = new Writable({
+    write(chunk: Buffer, _enc, done): void {
+      chunks.push(chunk);
+      done();
+    }
+  });
+  // Readable.from accepts the fetch body's web stream directly (same trick as download.ts).
+  await pipeline(Readable.from(res.body), bz2(), sink);
+  return { data: Buffer.concat(chunks), lastModified };
+};
+
+/** Extract the single-member `.tar` produced by decompressing a `.tar.bz2` (one regular file). */
+const singleTarMember = (tar: Buffer): string => {
+  // Same 512-byte-record tar layout as extractSingleJsonFromTgz, but returns the first regular file's
+  // content whatever its extension (the Tatoeba archive holds one .csv).
+  const name = decodeCString(tar.subarray(0, 100));
+  if (name === "") throw new Error("Empty tar archive");
+  const size = parseInt(decodeCString(tar.subarray(124, 136)), 8) || 0;
+  return tar.subarray(512, 512 + size).toString("utf8");
+};
+
+/** A parsed Tatoeba example: the sentence text pair plus its resolved (word_id, sense) targets. */
+interface TatoebaExample {
+  tatoebaId: number;
+  ja: string;
+  en: string;
+  /** Head-word tokens found in the sentence: the dictionary form and its optional 1-based sense. */
+  tokens: Array<{ headword: string; reading?: string; sense?: number }>;
+}
+
+/**
+ * Download and join the three Tatoeba exports into example rows. Each row is a Japanese sentence with
+ * its English translation and the list of head-word tokens (from the B-line) it contains — the raw
+ * material the import pass resolves against `words.id`. Word resolution and the per-word cap happen
+ * later (they need the built `words` rows); this only parses.
+ */
+const fetchTatoeba = async (): Promise<{
+  examples: TatoebaExample[];
+  dates: { indices: string; jpn: string; eng: string };
+}> => {
+  console.log("Downloading Tatoeba exports (jpn_indices, jpn/eng sentences)…");
+  const [indices, jpn, eng] = await Promise.all([
+    fetchBz2(TATOEBA_JPN_INDICES_URL),
+    fetchBz2(TATOEBA_JPN_SENTENCES_URL),
+    fetchBz2(TATOEBA_ENG_SENTENCES_URL)
+  ]);
+
+  // id → text maps for the two sentence exports (`id ⇥ lang ⇥ text`).
+  const textById = (buf: Buffer): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const line of buf.toString("utf8").split("\n")) {
+      if (line === "") continue;
+      const tab1 = line.indexOf("\t");
+      const tab2 = line.indexOf("\t", tab1 + 1);
+      if (tab1 === -1 || tab2 === -1) continue;
+      map.set(line.slice(0, tab1), line.slice(tab2 + 1));
+    }
+    return map;
+  };
+  const jaById = textById(jpn.data);
+  const enById = textById(eng.data);
+
+  const examples: TatoebaExample[] = [];
+  const csv = singleTarMember(indices.data);
+  for (const line of csv.split("\n")) {
+    if (line === "") continue;
+    // `sentence_id ⇥ meaning_id ⇥ B-line`; a malformed row with fewer fields is skipped.
+    const parts = line.split("\t");
+    if (parts.length < 3) continue;
+    const [sentenceId, meaningId, bline] = parts;
+    const ja = jaById.get(sentenceId);
+    const en = enById.get(meaningId);
+    // Need both a Japanese sentence and an English translation to show a useful example.
+    if (ja === undefined || en === undefined) continue;
+
+    const tokens: TatoebaExample["tokens"] = [];
+    for (const raw of bline.split(/\s+/)) {
+      if (raw === "") continue;
+      const g = BLINE_TOKEN.exec(raw)?.groups;
+      if (!g?.headword) continue;
+      // Named groups are typed `string` but are optional at runtime; coerce the sense, leave the
+      // rest as-is (empty/absent reading is handled by the resolver).
+      tokens.push({
+        headword: g.headword,
+        reading: g.reading || undefined,
+        sense: g.sense ? Number(g.sense) : undefined
+      });
+    }
+    if (tokens.length === 0) continue;
+    examples.push({ tatoebaId: Number(sentenceId), ja, en, tokens });
+  }
+
+  console.log(
+    `  ${examples.length} indexed sentences (of ${csv.split("\n").length - 1} index rows)`
+  );
+  return {
+    examples,
+    dates: {
+      indices: indices.lastModified,
+      jpn: jpn.lastModified,
+      eng: eng.lastModified
+    }
+  };
+};
+
+const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
+
+/**
+ * Annotate a Japanese sentence with mirrordown ruby ({漢字|かんじ}) at build time, so the DB stores
+ * the furigana and the webview renders it with no runtime tokenizer cost. A build-local reimplementation
+ * of the host's addFuriganaToLine using only the tokenizer + ruby renderer (its full version drags in
+ * the hover/grammar module tree, which doesn't resolve under `vp exec node`). Each kanji-bearing
+ * segment with a reading is wrapped; everything else passes through unchanged.
+ */
+const annotateFurigana = async (ja: string): Promise<string> => {
+  const segments = await segment(ja);
+  let out = "";
+  for (const seg of segments) {
+    if (HAS_KANJI.test(seg.surface) && seg.reading !== "") {
+      out += toRubyMarkdown(seg.surface, toHiragana(seg.reading));
+    } else {
+      out += seg.surface;
+    }
+  }
+  return out;
 };
 
 /** One word's priority signals, derived from its JMdict `ke_pri`/`re_pri` tags. */
@@ -412,23 +595,35 @@ interface Sources {
   priority: Map<string, WordPriority>;
   /** char → its direct component children (cjk-decomp, unpruned). */
   decomp: Map<string, string[]>;
+  /** Tatoeba example pool + the exports' last-modified dates (F1). */
+  tatoeba: Awaited<ReturnType<typeof fetchTatoeba>>;
 }
 
 const downloadSources = async (): Promise<Sources> => {
   console.log("Resolving latest jmdict-simplified release…");
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
-  const [dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp] =
-    await Promise.all([
-      fetchAssetJson<JMdict>(release, ASSET_PATTERN),
-      fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
-      fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
-      fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
-      fetchJlptLevels(),
-      fetchPitchAccents(),
-      fetchWordPriorities(),
-      fetchDecomposition()
-    ]);
+  const [
+    dict,
+    kanjidic,
+    kradfile,
+    radkfile,
+    jlpt,
+    pitch,
+    priority,
+    decomp,
+    tatoeba
+  ] = await Promise.all([
+    fetchAssetJson<JMdict>(release, ASSET_PATTERN),
+    fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
+    fetchAssetJson<Kradfile>(release, KRADFILE_PATTERN),
+    fetchAssetJson<Radkfile>(release, RADKFILE_PATTERN),
+    fetchJlptLevels(),
+    fetchPitchAccents(),
+    fetchWordPriorities(),
+    fetchDecomposition(),
+    fetchTatoeba()
+  ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
   if (!FULL) {
@@ -440,12 +635,31 @@ const downloadSources = async (): Promise<Sources> => {
       `Filtered to common entries: ${dict.words.length}/${before} words`
     );
   }
-  return { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp };
+  return {
+    dict,
+    kanjidic,
+    kradfile,
+    radkfile,
+    jlpt,
+    pitch,
+    priority,
+    decomp,
+    tatoeba
+  };
 };
 
 const buildDatabase = async (sources: Sources): Promise<void> => {
-  const { dict, kanjidic, kradfile, radkfile, jlpt, pitch, priority, decomp } =
-    sources;
+  const {
+    dict,
+    kanjidic,
+    kradfile,
+    radkfile,
+    jlpt,
+    pitch,
+    priority,
+    decomp,
+    tatoeba
+  } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
   rmSync(`${OUT_DB}-wal`, { force: true });
@@ -486,7 +700,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO glosses(sense_id, position, lang, text) VALUES (?, ?, ?, ?)"
   );
   const insSentence = await db.prepare(
-    "INSERT INTO sentences(word_id, sense_position, position, ja, en) VALUES (?, ?, ?, ?, ?)"
+    `INSERT INTO sentences(word_id, sense_position, position, ja, ja_furigana, en, tatoeba_id, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insTerm = await db.prepare(
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -515,7 +730,6 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // Commit in batches and checkpoint between them: a single giant transaction can never fold its
   // pages back into the main file, so the WAL balloons unboundedly (the full build's WAL passed
   // 5GB before this fix). Checkpointing per batch keeps the WAL at roughly one batch's size.
-  const BATCH = 5000;
   const total = dict.words.length;
   let done = 0;
   let sentenceRows = 0;
@@ -668,6 +882,19 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     `  jlpt: ${jlptMatched}/${jlpt.size} words matched (${jlptRate}% of list)`
   );
 
+  // ── Tatoeba example pool pass (F1) ──────────────────────────────────────────
+  // Attach the fuller Tatoeba corpus to words as a "more examples" pool (source='tatoeba'), on top of
+  // the inline per-sense Tanaka examples (source='tanaka'). Resolution is a build-time join of the
+  // B-line head-word tokens against the words we just imported — the runtime read is a plain lookup.
+  //
+  // A token resolves via, in order: exact (kanji writing + kana reading) → kanji writing alone →
+  // kana reading alone. A [NN] sense tag that is in range attaches the sentence to that sense
+  // (0-based sense_position); otherwise it lands in the word-level bucket (sense_position = -1).
+  const tatoebaRows = await importTatoebaPool(db, dict, tatoeba.examples, {
+    insSentence
+  });
+  console.log(`  tatoeba: ${tatoebaRows} pool sentence rows`);
+
   // Attribution / provenance.
   const insMeta = await db.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)"
@@ -709,14 +936,21 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   await insMeta.run("pitchRows", String(pitchRows));
   await insMeta.run(
     "sentenceSource",
-    "Example sentences: Tanaka corpus, via Tatoeba (embedded in jmdict-examples-eng)"
+    "Example sentences: Tanaka corpus (inline, via jmdict-examples-eng) + the fuller Tatoeba corpus (more-examples pool)"
   );
   await insMeta.run(
     "sentenceLicense",
     "CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/deed.en)"
   );
   await insMeta.run("sentenceRows", String(sentenceRows));
-  console.log(`  sentences: ${sentenceRows} example rows`);
+  await insMeta.run("tatoebaPoolRows", String(tatoebaRows));
+  // The exports are rolling weekly; their last-modified dates are the closest thing to a version.
+  await insMeta.run("tatoebaIndicesDate", tatoeba.dates.indices);
+  await insMeta.run("tatoebaJpnDate", tatoeba.dates.jpn);
+  await insMeta.run("tatoebaEngDate", tatoeba.dates.eng);
+  console.log(
+    `  sentences: ${sentenceRows} inline + ${tatoebaRows} pool example rows`
+  );
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
@@ -764,8 +998,20 @@ interface Stmts {
   priority: Map<string, WordPriority>;
 }
 
-/** Cap on example sentences kept per sense — the source averages ~1, but bound it defensively. */
+/** Cap on inline (Tanaka) example sentences kept per sense — the source averages ~1, bound defensively. */
 const MAX_SENTENCES_PER_SENSE = 3;
+
+/**
+ * Position offset for Tatoeba POOL rows that attach to a real sense. The sentences PK is
+ * (word_id, sense_position, position) and does not include `source`, so a pool row landing on the
+ * same sense as an inline Tanaka row must not reuse its low positions (0..MAX_SENTENCES_PER_SENSE-1).
+ * Starting pool positions here keeps the two sources' rows in the same sense from colliding; the
+ * word-level bucket (sense_position = -1) never collides because inline rows never use it.
+ */
+const POOL_POSITION_BASE = MAX_SENTENCES_PER_SENSE;
+
+/** Commit + WAL-checkpoint every N rows so the write-ahead log can't balloon during the bulk build. */
+const BATCH = 5000;
 
 /** Imports one word; returns the number of example sentences inserted for it. */
 const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
@@ -922,8 +1168,10 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       }
     }
 
-    // Example sentences (jmdict-examples-eng): keep up to MAX per sense, each a ja/en pair. Skip
-    // any example missing either language (the source is occasionally one-sided).
+    // Inline example sentences (source='tanaka', from jmdict-examples-eng): the curated per-sense
+    // set, ~1/sense. Keep up to MAX per sense, each a ja/en pair; skip any missing either language
+    // (the source is occasionally one-sided). `source.value` is the Tatoeba sentence id, kept so the
+    // later Tatoeba-pool pass can dedup a pool sentence against the one already shown for this sense.
     const examples = (sense as SenseWithExamples).examples ?? [];
     let kept = 0;
     for (const ex of examples) {
@@ -931,12 +1179,213 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       const ja = ex.sentences.find((se) => se.lang === "jpn")?.text;
       const en = ex.sentences.find((se) => se.lang === "eng")?.text;
       if (ja === undefined || en === undefined) continue;
-      await s.insSentence.run(word.id, i, kept, ja, en);
+      const tatoebaId = Number(ex.source.value);
+      await s.insSentence.run(
+        word.id,
+        i,
+        kept,
+        ja,
+        await annotateFurigana(ja),
+        en,
+        Number.isFinite(tatoebaId) ? tatoebaId : null,
+        "tanaka"
+      );
       kept++;
     }
     sentenceCount += kept;
   }
   return sentenceCount;
+};
+
+/** A resolvable JMdict entry: its id and how many senses it has (to range-check a B-line [NN] tag). */
+interface WordRef {
+  id: string;
+  senseCount: number;
+}
+
+/**
+ * Build the head-word → entry lookup the Tatoeba pool resolves against. Keyed three ways so a B-line
+ * token can be matched most-specific-first:
+ *   `${kanji}\t${reading}` — an exact (writing, reading) pair (disambiguates homographs like 二十歳/はたち)
+ *   `${kanji}`             — a kanji writing alone (when the token carries no reading)
+ *   `${reading}`           — a kana reading alone (kana-only words, or reading-only tokens)
+ * Each key maps to ALL entries that expose it (a surface can belong to several entries); the pool
+ * sentence is attached to each, since it genuinely contains that word.
+ */
+const buildWordIndex = (
+  dict: JMdict
+): {
+  byKanjiReading: Map<string, WordRef[]>;
+  byKanji: Map<string, WordRef[]>;
+  byReading: Map<string, WordRef[]>;
+} => {
+  const byKanjiReading = new Map<string, WordRef[]>();
+  const byKanji = new Map<string, WordRef[]>();
+  const byReading = new Map<string, WordRef[]>();
+  const push = (
+    map: Map<string, WordRef[]>,
+    key: string,
+    ref: WordRef
+  ): void => {
+    const list = map.get(key);
+    if (list) list.push(ref);
+    else map.set(key, [ref]);
+  };
+  for (const word of dict.words) {
+    const ref: WordRef = { id: word.id, senseCount: word.sense.length };
+    const readings = word.kana.map((k) => k.text);
+    for (const reading of readings) push(byReading, reading, ref);
+    for (const k of word.kanji) {
+      push(byKanji, k.text, ref);
+      for (const reading of readings) {
+        push(byKanjiReading, `${k.text}\t${reading}`, ref);
+      }
+    }
+  }
+  return { byKanjiReading, byKanji, byReading };
+};
+
+interface PoolStmts {
+  insSentence: Statement;
+}
+
+/**
+ * Resolve every Tatoeba example's B-line tokens to entries and insert the results as the word-level
+ * "more examples" pool. Per word we keep up to MAX_POOL_SENTENCES_PER_WORD sentences, deduped against
+ * the inline Tanaka examples already stored for it (by Tatoeba id) so a sentence never shows twice.
+ * Each stored sentence is furigana-annotated at build time. Returns the number of pool rows inserted.
+ */
+const importTatoebaPool = async (
+  db: Awaited<ReturnType<typeof connect>>,
+  dict: JMdict,
+  examples: TatoebaExample[],
+  s: PoolStmts
+): Promise<number> => {
+  const index = buildWordIndex(dict);
+
+  // A pending pool sentence for one word: which sense (or -1), its Tatoeba id, and text.
+  interface Pending {
+    sensePosition: number;
+    tatoebaId: number;
+    ja: string;
+    en: string;
+  }
+  // word_id → its candidate pool sentences (capped as we go). A Set of Tatoeba ids per word keeps the
+  // pool internally unique (the same sentence can list a word twice, or two tokens hit one entry).
+  const pending = new Map<string, Pending[]>();
+  const seenIds = new Map<string, Set<number>>();
+
+  const resolve = (token: TatoebaExample["tokens"][number]): WordRef[] => {
+    if (token.reading !== undefined) {
+      const exact = index.byKanjiReading.get(
+        `${token.headword}\t${token.reading}`
+      );
+      if (exact) return exact;
+    }
+    return (
+      index.byKanji.get(token.headword) ??
+      index.byReading.get(token.headword) ??
+      []
+    );
+  };
+
+  for (const ex of examples) {
+    // A sentence may list a word more than once (repeated token, or kanji+reading both resolving);
+    // attach it at most once per word, at the most specific sense we saw for it.
+    const targets = new Map<string, number>(); // word_id → chosen sense_position
+    for (const token of ex.tokens) {
+      for (const ref of resolve(token)) {
+        const inRange =
+          token.sense !== undefined &&
+          token.sense >= 1 &&
+          token.sense <= ref.senseCount;
+        const sensePosition = inRange ? token.sense! - 1 : WORD_LEVEL_SENSE;
+        // Keep the most specific (a real sense beats the word-level sentinel).
+        const existing = targets.get(ref.id);
+        if (existing === undefined || existing === WORD_LEVEL_SENSE) {
+          targets.set(ref.id, sensePosition);
+        }
+      }
+    }
+    for (const [wordId, sensePosition] of targets) {
+      let ids = seenIds.get(wordId);
+      if (!ids) {
+        ids = new Set();
+        seenIds.set(wordId, ids);
+      }
+      if (ids.has(ex.tatoebaId)) continue;
+      const list = pending.get(wordId) ?? [];
+      if (list.length >= MAX_POOL_SENTENCES_PER_WORD) continue;
+      ids.add(ex.tatoebaId);
+      list.push({
+        sensePosition,
+        tatoebaId: ex.tatoebaId,
+        ja: ex.ja,
+        en: ex.en
+      });
+      pending.set(wordId, list);
+    }
+  }
+
+  // Which inline (Tanaka) Tatoeba ids are already stored per word, so the pool doesn't repeat them.
+  const inlineIds = await db.prepare(
+    "SELECT tatoeba_id FROM sentences WHERE word_id = ? AND source = 'tanaka' AND tatoeba_id IS NOT NULL"
+  );
+  // The native binding types query rows as `any`; read the one column back through Number() rather
+  // than asserting a row shape (which the linter rightly flags as unsafe).
+  const readTatoebaId = (row: unknown): number => {
+    if (typeof row === "object" && row !== null && "tatoeba_id" in row) {
+      return Number((row as { tatoeba_id: unknown }).tatoeba_id);
+    }
+    return NaN;
+  };
+  const inlineIdsFor = async (wordId: string): Promise<Set<number>> => {
+    const out = new Set<number>();
+    const result: unknown = await inlineIds.all(wordId);
+    if (Array.isArray(result)) {
+      for (const row of result as unknown[]) {
+        const id = readTatoebaId(row);
+        if (Number.isFinite(id)) out.add(id);
+      }
+    }
+    return out;
+  };
+
+  await db.exec("BEGIN");
+  let rows = 0;
+  let done = 0;
+  for (const [wordId, list] of pending) {
+    const already = await inlineIdsFor(wordId);
+    // Stable position per (word, sense_position) group; the reader orders by it. Pool rows on a REAL
+    // sense start at POOL_POSITION_BASE so they never reuse an inline Tanaka row's position (shared
+    // PK, no `source` column in it); the word-level bucket (-1) has no inline rows to avoid.
+    const positionBySense = new Map<number, number>();
+    for (const p of list) {
+      if (already.has(p.tatoebaId)) continue;
+      const base =
+        p.sensePosition === WORD_LEVEL_SENSE ? 0 : POOL_POSITION_BASE;
+      const nth = positionBySense.get(p.sensePosition) ?? 0;
+      positionBySense.set(p.sensePosition, nth + 1);
+      await s.insSentence.run(
+        wordId,
+        p.sensePosition,
+        base + nth,
+        p.ja,
+        await annotateFurigana(p.ja),
+        p.en,
+        p.tatoebaId,
+        "tatoeba"
+      );
+      rows++;
+    }
+    if (++done % BATCH === 0) {
+      await db.exec("COMMIT");
+      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      await db.exec("BEGIN");
+    }
+  }
+  await db.exec("COMMIT");
+  return rows;
 };
 
 interface KanjiStmts {
@@ -1042,7 +1491,6 @@ const buildNamesDatabase = async (): Promise<void> => {
     "INSERT INTO name_search_terms(word_id, kind, term, term_lower, is_primary) VALUES (?, ?, ?, ?, ?)"
   );
 
-  const BATCH = 5000;
   const total = dict.words.length;
   let done = 0;
   for (const name of dict.words) {

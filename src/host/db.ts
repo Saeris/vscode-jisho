@@ -537,13 +537,16 @@ export class Dictionary {
       id
     );
 
-    // Example sentences are keyed by (word_id, sense_position); load them once and group.
+    // Inline example sentences: the curated per-sense Tanaka set (source='tanaka'), keyed by
+    // sense_position. The fuller Tatoeba pool (source='tatoeba') is deliberately excluded here — it
+    // feeds the separate "more examples" surface (F1), not the inline per-sense list. Loaded once and
+    // grouped by sense.
     const sentenceRows = await this.#all<{
       sense_position: number;
       ja: string;
       en: string;
     }>(
-      "SELECT sense_position, ja, en FROM sentences WHERE word_id = ? ORDER BY sense_position, position",
+      "SELECT sense_position, ja, en FROM sentences WHERE word_id = ? AND source = 'tanaka' ORDER BY sense_position, position",
       id
     );
     const sentencesBySense = new Map<number, SentenceDto[]>();

@@ -6,6 +6,11 @@
     // project-local paths live here, not in the shared base
     "outDir": "./dist",
     "rootDir": ".",
+    // The `scripts/` build tools run via `vp exec node` (Node-native TS type-stripping), which needs
+    // explicit `.ts` extensions on relative imports (no bundler to rewrite them). This flag PERMITS
+    // those specifiers; `src/` stays extensionless (Vite's bundler resolver handles it). Safe with
+    // `moduleResolution: bundler` + `noEmit` from the base config.
+    "allowImportingTsExtensions": true,
     // The webview is browser code (window/document/postMessage) rendered with React.
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",

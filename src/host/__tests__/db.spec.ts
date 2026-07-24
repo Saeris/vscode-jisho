@@ -254,12 +254,54 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
   });
 
   test("caps example sentences per sense", async () => {
-    // WHY: the build keeps at most 3 sentences per sense so a heavily-exemplified word can't bloat
-    // the detail payload. A regression removing the cap would let some senses carry dozens.
+    // WHY: the inline per-sense list shows only the curated Tanaka set (source='tanaka'), capped at 3
+    // per sense so a heavily-exemplified word can't bloat the detail payload. With the Tatoeba pool
+    // now in the same table (up to 20/word), this cap ALSO proves getWord scopes the inline read to
+    // source='tanaka' — a regression pulling pool rows into the inline list would blow past 3.
     const [top] = await dict.search("見る");
     const word = await dict.getWord(top.id);
     for (const s of word!.senses)
       expect(s.sentences.length).toBeLessThanOrEqual(3);
+  });
+
+  test("stores the Tatoeba example pool separately from the inline set (F1)", async () => {
+    // WHY: F1 adds a fuller Tatoeba "more examples" pool (source='tatoeba') on top of the inline
+    // Tanaka examples, deduped by Tatoeba id and furigana-annotated at build time. This guards the
+    // build's invariants at the storage seam the future more-examples page reads: the pool exists, it
+    // never duplicates an inline sentence for the same word, and every stored sentence carries ruby.
+    const raw = await connect(DB_PATH);
+    try {
+      const rows = async <T>(sql: string): Promise<T[]> =>
+        (await (await raw.prepare(sql)).all()) as T[];
+
+      // The pool is populated and distinct from the inline set.
+      const [counts] = await rows<{ tanaka: number; tatoeba: number }>(
+        `SELECT SUM(source='tanaka') tanaka, SUM(source='tatoeba') tatoeba FROM sentences`
+      );
+      expect(counts.tanaka).toBeGreaterThan(0);
+      expect(counts.tatoeba).toBeGreaterThan(counts.tanaka);
+
+      // No sentence is stored as both inline and pool for one word (dedup by Tatoeba id).
+      const [{ dupes }] = await rows<{ dupes: number }>(
+        `SELECT COUNT(*) dupes FROM (
+           SELECT word_id, tatoeba_id FROM sentences WHERE tatoeba_id IS NOT NULL
+           GROUP BY word_id, tatoeba_id HAVING COUNT(DISTINCT source) > 1
+         )`
+      );
+      expect(dupes).toBe(0);
+
+      // Furigana is stored for every sentence (ruby markup on kanji-bearing ones).
+      const [{ missing }] = await rows<{ missing: number }>(
+        `SELECT COUNT(*) missing FROM sentences WHERE ja_furigana IS NULL OR ja_furigana = ''`
+      );
+      expect(missing).toBe(0);
+      const [{ ruby }] = await rows<{ ruby: number }>(
+        `SELECT COUNT(*) ruby FROM sentences WHERE ja_furigana LIKE '%{%|%}%'`
+      );
+      expect(ruby).toBeGreaterThan(0);
+    } finally {
+      await raw.close();
+    }
   });
 
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
