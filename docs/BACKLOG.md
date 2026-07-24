@@ -434,6 +434,40 @@ The pilot's most useful result was a negative one: `recognize()` costs 17ms warm
 
 Tool boundaries matter and are recorded: deoptkit sees only JS we wrote — the database (native addon) and tokenizer (12MB WASM) are opaque calls, and the webview is another process. Database performance is tracked separately in the spec (EXPLAIN QUERY PLAN, the `searchNames` N+1, full-DB rather than dev-subset timings) and depends on spec 05 producing a full DB to measure against.
 
+## Kanji-confusion data — features built on the Yencken dataset (post-v1)
+
+These build on the CC BY 3.0 kanji-confusion data adopted for similar-kanji ([specs/10-similar-kanji.md](specs/10-similar-kanji.md)). We currently use only the two computed distance tables; the **unused human-judgment files** (`flashcards.csv`, `kanjitester_responses`, the judgment YAMLs) capture _actual_ learner confusion, a stronger signal. All decided-to-pursue, all unscheduled; each gets its own spec when scheduled.
+
+### 42. Similarity as an accuracy precision signal (feature — medium, ties to #43)
+
+Use kanji similarity to cut hover/tokenizer **false positives**: when editor text resolves to a kanji entry that is a known look-alike of a much more common word, suppress or flag it (the `あー、いいよ`-class mismatch — a casual phrase matching an unrelated/over-complex kanji entry). Highest-leverage of the four: it attacks the accuracy problem #43 already owns, rather than adding surface. Lives in the hover/tokenizer→entry resolution path.
+
+### 43. Everyday-text match accuracy: a low-false-positive evaluation harness (infrastructure — medium)
+
+Reported 2026-07-24: casual/colloquial words and phrases mismatch to unrelated or over-complex kanji entries on editor hover (distinct from search ranking — this is tokenizer→dictionary resolution). Build a **thorough-but-not-exhaustive** accuracy evaluation: a gold corpus of everyday Japanese (incl. casual/slang) plus a precision scorer measuring false-positive resolution rate, runnable as a gate. Design the eval (gold-set sourcing + metric + not-exhaustive sampling) and get sign-off before building the corpus. Candidate root causes to investigate (verify, don't assume): deinflection over-reach, casual-text segmentation errors, rare-homograph ranking, kana→kanji homophone hits. #42 is one of the fixes this harness would validate.
+
+### 44. Orthographic search: look up a kanji by a visually-similar one (feature — medium)
+
+Yencken's actual thesis contribution (ECAI-2008): look up a kanji you **can't type** by picking a visually-similar one you **can**. A third input path beside handwriting and radical search — the user sees an unknown kanji, picks a look-alike they can input, and we surface the target. A natural fit for an offline dictionary. New search mode + input UI; reuses the similarity data.
+
+### 45. Confusables comparison page — AnimCJK stroke-diff grid (feature — medium/large)
+
+A dedicated page (not just the passive similar-kanji list): a **grid** of the confusing kanji, each rendered with its AnimCJK stroke SVG and the **unique/easy-to-miss distinguishing strokes highlighted**, plus a mini-definition + common on'yomi/kun'yomi. An at-a-glance comparison; each cell tappable to navigate to that kanji's page. Reuses the shipped AnimCJK SVGs (#31) + the kanji-tap navigation. The hard/novel part is the **stroke diff** — computing and highlighting what's _different_ between two stroke sequences.
+
+### 46. Learner-confusion ranking from human data (refinement of #10 — medium)
+
+Fold the unused human-judgment files (`kanjitester_responses`, `flashcards.csv`) into the similarity blend or as a separate signal, so ordering reflects **actual confusion frequency**, not just stroke/radical geometry — surface the genuinely dangerous look-alikes first, or add a "commonly confused" marker. A build-data blend change on top of #10.
+
+### 47. Handwriting near-miss autocomplete via stroke-edit distance (feature — medium)
+
+The handwriting recognizer returns a ranked guess; stroke-edit distance models exactly the "differs by a few strokes" relationship on which a recognizer is most likely to be wrong. Surface a list of stroke-similar candidates **adjacent to the handwriting input**, so a near-miss becomes a one-tap correction instead of a redraw. Reuses the stroke-edit data (or the recognizer's own distance); check whether KanjiCanvas already exposes a ranked candidate list.
+
+## Navigation & interaction UX (continued)
+
+### 48. Webview forward/back mouse-button navigation (fix — small)
+
+The webview navigation history (xref tap-through, kanji-tap, on-screen back) does not respond to the **forward/back mouse buttons** (X1/X2, buttons 3/4) — users expect these to move through history like a browser. Wire `auxclick`/`mouseup` with `event.button` 3/4 to the existing nav-machine back/forward transitions. Verify the Electron/Chromium webview actually receives these events (VS Code may swallow them); a host-side keybinding fallback may be needed if not.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
