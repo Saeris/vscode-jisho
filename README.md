@@ -92,6 +92,7 @@ This extension is built on the work of several open dictionary projects. Their l
 - **[JMdict / EDICT][jmdict]** — Japanese-English dictionary data, © the [Electronic Dictionary Research and Development Group (EDRDG)][edrdg], used under the [EDRDG License][edrdg-license]. Sourced via [jmdict-simplified][jmdict-simplified].
 - **[KANJIDIC2][kanjidic]** — kanji character data (readings, meanings, stroke counts, grades, JLPT levels), © EDRDG, used under [CC BY-SA 4.0][cc-by-sa].
 - **[KRADFILE / RADKFILE][kradfile]** — kanji radical/component decompositions, © EDRDG (RADKFILE2/KRADFILE2 © Jim Rose), used under the [EDRDG License][edrdg-license].
+- **[Kanji confusion data][yencken]** — visually-similar ("look-alike") kanji, © [Lars Yencken][yencken] (stroke-edit and Yeh-Li radical distance over the jōyō kanji, from his PhD research), used under [CC BY 3.0][cc-by-3]. A component-overlap heuristic fills in non-jōyō kanji. This is a deterministic approximation, not curated confusable pairs.
 - **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
 - **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
 - **[Example sentences][tatoeba]** — from the [Tatoeba][tatoeba] project, used under [CC BY 2.0 FR][cc-by-fr]. The curated Tanaka-corpus subset (embedded in JMdict via jmdict-simplified) provides the per-sense inline examples; the fuller Tatoeba corpus (jpn_indices + jpn/eng sentence exports) provides the word-level "more examples" pool.
@@ -130,7 +131,9 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [yomitan-jlpt]: https://github.com/stephenmk/yomitan-jlpt-vocab
 [kanjium]: https://github.com/mifunetoshiro/kanjium
 [tatoeba]: https://tatoeba.org/
+[yencken]: https://lars.yencken.org/datasets/kanji-confusion/
 [cc-by-fr]: https://creativecommons.org/licenses/by/2.0/fr/deed.en
+[cc-by-3]: https://creativecommons.org/licenses/by/3.0/
 [jmnedict]: https://www.edrdg.org/enamdict/enamdict_doc.html
 [animcjk]: https://github.com/parsimonhi/animCJK
 [makemeahanzi]: https://github.com/skishore/makemeahanzi

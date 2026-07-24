@@ -188,6 +188,12 @@ export interface KanjiDetailDto {
   /** Component characters/radicals (Kradfile), the flat parts list. */
   components: ComponentDto[];
   /**
+   * Visually-similar kanji (F3), ranked most-similar-first. Each is a kanji with its own detail page
+   * (tappable). Empty when no similarity data applies. Derived from Yencken's confusion data for jōyō
+   * kanji, a component heuristic otherwise — an approximation, not curated confusable pairs.
+   */
+  similar: string[];
+  /**
    * Whether a recursive component tree (cjk-decomp) exists for this kanji — gates the "Component
    * tree" link on the detail. When false, only the flat `components` list is meaningful.
    */

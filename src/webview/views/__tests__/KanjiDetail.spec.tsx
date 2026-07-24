@@ -24,6 +24,7 @@ const kanji: KanjiDetailDto = {
     { literal: "久", hasDetail: true },
     { literal: "入", hasDetail: true }
   ],
+  similar: [],
   hasTree: false,
   words: []
 };

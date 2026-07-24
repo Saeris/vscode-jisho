@@ -631,6 +631,13 @@ export class Dictionary {
       literal
     );
 
+    // Visually-similar kanji (F3), precomputed and ranked. Every `similar` value FK-references a
+    // kanji_characters row, so each has a detail page — no has_detail gate needed.
+    const similarRows = await this.#all<{ similar: string }>(
+      "SELECT similar FROM similar_kanji WHERE literal = ? ORDER BY position",
+      literal
+    );
+
     // Common words containing this kanji, via the precomputed `char` term rows (already indexed).
     const wordRows = await this.#all<{ word_id: string; common: number }>(
       `SELECT word_id, MAX(is_common) AS common FROM search_terms
@@ -667,6 +674,7 @@ export class Dictionary {
         literal: c.component,
         hasDetail: c.has_detail === 1
       })),
+      similar: similarRows.map((r) => r.similar),
       hasTree: treeEdge !== undefined,
       words
     };

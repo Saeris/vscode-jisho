@@ -153,6 +153,22 @@ CREATE TABLE kanji_components (
 
 CREATE INDEX idx_components_component ON kanji_components(component);
 
+-- Visually-similar kanji (F3), PRECOMPUTED at build time so the runtime read is a plain lookup. No
+-- redistributable similar-kanji dataset exists (WaniKani's is proprietary — we only link it), so this
+-- is DERIVED from shared Kradfile components, weighted to suppress the noise of raw overlap: shared
+-- rare components count more (IDF), and candidates with a similar part-count and stroke-count score
+-- higher (未/末 look alike; 未/魅 share a component but 魅 has far more parts). It is a deterministic,
+-- offline approximation, not curated data — surfaced as a "you might be confusing these" aid.
+-- `position` is the rank (0 = most similar); the top few per kanji are kept.
+CREATE TABLE similar_kanji (
+  literal  TEXT NOT NULL REFERENCES kanji_characters(literal),
+  similar  TEXT NOT NULL REFERENCES kanji_characters(literal),
+  position INTEGER NOT NULL,
+  PRIMARY KEY (literal, position)
+);
+
+CREATE INDEX idx_similar_kanji_literal ON similar_kanji(literal);
+
 -- Recursive component tree (cjk-decomp, amake fork — Apache-2.0/MIT multi-licence). Unlike Kradfile
 -- (a flat set of atoms), this is HIERARCHICAL: it records each character's DIRECT children, so
 -- 願 → 原 + 頁, 原 → 厂 …, giving the intermediate nodes Kradfile omits — the Jisho-style breakdown.

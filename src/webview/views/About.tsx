@@ -113,6 +113,16 @@ export const About = ({ onBack }: AboutProps): React.ReactElement => {
             </a>
             .
           </p>
+          <p>
+            Visually-similar (“look-alike”) kanji come from{" "}
+            <a href="https://lars.yencken.org/datasets/kanji-confusion/">
+              Lars Yencken’s kanji-confusion data
+            </a>{" "}
+            (© Lars Yencken, used under{" "}
+            <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>
+            ) for the jōyō kanji, with a component-overlap heuristic filling in
+            the rest — an approximation, not curated confusable pairs.
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>

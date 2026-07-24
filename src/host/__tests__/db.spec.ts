@@ -339,6 +339,19 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(iru?.hasDetail).toBe(true);
   });
 
+  test("surfaces visually-similar kanji, ranked (F3)", async () => {
+    // WHY: the "similar kanji" section rests on the precomputed similar_kanji table (Yencken data for
+    // jōyō). The classic learner confusion 未/末 must appear near the top — a broken join or a wrong
+    // ORDER BY position would hide it or scramble the ranking. Each entry must be an openable kanji.
+    const mi = await dict.getKanji("未");
+    expect(mi!.similar).toContain("末");
+    // Ranked most-similar-first: 末 (a near-identical look-alike) leads.
+    expect(mi!.similar[0]).toBe("末");
+    // Every similar kanji resolves to its own detail (the table FK-references kanji_characters).
+    const first = await dict.getKanji(mi!.similar[0]);
+    expect(first).not.toBeNull();
+  });
+
   test("builds the recursive component tree with intermediate nodes", async () => {
     // WHY: the whole reason for cjk-decomp over Kradfile. Kradfile gives 願 a FLAT set of atoms
     // (ハ 厂 小 白 目 貝 頁) with no 原; the tree must show 願 → 原 + 頁, i.e. the intermediate node

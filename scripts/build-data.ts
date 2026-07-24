@@ -233,6 +233,16 @@ const WORD_LEVEL_SENSE = -1;
 // Cap stored Tatoeba pool sentences per word, spread across its senses + the word-level bucket.
 const MAX_POOL_SENTENCES_PER_WORD = 20;
 
+// Similar-kanji data (F3): Lars Yencken's kanji-confusion datasets, CC BY 3.0. Human-validated
+// PhD research on which kanji people actually confuse — far better than raw component overlap, which
+// misses atomic confusables (大/太/犬, 日/白) and is noisy on shared-radical compounds. Two precomputed
+// nearest-neighbour tables over the 1,945 jōyō kanji, blended; the component heuristic fills in kanji
+// beyond jōyō. Each file: space-separated `pivot n1 score1 n2 score2 …` (10 neighbours, score in
+// [0,1], higher = more similar). https://lars.yencken.org/datasets/kanji-confusion/
+const YENCKEN_BASE = "https://lars.yencken.org/datasets/kanji-confusion";
+const YENCKEN_STROKE_URL = `${YENCKEN_BASE}/jyouyou__strokeEditDistance.csv`;
+const YENCKEN_RADICAL_URL = `${YENCKEN_BASE}/jyouyou__yehAndLiRadical.csv`;
+
 // JMdict priority tags (EDRDG, CC-BY-SA-4.0 — the same licence and source as our main dictionary,
 // so no new licensing surface). jmdict-simplified deliberately collapses JMdict's `ke_pri`/`re_pri`
 // fields into a single boolean `common`, discarding the underlying gradient; their own type docs say
@@ -597,6 +607,11 @@ interface Sources {
   decomp: Map<string, string[]>;
   /** Tatoeba example pool + the exports' last-modified dates (F1). */
   tatoeba: Awaited<ReturnType<typeof fetchTatoeba>>;
+  /** Yencken similar-kanji tables (stroke-edit + Yeh-Li radical) + their dates (F3). */
+  yencken: {
+    stroke: Awaited<ReturnType<typeof fetchYencken>>;
+    radical: Awaited<ReturnType<typeof fetchYencken>>;
+  };
 }
 
 const downloadSources = async (): Promise<Sources> => {
@@ -612,7 +627,9 @@ const downloadSources = async (): Promise<Sources> => {
     pitch,
     priority,
     decomp,
-    tatoeba
+    tatoeba,
+    yenckenStroke,
+    yenckenRadical
   ] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -622,7 +639,9 @@ const downloadSources = async (): Promise<Sources> => {
     fetchPitchAccents(),
     fetchWordPriorities(),
     fetchDecomposition(),
-    fetchTatoeba()
+    fetchTatoeba(),
+    fetchYencken(YENCKEN_STROKE_URL),
+    fetchYencken(YENCKEN_RADICAL_URL)
   ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -644,7 +663,8 @@ const downloadSources = async (): Promise<Sources> => {
     pitch,
     priority,
     decomp,
-    tatoeba
+    tatoeba,
+    yencken: { stroke: yenckenStroke, radical: yenckenRadical }
   };
 };
 
@@ -658,7 +678,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     pitch,
     priority,
     decomp,
-    tatoeba
+    tatoeba,
+    yencken
   } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   rmSync(OUT_DB, { force: true });
@@ -716,6 +737,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   );
   const insTreeEdge = await db.prepare(
     "INSERT INTO component_tree(literal, child, position) VALUES (?, ?, ?)"
+  );
+  const insSimilar = await db.prepare(
+    "INSERT INTO similar_kanji(literal, similar, position) VALUES (?, ?, ?)"
   );
   const insRadical = await db.prepare(
     "INSERT INTO radicals(radical, stroke_count, kanji_json) VALUES (?, ?, ?)"
@@ -855,8 +879,54 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   for (const [radical, info] of Object.entries(radkfile.radicals)) {
     await insRadical.run(radical, info.strokeCount, JSON.stringify(info.kanji));
   }
+
+  // Similar kanji (F3): PRIMARY source is Yencken's human-validated confusion data (stroke-edit +
+  // Yeh-Li radical, blended), which covers the 1,945 jōyō kanji well. For kanji BEYOND jōyō it has no
+  // rows, so the weighted Kradfile-component heuristic fills those gaps. Both restrict candidates to
+  // kanji we have a character row for (FK safety).
+  const yenckenSimilar = blendYencken(
+    yencken.stroke.rows,
+    yencken.radical.rows,
+    kanjiSet
+  );
+
+  const strokesByLiteral = new Map<string, number | null>();
+  for (const char of kanjidic.characters) {
+    strokesByLiteral.set(char.literal, char.misc.strokeCounts[0] ?? null);
+  }
+  const kanjiFeatures = new Map<string, KanjiFeatures>();
+  for (const [literal, components] of Object.entries(kradfile.kanji)) {
+    if (!kanjiSet.has(literal)) continue;
+    // Only components that are themselves in our kanji set stay comparable, and self-components are
+    // dropped (a kanji is not its own part).
+    const comps = new Set(components.filter((c) => c !== literal));
+    kanjiFeatures.set(literal, {
+      components: comps,
+      strokes: strokesByLiteral.get(literal) ?? null
+    });
+  }
+  const heuristicSimilar = computeSimilarKanji(kanjiFeatures);
+
+  let similarRows = 0;
+  let yenckenCovered = 0;
+  for (const literal of kanjiSet) {
+    // Yencken where available (better quality), the component heuristic otherwise.
+    const fromYencken = yenckenSimilar.get(literal);
+    const list = fromYencken ?? heuristicSimilar.get(literal);
+    if (!list) continue;
+    if (fromYencken) yenckenCovered++;
+    let position = 0;
+    for (const s of list) {
+      await insSimilar.run(literal, s, position);
+      position++;
+      similarRows++;
+    }
+  }
   await db.exec("COMMIT");
   console.log(`  kanji: ${kanjiSet.size} characters`);
+  console.log(
+    `  similar: ${similarRows} rows (${yenckenCovered} kanji from Yencken, rest from the component heuristic)`
+  );
 
   // ── JLPT pass ─────────────────────────────────────────────────────────────
   // Join word-level JLPT by JMdict id (exact PK). Only ids present in this variant's JMdict get
@@ -912,6 +982,17 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   await insMeta.run("kanjidicDate", kanjidic.dictDate);
   await insMeta.run("kanjidicVersion", kanjidic.databaseVersion);
   await insMeta.run("kanjiCount", String(kanjiSet.size));
+  await insMeta.run("similarKanjiRows", String(similarRows));
+  await insMeta.run(
+    "similarKanjiSource",
+    "Similar kanji: Lars Yencken's kanji-confusion data (stroke-edit + Yeh-Li radical distance) for jōyō, with a Kradfile-component heuristic filling in the rest"
+  );
+  await insMeta.run(
+    "similarKanjiLicense",
+    "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/) — Lars Yencken, https://lars.yencken.org/datasets/kanji-confusion/"
+  );
+  await insMeta.run("similarKanjiStrokeDate", yencken.stroke.lastModified);
+  await insMeta.run("similarKanjiRadicalDate", yencken.radical.lastModified);
   await insMeta.run(
     "strokeSource",
     "Stroke order: AnimCJK (© FM&SH), glyph paths under the Arphic Public License"
@@ -1446,6 +1527,172 @@ const importKanji = async (
   for (const w of words) {
     await s.insKanjiTerm.run(char.literal, "kanji_meaning", w, w, isCommon, 0);
   }
+};
+
+/** How many similar kanji to keep per character (F3). */
+const MAX_SIMILAR_KANJI = 6;
+/** A candidate must clear this weighted-similarity floor to be kept (suppresses weak overlaps). */
+const SIMILAR_KANJI_MIN_SCORE = 0.35;
+
+/** Per-kanji features the similarity heuristic scores over. */
+interface KanjiFeatures {
+  components: Set<string>;
+  strokes: number | null;
+}
+
+/**
+ * Compute visually-similar kanji from shared Kradfile components (F3). Returns each kanji → its top
+ * `MAX_SIMILAR_KANJI` look-alikes, ranked.
+ *
+ * Raw component overlap is noisy: 未 shares 木 with hundreds of kanji, most of which (魅, 藻…) look
+ * nothing like it. Three signals cut that noise:
+ *   1. IDF-weighted overlap — a shared component counts by its rarity (`log(N / df)`), so sharing a
+ *      distinctive part matters far more than sharing 木/口/人. The overlap is normalised to a
+ *      weighted Jaccard in [0,1] over the union of both kanji's components.
+ *   2. Part-count closeness — look-alikes have a similar NUMBER of parts (未/末 differ by none; 未/魅
+ *      differ by several). A growing gap multiplies the score down.
+ *   3. Stroke-count closeness — genuine confusables are within a stroke or two (未 6 / 末 5).
+ * A minimum-score floor drops candidates that merely brush the target. This is a deterministic,
+ * offline approximation of curated confusable data, not a replacement for it.
+ */
+const computeSimilarKanji = (
+  features: Map<string, KanjiFeatures>
+): Map<string, string[]> => {
+  const n = features.size;
+  // Document frequency of each component across all kanji → its IDF weight.
+  const df = new Map<string, number>();
+  for (const { components } of features.values()) {
+    for (const c of components) df.set(c, (df.get(c) ?? 0) + 1);
+  }
+  const idf = (c: string): number => Math.log(n / (df.get(c) ?? 1));
+
+  // Inverted index component → kanji, so candidates are only those sharing ≥1 component.
+  const kanjiWith = new Map<string, string[]>();
+  for (const [literal, { components }] of features) {
+    for (const c of components) {
+      const list = kanjiWith.get(c);
+      if (list) list.push(literal);
+      else kanjiWith.set(c, [literal]);
+    }
+  }
+
+  const result = new Map<string, string[]>();
+  for (const [literal, feat] of features) {
+    if (feat.components.size === 0) continue;
+    const idfSelf = new Map<string, number>();
+    let selfWeight = 0;
+    for (const c of feat.components) {
+      const w = idf(c);
+      idfSelf.set(c, w);
+      selfWeight += w;
+    }
+
+    // Gather candidates sharing any component (deduped), skipping the kanji itself.
+    const candidates = new Set<string>();
+    for (const c of feat.components) {
+      for (const other of kanjiWith.get(c) ?? []) {
+        if (other !== literal) candidates.add(other);
+      }
+    }
+
+    const scored: Array<{ literal: string; score: number }> = [];
+    for (const cand of candidates) {
+      const cf = features.get(cand);
+      if (!cf) continue;
+      // IDF-weighted Jaccard: shared weight / union weight.
+      let sharedWeight = 0;
+      let unionWeight = selfWeight;
+      for (const c of cf.components) {
+        const w = idf(c);
+        if (idfSelf.has(c)) sharedWeight += w;
+        else unionWeight += w;
+      }
+      const jaccard = unionWeight > 0 ? sharedWeight / unionWeight : 0;
+
+      // Part-count closeness: 1 when equal, decaying with the gap.
+      const partGap = Math.abs(feat.components.size - cf.components.size);
+      const partFactor = 1 / (1 + partGap);
+
+      // Stroke closeness: 1 when equal, decaying; neutral (0.5) when either count is unknown.
+      let strokeFactor = 0.5;
+      if (feat.strokes !== null && cf.strokes !== null) {
+        strokeFactor = 1 / (1 + Math.abs(feat.strokes - cf.strokes));
+      }
+
+      const score = jaccard * partFactor * strokeFactor;
+      if (score >= SIMILAR_KANJI_MIN_SCORE)
+        scored.push({ literal: cand, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, MAX_SIMILAR_KANJI).map((s) => s.literal);
+    if (top.length > 0) result.set(literal, top);
+  }
+  return result;
+};
+
+/** One Yencken neighbour row parsed: the pivot kanji and its scored look-alikes. */
+type YenckenRow = Map<string, Array<{ kanji: string; score: number }>>;
+
+/** Fetch + parse a Yencken CSV (`pivot n1 score1 n2 score2 …`), returning pivot → scored neighbours. */
+const fetchYencken = async (
+  url: string
+): Promise<{ rows: YenckenRow; lastModified: string }> => {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok)
+    throw new Error(`Yencken ${url} → ${res.status} ${res.statusText}`);
+  const lastModified = res.headers.get("last-modified") ?? "";
+  const rows: YenckenRow = new Map();
+  for (const line of (await res.text()).split("\n")) {
+    const parts = line.split(" ").filter((p) => p !== "");
+    if (parts.length < 3) continue;
+    const [pivot, ...rest] = parts;
+    const neighbours: Array<{ kanji: string; score: number }> = [];
+    // rest is [kanji, score, kanji, score, …].
+    for (let i = 0; i + 1 < rest.length; i += 2) {
+      const score = Number(rest[i + 1]);
+      if (Number.isFinite(score)) neighbours.push({ kanji: rest[i], score });
+    }
+    if (neighbours.length > 0) rows.set(pivot, neighbours);
+  }
+  return { rows, lastModified };
+};
+
+/**
+ * Blend the two Yencken tables into a single ranked look-alike list per kanji. A neighbour's blended
+ * score is the AVERAGE of its stroke-edit and radical scores where both tables list it, otherwise the
+ * single score it has (already in [0,1]) — so a pair both metrics agree on outranks one only one saw.
+ * Only neighbours that are kanji we actually have a character row for are kept (FK safety).
+ */
+const blendYencken = (
+  stroke: YenckenRow,
+  radical: YenckenRow,
+  kanjiSet: Set<string>
+): Map<string, string[]> => {
+  const pivots = new Set([...stroke.keys(), ...radical.keys()]);
+  const result = new Map<string, string[]>();
+  for (const pivot of pivots) {
+    if (!kanjiSet.has(pivot)) continue;
+    const scores = new Map<string, { sum: number; count: number }>();
+    for (const table of [stroke, radical]) {
+      for (const { kanji, score } of table.get(pivot) ?? []) {
+        if (!kanjiSet.has(kanji) || kanji === pivot) continue;
+        const acc = scores.get(kanji) ?? { sum: 0, count: 0 };
+        acc.sum += score;
+        acc.count += 1;
+        scores.set(kanji, acc);
+      }
+    }
+    const ranked = [...scores.entries()]
+      .map(([kanji, { sum, count }]) => ({ kanji, score: sum / count }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_SIMILAR_KANJI)
+      .map((r) => r.kanji);
+    if (ranked.length > 0) result.set(pivot, ranked);
+  }
+  return result;
 };
 
 /**
