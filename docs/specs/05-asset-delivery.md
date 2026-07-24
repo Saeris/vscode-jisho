@@ -63,7 +63,11 @@ The verify step (§2 item 3) is `scripts/verify-db.ts`: re-opens the DB, asserts
 
 `release.yml` publishes the extension; `dictionary.yml` publishes its data. A release whose `REQUIRED_SCHEMA_VERSION` has no matching artifact ships a broken first-run experience.
 
-**Gate the release on artifact existence**: before `bumpy ci release`, check that the data artifacts (plus their `.sha256`, `.version` sidecars) exist on `dictionary-latest`; fail the release with a clear message if not. The data build runs _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition. (This gate is part of task C — wiring the check into `release.yml`. Until artifacts are namespaced — see "As built" — check the plain `jisho-full.db.zst` name the client fetches, not `@v<N>.zst`.)
+**Gate the release on artifact existence**: before `bumpy ci release`, check that the data artifacts (plus their `.sha256`, `.version` sidecars) exist on `dictionary-latest`; fail the release with a clear message if not. The data build runs _first_ (on the schema-change push) and the release then finds it — no ordering race, just a precondition.
+
+**As built (2026-07-24):** `scripts/check-data-release.ts`, wired as the first step of `release.yml` before `bumpy ci release`. It `gh release view dictionary-latest` and requires the **word-DB trio** (`jisho-full.db.zst` + `.sha256` + `.version` — the plain unnamespaced names the client fetches, since artifacts aren't namespaced yet); a missing word-DB asset (or a missing release) fails loud with the fix instructions. The **names-DB trio** is only a WARNING, not a block: the names DB is an optional on-demand download that degrades gracefully, and the data workflow builds names as a separate non-blocking step, so a names build failure must not gate the extension release.
+
+**Per-platform packaging was already done** (M3, `f834e40a`): Bumpy's `buildCommand` runs `scripts/package-platforms.ts` (one `.vsix` per target — win32-x64, darwin-arm64, linux-x64, linux-arm64 — each with its matching `@tursodatabase` native binary; no darwin-x64 because turso ships no Intel-Mac build), and `publishCommand` runs `scripts/publish-vsix.ts` (publishes every `.vsix` to Marketplace + Open VSX). The plan's "release.yml does single-platform vsce" note was stale. So task C reduced to the release-ordering gate.
 
 ## 4. Update lifecycle (the Wallaby-style model the user asked for)
 

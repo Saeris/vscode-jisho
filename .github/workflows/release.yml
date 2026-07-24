@@ -27,9 +27,19 @@ jobs:
           node-version: "lts"
           cache: true
 
-      # Bumpy runs the per-package build/publish commands from package.json's
-      # `bumpy` block: `vsce package` to build the .vsix, then `vsce publish`
-      # (VS Code Marketplace) and `ovsx publish` (Open VSX).
+      # Release precondition: the extension downloads its dictionary from the rolling
+      # `dictionary-latest` release on first run, so refuse to publish a .vsix whose required
+      # artifacts don't exist yet — otherwise every new install gets a broken first run. The data
+      # workflow (dictionary.yml) publishes those artifacts on a schema change; this gate makes the
+      # ordering a hard precondition rather than a race.
+      - name: Verify dictionary artifacts exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: vp exec node scripts/check-data-release.ts
+
+      # Bumpy runs the per-package build/publish commands from package.json's `bumpy` block:
+      # package-platforms.ts builds one .vsix per target (each with its matching @tursodatabase
+      # native binary), then publish-vsix.ts publishes every target to the Marketplace + Open VSX.
       - run: vp dlx @varlock/bumpy ci release
         env:
           GH_TOKEN: ${{ github.token }}
