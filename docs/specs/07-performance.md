@@ -191,6 +191,24 @@ Out of deoptkit's reach, and probably our largest remaining win. Approach:
 - **Ranking cost**: the search `CASE` ladder computes per row; check whether it is a meaningful share at 3M `search_terms` rows.
 - Caveat: Turso is not upstream SQLite, so its planner may differ — verify rather than assume SQLite lore applies.
 
+### Measured at full scale (2026-07-24, the 217,974-word DB with F1 sentences + F3 similar-kanji)
+
+Ran against the built `assets/jisho.db` (variant=full, 189,292 sentence rows). All comfortably within the <150 ms budget — the F1/F3 additions did NOT regress query latency:
+
+| Query                                                    | p50     | p95     | max     |
+| -------------------------------------------------------- | ------- | ------- | ------- |
+| `search("食べる")` (exact word)                          | 3.2     | 4.7     | 4.7     |
+| `search("はなします")` / `search("たべる")` (deinflect)  | ~3.5    | ~4      | ~4      |
+| `search("study")` (gloss)                                | 21.0    | 32.3    | 32.3    |
+| `search("猫")` / `search("水")` (single common kanji)    | 27 / 53 | 39 / 66 | 39 / 66 |
+| `search("生")` (broadest single kanji)                   | 69.3    | 86.2    | 86.2    |
+| `getWord(食べる)` (now reads inline F1 sentences)        | 1.4     | 5.4     | 5.4     |
+| `getKanji(食)` / `getKanji(未)` (now reads F3 `similar`) | 14 / 10 | 20 / 11 | 20 / 11 |
+
+- **`EXPLAIN QUERY PLAN`** on the exact-term path: `SEARCH search_terms USING INDEX idx_search_term (term=?)` — the index is used, no table scan at full scale.
+- The slowest searches are single-common-kanji queries (生, 水) that legitimately match thousands of compound words; still under the budget. If they ever bother, that's a ranking/LIMIT tuning question, not an index problem — **the reserved Turso `fts_match` upgrade is NOT needed for v1.**
+- `getWord` is unchanged by F1: it reads only `source='tanaka'` (≤3/sense). `getKanji` picked up F3's similarity read at negligible cost (one indexed lookup). This **closes open question 3** (full-DB benchmarking) — the pipeline produced the full DB, it was measured, and search is responsive.
+
 ## 5. Webview rendering
 
 Different process; deoptkit cannot see it. If a rendering problem appears, use the existing E2E harness with Chrome DevTools (`performance_start_trace` via the devtools MCP, or `page.metrics()`), not V8 logs.
