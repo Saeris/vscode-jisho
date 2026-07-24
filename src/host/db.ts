@@ -639,11 +639,18 @@ export class Dictionary {
     );
 
     // Common words containing this kanji, via the precomputed `char` term rows (already indexed).
+    // Common-first, then by genuine frequency (F2): `common DESC` alone leaves ties unbroken, so a
+    // rare common-tagged word could sit above 食べる. `words.freq_rank` (JMdict nfXX buckets, lower =
+    // more frequent, NULL = outside the top ~24k) breaks the tie — `freq_rank IS NULL` sinks the
+    // unranked below the ranked (SQLite sorts NULL first by default, backwards here), then ASC floats
+    // the most frequent. Same frequency signal search ranking already uses.
     const wordRows = await this.#all<{ word_id: string; common: number }>(
-      `SELECT word_id, MAX(is_common) AS common FROM search_terms
-        WHERE kind = 'char' AND term = ?
-        GROUP BY word_id
-        ORDER BY common DESC
+      `SELECT s.word_id AS word_id, MAX(s.is_common) AS common
+         FROM search_terms s
+         JOIN words w ON w.id = s.word_id
+        WHERE s.kind = 'char' AND s.term = ?
+        GROUP BY s.word_id
+        ORDER BY common DESC, w.freq_rank IS NULL, w.freq_rank ASC
         LIMIT 10`,
       literal
     );

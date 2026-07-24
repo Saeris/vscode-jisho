@@ -34,7 +34,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 08  | [Hover consistency, POS pills, markdown-aware detection, corpus testing](08-hover-consistency-and-corpus.md)    | #33/#38 | **Implemented** (as-built record)                |
 | 09  | [Richer example sentences: full Tatoeba pool + build-time furigana](09-richer-examples.md)                      | #20     | Build **implemented**; UI ("more examples") open |
 | 10  | [Similar (look-alike) kanji + Yencken confusion-data roadmap](10-similar-kanji.md)                              | new     | Data + host **implemented**; UI section open     |
-| 11  | [Kanji word-list frequency sort](11-kanji-wordlist-frequency-sort.md)                                           | #30     | Specced — one query change + test                |
+| 11  | [Kanji word-list frequency sort](11-kanji-wordlist-frequency-sort.md)                                           | #30     | **Implemented**                                  |
 
 Not yet specced: the #32 word-detail layout redesign, and the visual-regression baseline procedure.
 

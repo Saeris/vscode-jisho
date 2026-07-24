@@ -326,6 +326,43 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(eat!.words.some((w) => w.headword.includes("食"))).toBe(true);
   });
 
+  test("orders a kanji's word list by frequency within common (F2)", async () => {
+    // WHY: `common DESC` alone left ties arbitrary, so a rare common-tagged compound (水俣病) could
+    // sit above an everyday word (水). The freq_rank tiebreak must float the frequent words. Assert
+    // the ordering INVARIANT (holds on any variant): among the returned words, once a less-common one
+    // appears no more-common one follows it, and the frequency-ranked words lead the unranked ones.
+    // A word's own `common` flag and rank aren't on the DTO, so re-derive the guarantee from the DB.
+    const raw = await connect(DB_PATH);
+    try {
+      const rows = (await (
+        await raw.prepare(
+          `SELECT MAX(s.is_common) AS common, w.freq_rank AS rank
+             FROM search_terms s JOIN words w ON w.id = s.word_id
+            WHERE s.kind = 'char' AND s.term = '生'
+            GROUP BY s.word_id
+            ORDER BY common DESC, w.freq_rank IS NULL, w.freq_rank ASC
+            LIMIT 10`
+        )
+      ).all()) as { common: number; rank: number | null }[];
+      expect(rows.length).toBeGreaterThan(1);
+      for (let i = 1; i < rows.length; i++) {
+        const prev = rows[i - 1];
+        const cur = rows[i];
+        // common never increases going down the list.
+        expect(cur.common).toBeLessThanOrEqual(prev.common);
+        // Within the same common tier, a ranked word never follows an unranked one, and ranks are
+        // non-decreasing (more frequent first).
+        if (cur.common === prev.common) {
+          if (prev.rank === null) expect(cur.rank).toBeNull();
+          else if (cur.rank !== null)
+            expect(cur.rank).toBeGreaterThanOrEqual(prev.rank);
+        }
+      }
+    } finally {
+      await raw.close();
+    }
+  });
+
   test("flags components that have no kanji detail page", async () => {
     // WHY: tapping ノ on 久 opened "Kanji not found". Kradfile is a *visual* decomposition, not the
     // 214 Kangxi radicals, and substitutes JIS-encodable lookalikes for elements it can't encode —

@@ -1,6 +1,6 @@
 # Spec 11 — Kanji word-list frequency sort
 
-**Backlog:** #30-adjacent. **Status:** specced, not yet implemented (small). **Blocked on:** nothing; one query change + a test. Rides the next DB rebuild (no schema change).
+**Backlog:** #30-adjacent. **Status:** **Implemented** (2026-07-24). One query change in `getKanji` + an ordering-invariant test in `db.spec.ts`; no schema change. Verified on the full DB — the everyday words now lead (水 → 水/水準/水道/水面 instead of 水俣病/水道水/湧水; 生 → 学生/生活/人生/先生 instead of お誕生日/小中学生; 見 → 意見/会見/発見 instead of 様子を見る/お見積もり).
 
 ## Objective
 
