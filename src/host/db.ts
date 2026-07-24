@@ -6,6 +6,7 @@
 import { connect } from "@tursodatabase/database";
 import { isKana, toKana } from "wanakana";
 import { deinflect } from "./deinflect";
+import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../shared/schema";
 import type {
   ComponentTreeDto,
   KanaDto,
@@ -22,6 +23,23 @@ import type {
 } from "../shared/messages";
 
 type Db = Awaited<ReturnType<typeof connect>>;
+
+/**
+ * Thrown when a database's schema version doesn't match this build's expectation. Typed so the
+ * delivery layer can distinguish "wrong shape, re-provision" from a genuine open/IO failure and
+ * prompt the user to update rather than showing a raw SQL error.
+ */
+export class SchemaVersionError extends Error {
+  constructor(
+    readonly expected: number,
+    readonly found: number
+  ) {
+    super(
+      `Dictionary schema version ${found} does not match the required ${expected}. The database needs to be updated.`
+    );
+    this.name = "SchemaVersionError";
+  }
+}
 
 /** Cached radical grid + radical→kanji sets for the (repeatedly-called) radical picker. */
 interface RadicalCache {
@@ -41,8 +59,31 @@ export class Dictionary {
   static async open(path: string): Promise<Dictionary> {
     const db = await connect(path);
     const dict = new Dictionary(db);
+    await dict.#assertSchemaVersion();
     await dict.#loadTags();
     return dict;
+  }
+
+  /**
+   * Refuse to run against a database whose schema does not match what this build queries.
+   *
+   * A version-skewed DB (an old one cached from before a schema change, or an artifact that fell
+   * out of sync with the shipped `.vsix`) would otherwise fail deep inside a query on a missing
+   * column — an opaque runtime crash. Failing fast here, with a typed error the caller can turn
+   * into an "update your dictionary" prompt, is the correctness core of the delivery pipeline.
+   *
+   * A DB with no `schemaVersion` (built before this existed) is treated as version 0, i.e. a
+   * mismatch — those must be re-provisioned.
+   */
+  async #assertSchemaVersion(): Promise<void> {
+    const row = await this.#get<{ value: string }>(
+      "SELECT value FROM meta WHERE key = ?",
+      SCHEMA_VERSION_KEY
+    );
+    const found = row === undefined ? 0 : Number(row.value);
+    if (found !== SCHEMA_VERSION) {
+      throw new SchemaVersionError(SCHEMA_VERSION, found);
+    }
   }
 
   async close(): Promise<void> {

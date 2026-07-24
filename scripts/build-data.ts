@@ -33,6 +33,7 @@ import type {
   Kradfile,
   Radkfile
 } from "@scriptin/jmdict-simplified-types";
+import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../src/shared/schema";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
 // don't cover (their README notes this). Declare the extra shape locally — verified against the
@@ -635,6 +636,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const insMeta = await db.prepare(
     "INSERT INTO meta(key, value) VALUES (?, ?)"
   );
+  // The schema version the host verifies on open (see src/shared/schema.ts). Stamped first so it is
+  // present even if a later meta insert fails.
+  await insMeta.run(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
   await insMeta.run("source", `JMdict (jmdict-simplified, eng-${VARIANT})`);
   await insMeta.run("dictDate", dict.dictDate);
   await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));

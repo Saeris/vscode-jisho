@@ -1,7 +1,10 @@
-import { existsSync } from "node:fs";
+import { copyFileSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { connect } from "@tursodatabase/database";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { Dictionary } from "../db";
+import { Dictionary, SchemaVersionError } from "../db";
+import { SCHEMA_VERSION } from "../../shared/schema";
 
 // These tests run against the real database produced by `vp run build:data`. If it hasn't been
 // built yet, skip rather than fail — the build is an occasional, network-dependent step.
@@ -363,5 +366,80 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(result.matches.some((k) => k.literal === "働")).toBe(true);
     expect(result.enabled).toContain("化");
     expect(result.enabled).toContain("力");
+  });
+});
+
+const describeIfDbForVersion = existsSync(DB_PATH) ? describe : describe.skip;
+
+describeIfDbForVersion("schema version guard", () => {
+  /**
+   * Run `mutate` against a throwaway copy of the fixture (so its version can be corrupted without
+   * touching the fixture), then return the copy's path. Cleaned up before returning is not possible
+   * — the caller opens it — so each caller removes it; a `finally` keeps that reliable.
+   */
+  const withCorruptedCopy = async (
+    mutate: (db: Awaited<ReturnType<typeof connect>>) => Promise<void>
+  ): Promise<string> => {
+    const tmp = join(
+      tmpdir(),
+      `jisho-schema-${process.pid}-${Math.random().toString(36).slice(2)}.db`
+    );
+    copyFileSync(DB_PATH, tmp);
+    const db = await connect(tmp);
+    await mutate(db);
+    await db.close();
+    return tmp;
+  };
+
+  const cleanup = (tmp: string): void => {
+    for (const suffix of ["", "-wal", "-shm"]) {
+      rmSync(`${tmp}${suffix}`, { force: true });
+    }
+  };
+
+  test("opens a matching-version database", async () => {
+    // The real fixture carries the current version, so it opens cleanly and is usable — the happy
+    // path the whole delivery pipeline depends on.
+    const dict = await Dictionary.open(DB_PATH);
+    const results = await dict.search("食べる");
+    expect(results.length).toBeGreaterThan(0);
+    await dict.close();
+  });
+
+  test("refuses a database whose schema version is wrong", async () => {
+    // The correctness core: a version-skewed DB (stale cache, or an artifact out of sync with the
+    // shipped .vsix) must fail FAST with a typed error the delivery layer can turn into an
+    // "update your dictionary" prompt — not crash deep inside a query on a missing column.
+    const tmp = await withCorruptedCopy(async (db) => {
+      await (
+        await db.prepare(
+          "INSERT OR REPLACE INTO meta(key,value) VALUES('schemaVersion',?)"
+        )
+      ).run(String(SCHEMA_VERSION + 999));
+    });
+    try {
+      await expect(Dictionary.open(tmp)).rejects.toBeInstanceOf(
+        SchemaVersionError
+      );
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  test("treats a database with no version as a mismatch", async () => {
+    // A DB built before schema versioning existed reports version 0 ≠ current, so it is refused
+    // and re-provisioned rather than silently trusted.
+    const tmp = await withCorruptedCopy(async (db) => {
+      await (
+        await db.prepare("DELETE FROM meta WHERE key='schemaVersion'")
+      ).run();
+    });
+    try {
+      await expect(Dictionary.open(tmp)).rejects.toBeInstanceOf(
+        SchemaVersionError
+      );
+    } finally {
+      cleanup(tmp);
+    }
   });
 });
