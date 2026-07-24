@@ -3,6 +3,10 @@ import { Dictionary } from "./host/db";
 import { NamesDictionary } from "./host/names";
 import { ensureDatabase, ensureNamesDatabase } from "./host/ensureDatabase";
 import {
+  checkForDictionaryUpdate,
+  sweepDictionaryStorage
+} from "./host/dictionaryUpdate";
+import {
   groupSegments,
   japaneseRunAt,
   japaneseRuns,
@@ -229,6 +233,18 @@ export function activate(context: vscode.ExtensionContext): void {
   // Never hold the extension host open for speculative work.
   warmDb.unref();
   context.subscriptions.push({ dispose: () => clearTimeout(warmDb) });
+
+  // Housekeeping off the activation tick, low priority: prune superseded/interrupted downloads from
+  // globalStorage, then run the throttled, offline-safe dictionary-update check. Both are
+  // fire-and-forget and never block activation (spec 05 §4–5).
+  const housekeeping = setTimeout(() => {
+    void (async (): Promise<void> => {
+      await sweepDictionaryStorage(context);
+      await checkForDictionaryUpdate(context, { manual: false });
+    })();
+  }, 3000);
+  housekeeping.unref();
+  context.subscriptions.push({ dispose: () => clearTimeout(housekeeping) });
   const semanticTokensChanged = new vscode.EventEmitter<void>();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
   // as written, since reading back a lemma would say a word the user didn't write.
@@ -287,6 +303,12 @@ export function activate(context: vscode.ExtensionContext): void {
         "@ext:saeris.vscode-jisho"
       );
     }),
+    // Manual dictionary-update check: same path as the automatic one but ignores the 24h throttle
+    // and reports "up to date" rather than staying silent.
+    vscode.commands.registerCommand(
+      "vscode-jisho.checkForDictionaryUpdates",
+      async () => checkForDictionaryUpdate(context, { manual: true })
+    ),
     // Live settings: re-push the snapshot whenever the user edits the Jisho section, and have
     // open editors re-request semantic tokens (that's how the highlighting toggle applies live).
     vscode.workspace.onDidChangeConfiguration((event) => {

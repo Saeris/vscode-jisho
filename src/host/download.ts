@@ -102,3 +102,23 @@ export const readVersionSidecar = async (
     return undefined;
   }
 };
+
+/**
+ * Fetch ONLY the tiny remote `.version` string for an artifact — the cheap check the update flow runs
+ * to decide whether a full re-download is warranted, without touching the large `.zst`. Returns
+ * undefined on any failure (offline, release missing) so the caller stays offline-safe.
+ */
+export const fetchRemoteVersion = async (
+  base: string = DATA_RELEASE_BASE,
+  prefix = "jisho-full.db"
+): Promise<string | undefined> => {
+  try {
+    const res = await fetch(`${base}/${prefix}.zst.version`, {
+      redirect: "follow"
+    });
+    if (!res.ok) return undefined;
+    return (await res.text()).trim();
+  } catch {
+    return undefined;
+  }
+};

@@ -88,6 +88,15 @@ Nothing prunes `globalStorage` today, and both the schema namespacing and update
 - Never delete the names DB just because it is unused — it is a deliberate opt-in download; only remove it when superseded.
 - A `Jisho: Clear Downloaded Dictionaries` command (for support: force a clean re-fetch) is cheap once the sweep exists.
 
+### As built (2026-07-24) — §4 update lifecycle + §5 cleanup
+
+`src/host/dictionaryUpdate.ts`, wired in `extension.ts` off the activation tick (3s timeout, `unref`'d — never blocks activation), with `src/host/__tests__/dictionaryUpdate.spec.ts` covering the decision logic (behavior-first, per the test plan below).
+
+- **`checkForDictionaryUpdate(context, { manual })`** — auto path is throttled to once per 24h via `context.globalState` (`dictionary.lastUpdateCheck`, written up front so a flaky network doesn't re-prompt), respects the `vscode-jisho.dictionary.autoCheck` opt-out, and stays silent on up-to-date / offline. It fetches ONLY the tiny remote `.version` (`fetchRemoteVersion` in `download.ts`), compares to the local sidecar, and on a newer version shows a non-modal Update / Later / **Never** prompt; "Never" writes `autoCheck=false`. The manual command (`vscode-jisho.checkForDictionaryUpdates` → "Jisho: Check for Dictionary Updates") ignores the throttle and reports "up to date" / offline. **Never runs against the dev backend** (a bundled `assets/jisho.db` present) — F5 refreshes from assets/, so a prompt there would be noise.
+- **Update swap** reuses `downloadDatabase`, which already writes to `.part` and renames only after the checksum verifies — the atomic swap §4 asked for, no extra temp-path handling. Refreshes the names DB in place too when one is already provisioned (a schema change affects both) but never PROVISIONS names (stays lazy). Offers a window reload afterward so the reshaped DB is reopened.
+- **`sweepDictionaryStorage(context)`** runs before the check on activation: deletes orphaned `jisho*.db` / `.db.version` files and stale `.part` downloads, KEEPS the active `jisho.db`/`jisho-names.db` + sidecars, never touches non-`jisho` files, silent + best-effort.
+- **Deferred**: the schema-namespaced orphan case is moot until artifacts are namespaced (the sweep already catches any `jisho*`-prefixed orphan when it arrives). The `Jisho: Clear Downloaded Dictionaries` support command is not built — cheap to add later on top of the sweep; skipped as not release-critical.
+
 ## 6. Optimizations (measured, not assumed)
 
 Investigated during the analysis; recording so they are not re-derived:

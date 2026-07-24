@@ -100,6 +100,11 @@
         "command": "vscode-jisho.removeFurigana",
         "title": "Remove Furigana",
         "category": "Jisho"
+      },
+      {
+        "command": "vscode-jisho.checkForDictionaryUpdates",
+        "title": "Check for Dictionary Updates",
+        "category": "Jisho"
       }
     ],
     "configuration": {
@@ -139,6 +144,11 @@
           ],
           "default": "offset",
           "description": "How the stroke-order player draws its direction guides."
+        },
+        "vscode-jisho.dictionary.autoCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check once a day whether a newer dictionary is available and offer to update. Updates are never forced — you'll get a dismissible prompt. Run \"Jisho: Check for Dictionary Updates\" any time to check manually."
         }
       }
     },
