@@ -28,9 +28,10 @@ jobs:
     if: github.repository == 'Saeris/vscode-jisho'
     runs-on: ubuntu-latest
     env:
-      # The full build holds parsed JSON in memory; 8 GiB is comfortably under the runner's 16 GB and
-      # avoids an OOM (measured local full build peaks well below this — no streaming needed).
-      NODE_OPTIONS: --max-old-space-size=8192
+      # The full build holds parsed JSON in memory, but measured peak RSS is only ~2 GB (verified at a
+      # 2 GiB heap cap — no OOM, no GC thrashing). 4 GiB is 2× that: honest headroom over the real
+      # requirement, well under the runner's 16 GB. Streaming was assessed and declined — see spec 05.
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v6
 
