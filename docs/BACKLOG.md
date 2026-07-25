@@ -482,6 +482,12 @@ The E2E layout has grown unwieldy — organized by concern (`visual.e2e.ts`, `vi
 
 Not blocking v1, but the noise actively degrades the screenshot-review loop, so worth doing before the #32 WordDetail redesign cycle (which is screenshot-heavy).
 
+## Display consistency
+
+### 50. Unify POS/usage tags: pills on the word page, shared with the hover, color-differentiated (design — small/medium)
+
+The word-detail page renders a sense's parts-of-speech + usage tags as a long comma-joined line of **verbose descriptions** (`senseLabel` in `WordDetail.tsx` → `t.description`, e.g. それぞれ: _"adverb (fukushi), noun (common) (futsuumeishi), nouns which may take the genitive case particle 'no', word usually written using kana alone"_), while the hover renders the same tags as compact **POS pills** (`<kbd>`, the short `code` like 名詞 — hoverProvider.ts). Bring the page in line with the hover so there's shared visual language for POS across surfaces, and — since the webview owns its stylesheet (unlike the hover, which VS Code restricts) — **differentiate the pills by COLOR, not just label** (ties into the #38 POS palette work: verbs/nouns/particles each get their palette hue). Open question the user flagged: some usage descriptors are long and have no obvious short pill form ("nouns which may take the genitive case particle 'no'", "word usually written using kana alone") — decide per-tag whether to (a) map to a curated short label, (b) keep as a tooltip on an abbreviated pill, or (c) leave the genuinely-long ones as a secondary line below the pills. Best folded into #32 (WordDetail redesign) and #38 (palette), since it touches both; do it as a screenshot-review pass.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

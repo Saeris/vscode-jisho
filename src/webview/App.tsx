@@ -73,6 +73,7 @@ export const App = (): React.ReactElement => {
           id={view.id}
           onBack={() => send({ type: "back" })}
           onHome={onHome}
+          onOpenWord={(wordId) => send({ type: "openWord", id: wordId })}
         />
       ) : null}
       {view.name === "kanjiDetail" ? (

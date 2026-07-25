@@ -52,6 +52,8 @@ import {
 // rewriting, so extensionless specifiers fail to resolve here (unlike inside the bundled extension).
 import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
+import { linkToken } from "../src/shared/exampleLinks.ts";
+import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
 // don't cover (their README notes this). Declare the extra shape locally — verified against the
@@ -435,22 +437,43 @@ const fetchTatoeba = async (): Promise<{
 
 const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
 
+/** Resolve a segment's dictionary form to a JMdict entry id (words.id), or undefined if unknown. */
+type WordResolver = (lemma: string, reading: string) => string | undefined;
+
+/** Content parts of speech worth linking to a dictionary entry (particles/aux/other are skipped). */
+const LINKABLE_POS = new Set<PartOfSpeech>([
+  "noun",
+  "verb",
+  "adjective",
+  "adverb"
+]);
+
 /**
- * Annotate a Japanese sentence with mirrordown ruby ({漢字|かんじ}) at build time, so the DB stores
- * the furigana and the webview renders it with no runtime tokenizer cost. A build-local reimplementation
- * of the host's addFuriganaToLine using only the tokenizer + ruby renderer (its full version drags in
- * the hover/grammar module tree, which doesn't resolve under `vp exec node`). Each kanji-bearing
- * segment with a reading is wrapped; everything else passes through unchanged.
+ * Annotate a Japanese sentence at build time: wrap kanji-bearing segments in mirrordown ruby
+ * ({漢字|かんじ}) AND wrap each resolvable content word in a markdown link to its dictionary entry
+ * (`[word](pos:entseq)`, see shared/exampleLinks). The link SPAN is the whole word (okurigana +
+ * conjugation), so the webview gets a correct word boundary + tap target — the furigana-group
+ * approach gave unclear boundaries. `resolve` maps a segment's lemma+reading to a words.id; segments
+ * that don't resolve (or aren't content words) stay plain text with any furigana. The DB stores the
+ * result, so the webview renders it with no runtime tokenizer cost.
  */
-const annotateFurigana = async (ja: string): Promise<string> => {
+const annotateExample = async (
+  ja: string,
+  resolve: WordResolver
+): Promise<string> => {
   const segments = await segment(ja);
   let out = "";
   for (const seg of segments) {
-    if (HAS_KANJI.test(seg.surface) && seg.reading !== "") {
-      out += toRubyMarkdown(seg.surface, toHiragana(seg.reading));
-    } else {
-      out += seg.surface;
-    }
+    // Furigana on the whole segment surface (conjugations annotate as one word, as before).
+    const text =
+      HAS_KANJI.test(seg.surface) && seg.reading !== ""
+        ? toRubyMarkdown(seg.surface, toHiragana(seg.reading))
+        : seg.surface;
+
+    const id = LINKABLE_POS.has(seg.pos)
+      ? resolve(seg.lemma, toHiragana(seg.reading))
+      : undefined;
+    out += id !== undefined ? linkToken(text, seg.pos, id) : text;
   }
   return out;
 };
@@ -757,6 +780,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // Commit in batches and checkpoint between them: a single giant transaction can never fold its
   // pages back into the main file, so the WAL balloons unboundedly (the full build's WAL passed
   // 5GB before this fix). Checkpointing per batch keeps the WAL at roughly one batch's size.
+  // The word index / resolver linkifies inline example words to their entries (F1-links); built once
+  // here and reused by the Tatoeba pool pass.
+  const resolve = makeResolver(buildWordIndex(dict));
   const total = dict.words.length;
   let done = 0;
   let sentenceRows = 0;
@@ -769,7 +795,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       insGloss,
       insTerm,
       insSentence,
-      priority
+      priority,
+      resolve
     });
     done++;
     if (done % BATCH === 0) {
@@ -1080,6 +1107,8 @@ interface Stmts {
   insSentence: Statement;
   /** JMdict-id → priority tags, from the original XML (jmdict-simplified drops them). */
   priority: Map<string, WordPriority>;
+  /** Resolve an example word to its entry id, for the linkified annotation. */
+  resolve: WordResolver;
 }
 
 /** Cap on inline (Tanaka) example sentences kept per sense — the source averages ~1, bound defensively. */
@@ -1269,7 +1298,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         i,
         kept,
         ja,
-        await annotateFurigana(ja),
+        await annotateExample(ja, s.resolve),
         en,
         Number.isFinite(tatoebaId) ? tatoebaId : null,
         "tanaka"
@@ -1329,6 +1358,27 @@ const buildWordIndex = (
   return { byKanjiReading, byKanji, byReading };
 };
 
+type WordIndex = ReturnType<typeof buildWordIndex>;
+
+/**
+ * A resolver from a tokenized example word to its entry id, for the linkified annotation. Prefers an
+ * exact (dictionary-form, reading) match, then the dictionary form as a kanji writing, then as a kana
+ * reading — the same most-specific-first order as the pool's B-line join. Returns the FIRST candidate
+ * id (a surface can belong to several entries; the example link opens the most-common/first, which is
+ * also how search would rank it).
+ */
+const makeResolver =
+  (index: WordIndex): WordResolver =>
+  (lemma, reading) => {
+    const exact =
+      reading !== ""
+        ? index.byKanjiReading.get(`${lemma}\t${reading}`)
+        : undefined;
+    const refs =
+      exact ?? index.byKanji.get(lemma) ?? index.byReading.get(lemma);
+    return refs?.[0]?.id;
+  };
+
 interface PoolStmts {
   insSentence: Statement;
 }
@@ -1346,6 +1396,8 @@ const importTatoebaPool = async (
   s: PoolStmts
 ): Promise<number> => {
   const index = buildWordIndex(dict);
+  // Linkified-annotation resolver, from the same index the B-line join uses.
+  const resolveWord = makeResolver(index);
 
   // A pending pool sentence for one word: which sense (or -1), its Tatoeba id, and text.
   interface Pending {
@@ -1455,7 +1507,7 @@ const importTatoebaPool = async (
         p.sensePosition,
         base + nth,
         p.ja,
-        await annotateFurigana(p.ja),
+        await annotateExample(p.ja, resolveWord),
         p.en,
         p.tatoebaId,
         "tatoeba"

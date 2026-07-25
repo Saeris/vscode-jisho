@@ -2,13 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import type { ExampleGroupDto, PoolSentenceDto } from "../../shared/messages";
 import { moreExamplesQuery } from "../queries";
 import { DetailHeader } from "../components/DetailHeader";
-import { Ruby } from "../components/Ruby";
+import { ExampleSentence } from "../components/ExampleSentence";
 import styles from "./MoreExamples.module.css";
 
 interface MoreExamplesProps {
   id: string;
   onBack: () => void;
   onHome?: () => void;
+  /** Tap a word in an example to open its entry directly (F1-links, open-by-id). */
+  onOpenWord: (id: string) => void;
 }
 
 /**
@@ -19,7 +21,8 @@ interface MoreExamplesProps {
 export const MoreExamples = ({
   id,
   onBack,
-  onHome
+  onHome,
+  onOpenWord
 }: MoreExamplesProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(moreExamplesQuery(id));
 
@@ -41,7 +44,7 @@ export const MoreExamples = ({
             </h1>
             {data.senses.map((group, i) => (
               // eslint-disable-next-line react/no-array-index-key -- groups are positional, sense order
-              <SenseGroup key={i} group={group} />
+              <SenseGroup key={i} group={group} onOpenWord={onOpenWord} />
             ))}
             {data.wordLevel.length > 0 ? (
               <section className={styles.group}>
@@ -50,7 +53,10 @@ export const MoreExamples = ({
                 {data.senses.length > 0 ? (
                   <h2 className={styles.groupHead}>More examples</h2>
                 ) : null}
-                <SentenceList sentences={data.wordLevel} />
+                <SentenceList
+                  sentences={data.wordLevel}
+                  onOpenWord={onOpenWord}
+                />
               </section>
             ) : null}
           </>
@@ -61,27 +67,31 @@ export const MoreExamples = ({
 };
 
 const SenseGroup = ({
-  group
+  group,
+  onOpenWord
 }: {
   group: ExampleGroupDto;
+  onOpenWord: (id: string) => void;
 }): React.ReactElement => (
   <section className={styles.group}>
     {group.gloss ? <h2 className={styles.groupHead}>{group.gloss}</h2> : null}
-    <SentenceList sentences={group.sentences} />
+    <SentenceList sentences={group.sentences} onOpenWord={onOpenWord} />
   </section>
 );
 
 const SentenceList = ({
-  sentences
+  sentences,
+  onOpenWord
 }: {
   sentences: PoolSentenceDto[];
+  onOpenWord: (id: string) => void;
 }): React.ReactElement => (
   <ul className={styles.list}>
     {sentences.map((s, i) => (
       // eslint-disable-next-line react/no-array-index-key -- sentences are positional within a group
       <li key={i} className={styles.item}>
         <span className={styles.ja} lang="ja">
-          <Ruby markup={s.jaFurigana} />
+          <ExampleSentence markup={s.jaFurigana} onOpenWord={onOpenWord} />
         </span>
         <span className={styles.en}>{s.en}</span>
       </li>

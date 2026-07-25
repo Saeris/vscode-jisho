@@ -40,9 +40,16 @@ Word detail shows too few example sentences compared with Jisho.org. The inline 
 - Furigana rendered via a shared `Ruby` component (extracted from `Term`). Sizing tuned after screenshot review: base kana `1.25em`, `<rt>` `0.55em` ON THIS PAGE (still ~9.6px, above the readable floor) — a larger base with a narrower reading fixed the awkward inter-character gaps that wide readings (せいはくまい over 精白米) forced at the shared 0.7em default.
 - Tests: nav machine (open + back to the word), `getMoreExamples` (pool-only, furigana, sense-grouping, excludes Tanaka), Ruby rendering, WordDetail prop threading.
 
-## Next: clickable example vocabulary (F1-links)
+## Clickable example vocabulary (F1-links) — as built (2026-07-25)
 
-A first attempt made the furigana groups tappable — REJECTED: build-time furigana only wraps kanji-bearing runs, so word boundaries were unclear and hit targets wrong. The chosen approach (see the linkification design notes) is **build-time linkification**: tokenize each example, resolve each content word to its JMdict `ent_seq` (= `words.id`), and emit markdown-link markup whose link SPAN is the full word (okurigana + conjugation, furigana nested inside), targeting `pos:entseq`. Tap **opens the entry by id** — safe because the links and the DB are regenerated in the same build and ship together, so an id is never stale relative to the DB it lives in (users can't edit entries; D swaps the DB wholesale). The webview parses `[text](pos:id)` + nested ruby into correctly-bounded tappable spans. Incremental/diff DB regeneration is a real but separate want, NOT a blocker here (a full rebuild reproduces the same ent_seq ids).
+A first attempt made the furigana groups tappable — REJECTED: build-time furigana only wraps kanji-bearing runs, so word boundaries were unclear and hit targets wrong. The shipped approach is **build-time linkification**:
+
+- **Build** (`annotateExample` in `build-data.ts`): tokenize each example, and for each content word (noun/verb/adjective/adverb) resolve its lemma+reading to a JMdict `ent_seq` (= `words.id`) via the same word index the Tatoeba join uses, emitting markdown-link markup whose link SPAN is the FULL word (okurigana + conjugation, furigana nested inside), targeting `pos:entseq`. Particles/aux and unresolved runs stay plain text with any furigana. Measured on the common build: **99.97% of sentences carry ≥1 link**.
+- **Format** (`src/shared/exampleLinks.ts`): the single source of truth shared by build (emit) and webview (parse) — `[word](poscode:entseq)`, POS as a short code, plus a `parseExampleMarkup` that splits a sentence into ordered link/text parts.
+- **Webview** (`ExampleSentence.tsx`): parses the markup, renders link parts as tappable spans (quiet affordance — color + underline on hover/focus only, matching the headword tap-through) and text parts as furigana. **Tap opens the entry BY ID** — safe because the links and the DB are regenerated in the SAME build and ship together, so an id is never stale relative to the DB it lives in (users can't edit entries; D swaps the DB wholesale). Verified end-to-end (an E2E smoke test taps a word and lands on its detail).
+- Incremental/diff DB regeneration is a real but separate want, NOT a blocker here (a full rebuild reproduces the same ent_seq ids).
+
+Observed limitation: tokenizer segmentation isn't perfect (食べるよう merges the nominalizer, なったのです merges), so a few links have slightly-off boundaries — but each still lands on a useful entry; it's tokenizer granularity, not a linkification bug. Notably the example linkifier resolves words the hover mis-resolves (し→する, where the hover hits 死ぬ) — a data point recorded for the accuracy-harness work.
 
 ## Inline examples
 

@@ -1,0 +1,22 @@
+/* A tappable word inside an example sentence: no persistent link chrome (too noisy when most content
+   words are links), just a hover/focus affordance — color + underline — matching the headword
+   tap-through on the word page. Inline so the <ruby> inside keeps the sentence's normal flow. */
+.word {
+  display: inline;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.word:hover,
+.word:focus-visible {
+  color: var(--jisho-link);
+  text-decoration: underline;
+  /* Underline the base text, not the furigana above it. */
+  text-underline-position: under;
+  outline: none;
+}

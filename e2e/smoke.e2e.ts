@@ -72,6 +72,36 @@ test("tapping a result opens its word detail", async () => {
   ).toBeVisible();
 });
 
+test("tapping a word in an example opens that word's detail (F1-links)", async () => {
+  // WHY: the whole point of build-time linkification — a word in an example sentence is tappable and
+  // opens ITS entry (open-by-id). Proves the build markup → parser → nav chain end to end.
+  await openJishoSidebar(app().window);
+  const frame = await jishoFrame(app().window);
+  await returnToSearch(frame);
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await frame.getByRole("button", { name: "More examples" }).click();
+  await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
+  // Tap the first linked word in the pool (any example word is a button). It opens a word detail,
+  // so the examples heading is gone and a word page's markers (the reading, the "More examples" link)
+  // appear. (Both "Back" and "Home" now show — we're 3 deep: search → word → examples → word — so
+  // match Back exactly rather than /back/i, which also hits "Back to search".)
+  await frame.locator('[lang="ja"] button').first().click();
+  await expect(
+    frame.getByRole("heading", { name: /Examples for/ })
+  ).toBeHidden();
+  await expect(
+    frame.getByRole("button", { name: "Back", exact: true })
+  ).toBeVisible();
+  // A word detail (not another examples page): its own "More examples" link is present.
+  await expect(
+    frame.getByRole("button", { name: "More examples" })
+  ).toBeVisible();
+});
+
 test("editor command: Look Up Selection drives the sidebar search", async () => {
   const win = app().window;
   // A real editor with Japanese text, selected. Focus sits in the editor, so the palette works
