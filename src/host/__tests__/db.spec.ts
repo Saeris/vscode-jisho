@@ -217,6 +217,24 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(taberu?.headword).toBe("食べる");
   });
 
+  test("resolveByLemma disambiguates a homograph by the tokenizer's reading", async () => {
+    // WHY: the accuracy corpus caught this. 本 is a kanji WRITING shared by two entries: 本 (ほん,
+    // "book") and 元 (もと, whose writings include 本). Ranking by frequency alone picked 元 (freq 5)
+    // over 本 (freq null) — resolving 本 to the wrong word. The tokenizer KNOWS the reading is ほん, so
+    // an entry read ほん must beat one that merely shares the writing but reads もと. The reading tier
+    // is what fixes 本/元, 風/振り, 息/息子 across the board.
+    const book = await dict.resolveByLemma("本", "noun", "ホン");
+    expect(book?.headword).toBe("本");
+    expect(book?.reading).toBe("ほん");
+    // Same lemma, the OTHER reading (もと) must resolve the もと entry, not 本 — proving the tier keys
+    // on the reading, not a fixed preference.
+    const moto = await dict.resolveByLemma("本", "noun", "モト");
+    expect(moto?.reading).toBe("もと");
+    // No reading supplied → the tier stays off; it still resolves the writing (falls through to the
+    // prior ranking) rather than returning null.
+    await expect(dict.resolveByLemma("本", "noun")).resolves.not.toBeNull();
+  });
+
   test("resolveByLemma returns null for an unknown lemma", async () => {
     // WHY: the caller falls back to `search` only when this returns null, so an unmatched lemma must.
     await expect(

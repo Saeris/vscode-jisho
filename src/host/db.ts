@@ -17,6 +17,7 @@ import {
   WORD_LEVEL_SENSE
 } from "../shared/schema";
 import { anyPosMatches } from "../shared/pos";
+import { toHiragana } from "../shared/ruby";
 import type {
   ComponentTreeDto,
   ExampleGroupDto,
@@ -339,19 +340,27 @@ export class Dictionary {
    * kanji form was never frequency-ranked); searching し (surface) returns the noun 死. The tokenizer
    * already KNOWS the word is a verb with lemma する — so resolve using that, POS and all, exactly as
    * the example linkifier does. Ranking (best first):
-   *   1. a KANJI-writing match when the lemma has kanji (the writing is the strongest identity),
-   *   2. POS-compatible senses (verb entry for a verb lemma — rejects the noun 死 for する's stem),
-   *   3. for a KANA lemma, entries normally written in kana (`uk`, or no common kanji form) — this is
+   *   1. the tokenizer's READING matches an entry's kana (本 read ほん is 本/ほん, NOT 元/もと — which
+   *      shares the kanji 本 but reads もと). A homograph shares the writing yet reads differently, so
+   *      when the tokenizer knows the reading it is the strongest identity — above frequency, which is
+   *      a writing-level signal (元 is a common word) that says nothing about which reading was meant,
+   *   2. a KANJI-writing match when the lemma has kanji (the writing identifies the word),
+   *   3. POS-compatible senses (verb entry for a verb lemma — rejects the noun 死 for する's stem),
+   *   4. for a KANA lemma, entries normally written in kana (`uk`, or no common kanji form) — this is
    *      what floats 為る above 擦る, since freq_rank is backwards for usually-kana words,
-   *   4. then frequency, then common.
+   *   5. then frequency, then common.
    * Returns null when nothing matches the lemma at all (the caller falls back to `search`).
    */
   async resolveByLemma(
     lemma: string,
-    pos: PartOfSpeech
+    pos: PartOfSpeech,
+    reading?: string
   ): Promise<SearchResultDto | null> {
     if (lemma === "") return null;
     const hasKanji = /[㐀-鿿豈-﫿]/u.test(lemma);
+    // Tokenizer readings are katakana (ホン); DB kana is hiragana (ほん). Empty when the tokenizer
+    // had none (unknown word) — then there's nothing to disambiguate on and this tier stays off.
+    const hira = reading !== undefined ? toHiragana(reading) : "";
 
     // Candidate entries whose kana reading OR kanji writing equals the lemma, with the signals the
     // ranking needs: whether the lemma matched a kanji writing, the POS codes + `uk` misc across
@@ -359,6 +368,7 @@ export class Dictionary {
     const rows = await this.#all<{
       word_id: string;
       kanji_match: number;
+      reading_match: number;
       pos_codes: string | null;
       uk: number | null;
       // NULL for a kana-only word (no kanji rows to MAX over).
@@ -368,6 +378,8 @@ export class Dictionary {
     }>(
       `SELECT w.id AS word_id,
               MAX(CASE WHEN k.text = ?1 THEN 1 ELSE 0 END) AS kanji_match,
+              (SELECT MAX(CASE WHEN text = ?2 THEN 1 ELSE 0 END)
+                 FROM kana WHERE word_id = w.id) AS reading_match,
               (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
               (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
                  FROM senses WHERE word_id = w.id) AS uk,
@@ -379,7 +391,9 @@ export class Dictionary {
          LEFT JOIN kana ka ON ka.word_id = w.id
         WHERE k.text = ?1 OR ka.text = ?1
         GROUP BY w.id`,
-      lemma
+      lemma,
+      // "" never equals a real kana reading, so an absent tokenizer reading leaves this tier off.
+      hira
     );
     if (rows.length === 0) return null;
 
@@ -394,6 +408,8 @@ export class Dictionary {
         common: r.common === 1,
         // Sort key, higher = better. Weighted so each tier dominates the next.
         rank:
+          // Reading match dominates: 本 read ほん is 本/ほん, not the homograph 元/もと (freq-ranked).
+          (r.reading_match === 1 ? 2000 : 0) +
           (hasKanji && r.kanji_match === 1 ? 1000 : 0) +
           (posOk ? 400 : 0) +
           (kanaPrimary ? 200 : 0) +

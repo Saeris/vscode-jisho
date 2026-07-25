@@ -60,7 +60,8 @@ export interface HoverDeps {
    */
   resolveByLemma: (
     lemma: string,
-    pos: PartOfSpeech
+    pos: PartOfSpeech,
+    reading?: string
   ) => Promise<{ id: string; headword: string } | null>;
   /** Full entry for an id. */
   getWord: (id: string) => Promise<WordDetailDto | null>;
@@ -172,9 +173,11 @@ export const provideHover = async (
   // back to `search` when there's no group POS (a pure-kana run the tokenizer couldn't segment).
   const rawPos = group?.parts[0]?.pos;
   const pos = rawPos === undefined ? "other" : asPartOfSpeech(rawPos);
+  // The tokenizer's reading disambiguates homographs (本 read ほん is 本, not 元/もと).
+  const reading = group?.parts[0]?.reading;
   let match: { id: string; headword: string } | null;
   if (pos !== "other") {
-    match = await deps.resolveByLemma(lookup, pos);
+    match = await deps.resolveByLemma(lookup, pos, reading);
   } else {
     const results = await deps.search(lookup, 1);
     match = results.length > 0 ? results[0] : null;

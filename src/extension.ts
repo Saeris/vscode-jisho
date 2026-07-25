@@ -408,8 +408,8 @@ class JishoViewProvider
       segment,
       search: async (lookup, limit) =>
         (await this.#dict()).search(lookup, limit),
-      resolveByLemma: async (lemma, pos) =>
-        (await this.#dict()).resolveByLemma(lemma, pos),
+      resolveByLemma: async (lemma, pos, reading) =>
+        (await this.#dict()).resolveByLemma(lemma, pos, reading),
       getWord: async (id) => (await this.#dict()).getWord(id)
     });
   }

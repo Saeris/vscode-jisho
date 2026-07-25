@@ -24,7 +24,7 @@ export interface RubySpan {
 }
 
 /** Katakana → hiragana, so readings compare against kana surfaces regardless of script. */
-const toHiragana = (text: string): string =>
+export const toHiragana = (text: string): string =>
   text.replace(/[ァ-ヶ]/g, (char) =>
     String.fromCodePoint((char.codePointAt(0) ?? 0) - 0x60)
   );

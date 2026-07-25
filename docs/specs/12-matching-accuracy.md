@@ -59,19 +59,28 @@ Rewritten (src/host/deinflect.ts) on **Yomitan's typed-transform model** (studie
 
 **Out of scope (noted, not fixed):** when a conjugated form's kana EXACTLY equals a common noun's reading (した = 舌/下 vs past-of-する; して = 仕手), the exact-homophone noun can rank above the deinflected verb. That is genuine ambiguity out of context and a search-_ranking_ question, not a deinflection bug.
 
-## 3. Evaluation harness (pending)
+## 3. Evaluation harness — as built (2026-07-25)
 
-A **thorough-but-not-exhaustive** accuracy evaluation, so reading everyday Japanese has a low false-positive resolution rate, runnable as a gate.
+A **thorough-but-not-exhaustive** accuracy gate, so reading everyday Japanese has a low false-positive resolution rate. Curated seed (~30 sentences / 47 pinned words), hand-judged; frozen-regressions hard-fail + per-register precision floored at a recorded baseline (the agreed gate design).
 
-**Methodology — hand-judged gold, not just mechanical labels.** The reviewer (human OR the implementing agent) reads each sentence, segments and translates it with their own comprehension, and compares that judgement to what the code produces — actively discerning where the code misses subtlety or resolves the wrong entry, at the same level of scrutiny a fluent reviewer designing these tests would apply. The gold standard is _correct linguistic understanding of the sentence_, not the code's own output and not a blindly-trusted external label. Mechanical labels (e.g. a pre-tagged corpus) seed and cross-check, but the judgement call on "is this the right entry for this word in this sentence" is made by comprehension.
+**Methodology — hand-judged gold, not mechanical labels.** Every expectation in `src/host/__tests__/accuracy/gold.ts` was read, segmented, and translated by hand: the gold is _correct linguistic understanding of the sentence_, not the code's output and not a blindly-trusted label. A word is only a hard expectation when its resolution is DECIDABLE in context; genuinely-ambiguous or absent-from-DB words are marked `optional` (reported, never gate). Each non-obvious word carries a `note` with the reasoning.
 
-- **Corpus**: everyday Japanese spanning registers (casual ↔ formal) and lengths (short ↔ long), incl. casual/slang. Seed from Tatoeba (already shipped) and public-domain / free-to-use text (e.g. Aozora Bunko for formal prose; verify licences before bundling). Keep it curated and representative, not exhaustive.
-- **Metric**: precision of hover/tokenizer→entry resolution — the fraction of content words whose resolved entry is the correct one for that sentence. Track false-positive resolutions specifically (the reported failure mode). Report per-register so casual-text regressions are visible.
-- **Seed regression cases** (already fixed, must stay fixed): する→為る (not 擦る/死), 勉強 (noun) vs 勉強する (verb), いい→いい (adjective), あー、いいよ segmentation.
-- **Gate**: run in CI against the built DB; a precision drop fails the build. Design the corpus format + scorer, get sign-off, then populate.
+**Wiring.** The scorer (`accuracy/score.ts`) drives the REAL pipeline — it does not re-implement resolution: `segment(sentence)` → for each gold word, the segment carrying it → `resolveByLemma(lemma, pos, reading)`, exactly what a hover does. `accuracy.spec.ts` runs it against the built `assets/jisho.db` (skips when absent, like `db.spec.ts`; opens a per-spec DB copy to dodge Turso's Windows file-lock against `db.spec`).
+
+**What the first run found (the harness earned its keep).** Measured 0.739 precision cold, and the misses split into three kinds, each hand-judged:
+
+- **A genuine CODE bug — reading discarded.** `本` (read ほん, "book") resolved to `元` (もと); `風`→`振り`; `息`→`息子`. Root cause probed: `本` is a kanji WRITING shared by two entries (本/ほん and 元/もと), and `resolveByLemma` ranked by frequency alone (元 freq 5 beat 本 freq null), ignoring the reading the tokenizer already knew. **Fix**: `resolveByLemma` now takes the tokenizer's reading and a reading-match tier that dominates frequency (§ below). This is the okurigana/reading-narrowing the diagnosis predicted, one layer up from 為る's "backwards freq_rank". Covered by `db.spec.ts` ("disambiguates a homograph by the tokenizer's reading").
+- **Gold errors (my corpus, corrected).** `いい`'s correct entry surfaces as kana いい (not 良い); 何してる folds into one 何する segment in the tokenizer, so the して→する regression uses 宿題をしてる to isolate してる.
+- **Non-defects, documented as `optional`.** 揺らす / 下人 are ABSENT from the shipped JMdict build (null is correct); お送り keeps the honorific お in the tokenizer lemma (a tokenizer-layer gap, not a `resolveByLemma` bug — 送る is in the DB).
+
+**Reading-disambiguation fix (as built).** `resolveByLemma(lemma, pos, reading?)` — when the tokenizer supplies a reading, an entry whose kana matches it outranks one that merely shares the kanji writing but reads differently. Reading (katakana ホン) is folded to hiragana (`toHiragana`, now exported from `shared/ruby.ts`) before comparing. The hover threads the group head's reading through (`hoverProvider.ts`). General, not a three-word patch: any homographic content word (本/元, 風/振り, 息/息子, 家 いえ/か, …) now resolves by what was actually read.
+
+**Result**: 47 pinned words → 1.000 precision on the 43 decidable ones, every register, zero regression failures; the 4 remaining misses are the documented `optional` cases above. `PRECISION_FLOOR` is set one word below measured per register — a benign upstream shift won't flake, a second wrong resolution in any register trips the gate.
+
+**Growing it**: the corpus is deliberately compact and curated, not exhaustive; add sentences (Aozora Bunko formal prose, more casual/slang) and RAISE the floors as coverage grows. Never lower them.
 
 ## Verification
 
-- Unit: `pos.spec.ts` (POS compatibility), `db.spec.ts` `resolveByLemma` cases.
+- Unit: `pos.spec.ts` (POS compatibility); `db.spec.ts` `resolveByLemma` cases incl. the reading-disambiguation regression (本→本, not 元).
 - E2E: the hover resolves する→"to do" (POS-aware), no regression on 食べる/particle hovers.
-- Harness: precision measured per-register against the hand-judged gold corpus; the seed regressions stay green.
+- Harness: `accuracy.spec.ts` — per-register precision against the hand-judged gold; frozen regressions hard-fail.
