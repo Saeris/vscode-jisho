@@ -24,7 +24,10 @@ const kanji: KanjiDetailDto = {
     { literal: "久", hasDetail: true },
     { literal: "入", hasDetail: true }
   ],
-  similar: [],
+  similar: [
+    { literal: "夂", meaning: "winter" },
+    { literal: "父", meaning: "father" }
+  ],
   hasTree: false,
   words: []
 };
@@ -104,5 +107,22 @@ describe("kanji detail parts", () => {
         screen.findByRole("button", { name: label })
       ).resolves.toBeDefined();
     }
+  });
+
+  it("renders similar kanji with meanings, each opening its detail (F3)", async () => {
+    // WHY: the similar-kanji section is the F3 payoff — each look-alike is a tile carrying a short
+    // meaning (so the row reads as "look alike, mean different things") and opens that kanji's page.
+    // The accessible name pairs literal + meaning so a screen reader announces both.
+    const onOpenKanji = vi.fn<(literal: string) => void>();
+    renderView({ onOpenKanji });
+    await expect(
+      screen.findByRole("heading", { name: "Similar kanji" })
+    ).resolves.toBeDefined();
+    // The meaning shows on the tile.
+    await expect(screen.findByText("winter")).resolves.toBeDefined();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open 夂 (winter)" })
+    );
+    expect(onOpenKanji).toHaveBeenCalledWith("夂");
   });
 });

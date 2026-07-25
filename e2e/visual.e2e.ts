@@ -103,6 +103,23 @@ test("capture: kanji detail (readings, copy, stroke-order link)", async () => {
   );
 });
 
+test("capture: kanji detail — similar kanji section (F3)", async () => {
+  const frame = await jishoFrame(app().window);
+  await returnToSearch(frame);
+
+  // 未 has the classic confusable 末 at the top of its similar list.
+  await frame.getByRole("searchbox").fill("未");
+  await frame
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await frame.getByRole("heading", { name: "Similar kanji" }).waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/13b-kanji-similar.png"
+  );
+});
+
 test("capture: stroke order sub-page (player + chart)", async () => {
   const frame = await jishoFrame(app().window);
   await returnToSearch(frame);

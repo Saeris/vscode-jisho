@@ -29,9 +29,11 @@ A redistributable dataset DOES exist: **Lars Yencken's kanji-confusion data** (h
 - **Quality verified on the build**: every classic confusable surfaces correctly (未→末, 大→太/犬, 士→土, 日→白 via 甲申旧田目白); compounds are sensible (時→持/詩/特, 語→詰/諾/話) not obscure noise.
 - `getKanji` reads the table into `KanjiDetailDto.similar` (ranked, each FK-guaranteed to have a detail page). Pinned in `db.spec.ts` — "surfaces visually-similar kanji, ranked".
 
-## Remaining near-term: the UI (F3-UI)
+## The UI (F3-UI) — as built (2026-07-24)
 
-A "Similar kanji" section on `KanjiDetail`, alongside Parts / Words, each entry tappable to open its detail (reuse the existing kanji-tap navigation). Empty `similar` → no section.
+A "Similar kanji" section on `KanjiDetail`, placed **between Parts and Words** (grouping the kanji-relationship sections). Each entry is a **tile: the character over a one-word meaning** — so the row reads as "these look alike but MEAN different things", visually distinct from the bare-character Parts grid. Tiles are fixed-width with the meaning clamped to two lines (`overflow: hidden`), so even a pathological long first-meaning (郯's 99-char gloss) truncates rather than distorting the grid. Tap opens that kanji's detail (reuse the kanji-tap nav). Empty `similar` → no section. `KanjiDetailDto.similar` is `{ literal, meaning }[]` (getKanji joins `kanji_characters.meanings_json` for the first meaning). Screenshot-reviewed with the user (light + dark).
+
+**"More" link → the confusables comparison page (#45): sequenced later, not now.** The section shows all 6 stored neighbours (`MAX_SIMILAR_KANJI`), so there is nothing "more" to link to until #45 exists — which needs (a) more stored neighbours (Yencken ships 10; raise the cap) and (b) the AnimCJK stroke-diff grid view. The "More" link ships WITH #45 (a v1 feature, just later in the sequence), when there is genuinely more to show. Building it now would open a page duplicating the same 6.
 
 ## Attribution
 

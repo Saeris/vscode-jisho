@@ -46,6 +46,21 @@ test("capture: word detail in light theme (contrast audit)", async () => {
   );
 });
 
+test("capture: kanji similar section in light theme (F3)", async () => {
+  const frame = await jishoFrame(app().window);
+  await returnToSearch(frame);
+  await frame.getByRole("searchbox").fill("未");
+  await frame
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await frame.getByRole("heading", { name: "Similar kanji" }).waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/16c-kanji-similar-light.png"
+  );
+});
+
 test("capture: stroke order in light theme", async () => {
   const frame = await jishoFrame(app().window);
   await returnToSearch(frame);

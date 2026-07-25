@@ -470,6 +470,18 @@ The handwriting recognizer returns a ranked guess; stroke-edit distance models e
 
 The webview navigation history (xref tap-through, kanji-tap, on-screen back) does not respond to the **forward/back mouse buttons** (X1/X2, buttons 3/4) — users expect these to move through history like a browser. Wire `auxclick`/`mouseup` with `event.button` 3/4 to the existing nav-machine back/forward transitions. Verify the Electron/Chromium webview actually receives these events (VS Code may swallow them); a host-side keybinding fallback may be needed if not.
 
+## Tooling & test infrastructure
+
+### 49. E2E restructure: per-feature suites, light+dark in one run, less UI noise (infrastructure — medium)
+
+The E2E layout has grown unwieldy — organized by concern (`visual.e2e.ts`, `visual-light.e2e.ts`, `smoke.e2e.ts`, `settings.e2e.ts`) with light theme in a whole separate launch. Restructure toward one suite per **feature vertical** (search, word detail, kanji detail, stroke order, handwriting, settings…), each capturing **both light and dark in a single run**.
+
+- **Theme switch mid-run, not per-launch.** Today light theme needs its own VS Code launch (`visual-light.e2e.ts` seeds `workbench.colorTheme`) because driving the theme picker at runtime "proved racy" (`e2e/visual-light.e2e.ts` comment). Solve that: switch via `workbench.action.selectTheme` / the `workbench.colorTheme` setting through the CDP/command API and wait for the webview to re-render (the webview already reacts to `--vscode-*` var changes), so one launch captures both passes.
+- **Kill the visual noise.** The agent Chat panel and the "All installed extensions are temporarily disabled" toast (a side effect of `--disable-extensions` in `e2e/launch.ts`) both contaminate captures. Seed settings / run commands to close the chat view (`workbench.action.closeAuxiliaryBar` or hide the panel) and dismiss/suppress the notification (`notifications.*`, or `workbench.action.clearNotifications` after launch). Extend the existing `seedUserData` suppression set rather than dismissing modals racily.
+- **Shared helpers**: a `capture(name)` that shoots both themes, and a `cleanChrome()` that closes chat + clears notifications, reused across suites.
+
+Not blocking v1, but the noise actively degrades the screenshot-review loop, so worth doing before the #32 WordDetail redesign cycle (which is screenshot-heavy).
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

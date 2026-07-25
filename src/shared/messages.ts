@@ -161,6 +161,13 @@ export interface ComponentDto {
   hasDetail: boolean;
 }
 
+/** A visually-similar kanji (F3): the character plus a one-word meaning for its tile. */
+export interface SimilarKanjiDto {
+  literal: string;
+  /** The kanji's first Kanjidic meaning (e.g. "not yet"), or "" if none — a compact tile label. */
+  meaning: string;
+}
+
 /**
  * A node in a kanji's recursive component tree (cjk-decomp). Each node is a real Kanjidic character
  * with a brief annotation, and its `children` are its direct components — the Jisho-style breakdown.
@@ -189,10 +196,11 @@ export interface KanjiDetailDto {
   components: ComponentDto[];
   /**
    * Visually-similar kanji (F3), ranked most-similar-first. Each is a kanji with its own detail page
-   * (tappable). Empty when no similarity data applies. Derived from Yencken's confusion data for jōyō
-   * kanji, a component heuristic otherwise — an approximation, not curated confusable pairs.
+   * (tappable), carrying a short one-word meaning to distinguish it from a component at a glance.
+   * Empty when no similarity data applies. Derived from Yencken's confusion data for jōyō kanji, a
+   * component heuristic otherwise — an approximation, not curated confusable pairs.
    */
-  similar: string[];
+  similar: SimilarKanjiDto[];
   /**
    * Whether a recursive component tree (cjk-decomp) exists for this kanji — gates the "Component
    * tree" link on the detail. When false, only the flat `components` list is meaningful.

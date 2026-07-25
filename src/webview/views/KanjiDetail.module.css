@@ -112,6 +112,51 @@
   border-color: var(--jisho-focus);
 }
 
+/* Similar-kanji tiles: character over a one-word meaning. A fixed-width, fixed-height tile keeps the
+   row even regardless of meaning length — the meaning is clamped so a long gloss ("sign of the ram…")
+   truncates rather than stretching the tile. */
+.similarGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.similar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 4.5em;
+  padding: 6px 4px;
+  background: var(--jisho-input-bg);
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: var(--jisho-fg);
+  cursor: pointer;
+  text-align: center;
+}
+
+.similar:hover {
+  border-color: var(--jisho-focus);
+}
+
+.similarLiteral {
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.similarMeaning {
+  font-size: 0.72em;
+  line-height: 1.15;
+  color: var(--jisho-muted);
+  /* Clamp to two lines so a long first-meaning can't distort the tile grid. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .wordList {
   list-style: none;
   margin: 0;

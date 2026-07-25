@@ -632,9 +632,14 @@ export class Dictionary {
     );
 
     // Visually-similar kanji (F3), precomputed and ranked. Every `similar` value FK-references a
-    // kanji_characters row, so each has a detail page — no has_detail gate needed.
-    const similarRows = await this.#all<{ similar: string }>(
-      "SELECT similar FROM similar_kanji WHERE literal = ? ORDER BY position",
+    // kanji_characters row, so each has a detail page — no has_detail gate needed. Join its meanings
+    // so a tile can show a short gloss (which distinguishes look-alikes from parts at a glance).
+    const similarRows = await this.#all<{ similar: string; meanings: string }>(
+      `SELECT s.similar AS similar, k.meanings_json AS meanings
+         FROM similar_kanji s
+         JOIN kanji_characters k ON k.literal = s.similar
+        WHERE s.literal = ?
+        ORDER BY s.position`,
       literal
     );
 
@@ -681,7 +686,11 @@ export class Dictionary {
         literal: c.component,
         hasDetail: c.has_detail === 1
       })),
-      similar: similarRows.map((r) => r.similar),
+      similar: similarRows.map((r) => ({
+        literal: r.similar,
+        // First meaning only — a compact label for the tile, not the full gloss list.
+        meaning: parseStrings(r.meanings)[0] ?? ""
+      })),
       hasTree: treeEdge !== undefined,
       words
     };

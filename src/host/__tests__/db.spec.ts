@@ -376,16 +376,20 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(iru?.hasDetail).toBe(true);
   });
 
-  test("surfaces visually-similar kanji, ranked (F3)", async () => {
+  test("surfaces visually-similar kanji, ranked and with meanings (F3)", async () => {
     // WHY: the "similar kanji" section rests on the precomputed similar_kanji table (Yencken data for
     // jōyō). The classic learner confusion 未/末 must appear near the top — a broken join or a wrong
-    // ORDER BY position would hide it or scramble the ranking. Each entry must be an openable kanji.
+    // ORDER BY position would hide it or scramble the ranking. Each entry is an openable kanji and
+    // carries a short meaning (the tile label that distinguishes look-alikes from parts).
     const mi = await dict.getKanji("未");
-    expect(mi!.similar).toContain("末");
     // Ranked most-similar-first: 末 (a near-identical look-alike) leads.
-    expect(mi!.similar[0]).toBe("末");
+    const top = mi!.similar[0];
+    expect(top).toBeDefined();
+    expect(top?.literal).toBe("末");
+    // Each entry carries a one-word meaning for its tile.
+    expect(top?.meaning.length).toBeGreaterThan(0);
     // Every similar kanji resolves to its own detail (the table FK-references kanji_characters).
-    const first = await dict.getKanji(mi!.similar[0]);
+    const first = await dict.getKanji(top?.literal ?? "");
     expect(first).not.toBeNull();
   });
 

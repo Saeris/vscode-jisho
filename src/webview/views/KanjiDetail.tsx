@@ -175,6 +175,38 @@ const KanjiBody = ({
       </div>
     ) : null}
 
+    {kanji.similar.length > 0 ? (
+      <div className={styles.section}>
+        {/* Look-alike kanji learners confuse (Yencken confusion data for jōyō, a component heuristic
+            otherwise). Each tile shows the character with a one-word meaning beneath it, so the row
+            reads as "kanji that look alike but MEAN different things" — distinct from the Parts grid.
+            Tap to open its detail and compare. An approximation, so the heading says "similar", not
+            "confused with". */}
+        <h2>Similar kanji</h2>
+        <div className={styles.similarGrid}>
+          {kanji.similar.map((s) => (
+            <Button
+              key={s.literal}
+              className={styles.similar}
+              onPress={() => onOpenKanji(s.literal)}
+              aria-label={
+                s.meaning
+                  ? `Open ${s.literal} (${s.meaning})`
+                  : `Open ${s.literal}`
+              }
+            >
+              <span className={styles.similarLiteral} lang="ja">
+                {s.literal}
+              </span>
+              {s.meaning ? (
+                <span className={styles.similarMeaning}>{s.meaning}</span>
+              ) : null}
+            </Button>
+          ))}
+        </div>
+      </div>
+    ) : null}
+
     {kanji.words.length > 0 ? (
       <div className={styles.section}>
         <h2>Words</h2>
