@@ -161,6 +161,43 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(cat.findIndex((r) => r.headword === "猫")).toBe(0);
   });
 
+  // ── POS-aware hover resolution (accuracy fix) ─────────────────────────────
+
+  test("resolveByLemma picks the entry the tokenizer POS implies, not the frequent homophone", async () => {
+    // WHY: the hover false-positive. Searching the STRING する returned 擦る ("to rub", freq-ranked)
+    // over 為る (する = "to do") — because 為る is usually written kana, so its kanji form was never
+    // frequency-ranked. resolveByLemma uses the tokenizer's (lemma, POS) directly: a verb lemma する
+    // must resolve to the DO-verb, not to-rub. This is the exact regression the fix targets.
+    const suru = await dict.resolveByLemma("する", "verb");
+    expect(suru?.glossPreview).toMatch(/to do/);
+    // A verb lemma must NOT resolve to a same-reading NOUN — し (する's stem lemma) → the verb, not 死.
+    const shi = await dict.resolveByLemma("する", "verb");
+    expect(shi?.glossPreview).not.toMatch(/death/);
+  });
+
+  test("resolveByLemma respects the coarse POS category", async () => {
+    // WHY: 勉強 is both a noun ("study") and a suru-verb; the tokenizer disambiguates by context, and
+    // resolveByLemma must honor it — a noun lemma resolves the noun sense's entry, not a verb.
+    const noun = await dict.resolveByLemma("勉強", "noun");
+    expect(noun?.headword).toBe("勉強");
+    // An adjective lemma resolves the adjective (いい "good"), the everyday word.
+    const adj = await dict.resolveByLemma("いい", "adjective");
+    expect(adj?.headword).toBe("いい");
+  });
+
+  test("resolveByLemma prefers an exact kanji writing", async () => {
+    // WHY: when the lemma has kanji, the writing is the strongest identity — 食べる resolves 食べる.
+    const taberu = await dict.resolveByLemma("食べる", "verb");
+    expect(taberu?.headword).toBe("食べる");
+  });
+
+  test("resolveByLemma returns null for an unknown lemma", async () => {
+    // WHY: the caller falls back to `search` only when this returns null, so an unmatched lemma must.
+    await expect(
+      dict.resolveByLemma("ぬてぬてぬて", "noun")
+    ).resolves.toBeNull();
+  });
+
   test("hydrates full detail with resolved POS tag descriptions", async () => {
     // WHY: the detail view groups senses by part-of-speech and shows human-readable tags; a broken
     // tag join would render cryptic codes ("v1") instead of "Ichidan verb".

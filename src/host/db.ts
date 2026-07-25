@@ -11,6 +11,7 @@ import {
   SCHEMA_VERSION_KEY,
   WORD_LEVEL_SENSE
 } from "../shared/schema";
+import { anyPosMatches } from "../shared/pos";
 import type {
   ComponentTreeDto,
   ExampleGroupDto,
@@ -20,6 +21,7 @@ import type {
   KanjiResultDto,
   KanjiWordDto,
   MoreExamplesDto,
+  PartOfSpeech,
   PoolSentenceDto,
   RadicalLookupDto,
   SearchResultDto,
@@ -296,6 +298,83 @@ export class Dictionary {
       if (preview) results.push(preview);
     }
     return results;
+  }
+
+  /**
+   * Resolve a tokenizer's (lemma, POS) to the single best-matching entry — the hover's word lookup.
+   *
+   * `search()` ranks a lemma STRING by frequency and re-introduces homophone ambiguity: searching
+   * する returns 擦る ("to rub", freq-ranked) over 為る (する = "to do", usually written kana so its
+   * kanji form was never frequency-ranked); searching し (surface) returns the noun 死. The tokenizer
+   * already KNOWS the word is a verb with lemma する — so resolve using that, POS and all, exactly as
+   * the example linkifier does. Ranking (best first):
+   *   1. a KANJI-writing match when the lemma has kanji (the writing is the strongest identity),
+   *   2. POS-compatible senses (verb entry for a verb lemma — rejects the noun 死 for する's stem),
+   *   3. for a KANA lemma, entries normally written in kana (`uk`, or no common kanji form) — this is
+   *      what floats 為る above 擦る, since freq_rank is backwards for usually-kana words,
+   *   4. then frequency, then common.
+   * Returns null when nothing matches the lemma at all (the caller falls back to `search`).
+   */
+  async resolveByLemma(
+    lemma: string,
+    pos: PartOfSpeech
+  ): Promise<SearchResultDto | null> {
+    if (lemma === "") return null;
+    const hasKanji = /[㐀-鿿豈-﫿]/u.test(lemma);
+
+    // Candidate entries whose kana reading OR kanji writing equals the lemma, with the signals the
+    // ranking needs: whether the lemma matched a kanji writing, the POS codes + `uk` misc across
+    // senses, whether any common kanji writing exists, frequency and commonness.
+    const rows = await this.#all<{
+      word_id: string;
+      kanji_match: number;
+      pos_codes: string | null;
+      uk: number | null;
+      // NULL for a kana-only word (no kanji rows to MAX over).
+      has_common_kanji: number | null;
+      freq_rank: number | null;
+      common: number;
+    }>(
+      `SELECT w.id AS word_id,
+              MAX(CASE WHEN k.text = ?1 THEN 1 ELSE 0 END) AS kanji_match,
+              (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
+              (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
+                 FROM senses WHERE word_id = w.id) AS uk,
+              (SELECT MAX(is_common) FROM kanji WHERE word_id = w.id) AS has_common_kanji,
+              w.freq_rank AS freq_rank,
+              w.is_common AS common
+         FROM words w
+         LEFT JOIN kanji k ON k.word_id = w.id
+         LEFT JOIN kana ka ON ka.word_id = w.id
+        WHERE k.text = ?1 OR ka.text = ?1
+        GROUP BY w.id`,
+      lemma
+    );
+    if (rows.length === 0) return null;
+
+    const scored = rows.map((r) => {
+      const codes = parseCodes(r.pos_codes);
+      const posOk = anyPosMatches(pos, codes);
+      // Kana lemma normally written in kana: `uk`, or the entry has no common kanji form.
+      const kanaPrimary =
+        !hasKanji && (r.uk === 1 || (r.has_common_kanji ?? 0) === 0);
+      return {
+        id: r.word_id,
+        common: r.common === 1,
+        // Sort key, higher = better. Weighted so each tier dominates the next.
+        rank:
+          (hasKanji && r.kanji_match === 1 ? 1000 : 0) +
+          (posOk ? 400 : 0) +
+          (kanaPrimary ? 200 : 0) +
+          (r.common === 1 ? 20 : 0) +
+          // Frequency: lower freq_rank is better; fold in a small bounded bonus. NULL = no bonus.
+          (r.freq_rank !== null ? Math.max(0, 60 - r.freq_rank) : 0)
+      };
+    });
+    // rows was non-empty, so scored is too; sort in place and take the winner.
+    scored.sort((a, b) => b.rank - a.rank);
+    const [best] = scored;
+    return this.#searchResult(best.id, best.common);
   }
 
   /**
@@ -895,6 +974,18 @@ const byFrequency = (a: number | null, b: number | null): number => {
 const parseStrings = (json: string): string[] => {
   const value: unknown = JSON.parse(json);
   return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
+};
+
+/**
+ * Parse the space-joined `group_concat` of several `pos_json` arrays (one per sense) into a flat set
+ * of JMdict POS codes — e.g. `["v5r","vt"] ["n"]` → v5r, vt, n. Tolerates the malformed by scanning
+ * for quoted tokens rather than JSON.parse-ing the concatenation (which isn't valid JSON as a whole).
+ */
+const parseCodes = (concatenated: string | null): string[] => {
+  if (concatenated === null) return [];
+  const codes = new Set<string>();
+  for (const m of concatenated.matchAll(/"([^"]+)"/gu)) codes.add(m[1]);
+  return [...codes];
 };
 
 /** Parse a JSON-encoded number array from a DB column, tolerating malformed data. */

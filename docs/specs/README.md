@@ -22,19 +22,20 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 
 ## Specs
 
-| #   | Spec                                                                                                            | Backlog | Status                                           |
-| --- | --------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------ |
-| 01  | [Palette engine: decoration-based POS palettes, 11-way taxonomy, CVD + typeface channels](01-palette-engine.md) | #38     | Ready except palette hex values (user to supply) |
-| 02  | [Grammar notes: particles, auxiliaries, conjugation forms](02-grammar-notes.md)                                 | #34     | Ready — content-heavy; user reviews all notes    |
-| 03  | [Copy-as variants, Add Furigana, word-under-cursor](03-copy-as-and-furigana.md)                                 | #33     | **Implemented** (see below)                      |
-| 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild            |
-| 05  | [Automated data builds, asset delivery, and update lifecycle](05-asset-delivery.md)                             | #39     | Ready — **last piece before the first release**  |
-| 06  | [Web extension viability: asset delivery without a filesystem](06-web-extension.md)                             | #40     | Analysis — viable; deliberately AFTER v1         |
-| 07  | [Benchmarking and performance strategy](07-performance.md)                                                      | #41     | Pilot run — benchmark exists and works           |
-| 08  | [Hover consistency, POS pills, markdown-aware detection, corpus testing](08-hover-consistency-and-corpus.md)    | #33/#38 | **Implemented** (as-built record)                |
-| 09  | [Richer example sentences: full Tatoeba pool + build-time furigana](09-richer-examples.md)                      | #20     | Build **implemented**; UI ("more examples") open |
-| 10  | [Similar (look-alike) kanji + Yencken confusion-data roadmap](10-similar-kanji.md)                              | new     | Data + host **implemented**; UI section open     |
-| 11  | [Kanji word-list frequency sort](11-kanji-wordlist-frequency-sort.md)                                           | #30     | **Implemented**                                  |
+| #   | Spec                                                                                                            | Backlog | Status                                             |
+| --- | --------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
+| 01  | [Palette engine: decoration-based POS palettes, 11-way taxonomy, CVD + typeface channels](01-palette-engine.md) | #38     | Ready except palette hex values (user to supply)   |
+| 02  | [Grammar notes: particles, auxiliaries, conjugation forms](02-grammar-notes.md)                                 | #34     | Ready — content-heavy; user reviews all notes      |
+| 03  | [Copy-as variants, Add Furigana, word-under-cursor](03-copy-as-and-furigana.md)                                 | #33     | **Implemented** (see below)                        |
+| 04  | [Radical position categories in the picker](04-radical-position-filter.md)                                      | #30     | Ready — needs a dictionary DB rebuild              |
+| 05  | [Automated data builds, asset delivery, and update lifecycle](05-asset-delivery.md)                             | #39     | Ready — **last piece before the first release**    |
+| 06  | [Web extension viability: asset delivery without a filesystem](06-web-extension.md)                             | #40     | Analysis — viable; deliberately AFTER v1           |
+| 07  | [Benchmarking and performance strategy](07-performance.md)                                                      | #41     | Pilot run — benchmark exists and works             |
+| 08  | [Hover consistency, POS pills, markdown-aware detection, corpus testing](08-hover-consistency-and-corpus.md)    | #33/#38 | **Implemented** (as-built record)                  |
+| 09  | [Richer example sentences: full Tatoeba pool + build-time furigana](09-richer-examples.md)                      | #20     | Build **implemented**; UI ("more examples") open   |
+| 10  | [Similar (look-alike) kanji + Yencken confusion-data roadmap](10-similar-kanji.md)                              | new     | Data + host **implemented**; UI section open       |
+| 11  | [Kanji word-list frequency sort](11-kanji-wordlist-frequency-sort.md)                                           | #30     | **Implemented**                                    |
+| 12  | [Matching accuracy: POS-aware resolution, typed deinflection, eval harness](12-matching-accuracy.md)            | #43     | Primary fix **implemented**; deinflect + eval open |
 
 Not yet specced: the #32 word-detail layout redesign, and the visual-regression baseline procedure.
 

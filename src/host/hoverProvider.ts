@@ -30,8 +30,9 @@ import {
   type GrammarNote
 } from "../shared/grammar";
 import { wordHoverMarkdown } from "../shared/hoverHtml";
+import { asPartOfSpeech } from "../shared/pos";
 import type { DetailedSegment } from "./tokenizer";
-import type { WordDetailDto } from "../shared/messages";
+import type { PartOfSpeech, WordDetailDto } from "../shared/messages";
 
 /** Requires at least one kanji: pure-kana runs tokenize into garbage (no script transitions). */
 const HAS_KANJI = /[㐀-鿿豈-﫿]/;
@@ -52,6 +53,15 @@ export interface HoverDeps {
     lookup: string,
     limit: number
   ) => Promise<Array<{ id: string; headword: string }>>;
+  /**
+   * Resolve a tokenizer (lemma, POS) directly to the best entry — POS-aware, so a verb lemma resolves
+   * to the verb entry rather than a same-reading noun (する→為る, not 擦る/死). Null when the lemma
+   * matches nothing, in which case the caller falls back to `search`.
+   */
+  resolveByLemma: (
+    lemma: string,
+    pos: PartOfSpeech
+  ) => Promise<{ id: string; headword: string } | null>;
   /** Full entry for an id. */
   getWord: (id: string) => Promise<WordDetailDto | null>;
 }
@@ -157,12 +167,23 @@ export const provideHover = async (
 
   // Content word → dictionary definition.
   if (Array.from(lookup).length > 12) return undefined; // a long kana sentence isn't a lookup
-  const results = await deps.search(lookup, 1);
-  if (token.isCancellationRequested || results.length === 0) return undefined;
-  const word = await deps.getWord(results[0].id);
+  // Resolve POS-aware when the tokenizer categorized the word: passing its (lemma, POS) directly
+  // resolves する→為る (verb), not 擦る "to rub" (freq-ranked), and し's lemma する→為る, not 死. Fall
+  // back to `search` when there's no group POS (a pure-kana run the tokenizer couldn't segment).
+  const rawPos = group?.parts[0]?.pos;
+  const pos = rawPos === undefined ? "other" : asPartOfSpeech(rawPos);
+  let match: { id: string; headword: string } | null;
+  if (pos !== "other") {
+    match = await deps.resolveByLemma(lookup, pos);
+  } else {
+    const results = await deps.search(lookup, 1);
+    match = results.length > 0 ? results[0] : null;
+  }
+  if (token.isCancellationRequested || match === null) return undefined;
+  const word = await deps.getWord(match.id);
   if (word === null) return undefined;
 
-  const md = wordDefinitionMarkdown(word, results[0].headword, group);
+  const md = wordDefinitionMarkdown(word, match.headword, group);
   return new vscode.Hover(
     md,
     new vscode.Range(

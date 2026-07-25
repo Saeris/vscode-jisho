@@ -167,6 +167,29 @@ test("hovering Japanese text shows a dictionary hover", async () => {
   await app().window.screenshot({ path: "test-results/shots/02-hover.png" });
 });
 
+test("hovering する resolves the verb, not a homophone (POS-aware accuracy fix)", async () => {
+  // WHY: the reported false-positive. Hovering the し of してください used to resolve to a same-reading
+  // homophone (擦る "to rub" ranked over 為る "to do", or the noun 死) because the hover searched the
+  // lemma STRING. The POS-aware resolveByLemma uses the tokenizer's (lemma=する, pos=verb), so the
+  // hover must show "to do" and NOT "to rub" / "death". Only a live hover exercises the real path.
+  const win = app().window;
+  await openJishoSidebar(win);
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("Control+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  // する must stand alone: in 勉強してXX the tokenizer folds 勉強+し into one サ変 verb (勉強する), so
+  // it wouldn't isolate する. In 仕事をして…, し is its own segment with lemma する.
+  await win.keyboard.type("仕事をしてください");
+  // 仕事をしてください: hover the し (index 3) — the tokenizer gives it lemma する.
+  const hover = await hoverEditorWord(win, "仕事をしてください", 3, 8, "to do");
+  await expect(hover).toContainText("to do");
+  await expect(hover).not.toContainText("to rub");
+  await expect(hover).not.toContainText("death");
+});
+
 test("hovering a particle explains its grammar", async () => {
   // を here sits INSIDE a longer run (本を読みます is one continuous Japanese sequence), so it is
   // reached by tokenizing and finding a particle segment — not by the standalone single-character
