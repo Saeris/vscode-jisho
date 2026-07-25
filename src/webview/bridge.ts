@@ -6,6 +6,7 @@
 import type {
   GetAboutResponse,
   GetKanjiResponse,
+  GetMoreExamplesResponse,
   GetNameResponse,
   GetComponentTreeResponse,
   GetStrokeSvgResponse,
@@ -135,6 +136,19 @@ export const getWord = async (id: string): Promise<GetWordResponse> => {
   });
   if (response.type !== "getWord")
     throw new Error("Unexpected response for getWord");
+  return response;
+};
+
+export const getMoreExamples = async (
+  id: string
+): Promise<GetMoreExamplesResponse> => {
+  const response = await send({
+    type: "getMoreExamples",
+    requestId: nextRequestId(),
+    id
+  });
+  if (response.type !== "getMoreExamples")
+    throw new Error("Unexpected response for getMoreExamples");
   return response;
 };
 

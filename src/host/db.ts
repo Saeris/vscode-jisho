@@ -6,14 +6,21 @@
 import { connect } from "@tursodatabase/database";
 import { isKana, toKana } from "wanakana";
 import { deinflect } from "./deinflect";
-import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../shared/schema";
+import {
+  SCHEMA_VERSION,
+  SCHEMA_VERSION_KEY,
+  WORD_LEVEL_SENSE
+} from "../shared/schema";
 import type {
   ComponentTreeDto,
+  ExampleGroupDto,
   KanaDto,
   KanjiDetailDto,
   KanjiDto,
   KanjiResultDto,
   KanjiWordDto,
+  MoreExamplesDto,
+  PoolSentenceDto,
   RadicalLookupDto,
   SearchResultDto,
   SenseDto,
@@ -584,6 +591,74 @@ export class Dictionary {
       kanji,
       kana,
       senses
+    };
+  }
+
+  /**
+   * The fuller Tatoeba example pool for a word (F1 "more examples" page), or `null` if the word has
+   * no pooled examples. Sentences the source tagged to a sense are grouped under that sense's gloss;
+   * the rest (sense_position = -1) are the word-level pool. `ja_furigana` carries build-time ruby.
+   */
+  async getMoreExamples(id: string): Promise<MoreExamplesDto | null> {
+    const rows = await this.#all<{
+      sense_position: number;
+      position: number;
+      ja_furigana: string;
+      en: string;
+    }>(
+      `SELECT sense_position, position, ja_furigana, en
+         FROM sentences
+        WHERE word_id = ? AND source = 'tatoeba'
+        ORDER BY sense_position, position`,
+      id
+    );
+    if (rows.length === 0) return null;
+
+    // The page title: the word's first kanji writing, or first kana reading if kana-only.
+    const headwordRow =
+      (await this.#get<{ text: string }>(
+        "SELECT text FROM kanji WHERE word_id = ? ORDER BY position LIMIT 1",
+        id
+      )) ??
+      (await this.#get<{ text: string }>(
+        "SELECT text FROM kana WHERE word_id = ? ORDER BY position LIMIT 1",
+        id
+      ));
+
+    const wordLevel: PoolSentenceDto[] = [];
+    const bySense = new Map<number, PoolSentenceDto[]>();
+    for (const r of rows) {
+      const sentence: PoolSentenceDto = { jaFurigana: r.ja_furigana, en: r.en };
+      if (r.sense_position === WORD_LEVEL_SENSE) {
+        wordLevel.push(sentence);
+      } else {
+        const list = bySense.get(r.sense_position) ?? [];
+        list.push(sentence);
+        bySense.set(r.sense_position, list);
+      }
+    }
+
+    // Header each sense group with its first gloss. Read them for just the senses that have pooled
+    // sentences, keyed by sense position.
+    const senses: ExampleGroupDto[] = [];
+    for (const [position, sentences] of [...bySense.entries()].sort(
+      (a, b) => a[0] - b[0]
+    )) {
+      const gloss = await this.#get<{ text: string }>(
+        `SELECT g.text AS text
+           FROM senses s JOIN glosses g ON g.sense_id = s.id
+          WHERE s.word_id = ? AND s.position = ?
+          ORDER BY g.position LIMIT 1`,
+        id,
+        position
+      );
+      senses.push({ gloss: gloss?.text ?? "", sentences });
+    }
+
+    return {
+      headword: headwordRow?.text ?? "",
+      senses,
+      wordLevel
     };
   }
 

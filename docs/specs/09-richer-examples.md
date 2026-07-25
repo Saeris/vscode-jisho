@@ -33,11 +33,20 @@ Word detail shows too few example sentences compared with Jisho.org. The inline 
 
 `getWord` scopes the inline read to `source='tanaka'` so the pool never leaks into the per-sense list (the ≤3-per-sense cap test now also guards this). The pool is dormant in the read path until the UI ships.
 
-## Remaining: the UI (F1-UI)
+## The UI (F1-UI) — as built (2026-07-25)
 
-- A dedicated **"more examples" surface** per word (the deferred #20c): a scrollable view rendering the pool with furigana, sense-attributed sentences grouped under their sense and the word-level pool below. Reached from the inline `Examples` "Show all".
-- New host read (e.g. `getMoreExamples(wordId)`) returning the `source='tatoeba'` rows with `ja_furigana`; a new webview view + navigation-machine entry (the machine was designed to grow views).
-- The inline furigana is stored too — the inline renderer can start showing ruby once it parses `{漢字|かんじ}` markup (currently plain text); do this with the UI pass.
+- A dedicated **"more examples" page** per word (`MoreExamples.tsx` + a `moreExamples` nav-machine view): scrollable, sense-attributed sentences grouped under their sense's gloss, then the word-level pool. Reached from a word-level **"📖 More examples ›"** link on `WordDetail` (after the senses), styled like the kanji page's stroke-order/component-tree links. Shown unconditionally — the pool exists for nearly every word and the page degrades to "No additional examples" otherwise.
+- Host read `getMoreExamples(id)` returns the `source='tatoeba'` rows with `ja_furigana`, grouping sense-tagged sentences and reading each sense's first gloss as the header. `getWord` still shows only the inline Tanaka set (unchanged).
+- Furigana rendered via a shared `Ruby` component (extracted from `Term`). Sizing tuned after screenshot review: base kana `1.25em`, `<rt>` `0.55em` ON THIS PAGE (still ~9.6px, above the readable floor) — a larger base with a narrower reading fixed the awkward inter-character gaps that wide readings (せいはくまい over 精白米) forced at the shared 0.7em default.
+- Tests: nav machine (open + back to the word), `getMoreExamples` (pool-only, furigana, sense-grouping, excludes Tanaka), Ruby rendering, WordDetail prop threading.
+
+## Next: clickable example vocabulary (F1-links)
+
+A first attempt made the furigana groups tappable — REJECTED: build-time furigana only wraps kanji-bearing runs, so word boundaries were unclear and hit targets wrong. The chosen approach (see the linkification design notes) is **build-time linkification**: tokenize each example, resolve each content word to its JMdict `ent_seq` (= `words.id`), and emit markdown-link markup whose link SPAN is the full word (okurigana + conjugation, furigana nested inside), targeting `pos:entseq`. Tap **opens the entry by id** — safe because the links and the DB are regenerated in the same build and ship together, so an id is never stale relative to the DB it lives in (users can't edit entries; D swaps the DB wholesale). The webview parses `[text](pos:id)` + nested ruby into correctly-bounded tappable spans. Incremental/diff DB regeneration is a real but separate want, NOT a blocker here (a full rebuild reproduces the same ent_seq ids).
+
+## Inline examples
+
+The inline per-sense examples still render `ja` as plain text; they can switch to the stored `ja_furigana` (ruby) once the inline renderer parses the markup — fold this in with F1-links, since both touch the same rendering.
 
 ## Attribution
 

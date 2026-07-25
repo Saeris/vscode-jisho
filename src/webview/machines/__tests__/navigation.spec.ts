@@ -36,6 +36,23 @@ describe("navigationMachine", () => {
     expect(canGoBack(ctx)).toBe(true);
   });
 
+  it("opening more examples pushes a moreExamples view, back returns to the word", () => {
+    // WHY: the "more examples" page is a sub-page of a word (F1) — opening it must push onto the
+    // stack above the word, and Back must return to that word, not skip it.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "1358280" });
+    actor.send({ type: "openMoreExamples", id: "1358280" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "moreExamples",
+      id: "1358280"
+    });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "wordDetail",
+      id: "1358280"
+    });
+  });
+
   it("unwinds a mixed word→kanji→word stack one level per back", () => {
     // WHY: cross-navigation (word → its kanji → a word containing that kanji) builds a deep mixed
     // stack; back must pop exactly one level, not jump home.

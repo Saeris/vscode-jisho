@@ -58,6 +58,22 @@ test("capture: word detail (pitch contour, JLPT badge, examples)", async () => {
   );
 });
 
+test("capture: more examples page (Tatoeba pool + furigana, F1)", async () => {
+  const frame = await jishoFrame(app().window);
+  await returnToSearch(frame);
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await frame.getByRole("button", { name: "More examples" }).click();
+  await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/12e-more-examples.png"
+  );
+});
+
 test("capture: word detail — conjugation table", async () => {
   // Examples render inline on the base word-detail capture now, and the conjugation table is a
   // visible section — no disclosure to open first.

@@ -40,7 +40,11 @@ import type {
   Kradfile,
   Radkfile
 } from "@scriptin/jmdict-simplified-types";
-import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../src/shared/schema.ts";
+import {
+  SCHEMA_VERSION,
+  SCHEMA_VERSION_KEY,
+  WORD_LEVEL_SENSE
+} from "../src/shared/schema.ts";
 // Build-local furigana: the host's addFuriganaToLine pulls in hover.ts → shared/grammar, whose own
 // imports don't all resolve under `vp exec node`, but the two primitives it needs DO — so annotate
 // example sentences here with just the tokenizer + ruby renderer. Relative TS imports need explicit
@@ -227,9 +231,8 @@ const TATOEBA_ENG_SENTENCES_URL = `${TATOEBA_BASE}/per_language/eng/eng_sentence
 const BLINE_TOKEN =
   /^(?<headword>[^([{~]+)(?:\((?<reading>[^)]*)\))?(?:\[(?<sense>\d+)\])?(?:\{[^}]*\})?~?/u;
 
-// The word-level pool sense_position sentinel (mirrors the schema comment): a Tatoeba sentence whose
-// B-line token carried no in-range [NN] sense tag is attached to the word, not a sense.
-const WORD_LEVEL_SENSE = -1;
+// `WORD_LEVEL_SENSE` (the -1 sentinel) is imported from ../src/shared/schema — the build writes it,
+// the host reads it, so the constant lives with the other schema-shape values.
 // Cap stored Tatoeba pool sentences per word, spread across its senses + the word-level bucket.
 const MAX_POOL_SENTENCES_PER_WORD = 20;
 

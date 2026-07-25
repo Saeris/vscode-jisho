@@ -27,6 +27,8 @@ interface WordDetailProps {
   onSearchTerm: (term: string) => void;
   /** Tap a kanji character in the headword to open its detail. */
   onOpenKanji: (literal: string) => void;
+  /** Open the "more examples" page (the fuller Tatoeba pool for this word). */
+  onOpenMoreExamples: (id: string) => void;
 }
 
 export const WordDetail = ({
@@ -34,7 +36,8 @@ export const WordDetail = ({
   onBack,
   onHome,
   onSearchTerm,
-  onOpenKanji
+  onOpenKanji,
+  onOpenMoreExamples
 }: WordDetailProps): React.ReactElement => {
   const { data, isPending, isError, error } = useQuery(wordQuery(id));
 
@@ -53,6 +56,7 @@ export const WordDetail = ({
             word={data}
             onSearchTerm={onSearchTerm}
             onOpenKanji={onOpenKanji}
+            onOpenMoreExamples={() => onOpenMoreExamples(id)}
           />
         )}
       </div>
@@ -111,11 +115,13 @@ const writingsFor = (kana: KanaDto, word: WordDetailDto): KanjiDto[] => {
 const WordBody = ({
   word,
   onSearchTerm,
-  onOpenKanji
+  onOpenKanji,
+  onOpenMoreExamples
 }: {
   word: WordDetailDto;
   onSearchTerm: (term: string) => void;
   onOpenKanji: (literal: string) => void;
+  onOpenMoreExamples: () => void;
 }): React.ReactElement => {
   // `word.kanji`/`word.kana` may be empty (kana-only words have no kanji); guard on length
   // rather than optional-chaining, which the array element type reports as always-present.
@@ -178,6 +184,17 @@ const WordBody = ({
 
       <SenseList word={word} onSearchTerm={onSearchTerm} />
       <MarkLegend word={word} />
+
+      {/* The fuller Tatoeba example pool, on its own page. The per-sense inline examples above stay
+          the curated set; this is "see many more". Shown unconditionally — the pool exists for the
+          vast majority of words, and the page degrades gracefully if this one has none. */}
+      <Button className={styles.moreExamplesLink} onPress={onOpenMoreExamples}>
+        <span aria-hidden="true">📖</span>
+        More examples
+        <span className={styles.chevron} aria-hidden="true">
+          ›
+        </span>
+      </Button>
 
       <Info word={word} headword={headword} />
       <KanjiSection word={word} onOpenKanji={onOpenKanji} />

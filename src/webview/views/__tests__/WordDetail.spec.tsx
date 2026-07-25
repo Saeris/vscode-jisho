@@ -78,6 +78,7 @@ const renderView = (
         onBack={vi.fn<() => void>()}
         onSearchTerm={vi.fn<(term: string) => void>()}
         onOpenKanji={vi.fn<(literal: string) => void>()}
+        onOpenMoreExamples={vi.fn<(id: string) => void>()}
       />
     )
   );
@@ -167,6 +168,7 @@ describe("word detail form marks & sections", () => {
           onBack={vi.fn<() => void>()}
           onSearchTerm={vi.fn<(term: string) => void>()}
           onOpenKanji={onOpenKanji}
+          onOpenMoreExamples={vi.fn<(id: string) => void>()}
         />
       </QueryClientProvider>
     );

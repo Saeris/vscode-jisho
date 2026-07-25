@@ -1,5 +1,6 @@
 import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import { FORM_NOTES } from "../../shared/grammar";
+import { Ruby } from "./Ruby";
 import styles from "./Term.module.css";
 
 /**
@@ -16,29 +17,6 @@ const GLOSSARY: Record<string, string | undefined> = {
   Nanori:
     "Readings used only in names (people and places), often differing from the on/kun readings."
 };
-
-/**
- * An example sentence with real furigana: `{本|ほん} を` renders ほん above 本.
- *
- * The sidebar can do what the editor hover cannot. VS Code strips `style` from hover HTML and pins
- * `<rt>` at 7px, so hovers fall back to a separate reading line — here we own the stylesheet, so the
- * reading sits over its own kanji at a size the CSS below can set.
- */
-const RubyText = ({ markup }: { markup: string }): React.ReactElement => (
-  <>
-    {markup.split(/(\{[^|{}]+\|[^{}]+\})/gu).map((chunk, index) => {
-      const group = /^\{([^|{}]+)\|([^{}]+)\}$/u.exec(chunk);
-      if (!group) return chunk;
-      return (
-        // eslint-disable-next-line react/no-array-index-key -- chunks are positional, not identities
-        <ruby key={index}>
-          {group[1]}
-          <rt>{group[2]}</rt>
-        </ruby>
-      );
-    })}
-  </>
-);
 
 interface TermProps {
   /** The label to display; also the glossary key. */
@@ -64,7 +42,7 @@ export const Term = ({ children }: TermProps): React.ReactElement => {
         <span>{definition}</span>
         {note ? (
           <span className={styles.example}>
-            <RubyText markup={note.example.ja} />
+            <Ruby markup={note.example.ja} />
             {` — ${note.example.en}`}
           </span>
         ) : null}

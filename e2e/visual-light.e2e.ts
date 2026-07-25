@@ -46,6 +46,22 @@ test("capture: word detail in light theme (contrast audit)", async () => {
   );
 });
 
+test("capture: more examples page in light theme (F1)", async () => {
+  const frame = await jishoFrame(app().window);
+  await returnToSearch(frame);
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await frame.getByRole("button", { name: "More examples" }).click();
+  await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
+  await screenshotSidebar(
+    app().window,
+    "test-results/shots/16d-more-examples-light.png"
+  );
+});
+
 test("capture: kanji similar section in light theme (F3)", async () => {
   const frame = await jishoFrame(app().window);
   await returnToSearch(frame);

@@ -45,6 +45,33 @@ export interface SentenceDto {
   en: string;
 }
 
+/** A pooled example (F1 "more examples"): the Japanese with build-time ruby markup, plus English. */
+export interface PoolSentenceDto {
+  /** Japanese with mirrordown ruby (`{漢字|かんじ}`), rendered as furigana on the page. */
+  jaFurigana: string;
+  en: string;
+}
+
+/** One group of pooled examples: sentences attributed to a specific sense (with its gloss header). */
+export interface ExampleGroupDto {
+  /** The sense's first gloss, e.g. "to eat" — the section header. */
+  gloss: string;
+  sentences: PoolSentenceDto[];
+}
+
+/**
+ * The "more examples" page payload (F1): the fuller Tatoeba pool for a word. Sentences the source
+ * tagged to a specific sense are grouped under that sense; the rest are the word-level pool.
+ */
+export interface MoreExamplesDto {
+  /** The word's primary surface, for the page title. */
+  headword: string;
+  /** Per-sense example groups (only senses that have pooled sentences). */
+  senses: ExampleGroupDto[];
+  /** Word-level pool: sentences the source did not attribute to a sense. */
+  wordLevel: PoolSentenceDto[];
+}
+
 /** One sense (meaning group): glosses plus grammatical/usage metadata. */
 export interface SenseDto {
   partOfSpeech: TagDto[];
@@ -251,6 +278,13 @@ export interface GetWordRequest {
   id: string;
 }
 
+/** The fuller Tatoeba example pool for a word (F1 "more examples" page). */
+export interface GetMoreExamplesRequest {
+  type: "getMoreExamples";
+  requestId: string;
+  id: string;
+}
+
 export interface GetKanjiRequest {
   type: "getKanji";
   requestId: string;
@@ -319,6 +353,7 @@ export interface CopyTextRequest {
 export type Request =
   | SearchRequest
   | GetWordRequest
+  | GetMoreExamplesRequest
   | GetKanjiRequest
   | GetStrokeSvgRequest
   | GetComponentTreeRequest
@@ -348,6 +383,13 @@ export interface GetWordResponse {
   requestId: string;
   /** `null` when the id is unknown. */
   word: WordDetailDto | null;
+}
+
+export interface GetMoreExamplesResponse {
+  type: "getMoreExamples";
+  requestId: string;
+  /** `null` when the word has no pooled examples. */
+  examples: MoreExamplesDto | null;
 }
 
 export interface GetKanjiResponse {
@@ -451,6 +493,7 @@ export interface HostSettings {
 export type Response =
   | SearchResponse
   | GetWordResponse
+  | GetMoreExamplesResponse
   | GetKanjiResponse
   | GetStrokeSvgResponse
   | GetComponentTreeResponse

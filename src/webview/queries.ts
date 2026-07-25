@@ -6,6 +6,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type {
   KanjiDetailDto,
   KanjiResultDto,
+  MoreExamplesDto,
   NameDetailDto,
   ComponentTreeDto,
   NameResultDto,
@@ -17,6 +18,7 @@ import type {
 import {
   getAbout,
   getKanji,
+  getMoreExamples,
   getName,
   getComponentTree,
   getStrokeSvg,
@@ -133,6 +135,21 @@ export const wordQuery = (
   queryOptions({
     queryKey: ["word", id],
     queryFn: async () => (await getWord(id)).word
+  });
+
+export const moreExamplesQuery = (
+  id: string
+): ReturnType<
+  typeof queryOptions<
+    MoreExamplesDto | null,
+    Error,
+    MoreExamplesDto | null,
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["moreExamples", id],
+    queryFn: async () => (await getMoreExamples(id)).examples
   });
 
 export const radicalQuery = (

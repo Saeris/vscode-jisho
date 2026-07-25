@@ -1,0 +1,7 @@
+/* Furigana in the sidebar, where we control the stylesheet. The browser default sizes <rt> at 50%,
+   which VS Code's hover is stuck with (7px against a 14px body, unreadable) — here we lift it to
+   something a learner can actually read. */
+.ruby rt {
+  font-size: 0.7em;
+  opacity: 0.9;
+}

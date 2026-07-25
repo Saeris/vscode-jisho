@@ -696,6 +696,12 @@ const respond = async (
         requestId: request.requestId,
         word: await dict.getWord(request.id)
       };
+    case "getMoreExamples":
+      return {
+        type: "getMoreExamples",
+        requestId: request.requestId,
+        examples: await dict.getMoreExamples(request.id)
+      };
     case "getKanji":
       return {
         type: "getKanji",

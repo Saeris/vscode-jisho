@@ -10,6 +10,7 @@ import {
 import { About } from "./views/About";
 import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
+import { MoreExamples } from "./views/MoreExamples";
 import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
 import { ComponentTree } from "./views/ComponentTree";
@@ -64,6 +65,14 @@ export const App = (): React.ReactElement => {
           onHome={onHome}
           onSearchTerm={(term) => send({ type: "searchFor", term })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
+          onOpenMoreExamples={(id) => send({ type: "openMoreExamples", id })}
+        />
+      ) : null}
+      {view.name === "moreExamples" ? (
+        <MoreExamples
+          id={view.id}
+          onBack={() => send({ type: "back" })}
+          onHome={onHome}
         />
       ) : null}
       {view.name === "kanjiDetail" ? (

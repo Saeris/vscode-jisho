@@ -1,0 +1,70 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.empty {
+  color: var(--jisho-muted);
+}
+
+.group {
+  margin-bottom: 16px;
+}
+
+/* Sense gloss / "More examples" header — a quiet section label above each group of sentences. */
+.groupHead {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--jisho-muted);
+  margin: 0 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Kana set larger than the surrounding text so the base has presence and the furigana reads as
+   clearly secondary. */
+.ja {
+  font-size: 1.25em;
+  line-height: 1.9; /* room for the ruby to sit above without crowding the line above */
+}
+
+/* Furigana slightly smaller HERE than the shared 0.7em default: at this larger 1.25em base, 0.55em
+   is still ~9.6px absolute (well above the ~7px unreadable floor the shared default guards against),
+   and a narrower reading is less likely to exceed its kanji's width — which is what forced the
+   awkward inter-character gaps when a wide reading (せいはくまい over 精白米) stretched its ruby box. */
+.ja ruby rt {
+  font-size: 0.55em;
+}
+
+.en {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}

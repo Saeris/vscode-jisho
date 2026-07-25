@@ -304,6 +304,53 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     }
   });
 
+  test("getMoreExamples returns the pool with furigana, grouped (F1)", async () => {
+    // WHY: the "more examples" page reads getMoreExamples, which must (a) return ONLY the Tatoeba
+    // pool (not the inline Tanaka set), (b) carry build-time furigana, and (c) separate sense-tagged
+    // sentences from the word-level bucket. A word with a big pool (食べる) exercises all three.
+    const [top] = await dict.search("食べる");
+    const more = await dict.getMoreExamples(top.id);
+    expect(more).not.toBeNull();
+    expect(more!.headword).toContain("食");
+
+    const all = [
+      ...more!.senses.flatMap((g) => g.sentences),
+      ...more!.wordLevel
+    ];
+    expect(all.length).toBeGreaterThan(0);
+    // Every pool sentence carries ruby markup and an English translation.
+    for (const s of all) {
+      expect(s.jaFurigana).toMatch(/\{.+\|.+\}/); // at least one furigana group
+      expect(s.en.length).toBeGreaterThan(0);
+    }
+    // A sense group, when present, is labelled with its gloss.
+    for (const g of more!.senses) expect(g.gloss.length).toBeGreaterThan(0);
+  });
+
+  test("getMoreExamples excludes the inline Tanaka sentences (F1)", async () => {
+    // WHY: the page is the POOL — the inline per-sense examples already show on the word page, so a
+    // sentence stored as source='tanaka' must never appear here (that's what getWord shows). Compare
+    // against the raw table: no getMoreExamples sentence shares a Tatoeba id with a tanaka row.
+    const [top] = await dict.search("食べる");
+    const more = await dict.getMoreExamples(top.id);
+    const raw = await connect(DB_PATH);
+    try {
+      const tanaka = (await (
+        await raw.prepare(
+          "SELECT ja_furigana FROM sentences WHERE word_id = ? AND source = 'tanaka'"
+        )
+      ).all(top.id)) as { ja_furigana: string }[];
+      const tanakaSet = new Set(tanaka.map((r) => r.ja_furigana));
+      const poolJa = [
+        ...(more?.senses.flatMap((g) => g.sentences) ?? []),
+        ...(more?.wordLevel ?? [])
+      ].map((s) => s.jaFurigana);
+      for (const ja of poolJa) expect(tanakaSet.has(ja)).toBe(false);
+    } finally {
+      await raw.close();
+    }
+  });
+
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
 
   test("resolves a kanji character's Kanjidic data", async () => {

@@ -33,3 +33,10 @@ export const SCHEMA_FROZEN = false;
 
 /** The `meta` table key the build writes and the host reads the schema version from. */
 export const SCHEMA_VERSION_KEY = "schemaVersion";
+
+/**
+ * The `sentences.sense_position` sentinel for a word-level pooled example (F1): a Tatoeba sentence
+ * whose B-line token carried no in-range `[NN]` sense tag is attached to the word, not a sense. The
+ * build writes it and the host reads it, so it lives here with the other schema-shape constants.
+ */
+export const WORD_LEVEL_SENSE = -1;
