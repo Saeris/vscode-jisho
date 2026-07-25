@@ -129,6 +129,32 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(adjective.some((r) => r.headword === "高い")).toBe(true);
   });
 
+  test("pos-validated deinflection rejects grammatically-invalid candidates", async () => {
+    // WHY: the typed-transform rewrite. Old over-generation surfaced 知る for して (a v5 verb whose
+    // te-form is しって, not して) and 汁 (a noun) — both are grammatically-invalid deinflections.
+    // The class-tagged candidates + POS validation reject them, so する (為る) surfaces instead.
+    const shite = await dict.search("して", 10);
+    const suruIndex = shite.findIndex((r) => r.headword === "為る");
+    const shiruIndex = shite.findIndex((r) => r.headword === "知る");
+    expect(suruIndex).toBeGreaterThanOrEqual(0); // する is found
+    // 知る must NOT appear as a deinflection of して (wrong verb class).
+    expect(shiruIndex).toBe(-1);
+  });
+
+  test("resolves サ変 verbs to their base-noun entry (勉強した → 勉強)", async () => {
+    // WHY: a する-verb's JMdict dictionary form is the stem NOUN (勉強, a vs sense) — 勉強する has no
+    // entry. Deinflecting 勉強した must reach 勉強, or the conjugated サ変 form is unsearchable.
+    const results = await dict.search("勉強した");
+    expect(results.some((r) => r.headword === "勉強")).toBe(true);
+  });
+
+  test("resolves kanji-written irregular verbs (来た → 来る)", async () => {
+    // WHY: 来る written with 来 conjugates the same but the kana rules key on きた; without a
+    // kanji-form entry, 来た produces the wrong verb class and is rejected.
+    const results = await dict.search("来た");
+    expect(results.some((r) => r.headword === "来る")).toBe(true);
+  });
+
   test("deinflects romaji input via kana transliteration", async () => {
     // WHY: "hanashimasu" should behave like はなします — romaji users conjugate too.
     const results = await dict.search("hanashimasu");

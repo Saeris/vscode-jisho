@@ -492,6 +492,18 @@ Not blocking v1, but the noise actively degrades the screenshot-review loop, so 
 
 The word-detail page renders a sense's parts-of-speech + usage tags as a long comma-joined line of **verbose descriptions** (`senseLabel` in `WordDetail.tsx` → `t.description`, e.g. それぞれ: _"adverb (fukushi), noun (common) (futsuumeishi), nouns which may take the genitive case particle 'no', word usually written using kana alone"_), while the hover renders the same tags as compact **POS pills** (`<kbd>`, the short `code` like 名詞 — hoverProvider.ts). Bring the page in line with the hover so there's shared visual language for POS across surfaces, and — since the webview owns its stylesheet (unlike the hover, which VS Code restricts) — **differentiate the pills by COLOR, not just label** (ties into the #38 POS palette work: verbs/nouns/particles each get their palette hue). Open question the user flagged: some usage descriptors are long and have no obvious short pill form ("nouns which may take the genitive case particle 'no'", "word usually written using kana alone") — decide per-tag whether to (a) map to a curated short label, (b) keep as a tooltip on an abbreviated pill, or (c) leave the genuinely-long ones as a secondary line below the pills. Best folded into #32 (WordDetail redesign) and #38 (palette), since it touches both; do it as a screenshot-review pass.
 
+## Search relevance & matching (continued)
+
+### 51. Fuzzy / error-tolerant search — typo correction, by input layer (feature — medium)
+
+Distinct from deinflection (spec 12 — that expands _correct_ conjugations) and from the deinflection over-generation "garbage" (fixed by POS-validated typed transforms). This is tolerating a genuinely-_mistyped_ query. Researched 2026-07-25 — the technique depends entirely on the input layer, and mixing them is the trap:
+
+- **Romaji (Latin input) — the highest-value slice.** A learner typing `hanashimasu`/`taberu` can slip (transposition, missed vowel). Standard Levenshtein / Damerau-Levenshtein applies exactly as in English. Use **SymSpell** (Symmetric Delete — precompute delete-neighbourhoods, O(1)-ish lookup, ~10⁶× faster than naive edit-distance) or a BK-tree over the `romaji` search terms. wanakana already normalizes some romaji ambiguity (shi/si, tsu/tu, n/nn) before this layer.
+- **Kana — normalization, NOT raw edit distance.** Raw edit distance is noisy (は vs ば is one dakuten edit but a different word/sound). The Japanese-specific tolerance is _normalization_: fold small⇄large kana (っ/つ), dakuten/handakuten, long-vowel marks (ー / repeated vowel), katakana⇄hiragana. Cheap, high-value, low false-positive — arguably worth doing even before the romaji layer.
+- **Kanji — edit distance is MEANINGLESS; use visual similarity.** 未 vs 末 is "one edit" but a different character. The right tool is the **F3 Yencken visual-similarity data we already ship** (specs/10) — "did you mean 末?" via look-alikes, not string distance. Ties to the #44 orthographic-search idea.
+
+Notable: **Yomitan itself does not do typo correction** (exact + deinflection + wildcard only) — Japanese IME input makes kana/kanji typos rarer (you pick from candidates), which is why romaji is where tolerance pays off most. Sequencing: kana normalization (small) → romaji SymSpell (medium) → lean on F3 for the kanji "did you mean". Design + sign-off before building; measure precision impact against the accuracy eval (#43).
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

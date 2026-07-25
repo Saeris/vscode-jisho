@@ -5,7 +5,12 @@
  */
 import { connect } from "@tursodatabase/database";
 import { isKana, toKana } from "wanakana";
-import { deinflect } from "./deinflect";
+import {
+  candidateMatchesPos,
+  deinflectCandidates,
+  type Candidate,
+  type Condition
+} from "./deinflect";
 import {
   SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
@@ -225,17 +230,27 @@ export class Dictionary {
     // first ("hanashimasu" → はなします) — only when the transliteration is fully kana, so
     // English queries ("study") are never mangled. Candidates score below a literal exact match
     // (130) but above prefix/substring noise, so typing a real word exactly still wins.
-    const candidates = new Set<string>(extraLemmas);
+    // Deinflection candidates, each tagged with the POS conditions the conjugation implies. A term
+    // reached as several classes (れば → any verb) keeps the union. Extra lemmas from the tokenizer
+    // carry no conditions (they're already the right word), so they bypass POS validation.
+    const byTerm = new Map<string, Condition[]>();
+    const addCandidate = (c: Candidate): void => {
+      const existing = byTerm.get(c.term);
+      if (existing) existing.push(...c.conditions);
+      else byTerm.set(c.term, [...c.conditions]);
+    };
+    for (const lemma of extraLemmas)
+      if (!byTerm.has(lemma)) byTerm.set(lemma, []);
     if (isLatin) {
       const kana: string = toKana(needle);
       if (isKana(kana)) {
-        candidates.add(kana);
-        for (const form of deinflect(kana)) candidates.add(form);
+        if (!byTerm.has(kana)) byTerm.set(kana, []);
+        for (const c of deinflectCandidates(kana)) addCandidate(c);
       }
     } else {
-      for (const form of deinflect(needle)) candidates.add(form);
+      for (const c of deinflectCandidates(needle)) addCandidate(c);
     }
-    candidates.delete(needle);
+    byTerm.delete(needle);
 
     interface Ranked {
       score: number;
@@ -251,24 +266,40 @@ export class Dictionary {
         freqRank: row.freq_rank
       });
     }
-    if (candidates.size > 0) {
-      const list = [...candidates];
+    if (byTerm.size > 0) {
+      const list = [...byTerm.keys()];
+      // Fetch matched entries WITH the term that matched and the entry's POS codes, so a deinflection
+      // is only accepted when the entry's part of speech is compatible with the conjugation that
+      // produced it — rejecting して → 汁 (a noun) or きます → any non-verb, while keeping して → する.
       const deinflected = await this.#all<{
         word_id: string;
+        term: string;
         common: number;
         freq_rank: number | null;
+        pos_codes: string | null;
       }>(
-        `SELECT st.word_id AS word_id, MAX(st.is_common) AS common, w.freq_rank AS freq_rank
+        `SELECT st.word_id AS word_id, st.term AS term, MAX(st.is_common) AS common,
+                w.freq_rank AS freq_rank,
+                (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes
            FROM search_terms st
            JOIN words w ON w.id = st.word_id
           WHERE kind IN ('kanji', 'kana')
             AND term IN (${list.map(() => "?").join(", ")})
-          GROUP BY st.word_id
+          GROUP BY st.word_id, st.term
           LIMIT ?`,
         ...list,
-        limit
+        limit * 4
       );
       for (const row of deinflected) {
+        const conditions = byTerm.get(row.term) ?? [];
+        // A tokenizer lemma (no conditions) is already the intended word — accept it. A deinflection
+        // candidate must have a POS-compatible entry, or it's a spurious homophone (しる's 汁).
+        if (conditions.length > 0) {
+          const codes = parseCodes(row.pos_codes);
+          if (!candidateMatchesPos({ term: row.term, conditions }, codes)) {
+            continue;
+          }
+        }
         const score = 90 + (row.common === 1 ? 5 : 0);
         const existing = merged.get(row.word_id);
         if (!existing || existing.score < score) {

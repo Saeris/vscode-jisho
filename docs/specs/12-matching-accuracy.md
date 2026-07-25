@@ -40,9 +40,24 @@ So for a KANA lemma, the entry normally _written_ in kana (`uk`, or no common ka
 - **Hover** (hoverProvider.ts) — for a content word the tokenizer categorized, calls `resolveByLemma(lemma, tokenizerPOS)` instead of `search(lookup, 1)`; falls back to `search` only for `other`/uncategorized runs.
 - **Verified**: `resolveByLemma` unit tests (する→"to do", 勉強→noun, いい→adj, 食べる→exact-kanji, unknown→null) and a live hover E2E (hovering する in 仕事をして… shows "to do", explicitly NOT "to rub"/"death").
 
-## 2. Typed deinflection (pending — §a)
+## 2. Typed deinflection — as built (2026-07-25)
 
-`deinflect()` (src/host/deinflect.ts) is now only the FALLBACK for pure-kana/romaji queries the tokenizer can't segment, but it over-generates with NO POS constraint (`して`→[する,**しる**], `たかくない`→[たかくる,たかくい,たかい]) — the comment even admits "a rule may fire on a word it doesn't grammatically apply to." Rewrite with **Yomitan's typed-transform model**: each rule carries `conditionsIn`/`conditionsOut` over a POS-condition hierarchy (`v`→`v1`/`v5`/…, `isDictionaryForm` flags), and a deinflection chain is valid only if the conditions chain up AND the resulting entry's POS is compatible. This is the okurigana insight formalized — the inflectional ending carries the grammatical narrowing the flat rules discard. Study `yomidevs/yomitan ext/js/language/ja/japanese-transforms.js` (GPL — **study the technique, do not copy the code**) and the `jconj` table-based conjugator. Validate candidates against the entry's stored `senses.pos_json`.
+`deinflect()` was over-generating with NO POS constraint. **Measured** (before): `search("して")` → 仕手 | 知る | 汁 | 擦る | 為る (為る 5th); `search("きます")` → 切る | 着る | 来る (来る 3rd). The garbage buried the intended verb.
+
+Rewritten (src/host/deinflect.ts) on **Yomitan's typed-transform model** (studied, not copied):
+
+- Each rule carries `conditionsIn`/`conditionsOut` — a form's ending rewrites only when the current state matches, chaining through intermediate conditions (`-ます`, `-て`, `-た`, `-ない`, `-ば`) to a dictionary-form condition (`v1`/`v5`/`vk`/`vs`/`vz`/`adj-i`).
+- `deinflectCandidates(query)` returns `{ term, conditions }[]` — each candidate TAGGED with its verb CLASS. `deinflect(query)` keeps the old bare-string contract.
+- **`candidateMatchesPos` validates the specific verb CLASS**, not coarse "is a verb". This is the load-bearing fix: して deinflected as a v1 (ichidan) te-form is rejected against 知る (a v5r godan verb — 知る's te-form is しって, not して), so して resolves to する (vs) alone. Coarse POS would wrongly accept 知る.
+- **サ変**: a する-verb's JMdict dictionary form is the stem NOUN (勉強, a vs sense), not 勉強する — so a vs candidate ending in する also emits the base noun (勉強しました → 勉強).
+- **Kanji-written irregulars** (来た/来て/来ます) get whole-word entries (the kana rules key on きた, and the generic rules would tag 来た as v1, mismatching 来る's vk).
+- `search()` (db.ts) consumes the tagged candidates and only merges a deinflection when the entry's `senses.pos_json` matches the candidate's class. Tokenizer `extraLemmas` bypass validation (already the right word).
+
+**Result** (measured after): `search("して")` → 仕手 | **為る** | … (為る 2nd, 知る/汁/擦る gone); `search("勉強した")` → 勉強; `search("来た")` → 来る. Genuine ambiguity (きます from 来る/着る, both valid verbs) is preserved and frequency-broken, by design.
+
+**Verified**: `deinflect.spec.ts` (class tags, class rejection, サ変 base, kanji irregulars), `db.spec.ts` (して rejects 知る; 勉強した→勉強; 来た→来る), and the `conjugate.spec.ts` round-trip (every UI-displayable conjugation deinflects back — it caught the one gap, the godan さ-causative 話させる→話す).
+
+**Out of scope (noted, not fixed):** when a conjugated form's kana EXACTLY equals a common noun's reading (した = 舌/下 vs past-of-する; して = 仕手), the exact-homophone noun can rank above the deinflected verb. That is genuine ambiguity out of context and a search-_ranking_ question, not a deinflection bug.
 
 ## 3. Evaluation harness (pending)
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deinflect } from "../deinflect";
+import {
+  candidateMatchesPos,
+  deinflect,
+  deinflectCandidates
+} from "../deinflect";
 
 // Each case is a real conjugation a learner would type; the true dictionary form must be among
 // the candidates. Over-generation (extra bogus candidates) is fine — the DB lookup filters it —
@@ -64,5 +68,47 @@ describe("deinflect", () => {
   it("never deinflects the entire word away", () => {
     // WHY: a bare suffix (someone typing just ます) must not produce empty-stem candidates.
     expect(deinflect("ます")).toEqual([]);
+  });
+
+  it("resolves kanji-written irregulars", () => {
+    // WHY: 来た/来ます are written with 来, so the kana rules (keyed on きた) miss them; they need
+    // their own whole-word entries or the wrong verb class is produced.
+    expect(deinflect("来た")).toContain("来る");
+    expect(deinflect("来ます")).toContain("来る");
+    expect(deinflect("来て")).toContain("来る");
+  });
+
+  it("offers the サ変 base noun, since that IS the JMdict dictionary form", () => {
+    // WHY: a する-verb's JMdict entry is the stem NOUN (勉強, a vs sense), not 勉強する — searching
+    // 勉強する finds nothing. The deinflection of 勉強しました must reach 勉強.
+    expect(deinflect("勉強しました")).toContain("勉強");
+    expect(deinflect("勉強して")).toContain("勉強");
+  });
+});
+
+describe("typed deinflection conditions", () => {
+  it("tags candidates with the verb class the conjugation implies", () => {
+    // WHY: the whole point of the rewrite. して is する's te-form (vs) — the candidate for しる must be
+    // tagged v1 so it can be rejected against 知る (a v5 verb). Class, not just "verb".
+    const cands = deinflectCandidates("して");
+    const suru = cands.find((c) => c.term === "する");
+    expect(suru?.conditions).toContain("vs");
+    const shiru = cands.find((c) => c.term === "しる");
+    expect(shiru?.conditions).toContain("v1");
+  });
+
+  it("rejects a candidate whose entry is the wrong verb class", () => {
+    // WHY: して → しる was tagged v1 (ichidan te-form). 知る is v5r (godan) — its te-form is しって,
+    // NOT して — so 知る must be rejected. Coarse 'is a verb' would wrongly accept it.
+    const shiru = deinflectCandidates("して").find((c) => c.term === "しる")!;
+    expect(candidateMatchesPos(shiru, ["v5r", "vt"])).toBe(false); // 知る: rejected
+    expect(candidateMatchesPos(shiru, ["v1"])).toBe(true); // a real ichidan しる: accepted
+  });
+
+  it("accepts a candidate whose entry matches the class, rejects cross-category", () => {
+    // WHY: して → する (vs) must be accepted for 為る (vs-i); a noun homophone (汁) must be rejected.
+    const suru = deinflectCandidates("して").find((c) => c.term === "する")!;
+    expect(candidateMatchesPos(suru, ["vs-i"])).toBe(true); // 為る
+    expect(candidateMatchesPos(suru, ["n"])).toBe(false); // a noun reading する
   });
 });
