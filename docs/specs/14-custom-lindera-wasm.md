@@ -2,6 +2,14 @@
 
 **Backlog:** follows spec 13 §B (slang coverage). **Status:** SPIKE / SCOPING — the build path is investigated (2026-07-26); this lays out what we'd own, the effort, and the sequence, for sign-off before standing up a Rust toolchain in CI.
 
+## TL;DR — the simple way (found 2026-07-26 after a brute-force detour)
+
+**Do NOT use `embed-ipadic`. Build the plain WASM (no dictionary feature) and load the dictionary from BYTES at runtime.** `embed-ipadic` is the *only* reason the whole build-time chain exists — it downloads+compiles IPADIC into the WASM at build time, dragging in `lindera-dictionary → reqwest → rustls → aws-lc-sys`, which on `wasm32` (no pre-generated bindings) wants NASM + CMake + libclang: gigabytes of C/C++ toolchain to compile a *build-time TLS client* that ships in nothing.
+
+Verified: `cargo tree --no-default-features` (i.e. without `embed-ipadic`) → **`reqwest` and `aws-lc-sys` are GONE from the tree entirely.** No crypto, no download, no NASM/CMake/clang. The tokenizer is then constructed at runtime from dictionary bytes via the WASM's `loadDictionaryFromBytes(...)` + `setDictionaryInstance(...)` (the same API the browser OPFS path uses) — we bundle the compiled IPADIC (produced once by the `lindera` CLI / `lindera build`) as a data file and hand it over. This is ALSO the natural home for a custom dictionary (compile IPADIC+slang to bytes once, ship, load).
+
+**What the earlier spike did (below) was over-engineered.** The `ring`-patch route works and is documented for the record, but it solved the wrong problem — it made the build-time download succeed with a light toolchain, when the download shouldn't happen at all. Two even simpler fallbacks if we ever DID need `embed-ipadic`: `AWS_LC_SYS_NO_ASM=1` / `AWS_LC_SYS_PREBUILT_NASM=1` (aws-lc ships prebuilt asm objects + an asm-free fallback — one env var, no NASM), and `LINDERA_DICTIONARIES_PATH` (pre-cached dict, offline/reproducible). The user's instinct that "gigabytes of tooling can't be necessary" was right.
+
 ## Intent (the user's framing)
 
 Not merely "embed a slang dictionary." Own the tokenizer build so we can: (1) bake in a **user dictionary** (slang IPADIC lacks — きもい, うざい — plus any domain words), (2) **drop what we don't use** (Korean/Chinese dictionaries, filters we never call), and (3) move tokenizer-adjacent logic that currently lives in TypeScript (`segment()`'s POS map, サ変-coalescing, suffix folding, and the honorific/reading heuristics) **into Rust**, where it's closer to the lattice and faster. Explicitly acceptable to the user: taking on Rust development and maintenance. Explicitly NOT a full fork — we still consume the upstream `lindera` crates, and we can **drop this layer entirely if Lindera v5 solves user dictionaries upstream**.
