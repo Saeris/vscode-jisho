@@ -53,6 +53,21 @@ Traced (`cargo tree -i aws-lc-sys`): `aws-lc-sys` ← `aws-lc-rs` ← `rustls` �
 
 Recommended spike path: #1 to prove end-to-end (build → drop into our seam → corpus/accuracy oracle green), then consider #2/#3 to trim the toolchain. **The NASM + build-time-download requirement is a CI cost to weigh** — this is the concrete finding the spike was for.
 
+### Update (2026-07-26, continued) — the aws-lc chain wants a FULL native C toolchain
+
+Installing NASM got past the first error; the build then demanded **CMake** ("Missing dependency: cmake"), and after CMake it needs a **C compiler** (none of cl/clang/gcc present on this host) — aws-lc-sys builds a native crypto library via CMake. So route #1's true cost is NASM **+ CMake + a C/C++ compiler (MSVC Build Tools, multi-GB, or clang) + Perl**, all on the build host, purely to compile a build-time TLS client that downloads IPADIC and ships in nothing.
+
+This decisively favors **eliminating aws-lc rather than feeding it**:
+
+- **#2 (force `ring`)** is now clearly the better target, but it's not a simple flag: `lindera-dictionary` hardcodes `reqwest = { features = ["rustls"], default-features = false }`, and reqwest 0.13's bare `rustls` feature selects the aws-lc-rs provider. Forcing `ring` needs a workspace-level rustls provider override or a Cargo `[patch]`/fork of `lindera-dictionary` — fiddly, uncertain, but it collapses the whole native chain (ring needs only NASM + a small C stub).
+- **Best of all: avoid the build-time download entirely.** If `LINDERA_DICTIONARIES_PATH` points at a pre-fetched IPADIC AND we can compile `lindera-ipadic` WITHOUT its `build_rs`/reqwest feature (or patch it off), reqwest/aws-lc never compile. Needs verifying whether `embed-ipadic` can be satisfied from a local dict without the fetch feature.
+
+**No clean feature-flag escape exists from the lindera-wasm side.** Confirmed: `--no-default-features --features=embed-ipadic` still pulls aws-lc-sys, because `embed-ipadic` → `lindera-ipadic` (dep) unconditionally enables `lindera-dictionary`'s `build_rs` feature (via lindera-ipadic's own default/compress path), and that can't be turned off from the top-level build command — it's baked into how `lindera-ipadic` depends on `lindera-dictionary`. Cutting reqwest/aws-lc therefore requires a Cargo `[patch]` or a small fork of `lindera-ipadic`/`lindera-dictionary`, not a flag.
+
+**Checkpoint:** the "install and finish" path has grown from "install NASM" to one of: (a) install a multi-GB C++ build environment (MSVC Build Tools / clang) so aws-lc-sys compiles; (b) Cargo `[patch]`/fork surgery to force `ring` or drop the fetch feature; or (c) a small fork of lindera-ipadic. All are more than the "install NASM" the route was chosen on, and each is a recurring CI burden. The spike has ANSWERED viability (yes, buildable) and MAPPED the cost (a native crypto build chain for a build-time download). Surfaced for a fresh decision rather than installing a full compiler toolchain or forking crates unilaterally.
+
+**Installed during the spike (local only, reversible):** NASM 3.02 and CMake 4.4.0 via scoop. No C compiler was installed. None of this touched the repo or CI.
+
 ## Verification
 
 - The corpus snapshot (`corpus.spec.ts`) and the accuracy gate (`accuracy.spec.ts`) are the regression oracle throughout — a custom build must reproduce today's tokenization before it adds anything, then IMPROVE the slang cases without regressing the rest.
