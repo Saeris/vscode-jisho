@@ -2,13 +2,21 @@
 
 **Backlog:** follows spec 13 §B (slang coverage). **Status:** SPIKE / SCOPING — the build path is investigated (2026-07-26); this lays out what we'd own, the effort, and the sequence, for sign-off before standing up a Rust toolchain in CI.
 
-## TL;DR — the simple way (found 2026-07-26 after a brute-force detour)
+## TL;DR — the clean architecture (settled 2026-07-26, after two detours)
 
-**Do NOT use `embed-ipadic`. Build the plain WASM (no dictionary feature) and load the dictionary from BYTES at runtime.** `embed-ipadic` is the *only* reason the whole build-time chain exists — it downloads+compiles IPADIC into the WASM at build time, dragging in `lindera-dictionary → reqwest → rustls → aws-lc-sys`, which on `wasm32` (no pre-generated bindings) wants NASM + CMake + libclang: gigabytes of C/C++ toolchain to compile a *build-time TLS client* that ships in nothing.
+**Upgrade to lindera-wasm 4.x, build the plain WASM (no `embed-*` feature), and load the dictionary from BYTES at runtime.** Two facts, both verified against the real crates:
 
-Verified: `cargo tree --no-default-features` (i.e. without `embed-ipadic`) → **`reqwest` and `aws-lc-sys` are GONE from the tree entirely.** No crypto, no download, no NASM/CMake/clang. The tokenizer is then constructed at runtime from dictionary bytes via the WASM's `loadDictionaryFromBytes(...)` + `setDictionaryInstance(...)` (the same API the browser OPFS path uses) — we bundle the compiled IPADIC (produced once by the `lindera` CLI / `lindera build`) as a data file and hand it over. This is ALSO the natural home for a custom dictionary (compile IPADIC+slang to bytes once, ship, load).
+1. **`embed-ipadic` is the entire source of the toolchain pain.** It downloads+compiles IPADIC into the WASM at build time, dragging in `lindera-dictionary → reqwest → rustls → aws-lc-sys`, which on `wasm32` (no pre-generated bindings) wants NASM + CMake + libclang — gigabytes of C/C++ toolchain to compile a *build-time TLS client that ships in nothing*. Build WITHOUT any `embed-*` feature and `cargo tree` shows **`reqwest` and `aws-lc-sys` gone entirely** (confirmed on both 2.0.0 and 4.0.1). The plain WASM builds in **~5 s, is ~2 MB** (vs 13.5 MB embedded — the 11 MB delta IS the dictionary), with **zero native toolchain**.
 
-**What the earlier spike did (below) was over-engineered.** The `ring`-patch route works and is documented for the record, but it solved the wrong problem — it made the build-time download succeed with a light toolchain, when the download shouldn't happen at all. Two even simpler fallbacks if we ever DID need `embed-ipadic`: `AWS_LC_SYS_NO_ASM=1` / `AWS_LC_SYS_PREBUILT_NASM=1` (aws-lc ships prebuilt asm objects + an asm-free fallback — one env var, no NASM), and `LINDERA_DICTIONARIES_PATH` (pre-cached dict, offline/reproducible). The user's instinct that "gigabytes of tooling can't be necessary" was right.
+2. **BUT the runtime-bytes loader only exists on lindera-wasm 4.x — NOT the 2.0.0 the npm package pins.** Our `lindera-wasm-nodejs-ipadic@2.0.0` WASM (`src/lib.rs`) exposes only `setDictionary(uri)` (embedded:// or an unreachable path) and `setUserDictionary(path)` — no way to feed a dictionary at runtime. The docs I kept reading (`loadDictionaryFromBytes`, `setDictionaryInstance`, `build_user_dictionary`) describe the **4.x** API. lindera/lindera-wasm are at **4.0.1** (2026-07-18); confirmed 4.0.1's `src/lib.rs` has `load_dictionary_from_bytes`, `load_user_dictionary`, `build_dictionary`, `build_user_dictionary`. **This is what makes the clean path real** — on 4.x we get the tiny dictionary-free WASM AND a supported bytes loader AND first-class user dictionaries.
+
+**The plan:** move to a custom build of lindera-wasm 4.x (no embed) → produce IPADIC (+ our slang) as dictionary bytes once via `build_dictionary`/CLI → bundle the bytes → at runtime `load_dictionary_from_bytes` + build the tokenizer. No embed, no reqwest, no aws-lc, no NASM/CMake/clang, no crate patches. `tokenizer.ts`'s `getTokenizer()` changes from `setDictionary("embedded://ipadic")` to loading our bundled bytes; everything downstream (`segment()`, the tests) is unchanged.
+
+### Two detours, recorded honestly
+
+- **The `ring`-patch route (below) was over-engineered.** It made `embed-ipadic`'s build-time download succeed with a light (NASM-only) toolchain via a two-crate Cargo `[patch]` — but the download shouldn't happen at all. Solved the wrong problem well.
+- **"Just drop `embed-ipadic`" (my first correction) was right in spirit but wrong on version** — on the pinned 2.0.0 there's no bytes API to receive the dictionary, so a plain 2.0.0 WASM can't tokenize anything. The version bump to 4.x is the missing piece.
+- Simpler `embed` fallbacks, if we ever DID embed: `AWS_LC_SYS_NO_ASM=1` / `AWS_LC_SYS_PREBUILT_NASM=1` (prebuilt asm, no NASM), `LINDERA_DICTIONARIES_PATH` (pre-cached, offline). The user's instinct that gigabytes of tooling couldn't be necessary was correct.
 
 ## Intent (the user's framing)
 
