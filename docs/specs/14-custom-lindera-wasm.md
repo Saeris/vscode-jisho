@@ -1,6 +1,54 @@
-# Spec 14 — A custom lindera-wasm build we own
+# Spec 14 — Owning the tokenizer: shared compiled dictionary, two thin bindings
 
-**Backlog:** follows spec 13 §B (slang coverage). **Status:** SPIKE / SCOPING — the build path is investigated (2026-07-26); this lays out what we'd own, the effort, and the sequence, for sign-off before standing up a Rust toolchain in CI.
+**Backlog:** follows spec 13 §B (slang coverage). **Status:** ARCHITECTURE SETTLED (2026-07-26) after a spike + a research pass. The spike explored building a custom WASM (recorded below for the record); research then found a simpler shape that serves BOTH the desktop host and the planned web extension (spec 06). Read this top section; the spike history follows.
+
+## Settled architecture (2026-07-26) — the dictionary is the asset, bindings are front-ends
+
+The realization from researching the current lindera (4.x monorepo) bindings from primary sources: **both official bindings load a SEPARATELY-COMPILED dictionary; they differ only in HOW they take it. So we produce ONE compiled dictionary asset (IPADIC + our slang, built once with a pinned lindera version) and consume it through two thin, PUBLISHED bindings — no custom build.**
+
+| | `lindera-nodejs` (native NAPI) | `lindera-wasm-web` / `-bundler` (WASM) |
+| --- | --- | --- |
+| Target | Desktop extension host (Node) | Planned WEB extension (spec 06) |
+| Platform | 6 prebuilt binaries (`…-win32-x64-msvc`, `…-linux-x64-gnu`, `…-darwin-arm64`, …) — **the same 6-platform matrix we already ship for `@tursodatabase`** | Universal |
+| Dictionary input | **file path** — `loadDictionary("/path/to/ipadic")` | **bytes** — `loadDictionaryFromBytes(...8 arrays...)` + `setDictionaryInstance()` |
+| User dictionary | path-based, works (native fs) | **path-only → sandbox-blocked**; there is NO `loadUserDictionaryFromBytes` |
+| Custom Rust build for us? | **None** (prebuilt npm, `lindera-nodejs@4.0.1`) | **None** — the published dictionary-free `lindera-wasm-web` loads bytes |
+| Rust toolchain for us? | none | none, except the one shared asset build |
+
+**Consequences that make this the plan:**
+
+- **Neither binding needs a custom build.** `lindera-nodejs` is a prebuilt NAPI addon (v4.0.1, with the exact per-platform matrix we already package). `lindera-wasm-web`/`-bundler` ship dictionary-free and load bytes. Both are on npm. The whole "build our own WASM + Rust in CI" concern (spike below) evaporates — we CONSUME published bindings.
+- **Slang goes INTO the main dictionary, not a user dictionary.** The WASM has no user-dict-from-bytes API, and a native-only user-dict wouldn't be shared with web. So we merge our slang CSV rows into the IPADIC source and compile them into the single main-dictionary asset both front-ends load. IPADIC detailed CSV format (13 cols): `surface, left_id, right_id, cost, POS, subcat1-3, conj_form, conj_type, base, reading, pronunciation` — e.g. `きもい,<lid>,<rid>,<cost>,形容詞,自立,*,*,形容詞・イ段,基本形,きもい,キモイ,キモイ`.
+- **The ONE thing we own is producing that compiled dictionary asset** (IPADIC + slang, pinned lindera version, the 8 files `metadata.json/dict.da/dict.vals/dict.wordsidx/dict.words/matrix.mtx/char_def.bin/unk.bin`). This is a `dictionary.yml`-style Linux/CI job — the same "compile a data asset" pattern as the DB build — done once per lindera bump or slang change. Lindera even publishes base IPADIC dictionaries on GitHub Releases, so we may only need to compile the slang delta on top. Version-lock: the asset's lindera version must match both bindings' versions.
+- **Desktop is the v1 target; web (spec 06) reuses the same asset.** `lindera-nodejs` replaces `lindera-wasm-nodejs-ipadic` in `tokenizer.ts` — `loadDictionary(dictPath)` + `new Tokenizer(dict, "normal")`, dict shipped as a bundled data dir (or provisioned like the DB). The tokenizer output is unchanged (corpus/accuracy oracle). When the web extension arrives, it loads the SAME compiled dictionary as bytes via `lindera-wasm-web`.
+
+**Confirmed from primary source (2026-07-26):**
+
+- **`lindera-nodejs` supports user dictionaries by path** (`examples/tokenize_with_userdict.js`): `loadUserDictionary(path, metadata)` → `new Tokenizer(dict, "normal", userDictionary)`. It also accepts `loadDictionary("embedded://ipadic")` — so a desktop-only route could even use an embedded-dict variant and a native user-dict, needing NO separate dictionary asset at all.
+- **Lindera publishes the compiled base dictionary** as a GitHub Release asset: `lindera-ipadic-4.0.1.zip` (also `-neologd`, `-unidic`, `-ko-dic`, `-cc-cedict`). So we NEVER compile base IPADIC — we consume their pinned archive. Only the slang delta is ours.
+
+**So for the DESKTOP v1 target, the simplest correct path needs zero custom builds and zero base-dict compilation:** `lindera-nodejs` + a slang **user-dictionary** (native `loadUserDictionary`, works by path) + Lindera's released dictionary (or an embedded-ipadic nodejs variant if one exists). The slang-in-MAIN-dict merge is only needed for the WEB path (WASM's user-dict-from-bytes gap) — deferred with spec 06.
+
+**Open questions for sign-off:**
+
+1. **Desktop binding: `lindera-nodejs` (native, recommended) vs a WASM package.** Native = user-dicts-by-path + smaller/faster addon; per-platform binaries (already our model via `@tursodatabase`). Recommendation: **`lindera-nodejs`**.
+2. **Desktop dictionary provisioning:** an `embedded://ipadic` nodejs variant (simplest — ships in the addon, no separate asset) vs loading Lindera's released archive by path (explicit, shared with web later). Check whether a `lindera-nodejs`-ipadic-embedded variant exists.
+3. **Slang delivery on desktop:** native user-dictionary (a CSV compiled to a small user-dict, loaded by path) — no main-dict touch. The web path later merges slang into the main dict; that divergence is acceptable and spec-06-scoped.
+
+## Two-audience split (the onboarding-critical finding, 2026-07-26)
+
+The spike surfaced the decision that shapes contribution ergonomics: **the toolchain cost lives ONLY in producing the dictionary bytes, not in the runtime WASM, and dictionary bytes are version-locked to the lindera core that compiled them.**
+
+- **Runtime WASM build** — plain (no `embed-*`), toolchain-free: ~2–2.6 MB, builds in seconds, NO reqwest/aws-lc/NASM/CMake/clang (verified on 2.0.0 and 4.0.1). Needs only Rust + wasm-pack.
+- **Dictionary-byte generation** — compiling IPADIC (+ our slang) to the 8 files `load_dictionary_from_bytes` wants. This is where the cost is: it either downloads IPADIC over TLS (reqwest→aws-lc) or compiles a dict, and on **Windows** aws-lc needs the full C toolchain (`AWS_LC_SYS_NO_ASM=1` got past NASM but then CMake failed for lack of a C compiler — the escape hatch is Linux-only). On **Linux/CI** a C toolchain is standard, so this is a non-issue there.
+- **Version lock** — 2.x-compiled dictionary bytes fail to load into the 4.x runtime (`InvalidAutomatonError: invalid serialized automaton`). The byte generator and the runtime WASM MUST be the same lindera version.
+
+**Therefore: dictionary-byte generation is a Linux/CI asset job (like the existing `dictionary.yml` DB build), NOT a per-contributor step.** This gives a clean two-audience contribution story:
+
+1. **A contributor editing TypeScript** consumes the committed/released WASM + dictionary bytes. They need NO Rust and NO C toolchain — same as today.
+2. **Whoever regenerates the tokenizer** (rarely — a lindera bump or a slang-list change) runs the asset build, ideally in CI on Linux, or locally with Rust + wasm-pack (+ a C toolchain only if generating bytes on Windows).
+
+Document both in the README contribution guide; do NOT make every contributor install Rust.
 
 ## TL;DR — the clean architecture (settled 2026-07-26, after two detours)
 
@@ -43,12 +91,16 @@ Decide #1 vs #2 when we see how extensible the upstream crate is. Either way we 
 - **Per-platform packaging:** the tokenizer WASM is platform-INDEPENDENT (unlike the `@tursodatabase` native binary), so the per-platform VSIX matrix (spec 05 C) is unaffected — one WASM for all targets.
 - **Risk:** a build we own can drift from upstream; mitigated by pinning `lindera` and keeping our delta minimal. Bundle size should DROP (ipadic-only, no CJK) or hold; measure.
 
-## Recommended sequence (each a checkpoint)
+## Productionization sequence (informed by the spike — each a checkpoint)
 
-1. **Spike the build locally** — clone `lindera-wasm`, `wasm-pack build --features=embed-ipadic`, drop the artifact into our `node_modules`/seam, confirm `segment()` still tokenizes identically (the corpus snapshot test + accuracy gate are the oracle). Proves the toolchain before any CI or feature work. **No merge until this is green.**
-2. **Embed a user dictionary** — add きもい/うざい/etc. (curated, each with a corpus regression), rebuild, confirm they tokenize as one segment. This delivers spec 13 §B properly.
-3. **Wire the CI build** — the Rust/wasm-pack step, cached; the built package as a workspace artifact. Gate the release on it.
-4. **(Later, optional) migrate TS logic into Rust** — move `segment()`'s POS map / coalescing / folding into the wrapper, so the JS side gets clean segments. Only after 1–3 are stable; each move validated against the existing tokenizer tests. This is where "move it out of TypeScript" pays off, but it's the least urgent step.
+Spike DONE (below): plain 4.0.1 WASM builds toolchain-free; `load_dictionary_from_bytes` is the runtime API; the 8-file dict format + version-lock are confirmed. Remaining is productionizing on the two-audience split.
+
+1. **Vendor the tokenizer package in-repo.** A `vendor/lindera-wasm/` (or `crates/`) holding the plain 4.0.1 WASM build output (`.wasm`/`.js`/`.d.ts`) as a committed, versioned local package the extension imports instead of `lindera-wasm-nodejs-ipadic`. Update `tokenizer.ts`, `vite.config` `neverBundle`, and `.vscodeignore` to point at it. The build recipe (a `crates/lindera-wasm-jisho` or a `scripts/build-tokenizer.*`) is `wasm-pack build --release --target=nodejs` with NO `embed-*` feature + `wasm-opt = false`.
+2. **Generate the dictionary bytes as a release asset (Linux/CI).** A `dictionary.yml`-style job that compiles IPADIC (+ our slang user-dict, step 4) to the 8 files with lindera **4.x**, then publishes them (release asset or committed if small enough — ~11 MB). This is the only step that needs the C toolchain, and it lives on Linux where that's free. Version-lock: pin the lindera version used here to the runtime WASM's.
+3. **Switch `getTokenizer()` to load-from-bytes.** Read the 8 bundled dict files → `load_dictionary_from_bytes(...)` → `new Tokenizer(dict, "normal", userDict?)`. The corpus snapshot + accuracy gate are the oracle: tokenization must stay identical. Ship the dict bytes alongside the WASM (bundled data files, unbundled like the WASM today).
+4. **Build the slang user dictionary (spec 13 §B).** A curated CSV (きもい/うざい/…, `surface,pos,reading`) compiled via `build_user_dictionary` and loaded as the `Tokenizer`'s `user_dictionary`. Each entry gets a corpus regression proving it tokenizes as one segment.
+5. **README contribution guide + CI.** Document the two-audience split (TS contributor needs nothing new; tokenizer regeneration needs Rust + wasm-pack, C toolchain only on Windows). Wire the asset build + release gate. Provide the exact toolchain install steps per OS.
+6. **(Later, optional) migrate TS logic into Rust** — move `segment()`'s POS map / coalescing / folding into the wrapper. Only after 1–5 are stable; validated against the tokenizer tests. Least urgent.
 
 ## Spike findings (2026-07-26 — build attempted locally)
 
@@ -97,7 +149,14 @@ Result: `wasm-pack build --release --target=nodejs -- --features=embed-ipadic` *
 
 **Behavior verified identical (checkpoint 2):** overlaid the custom `.wasm`/`.js`/`.d.ts` onto `node_modules/lindera-wasm-nodejs-ipadic` and ran the oracle — `corpus.spec` snapshots, `tokenizer.spec` invariants, the accuracy gate, and the FULL suite (308 passed / 2 skipped) all green, unchanged. The custom build is a drop-in. Original package restored after.
 
-**What this means for productionizing.** The build needs only: Rust + wasm-pack + `wasm32-unknown-unknown` + NASM (all cheap in CI via `ilammy/setup-nasm`), plus a build-time IPADIC download (or `LINDERA_DICTIONARIES_PATH` for offline/reproducible CI). The two vendored crate patches are tiny (a handful of TOML/one-line-Rust changes) — carry them as an in-repo patch dir with a `[patch.crates-io]`, tracking upstream `lindera` so we can drop them if v5 obsoletes the need. This is a light, maintainable footprint — far from the "multi-GB C++ toolchain" the earlier checkpoint feared. **Viability: confirmed. Remaining work is productionizing (in-repo crate + CI), then embedding the user dictionary (spec 13 §B).**
+**Behavior verified identical (checkpoint 2):** overlaid the custom `.wasm`/`.js`/`.d.ts` onto `node_modules/lindera-wasm-nodejs-ipadic` and ran the oracle — `corpus.spec` snapshots, `tokenizer.spec` invariants, the accuracy gate, and the FULL suite (308 passed / 2 skipped) all green, unchanged. (This was the 2.0.0 + ring-patch embed build; superseded by the 4.x plain-build plan, but it proved the drop-in seam and the oracle.)
+
+### Runtime-bytes validation (2026-07-26 — the 4.x path)
+
+- **`load_dictionary_from_bytes` takes the 8 files a compiled lindera dict dir contains** — confirmed by locating the compiled IPADIC dir from an embed build: `metadata.json`, `dict.da`, `dict.vals`, `dict.wordsidx`, `dict.words`, `matrix.mtx`, `char_def.bin`, `unk.bin` (~11 MB total = the dictionary that was baked into the 13 MB embedded WASM). `new Tokenizer(dict, "normal", userDictionary?)` builds from that `Dictionary`.
+- **Version-lock confirmed the hard way:** loading the 2.x-compiled files into the 4.0.1 plain WASM throws `LinderaError(kind=Deserialize, InvalidAutomatonError: invalid serialized automaton)`. So the byte generator and the runtime WASM MUST be the same lindera version. Not re-run with 4.x-compiled bytes on this Windows host because generating them needs the C toolchain (aws-lc/CMake) — that's the Linux/CI asset job, deferred to productionization step 2. The API, format, and coupling are established; the final byte round-trip is a CI formality.
+
+**What this means for productionizing.** Runtime WASM = Rust + wasm-pack only (toolchain-free, ~5 s). Dictionary-byte generation = a Linux/CI asset job with the C toolchain (free there), pinned to the runtime lindera version. No crate patches on the 4.x plain path (the ring patch was a 2.x-embed workaround, now unnecessary). **Viability: confirmed. Remaining work is the productionization sequence above, done on the two-audience split so ordinary TS contributors need no Rust.**
 
 ## Verification
 
