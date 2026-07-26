@@ -68,6 +68,21 @@ This decisively favors **eliminating aws-lc rather than feeding it**:
 
 **Installed during the spike (local only, reversible):** NASM 3.02 and CMake 4.4.0 via scoop. No C compiler was installed. None of this touched the repo or CI.
 
+### RESOLVED (2026-07-26) — the `ring` patch route WORKS; build succeeds with NASM only
+
+Route #2 (force `ring`) succeeded end-to-end. The recipe, verified:
+
+1. **Vendor-patch `lindera-dictionary`** (its `[dependencies.reqwest]`): change `features = ["rustls"]` → `features = ["rustls-no-provider", "charset", "http2"]`, add an optional `rustls = { version = "0.23", features = ["ring"], default-features = false }`, and extend `build_rs = ["dep:reqwest", "dep:rustls"]`. This drops the aws-lc-rs provider (`cargo tree -i aws-lc-sys` → **GONE**; `ring` appears instead).
+2. **Vendor-patch `lindera-ipadic`**: add a `rustls` (ring) build-dependency and, at the top of `build.rs`'s `main()`, `let _ = rustls::crypto::ring::default_provider().install_default();` — because `rustls-no-provider` installs none by default, and the fetch panics `"No provider set"` without it.
+3. **`[patch.crates-io]`** in the top crate points both at the vendored copies.
+4. **`[package.metadata.wasm-pack.profile.release] wasm-opt = false`** — the emitted WASM uses multiple tables (reference-types), which the pinned wasm-opt rejects (`"Only 1 table definition allowed in MVP"`). The functional WASM is emitted BEFORE wasm-opt; disabling it (or enabling the feature in wasm-opt) is a size nicety, not a blocker.
+
+Result: `wasm-pack build --release --target=nodejs -- --features=embed-ipadic` **succeeds with NASM as the ONLY native prerequisite** — no CMake, no C compiler, no aws-lc. (`ring` itself compiles with NASM + prebuilt objects.) Output is the same 3-file package (`.wasm` 13.5 MB, `.js`, `.d.ts`), same `TokenizerBuilder` API.
+
+**Behavior verified identical (checkpoint 2):** overlaid the custom `.wasm`/`.js`/`.d.ts` onto `node_modules/lindera-wasm-nodejs-ipadic` and ran the oracle — `corpus.spec` snapshots, `tokenizer.spec` invariants, the accuracy gate, and the FULL suite (308 passed / 2 skipped) all green, unchanged. The custom build is a drop-in. Original package restored after.
+
+**What this means for productionizing.** The build needs only: Rust + wasm-pack + `wasm32-unknown-unknown` + NASM (all cheap in CI via `ilammy/setup-nasm`), plus a build-time IPADIC download (or `LINDERA_DICTIONARIES_PATH` for offline/reproducible CI). The two vendored crate patches are tiny (a handful of TOML/one-line-Rust changes) — carry them as an in-repo patch dir with a `[patch.crates-io]`, tracking upstream `lindera` so we can drop them if v5 obsoletes the need. This is a light, maintainable footprint — far from the "multi-GB C++ toolchain" the earlier checkpoint feared. **Viability: confirmed. Remaining work is productionizing (in-repo crate + CI), then embedding the user dictionary (spec 13 §B).**
+
 ## Verification
 
 - The corpus snapshot (`corpus.spec.ts`) and the accuracy gate (`accuracy.spec.ts`) are the regression oracle throughout — a custom build must reproduce today's tokenization before it adds anything, then IMPROVE the slang cases without regressing the rest.
