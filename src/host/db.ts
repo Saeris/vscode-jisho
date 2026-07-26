@@ -348,7 +348,9 @@ export class Dictionary {
    *   3. POS-compatible senses (verb entry for a verb lemma — rejects the noun 死 for する's stem),
    *   4. for a KANA lemma, entries normally written in kana (`uk`, or no common kanji form) — this is
    *      what floats 為る above 擦る, since freq_rank is backwards for usually-kana words,
-   *   5. then frequency, then common.
+   *   5. sense breadth (a many-sensed entry is the everyday word — 成る "become" over 生る "bear
+   *      fruit"), ABOVE frequency because freq_rank scores the kanji character, not the word,
+   *   6. then frequency, then common.
    * Returns null when nothing matches the lemma at all (the caller falls back to `search`).
    */
   async resolveByLemma(
@@ -371,6 +373,7 @@ export class Dictionary {
       reading_match: number;
       pos_codes: string | null;
       uk: number | null;
+      sense_count: number;
       // NULL for a kana-only word (no kanji rows to MAX over).
       has_common_kanji: number | null;
       freq_rank: number | null;
@@ -383,6 +386,7 @@ export class Dictionary {
               (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
               (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
                  FROM senses WHERE word_id = w.id) AS uk,
+              (SELECT COUNT(*) FROM senses WHERE word_id = w.id) AS sense_count,
               (SELECT MAX(is_common) FROM kanji WHERE word_id = w.id) AS has_common_kanji,
               w.freq_rank AS freq_rank,
               w.is_common AS common
@@ -414,6 +418,12 @@ export class Dictionary {
           (posOk ? 400 : 0) +
           (kanaPrimary ? 200 : 0) +
           (r.common === 1 ? 20 : 0) +
+          // Sense breadth as a "workhorse word" tiebreaker, ABOVE frequency: when two entries share a
+          // reading and everything above is level (成る "become", 11 senses, vs 生る "bear fruit", 1),
+          // freq_rank picks the wrong one — it scores the KANJI CHARACTER's newspaper frequency (生 is
+          // ubiquitous), not the word's. A many-sensed entry is the everyday word. Capped so it breaks
+          // ties without ever outweighing an identity tier.
+          Math.min(r.sense_count, 12) * 8 +
           // Frequency: lower freq_rank is better; fold in a small bounded bonus. NULL = no bonus.
           (r.freq_rank !== null ? Math.max(0, 60 - r.freq_rank) : 0)
       };

@@ -83,9 +83,17 @@ A **thorough-but-not-exhaustive** accuracy gate, so reading everyday Japanese ha
 
 A second round of live-hover screenshots (post reading-fix) showed the RESOLUTION was now right but the HEADING was confusing: `uk` (usually-kana) words displayed their archaic kanji — 此処 for ここ, 一寸 for ちょっと, 有難う for ありがとう, 為る for する. The entry was correct; the written form shown was not the one anyone uses.
 
-Fix in `#searchResult` (db.ts), so it corrects BOTH the hover heading and search-result headings at the source: show the KANA as headword when the word is `uk` **and** its primary kanji writing is not `is_common`. The compound condition matters — `uk` alone is too blunt: 美味しい / 犬 / 来る / 置く are all tagged `uk` yet routinely written in their (common) kanji, so gating on an *uncommon* kanji writing keeps their kanji heading while flipping only the genuinely-archaic ones. When the kana is the heading, the separate reading line is dropped (the kana reads itself; `rubyHeading` already collapses reading==headword).
+Fix in `#searchResult` (db.ts), so it corrects BOTH the hover heading and search-result headings at the source: show the KANA as headword when the word is `uk` **and** its primary kanji writing is not `is_common`. The compound condition matters — `uk` alone is too blunt: 美味しい / 犬 / 来る / 置く are all tagged `uk` yet routinely written in their (common) kanji, so gating on an _uncommon_ kanji writing keeps their kanji heading while flipping only the genuinely-archaic ones. When the kana is the heading, the separate reading line is dropped (the kana reads itself; `rubyHeading` already collapses reading==headword).
 
 The same screenshots also confirmed the reading-fix (§3) landed: うん in `うん、いいよ` now resolves to the interjection うん ("yeah"), not 運 ("luck") — the noun 運 no longer wins on frequency once the kana-only interjection matches the reading. Locked as a named regression in the corpus (`うん、いいよ`), plus casual gold for the `uk` headings (ここ, ちょっと, ありがとう, する).
+
+## 5. Sense-breadth tiebreaker — as built (2026-07-26)
+
+A broader corpus sweep (casual/slang, contractions, homophone-prone kango) found one more resolution false-positive class that neither reading, kanji, POS, nor `uk` separates: **two entries sharing a kana reading, where `freq_rank` picks the wrong one.** なる resolved to 生る ("bear fruit", 1 sense, freq_rank 7) over 成る ("become", 11 senses, freq_rank 34) — because `freq_rank` scores the KANJI CHARACTER's newspaper frequency (生 is ubiquitous: 生きる, 学生, 生まれる…), NOT the word's. Both are `uk`, both v5r, both read なる, both `ichi1`/`news` priority — so every tier above frequency was level and freq_rank led astray.
+
+Priority tags don't help (生る is even `news1` to 成る's `news2`). The robust discriminator is **sense breadth**: JMdict lexicographers pile senses onto the workhorse word (成る 11, する/為る 17, 来る 5) and leave the niche homophone single-sense (生る 1). `resolveByLemma` now adds a capped sense-count tier (`min(sense_count, 12) * 8`) ABOVE frequency — the same "many-sensed = everyday word" reasoning `search()` already uses for gloss breadth, applied at entry level. Verified all prior wins hold (する/本/元/ここ/来る/勉強 unchanged); locked as a named regression (`彼は医者になりたい`) and a `db.spec` case (なる→成る "become").
+
+**Still open (noted, not fixed — tokenizer-layer, out of `resolveByLemma`'s reach):** slang shattered by the dictionary (きもい → き/い虫), contractions (そっか → そっ), honorific-prefixed lemmas (お送り), and a wrong-lemma pick (雨が降り**そう** read as 降りる "descend" not 降る "fall"). These are IPADIC/segmentation gaps, tracked for a future tokenizer pass, not resolution bugs.
 
 ## Verification
 

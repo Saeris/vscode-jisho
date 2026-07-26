@@ -243,6 +243,16 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     ).resolves.toBeNull();
   });
 
+  test("resolveByLemma breaks a kana-homophone tie by sense breadth, not frequency", async () => {
+    // WHY: the accuracy sweep caught this. なる resolves to two v5r entries sharing the reading:
+    // 成る ("become", 11 senses) and 生る ("bear fruit", 1 sense). freq_rank picked 生る — because it
+    // scores the KANJI 生's newspaper frequency (生 is everywhere: 生きる, 学生…), not the word's. The
+    // everyday word is the many-sensed one, so sense breadth must outrank frequency here.
+    const naru = await dict.resolveByLemma("なる", "verb", "ナル");
+    expect(naru?.headword).toBe("成る");
+    expect(naru?.glossPreview).toMatch(/become/);
+  });
+
   test("shows the kana headword for a usually-kana (uk) word", async () => {
     // WHY: reported from live hovers. ここ/ちょっと/ありがとう are `uk` — their canonical WRITTEN form is
     // the kana, and the kanji (此処/一寸/有難う) is archaic. Heading a hover with 此処 for ここ is

@@ -252,6 +252,21 @@ const casual: GoldCase[] = [
         note: "negative-request 言わないで of 言う (v5u)."
       }
     ]
+  },
+  {
+    sentence: "彼は医者になりたい。",
+    register: "casual",
+    gloss: "He wants to become a doctor.",
+    regression:
+      "なる is 成る 'become', not the rare homophone 生る 'bear fruit'",
+    words: [
+      { surface: "医者", expect: "医者", note: "kango 'doctor'." },
+      {
+        surface: "なりたい",
+        expect: "成る",
+        note: "desiderative of なる 'become' (成る) — NOT 生る 'bear fruit', which shares the reading なる and wins on freq_rank (7 vs 34) because that scores the kanji 生, not the word. Sense breadth (成る 11 senses vs 生る 1) is the correct discriminator."
+      }
+    ]
   }
 ];
 
