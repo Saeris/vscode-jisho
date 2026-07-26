@@ -358,6 +358,27 @@ export class Dictionary {
     pos: PartOfSpeech,
     reading?: string
   ): Promise<SearchResultDto | null> {
+    const direct = await this.#resolveExact(lemma, pos, reading);
+    if (direct !== null) return direct;
+    // Honorific fallback: IPADIC glues お/ご into a noun's base (お送り, ご連絡, お問い合わせ), which has
+    // no entry, so the direct resolution above returns null. Retry once with the prefix stripped —
+    // 送り→送る. This is null-ONLY, so it can't regress a working case, and it's inherently safe
+    // against LEXICALIZED honorifics (お茶/ご飯/お願い): those ARE entries, so they resolved directly
+    // and never reach here. The reading, if any, loses its お/ご too (オオクリ → クリ... actually the
+    // tokenizer's reading is for the prefixed surface, so drop it and let the stripped lemma resolve
+    // on writing + POS alone).
+    const stripped = stripHonorific(lemma);
+    if (stripped !== null) {
+      return this.#resolveExact(stripped, pos, undefined);
+    }
+    return null;
+  }
+
+  async #resolveExact(
+    lemma: string,
+    pos: PartOfSpeech,
+    reading?: string
+  ): Promise<SearchResultDto | null> {
     if (lemma === "") return null;
     const hasKanji = /[㐀-鿿豈-﫿]/u.test(lemma);
     // Tokenizer readings are katakana (ホン); DB kana is hiragana (ほん). Empty when the tokenizer
@@ -1053,6 +1074,20 @@ const parseCodes = (concatenated: string | null): string[] => {
   const codes = new Set<string>();
   for (const m of concatenated.matchAll(/"([^"]+)"/gu)) codes.add(m[1]);
   return [...codes];
+};
+
+/**
+ * Strip a leading honorific お/ご from a lemma, or null when there's nothing safe to strip. The
+ * caller only uses this AFTER a direct resolution failed, so a lexicalized honorific (お茶, ご飯 —
+ * which ARE entries) never reaches here. Guard against over-stripping: require at least two
+ * characters of remainder, so お (alone) or a one-mora leftover isn't produced.
+ */
+const stripHonorific = (lemma: string): string | null => {
+  if (!/^[おご]/u.test(lemma)) return null;
+  const rest = lemma.slice(1);
+  // Length in UTF-16 units is fine: お/ご and their bases are all BMP (no surrogate pairs), and this
+  // only guards against a trivially-short remainder (お alone, or a one-mora leftover).
+  return rest.length >= 2 ? rest : null;
 };
 
 /** Parse a JSON-encoded number array from a DB column, tolerating malformed data. */

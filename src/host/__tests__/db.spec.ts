@@ -243,6 +243,21 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     ).resolves.toBeNull();
   });
 
+  test("resolveByLemma strips a glued honorific お/ご to reach the base noun", async () => {
+    // WHY: IPADIC glues お/ご into a kango noun's lemma (お電話, ご案内), which has no entry, so direct
+    // resolution returns null. A null-only fallback retries with the prefix stripped — お電話→電話.
+    // Null-only means it can't regress a working case, and lexicalized honorifics (お茶/お名前 — which
+    // ARE entries) resolve directly and never reach the fallback, so they keep their own heading.
+    expect((await dict.resolveByLemma("お電話", "noun"))?.headword).toBe(
+      "電話"
+    );
+    expect((await dict.resolveByLemma("ご案内", "noun"))?.headword).toBe(
+      "案内"
+    );
+    // Lexicalized: お茶 IS its own entry, so it stays お茶 (the fallback never fires).
+    expect((await dict.resolveByLemma("お茶", "noun"))?.headword).toBe("お茶");
+  });
+
   test("resolveByLemma breaks a kana-homophone tie by sense breadth, not frequency", async () => {
     // WHY: the accuracy sweep caught this. なる resolves to two v5r entries sharing the reading:
     // 成る ("become", 11 senses) and 生る ("bear fruit", 1 sense). freq_rank picked 生る — because it

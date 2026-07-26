@@ -298,7 +298,7 @@ const formal: GoldCase[] = [
         surface: "送り",
         expect: "送る",
         optional: true,
-        note: "humble お送りする built on 送る (v5r). Optional: the tokenizer keeps the honorific お in the lemma (お送り), so it doesn't resolve to 送る — a known honorific-prefix gap at the TOKENIZER layer, not a resolveByLemma bug (送る IS in the DB)."
+        note: "humble お送りする built on 送る (v5r). Optional: the honorific fallback (spec 13 §A) strips お from a kango NOUN (お電話→電話) but お送り is お + a verb REN'YŌKEI (送り), and its base 送る needs deinflection, not just stripping — stripping lands on the noun 送り. A documented verb-stem-humble limitation, deferred."
       }
     ]
   },
