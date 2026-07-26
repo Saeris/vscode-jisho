@@ -36,9 +36,11 @@ The lexicalized cases (お茶/ご飯) keep their honorific correctly because the
 
 `きもい虫` → IPADIC has no きもい entry, so the lattice shatters it into garbage (き=来る + も + い=いる + 虫). やばい tokenizes (it's now common enough to be in IPADIC) but many slang adjectives don't. The word is gone before `segment()` sees a coherent token — post-processing can't reassemble it.
 
-**The only real fix is a custom user dictionary** fed to Lindera (`TokenizerBuilder` supports a user dict alongside the embedded one). Populate it with a curated list of high-frequency colloquial words IPADIC lacks (きもい, うざい, ちゃんと-ish forms, contractions) as their correct POS + reading + lemma. Bounded effort: the build wires a user-dict file, and the list is hand-curated (tens of entries, not thousands). Risk: a user-dict entry can mis-fire on unintended inputs, so each entry needs a test in the corpus.
+**The obvious fix — a Lindera user dictionary — is BLOCKED in this WASM build (probed 2026-07-26).** `TokenizerBuilder.setUserDictionary(uri)` exists in the type surface, but every URI form fails to load in the `lindera-wasm-nodejs-ipadic` package: an absolute host path, a `file://` URL, and a bare relative path all throw `LinderaError(kind=Io, "Failed to open user dictionary CSV file")`. The WASM's IO layer that would read the file isn't wired up — it resolves only `embedded://` dictionaries, and there is no bytes/in-memory registration API. So a runtime-loaded custom dictionary is not possible without changing or rebuilding the WASM package. Recorded here so this isn't re-attempted.
 
-**Open question for sign-off:** is slang coverage worth a user-dict mechanism for v1, or is it acceptable that pure-slang input (きもい) degrades? Everyday casual speech leans on it, but it's a longer tail than A.
+**The viable alternative — a post-tokenizer re-stitch overlay in `segment()`.** Since we can't teach the lattice, correct its output: keep a small hardcoded map of slang surfaces IPADIC shatters (きもい, うざい, …) → their POS/lemma/reading, and in `segment()` scan the ORIGINAL input for those surfaces; where one spans tokens IPADIC broke apart (き|も|い), replace that token run with a single synthetic segment. Pure application code, no WASM dependency, fully testable, and it can only ever fire on an exact hardcoded surface match (bounded blast radius). Downsides vs a real user dict: it only covers the curated list (no lattice-level generalization), and re-stitching by character offset against the token stream is fiddly (must align byteStart/byteEnd, handle partial overlaps). Effort is comparable to the user-dict route but the mechanism is more limited.
+
+**Open question for sign-off (the user-dict route being dead):** is the post-tokenizer re-stitch overlay worth it for v1 — accepting that it's a hardcoded curated list, not general slang coverage — or do we accept that pure-slang input (きもい) degrades and defer this? A is the high-value honorific win; B is a longer tail either way.
 
 ### C. Lattice mislemma — `雨が降りそう` → 降りる not 降る (NOT cheaply fixable — likely out of scope)
 
@@ -49,7 +51,7 @@ Fixing it means real context disambiguation (雨/雪 + 降り → 降る) — a 
 ## Recommended sequence
 
 1. **A (honorific fallback)** — do first. Small, safe (null-only fallback), high value, no tokenizer change. Widen `lindera.d.ts` is not even needed (it's a `resolveByLemma` DB fallback). Gold + db.spec cases: お送り→送る, ご連絡→連絡, and the lexicalized keepers (お茶 stays お茶).
-2. **B (user dictionary)** — only if sign-off says slang matters for v1. Bigger surface (build wiring + curated list + per-entry tests). Widens `lindera.d.ts` if the entries need conjugation fields.
+2. **B (slang coverage)** — the Lindera user-dict route is BLOCKED (WASM can't load a user dict; see §B). The remaining option is the post-tokenizer re-stitch overlay (hardcoded curated slang map). Pending sign-off on whether the limited overlay is worth v1, since the general route is unavailable.
 3. **C (lattice mislemma)** — defer/out of scope; record as a known limitation in spec 12 §5.
 
 ## Verification
