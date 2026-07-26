@@ -34,6 +34,25 @@ Decide #1 vs #2 when we see how extensible the upstream crate is. Either way we 
 3. **Wire the CI build** — the Rust/wasm-pack step, cached; the built package as a workspace artifact. Gate the release on it.
 4. **(Later, optional) migrate TS logic into Rust** — move `segment()`'s POS map / coalescing / folding into the wrapper, so the JS side gets clean segments. Only after 1–3 are stable; each move validated against the existing tokenizer tests. This is where "move it out of TypeScript" pays off, but it's the least urgent step.
 
+## Spike findings (2026-07-26 — build attempted locally)
+
+The toolchain is present (Rust 1.93, cargo, wasm-pack 0.9.1, `wasm32-unknown-unknown`). `git clone lindera/lindera-wasm` (2.0.0), then `wasm-pack build --release --target=nodejs -- --features=embed-ipadic`. Result: **build FAILS with one specific, diagnostic error** —
+
+```
+aws-lc-sys ... panicked: NASM command not found or failed to execute
+Error: Compiling your crate to WebAssembly failed (cargo exited 101)
+```
+
+Traced (`cargo tree -i aws-lc-sys`): `aws-lc-sys` ← `aws-lc-rs` ← `rustls` ← `reqwest` ← **`lindera-dictionary` (BUILD-dependency of `lindera-ipadic`)**. The `embed-ipadic` feature turns on `lindera-dictionary`'s `build_rs` feature (`build_rs = ["dep:reqwest"]`), which uses `reqwest` **at build time to DOWNLOAD the IPADIC source**. reqwest selects the `__rustls-aws-lc-rs` TLS backend, and `aws-lc-sys` compiles x86 asm that needs **NASM**. None of this ends up in the WASM — it's purely the build-time dictionary fetch.
+
+**So the build is VIABLE but has a real prerequisite the off-the-shelf story hides: a NASM assembler (and a build-time network fetch of IPADIC).** Three ways forward, in order of cleanliness:
+
+1. **Install NASM** (scoop/choco locally, `ilammy/setup-nasm` in CI) — smallest change, unblocks immediately, but adds NASM + a build-time download to the toolchain. Verify the produced WASM works before optimizing.
+2. **Force reqwest's `ring` TLS backend** instead of aws-lc-rs — drops the NASM requirement, but needs overriding how `lindera-dictionary` declares reqwest (a patch/fork of the dep graph, or a Cargo `[patch]`). More work, cleaner result.
+3. **`LINDERA_DICTIONARIES_PATH`** — point the build at a pre-downloaded IPADIC dir to skip the *download*; but `reqwest` is still COMPILED (feature is on), so aws-lc/NASM is still required unless combined with #2. Useful for reproducible/offline CI, not a standalone fix.
+
+Recommended spike path: #1 to prove end-to-end (build → drop into our seam → corpus/accuracy oracle green), then consider #2/#3 to trim the toolchain. **The NASM + build-time-download requirement is a CI cost to weigh** — this is the concrete finding the spike was for.
+
 ## Verification
 
 - The corpus snapshot (`corpus.spec.ts`) and the accuracy gate (`accuracy.spec.ts`) are the regression oracle throughout — a custom build must reproduce today's tokenization before it adds anything, then IMPROVE the slang cases without regressing the rest.
