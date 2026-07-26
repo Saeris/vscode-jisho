@@ -44,6 +44,17 @@ Spiked `lindera-nodejs@4.0.1` in isolation before committing (per "spike first")
 - **`lindera-nodejs` is not permanently ruled out** — the missing `index.js` is reconstructable boilerplate (it `require`s the correct `@lindera-nodejs-<platform>/*.node`), so we COULD vendor a tiny loader shim. But depending on a broken-on-npm package + owning napi glue is real risk/maintenance, and an upstream issue should be filed/fixed first.
 - **Recommended desktop path, revised:** either (a) file the upstream `lindera-nodejs` publish bug and wait for a fixed release, or (b) if desktop-native is wanted NOW, vendor the ~30-line napi loader shim against the working platform `.node`. Otherwise the **proven custom-WASM-on-desktop** route stays viable (one artifact, shared with web), at the cost of the slang-in-main-dict merge. Decide with the user.
 
+### Upstream diagnosis (2026-07-26) — root cause + PR opportunity
+
+Investigated the upstream state per the user's steer (existing bug? PR-able? v5 status?):
+
+- **No existing issue** for the missing `index.js` (searched `lindera/lindera` — only #808 mentions nodejs, unrelated). We would be first to report it.
+- **Root cause pinned in `.github/workflows/release.yml`:** the `publish-nodejs-npm` job downloads the `.node` binaries, runs `napi create-npm-dirs` (which creates only the PLATFORM sub-package dirs) + `napi artifacts`, then `npm publish`. **It never generates the main package's `index.js` / `index.d.ts`** — those come from `napi build` (run in the separate `build-lindera-nodejs` job, which uploads only `*.node` and discards the JS), and `index.js` is gitignored so it's never in the checkout. So the root package publishes without its entry point. This is precisely the "CI/Release workflow issue" suspected — a well-scoped, PR-able fix: regenerate/emit `index.js`+`index.d.ts` in the publish job before `npm publish` (e.g. `napi build --release --dts` or committing the generated glue).
+- **v5 is imminent and restructures the build:** issue **#763 "Release v5.0.0" is OPEN**; #754/#758 (v5.0 "lean segmenter core", "pure segmenter the default build") are CLOSED (done). A PR against the v4 `release.yml` risks being obsoleted by v5's release rework — check whether v5 already fixes the nodejs publish before investing in a PR, and consider filing the ISSUE regardless (cheap, helps them, unblocks a future fixed release).
+- **The wasm npm packages are a related symptom:** `lindera-wasm-nodejs-ipadic@2.0.0` (what we consume) is stale because the CURRENT packages are `lindera-wasm-web`/`-bundler` (v4) — the `-nodejs-*` line was dropped/renamed, not updated. Same theme: npm-publishing lags the crate.
+
+**Decision taken (2026-07-26):** vendor a napi loader shim for `lindera-nodejs` NOW (desktop), file the upstream issue (+ assess a release.yml PR against v4/v5), and keep the custom-WASM path for the web extension (spec 06).
+
 ## Two-audience split (the onboarding-critical finding, 2026-07-26)
 
 The spike surfaced the decision that shapes contribution ergonomics: **the toolchain cost lives ONLY in producing the dictionary bytes, not in the runtime WASM, and dictionary bytes are version-locked to the lindera core that compiled them.**
