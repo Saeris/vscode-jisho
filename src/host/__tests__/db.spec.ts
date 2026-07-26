@@ -134,7 +134,8 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // te-form is しって, not して) and 汁 (a noun) — both are grammatically-invalid deinflections.
     // The class-tagged candidates + POS validation reject them, so する (為る) surfaces instead.
     const shite = await dict.search("して", 10);
-    const suruIndex = shite.findIndex((r) => r.headword === "為る");
+    // する's entry (為る) now heads with the kana する — it's `uk` with an uncommon kanji writing.
+    const suruIndex = shite.findIndex((r) => r.headword === "する");
     const shiruIndex = shite.findIndex((r) => r.headword === "知る");
     expect(suruIndex).toBeGreaterThanOrEqual(0); // する is found
     // 知る must NOT appear as a deinflection of して (wrong verb class).
@@ -240,6 +241,22 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await expect(
       dict.resolveByLemma("ぬてぬてぬて", "noun")
     ).resolves.toBeNull();
+  });
+
+  test("shows the kana headword for a usually-kana (uk) word", async () => {
+    // WHY: reported from live hovers. ここ/ちょっと/ありがとう are `uk` — their canonical WRITTEN form is
+    // the kana, and the kanji (此処/一寸/有難う) is archaic. Heading a hover with 此処 for ここ is
+    // needlessly confusing. A `uk` entry must show the kana as its headword, with no redundant reading
+    // line (the kana reads itself); a NON-uk word keeps its kanji heading + reading.
+    const koko = await dict.resolveByLemma("ここ", "noun", "ココ");
+    expect(koko?.headword).toBe("ここ");
+    expect(koko?.reading).toBe(""); // kana heading needs no separate reading
+    const chotto = await dict.resolveByLemma("ちょっと", "adverb", "チョット");
+    expect(chotto?.headword).toBe("ちょっと");
+    // Control: a non-uk word still leads with kanji and carries its reading.
+    const taberu = await dict.resolveByLemma("食べる", "verb", "タベル");
+    expect(taberu?.headword).toBe("食べる");
+    expect(taberu?.reading).toBe("たべる");
   });
 
   test("hydrates full detail with resolved POS tag descriptions", async () => {

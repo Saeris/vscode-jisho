@@ -506,8 +506,8 @@ export class Dictionary {
     id: string,
     common: boolean
   ): Promise<SearchResultDto | null> {
-    const kanji = await this.#get<{ text: string }>(
-      "SELECT text FROM kanji WHERE word_id = ? ORDER BY position LIMIT 1",
+    const kanji = await this.#get<{ text: string; is_common: number }>(
+      "SELECT text, is_common FROM kanji WHERE word_id = ? ORDER BY position LIMIT 1",
       id
     );
     const kana = await this.#get<{ text: string }>(
@@ -522,18 +522,28 @@ export class Dictionary {
         LIMIT 1`,
       id
     );
-    const word = await this.#get<{ jlpt: number | null }>(
-      "SELECT jlpt FROM words WHERE id = ?",
+    const word = await this.#get<{ jlpt: number | null; uk: number | null }>(
+      `SELECT w.jlpt AS jlpt,
+              (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
+                 FROM senses WHERE word_id = w.id) AS uk
+         FROM words w WHERE w.id = ?`,
       id
     );
 
     const reading = kana?.text ?? "";
-    const headword = kanji?.text ?? reading;
+    // Show the kana as the heading when the word is `uk` (usually-kana) AND its kanji writing is NOT
+    // common — 此処/一寸/有難う/為る are archaic-kanji, so ここ/ちょっと/ありがとう/する read cleaner. But
+    // `uk` alone is too blunt: 美味しい/犬/来る/置く are `uk` yet routinely written in (common) kanji, so
+    // gating on an uncommon kanji writing keeps their kanji heading. Non-uk words always lead kanji.
+    const kanaCanonical =
+      word?.uk === 1 && (kanji?.is_common ?? 0) === 0 && reading !== "";
+    const headword = kanaCanonical ? reading : (kanji?.text ?? reading);
     if (headword === "") return null;
     return {
       id,
       headword,
-      reading: kanji ? reading : "", // no separate reading line for kana-only words
+      // A separate reading line only when the heading is kanji; kana headings already read themselves.
+      reading: headword === reading ? "" : reading,
       common,
       glossPreview: gloss?.text ?? "",
       jlpt: word?.jlpt ?? null

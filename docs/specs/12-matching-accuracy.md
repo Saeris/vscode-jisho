@@ -79,6 +79,14 @@ A **thorough-but-not-exhaustive** accuracy gate, so reading everyday Japanese ha
 
 **Growing it**: the corpus is deliberately compact and curated, not exhaustive; add sentences (Aozora Bunko formal prose, more casual/slang) and RAISE the floors as coverage grows. Never lower them.
 
+## 4. Usually-kana headword display — as built (2026-07-25)
+
+A second round of live-hover screenshots (post reading-fix) showed the RESOLUTION was now right but the HEADING was confusing: `uk` (usually-kana) words displayed their archaic kanji — 此処 for ここ, 一寸 for ちょっと, 有難う for ありがとう, 為る for する. The entry was correct; the written form shown was not the one anyone uses.
+
+Fix in `#searchResult` (db.ts), so it corrects BOTH the hover heading and search-result headings at the source: show the KANA as headword when the word is `uk` **and** its primary kanji writing is not `is_common`. The compound condition matters — `uk` alone is too blunt: 美味しい / 犬 / 来る / 置く are all tagged `uk` yet routinely written in their (common) kanji, so gating on an *uncommon* kanji writing keeps their kanji heading while flipping only the genuinely-archaic ones. When the kana is the heading, the separate reading line is dropped (the kana reads itself; `rubyHeading` already collapses reading==headword).
+
+The same screenshots also confirmed the reading-fix (§3) landed: うん in `うん、いいよ` now resolves to the interjection うん ("yeah"), not 運 ("luck") — the noun 運 no longer wins on frequency once the kana-only interjection matches the reading. Locked as a named regression in the corpus (`うん、いいよ`), plus casual gold for the `uk` headings (ここ, ちょっと, ありがとう, する).
+
 ## Verification
 
 - Unit: `pos.spec.ts` (POS compatibility); `db.spec.ts` `resolveByLemma` cases incl. the reading-disambiguation regression (本→本, not 元).

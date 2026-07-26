@@ -68,9 +68,62 @@ const casual: GoldCase[] = [
     gloss: "Wait a sec.",
     words: [
       {
+        surface: "ちょっと",
+        expect: "ちょっと",
+        note: "adverb 'a little/wait' — `uk`, so the heading must be the kana ちょっと, NOT the archaic kanji 一寸."
+      },
+      {
         surface: "待って",
         expect: "待つ",
         note: "te-form of 待つ (v5t) — the pause imperative."
+      }
+    ]
+  },
+  {
+    sentence: "うん、いいよ。",
+    register: "casual",
+    gloss: "Yeah, that's fine.",
+    regression: "conversational うん is 'yeah' (interjection), not 運 'luck'",
+    words: [
+      {
+        surface: "うん",
+        expect: "うん",
+        note: "aizuchi/agreement 'yeah' — the kana-only INTERJECTION entry, NOT the noun 運 'luck' (which reads うん but means fortune). The reading tier floats the kana entry over 運."
+      },
+      {
+        surface: "いい",
+        expect: "いい",
+        note: "adjective いい 'good/fine/alright' — NOT the 良いね interjection or a kanji homophone."
+      }
+    ]
+  },
+  {
+    sentence: "ここに本棚を置きたい。",
+    register: "casual",
+    gloss: "I want to put a bookshelf here.",
+    words: [
+      {
+        surface: "ここ",
+        expect: "ここ",
+        note: "pronoun 'here' — `uk`, so the heading is the kana ここ, NOT the archaic kanji 此処."
+      },
+      { surface: "本棚", expect: "本棚", note: "'bookshelf' (ほんだな)." },
+      {
+        surface: "置きたい",
+        expect: "置く",
+        note: "desiderative 置きたい of 置く (v5k)."
+      }
+    ]
+  },
+  {
+    sentence: "手伝ってくれてありがとう。",
+    register: "casual",
+    gloss: "Thanks for helping.",
+    words: [
+      {
+        surface: "ありがとう",
+        expect: "ありがとう",
+        note: "interjection 'thank you' — `uk`, so the heading is the kana ありがとう, NOT the archaic kanji 有難う."
       }
     ]
   },
@@ -83,9 +136,8 @@ const casual: GoldCase[] = [
       { surface: "宿題", expect: "宿題", note: "kango 'homework'." },
       {
         surface: "してる",
-        expect: "為る",
-        reading: "する",
-        note: "colloquial している→してる, する's progressive. Must resolve to 為る (uk), NOT 擦る/死/知る. (何してる folds into one 何する segment in the tokenizer, so this uses 宿題をしてる to isolate してる as its own word.)"
+        expect: "する",
+        note: "colloquial している→してる, する's progressive. Resolves to the 為る entry (する 'to do'), NOT 擦る/死/知る — and its heading shows the kana する, since 為る is `uk` with an uncommon kanji. (何してる folds into one 何する segment in the tokenizer, so this uses 宿題をしてる to isolate してる.)"
       }
     ]
   },
