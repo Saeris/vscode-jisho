@@ -128,6 +128,10 @@ playwright-report/
 /assets/jisho-full.db.zst.sha256
 /assets/jisho-full.db.zst.version
 /assets/jisho-names.db.zst
+
+# Compiled IPADIC tokenizer dictionary — provisioned by `vp run build:tokenizer-dict`
+# (downloads the pinned lindera release), bundled into the .vsix, not committed. See docs/specs/14.
+/assets/lindera-ipadic/
 /assets/jisho-names.db.zst.sha256
 /assets/jisho-names.db.zst.version
 

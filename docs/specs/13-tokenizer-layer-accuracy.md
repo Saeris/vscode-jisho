@@ -39,7 +39,7 @@ The lexicalized cases (お茶/ご飯) keep their honorific correctly because the
 **Lindera supports user dictionaries — the OFF-THE-SHELF WASM package doesn't expose them usably (probed 2026-07-26, then confirmed against the docs).** `lindera-wasm-nodejs-ipadic`'s `setUserDictionary(uri)` throws `LinderaError(kind=Io, "Failed to open user dictionary CSV file")` for every URI form (absolute path, `file://`, relative). Per the Lindera WASM docs (`lindera-wasm/dictionary_management.html`, `.../opfs.html`), this is a PACKAGING choice, not a Lindera limitation:
 
 - The WASM's `loadUserDictionary(path, metadata)` reads from the WASM's own IO layer, which the `nodejs` package wires for its OPFS/browser story, not arbitrary host paths — hence the failure.
-- The MAIN dictionary already has an in-memory path: `loadDictionaryFromBytes(metadata, dictDa, dictVals, …)` takes the 8 component `Uint8Array`s directly (this is what OPFS uses). There is no documented *user*-dictionary equivalent taking bytes — `loadUserDictionary` is path-only.
+- The MAIN dictionary already has an in-memory path: `loadDictionaryFromBytes(metadata, dictDa, dictVals, …)` takes the 8 component `Uint8Array`s directly (this is what OPFS uses). There is no documented _user_-dictionary equivalent taking bytes — `loadUserDictionary` is path-only.
 - OPFS itself is **browser-only** (Chrome 86+/FF 111+/Safari 15.2+, secure context) — irrelevant to our Node extension host.
 
 So three real routes exist, in increasing cost. The earlier note ("impossible, do not re-attempt") was WRONG — corrected here:

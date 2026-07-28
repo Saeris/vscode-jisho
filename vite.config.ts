@@ -105,7 +105,12 @@ export default defineConfig({
     // otherwise assert lives in the sibling *.browser.spec.tsx.
     ignorePatterns: ["src/**/*.preview.browser.spec.tsx"]
   }),
-  fmt,
+  fmt: {
+    ...fmt,
+    // The compiled IPADIC tokenizer dictionary is a vendored build artifact (incl. metadata.json);
+    // it must not be reformatted. See docs/specs/14.
+    ignorePatterns: [...(fmt.ignorePatterns ?? []), "assets/lindera-ipadic/**"]
+  },
   // ── Webview app build (Vite / Rolldown, via `vp build`) ──────────────
   // The React sidebar UI runs in a webview (a browser context), so it is a
   // Vite *application* build — separate from the extension-host bundle below.
@@ -135,12 +140,14 @@ export default defineConfig({
       // `vscode` is provided by the host at runtime — never bundle it.
       // `@tursodatabase/database` loads a platform-specific native .node addon via
       // its own resolver; it must stay unbundled and ship in node_modules.
-      // `lindera-wasm-nodejs-ipadic` reads its .wasm from its own __dirname at runtime,
-      // so it likewise must stay unbundled.
+      // `lindera-nodejs` (via our vendor shim) loads a platform-specific .node addon
+      // by package name at runtime, so the shim and the `lindera-nodejs-*` platform
+      // packages must stay unbundled in node_modules.
       neverBundle: [
         "vscode",
         /^@tursodatabase\//,
-        "lindera-wasm-nodejs-ipadic"
+        /lindera-nodejs/,
+        /vendor\/lindera-nodejs/
       ],
       alwaysBundle: []
     }

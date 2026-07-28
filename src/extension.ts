@@ -25,7 +25,12 @@ import {
   timed
 } from "./host/log";
 import { addSpacing, removeSpacing } from "./host/spacing";
-import { contentSegmentCount, segment, warmTokenizer } from "./host/tokenizer";
+import {
+  configureTokenizer,
+  contentSegmentCount,
+  segment,
+  warmTokenizer
+} from "./host/tokenizer";
 import type {
   CopyTextRequest,
   GetStrokeSvgRequest,
@@ -424,6 +429,16 @@ class JishoViewProvider
   #warmTokenizerOnce(): void {
     if (this.#warmedTokenizer) return;
     this.#warmedTokenizer = true;
+    // Point the tokenizer at the compiled IPADIC dictionary bundled in the .vsix (loaded by path —
+    // the dictionary is not embedded in the native addon). Set before warming so the first build
+    // resolves it.
+    configureTokenizer(
+      vscode.Uri.joinPath(
+        this.#context.extensionUri,
+        "assets",
+        "lindera-ipadic"
+      ).fsPath
+    );
     // A short delay so the build lands after the webview's own bundle has loaded and rendered,
     // rather than competing with it for the same thread.
     const timer = setTimeout(

@@ -1,16 +1,23 @@
 /**
- * Japanese morphological analysis via Lindera (Vibrato/MeCab-quality, compiled to WASM). Wraps the
- * `lindera-wasm-nodejs-ipadic` package — which embeds the IPADIC dictionary and loads its WASM when
- * imported — behind a small typed service. Lazy-initialized via a dynamic `import()`: the WASM and
- * the ~200ms builder cost are paid on the first Japanese query, never at activation.
+ * Japanese morphological analysis via Lindera (Vibrato/MeCab-quality). Wraps the `lindera-nodejs`
+ * NAPI binding (through the `vendor/lindera-nodejs` loader shim — the published package is broken,
+ * see docs/specs/14) behind a small typed service. Lazy-initialized via a dynamic `import()`: the
+ * native addon load + IPADIC dictionary read (~200ms) are paid on the first Japanese query, never
+ * at activation.
  *
  * We own this integration layer (POS normalization, サ変-compound coalescing, the Segment DTO); the
- * lattice algorithm itself is Lindera's. The `.wasm` is read from the package dir at runtime, so
- * lindera ships unbundled in node_modules (see vite.config `pack.deps` + `.vscodeignore`). Its
- * token shape is declared in `lindera.d.ts`.
+ * lattice algorithm itself is Lindera's. The IPADIC dictionary is NOT embedded (unlike the old WASM
+ * package) — it's a compiled directory shipped in `assets/lindera-ipadic/` and loaded by path, so
+ * `configureTokenizer(dictPath)` must run once (from activation) before the first `segment()`.
+ * A `lindera-nodejs` token's fields are getters and its IPADIC features are a positional `details`
+ * array (see `lindera.d.ts`), not the flat fields the old WASM binding exposed.
  */
-import type { Tokenizer } from "lindera-wasm-nodejs-ipadic";
+import { join } from "node:path";
+import type { Tokenizer as LinderaTokenizer } from "../../vendor/lindera-nodejs/index.mjs";
 import type { PartOfSpeech, SegmentDto } from "../shared/messages";
+
+/** A built tokenizer instance (the class is a value; this is its instance type). */
+type Tokenizer = InstanceType<typeof LinderaTokenizer>;
 
 /** Map IPADIC's Japanese part-of-speech tags to the small enum the UI colors. */
 const POS_MAP: Record<string, PartOfSpeech> = {
@@ -31,18 +38,30 @@ const POS_MAP: Record<string, PartOfSpeech> = {
 const toPartOfSpeech = (tag: string): PartOfSpeech => POS_MAP[tag] ?? "other";
 
 let cached: Promise<Tokenizer> | undefined;
+let dictPath: string | undefined;
 
 /**
- * Build the tokenizer once and reuse. Loaded via dynamic `import()` (not a top-level import) so
- * the WASM + ~188MB IPADIC dictionary are resident only once a Japanese query needs them.
+ * Point the tokenizer at the compiled IPADIC dictionary directory (bundled in `assets/lindera-ipadic`).
+ * Must be called once from activation before the first `segment()`/`warmTokenizer()`. Idempotent
+ * until the tokenizer is built — the path is only read on first construction.
+ */
+export const configureTokenizer = (compiledDictDir: string): void => {
+  dictPath = compiledDictDir;
+};
+
+/**
+ * Build the tokenizer once and reuse. Loaded via dynamic `import()` (not a top-level import) so the
+ * native addon + IPADIC dictionary are resident only once a Japanese query needs them. Reads the
+ * dictionary from the path set by `configureTokenizer`; falls back to the repo `assets/` copy so
+ * unit tests (which never call `configureTokenizer`) resolve the dev dictionary.
  */
 const getTokenizer = async (): Promise<Tokenizer> => {
   cached ??= (async (): Promise<Tokenizer> => {
-    const { TokenizerBuilder } = await import("lindera-wasm-nodejs-ipadic");
-    const builder = new TokenizerBuilder();
-    builder.setDictionary("embedded://ipadic");
-    builder.setMode("normal");
-    return builder.build();
+    const lindera = await import("../../vendor/lindera-nodejs/index.mjs");
+    // Dev/test fallback: the repo-local compiled dictionary (produced/vendored under assets/).
+    const dir = dictPath ?? join(process.cwd(), "assets", "lindera-ipadic");
+    const dictionary = lindera.loadDictionary(dir);
+    return new lindera.Tokenizer(dictionary, "normal");
   })();
   return cached;
 };
@@ -94,16 +113,32 @@ export interface DetailedSegment extends SegmentDto {
   parts: MorphemeDto[];
 }
 
+// IPADIC feature layout in a `lindera-nodejs` token's `details` array. `*` marks an absent value.
+const IPADIC_POS = 0;
+const IPADIC_SUBCATEGORY1 = 1;
+const IPADIC_BASE_FORM = 6;
+const IPADIC_READING = 7;
+
+/** A details entry, or "" when the field is absent ("*") or the index isn't present. `.at()` is
+    used deliberately so an out-of-bounds index is typed (and handled) as `undefined`. */
+const feature = (details: readonly string[], index: number): string => {
+  const value = details.at(index);
+  return value === undefined || value === "*" ? "" : value;
+};
+
 export const segment = async (text: string): Promise<DetailedSegment[]> => {
   const tokenizer = await getTokenizer();
   const tokens = tokenizer.tokenize(text);
   const segments: DetailedSegment[] = [];
   for (const token of tokens) {
-    const pos = toPartOfSpeech(token.partOfSpeech);
+    const { details, surface } = token;
+    const pos = toPartOfSpeech(feature(details, IPADIC_POS));
+    const baseForm = feature(details, IPADIC_BASE_FORM);
+    const subcategory1 = feature(details, IPADIC_SUBCATEGORY1);
     const morpheme: MorphemeDto = {
-      surface: token.surface,
-      lemma: token.baseForm === "*" ? token.surface : token.baseForm,
-      reading: token.reading === "*" ? "" : token.reading,
+      surface,
+      lemma: baseForm === "" ? surface : baseForm,
+      reading: feature(details, IPADIC_READING),
       pos
     };
     // Explicit length guard so `prev` is genuinely defined-or-undefined (index access is
@@ -114,24 +149,24 @@ export const segment = async (text: string): Promise<DetailedSegment[]> => {
     // segment, so a "segment" is a searchable unit (勉強する, not 勉強 + し + ます).
     const isSuffix =
       pos === "auxiliary" ||
-      token.baseForm === "する" ||
-      token.partOfSpeechSubcategory1 === "接尾" ||
-      token.partOfSpeechSubcategory1 === "非自立";
+      baseForm === "する" ||
+      subcategory1 === "接尾" ||
+      subcategory1 === "非自立";
     if (isSuffix && prev && prev.pos !== "particle") {
-      prev.surface += token.surface;
+      prev.surface += surface;
       // The reading has to grow with the surface: furigana alignment reads the WHOLE segment
       // (見せました needs ミセマシタ, not the head's ミセ), and a short reading would make every
       // conjugated verb fail to align.
       prev.reading += morpheme.reading;
       prev.parts.push(morpheme);
       // Promote noun + する → verb (サ変); otherwise keep the content word's lemma/pos.
-      if (prev.pos === "noun" && token.baseForm === "する") prev.pos = "verb";
+      if (prev.pos === "noun" && baseForm === "する") prev.pos = "verb";
       continue;
     }
     segments.push({
-      surface: token.surface,
+      surface,
       lemma: morpheme.lemma,
-      reading: token.reading === "*" ? "" : token.reading,
+      reading: morpheme.reading,
       pos,
       parts: [morpheme]
     });

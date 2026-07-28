@@ -28,9 +28,14 @@ assets/**
 # the host per request, and keeping them out of the DB decouples stroke fixes from dictionary
 # releases. See docs/STROKE-ORDER.md.
 !assets/kanji-svgs/**
+# …and the compiled IPADIC tokenizer dictionary IS bundled (loaded by path at runtime; ~55 MB,
+# compresses small in the .vsix zip). See docs/specs/14.
+!assets/lindera-ipadic/**
 
 # Exclude node_modules by default, but the neverBundle'd runtime packages must ship in the
-# .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .wasm).
+# .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .node).
 node_modules/**
 !node_modules/@tursodatabase/**
-!node_modules/lindera-wasm-nodejs-ipadic/**
+# The lindera-nodejs loader shim lives in vendor/, but the platform .node packages it resolves
+# must ship (only the current platform's is present after per-target packaging).
+!node_modules/lindera-nodejs-*/**
