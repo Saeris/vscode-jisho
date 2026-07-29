@@ -37,6 +37,15 @@ This is a feature-tier decision, not a compromise: it also fixes the "first run 
 
 ## Architecture
 
+> **Measured 2026-07-29 — the seam is much smaller than "Node-shaped throughout" implies.** Across all
+> of `src/host` and `src/shared`, exactly **two files import `node:`**: `download.ts` (6 imports) and
+> `tokenizer.ts` (2). Four import `vscode`, one import each (`dictionaryUpdate`, `ensureDatabase`,
+> `hoverProvider`, `log`). **`db.ts` and `names.ts` import neither** — the whole query layer is
+> already platform-free, as are `hover.ts`, `spacing.ts`, `furigana.ts`, `deinflect.ts` and all of
+> `shared/`. So the seam is ~8 imports in 2 files plus the engine import, not a layer-wide port. The
+> discipline that kept `node:` out of the query layer is holding, so this is not getting more
+> expensive with time — which is the argument for NOT extracting it speculatively before M8.
+
 The host layer is Node-shaped throughout, so the work is **extracting a platform seam**, not rewriting features.
 
 - `package.json` gains `"browser": "./dist/extension.web.js"` alongside `"main"`. VS Code picks per environment.
