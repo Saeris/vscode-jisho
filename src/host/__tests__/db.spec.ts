@@ -20,6 +20,27 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await dict?.close();
   });
 
+  test("resolves a lemma by index rather than scanning", async () => {
+    // WHY: this is the editor hover's lookup, so it runs on cursor movement — and it regressed to a
+    // flat 283ms because it filtered `kanji.text`/`kana.text`, neither of which is indexed, and so
+    // scanned a whole join product. Nothing caught it: a scan looks identical to a lookup except in
+    // wall time, and 283ms reads as "the dictionary is just slow".
+    //
+    // The threshold is deliberately enormous (~250x the measured 0.2ms) so it cannot flake on a
+    // loaded CI runner. It is not a micro-benchmark; it only asserts that this path is still
+    // index-shaped, which is the difference between sub-millisecond and hundreds of milliseconds.
+    const start = performance.now();
+    for (const [lemma, reading] of [
+      ["する", "スル"],
+      ["食べる", "タベル"],
+      ["本", "ホン"]
+    ] as const) {
+      await dict.resolveByLemma(lemma, "verb", reading);
+    }
+    const perCall = (performance.now() - start) / 3;
+    expect(perCall).toBeLessThan(50);
+  });
+
   test("ranks an exact Japanese match first", async () => {
     // WHY: users typing a full word expect it at the top, not buried under compounds that merely
     // contain it. This guards the exact > prefix > substring ranking in `search`.
