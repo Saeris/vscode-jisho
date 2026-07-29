@@ -1,6 +1,6 @@
 # Spec 15 — Re-deriving the schema from the queries we actually run
 
-**Backlog:** #27 (tag search), #35 (gojūon order), #51 (fuzzy search), #26 (BCCWJ), spec 04 (radical position). **Status:** SCOPING — measured against the real DB (2026-07-29), approach agreed with the user. No code yet beyond the three changes already landed in `31749af`.
+**Backlog:** #27 (tag search), #35 (gojūon order), #51 (fuzzy search), #26 (BCCWJ), spec 04 (radical position). **Status:** IMPLEMENTED except the `frequency_overrides` seam, which is deliberately design-only. Schema is at version 5; DB 101MB → 97MB net. Measured against the real DB (2026-07-29).
 
 ## Why now, and why this exists
 
@@ -118,6 +118,14 @@ Splitting into `search_terms_ja` (indexed on `term`) and `search_terms_en` (inde
 ### Indexing `kanji.text` / `kana.text`
 
 No current query needs them now that lemma resolution routes through `search_terms`, and unused indexes are pure size. Documented in `schema.sql` instead, with `db.spec`'s index-shape test guarding the regression.
+
+## As built
+
+- **Tags as rows** — `sense_tags` 65,903 rows over 173 codes, `word_tags` 32,441. Four sense JSON columns and `priority_tags_json` dropped, along with `glosses.lang` and `senses.id`'s `AUTOINCREMENT`. `getWord`'s per-sense gloss query went with them.
+- **`radicals.position`** — 251/253 classified. Two spec 04 corrections, both from checking the real `dictionaryJa.txt` rather than the quoted examples: its 国 string is truncated (the real entry repeats the split enclosure), and more seriously **Radkfile keys variant radicals by an exemplar kanji** (亻 as 化, ⻌ as 込), which no derivation from the key itself can bridge — AnimCJK marks 化's own radical as 匕. Deriving the component from a radical's MEMBERS instead took coverage from 184/253 to 251/253.
+- **`kana.sort_key` + `search_terms.term_norm`** — one normalizer (`shared/kana.ts`), two keys. `term_norm` is populated for kana rows only (27,584 of 427,817) behind a partial index.
+
+**Size correction:** this spec predicted the DB would not grow, and it did — the tags change alone was 91MB → 95MB. The error was costing the removed JSON at the 1.2MB measured for ALL sense JSON columns, when that figure included the four being kept; only ~0.9MB left, while ~98k new rows across two tables with two indexes each is ~4–5MB. Normalization's cost is structure, not data: the tag text itself is 0.14MB. Net across the whole spec is still 101MB → 97MB, because dropping `sentences.ja` removed a column from 133k existing rows, which is the cheap direction.
 
 ## Build order
 

@@ -53,6 +53,7 @@ import {
 import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
 import { linkToken } from "../src/shared/exampleLinks.ts";
+import { searchFold, sortKey } from "../src/shared/kana.ts";
 import { fetchAcjkMap, parseAcjk, radicalPosition } from "./acjk.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
@@ -740,7 +741,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO kanji(word_id, position, text, is_common, tags_json) VALUES (?, ?, ?, ?, ?)"
   );
   const insKana = await db.prepare(
-    "INSERT INTO kana(word_id, position, text, is_common, tags_json, applies_to_kanji_json) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO kana(word_id, position, text, is_common, tags_json, applies_to_kanji_json, sort_key) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
   const insSense = await db.prepare(
     `INSERT INTO senses(word_id, position, info_json,
@@ -761,7 +762,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
   const insTerm = await db.prepare(
-    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth, term_norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insKanjiChar = await db.prepare(
     `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt,
@@ -1243,7 +1244,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           char,
           k.common ? 1 : 0,
           0,
-          1
+          1,
+          null // not a kana row — no fold
         );
       }
     }
@@ -1256,7 +1258,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       k.text,
       k.common ? 1 : 0,
       JSON.stringify(k.tags),
-      JSON.stringify(k.appliesToKanji)
+      JSON.stringify(k.appliesToKanji),
+      sortKey(k.text)
     );
     await s.insTerm.run(
       word.id,
@@ -1265,7 +1268,10 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       k.text.toLowerCase(),
       k.common ? 1 : 0,
       i === 0 ? 1 : 0,
-      1
+      1,
+      // Only kana rows carry a fold: kanji "typos" are a visual-similarity problem and romaji is
+      // edit-distance, so neither belongs in this index.
+      searchFold(k.text)
     );
     // Hepburn romaji of the reading, so learners can search by transliteration ("taberu").
     // Romaji is latin, so it matches via the query layer's case-insensitive `term_lower` path.
@@ -1278,7 +1284,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         romaji.toLowerCase(),
         k.common ? 1 : 0,
         i === 0 ? 1 : 0,
-        1
+        1,
+        null // not a kana row — no fold
       );
     }
   }
@@ -1320,7 +1327,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         gloss.text.toLowerCase(),
         wordCommon,
         isPrimary,
-        breadth
+        breadth,
+        null // not a kana row — no fold
       );
       // Many JMdict glosses carry parenthetical clarifications — "water (esp. cool or cold)" —
       // which block exact/whole-word matching on the bare word. Index a stripped variant too so
@@ -1337,7 +1345,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           stripped.toLowerCase(),
           wordCommon,
           isPrimary,
-          breadth
+          breadth,
+          null // not a kana row — no fold
         );
       }
       // Index each word of the gloss so "eat" finds "to eat" via an *exact* word-row match —
@@ -1356,7 +1365,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           w,
           wordCommon,
           isPrimary,
-          breadth
+          breadth,
+          null // not a kana row — no fold
         );
       }
     }

@@ -63,6 +63,12 @@ CREATE TABLE kana (
   is_common              INTEGER NOT NULL DEFAULT 0,
   tags_json              TEXT NOT NULL DEFAULT '[]',
   applies_to_kanji_json  TEXT NOT NULL DEFAULT '["*"]', -- which kanji writings this reading applies to
+  -- 五十音順 collation key (BACKLOG #35): codepoint order over kana is meaningless for Japanese, and
+  -- browseable lists (a kanji's words, name results, picker matches) are read like an index. Built
+  -- by shared/kana.ts's sortKey — the fold orders, the marks it removed follow as a tiebreak so
+  -- はし and ばし stay distinct. Hiragana codepoints already run in gojūon order, so plain string
+  -- comparison on this column is correct; no database collation support is needed.
+  sort_key               TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (word_id, position)
 );
 
@@ -262,11 +268,18 @@ CREATE TABLE search_terms (
   -- gloss 0, so `is_primary` cannot separate them and frequency actively misleads (喫する is the
   -- more common NEWSPAPER word). Essentially IDF within a sense: a term sharing its sense with many
   -- near-synonyms is a less specific match. 1 for non-gloss rows (a writing/reading stands alone).
-  sense_breadth INTEGER NOT NULL DEFAULT 1
+  sense_breadth INTEGER NOT NULL DEFAULT 1,
+  -- Folded kana for error-tolerant matching; NULL for every non-kana kind (see the index below).
+  term_norm TEXT
 );
 
 CREATE INDEX idx_search_term       ON search_terms(term);
 CREATE INDEX idx_search_term_lower ON search_terms(term_lower);
+-- Aggressively folded kana (BACKLOG #51): script, kana size, voicing and the long-vowel mark all
+-- collapse, so a learner's plausible misspelling still lands on the word. Populated for kana rows
+-- ONLY — kanji "typos" are a visual-similarity problem (the F3 data), not a normalization one, and
+-- romaji tolerance is edit-distance. The partial index keeps it to those ~28k rows rather than 428k.
+CREATE INDEX idx_search_term_norm  ON search_terms(term_norm) WHERE term_norm IS NOT NULL;
 
 -- Build/attribution metadata (source revisions, entry counts, dict date) as key/value.
 CREATE TABLE meta (

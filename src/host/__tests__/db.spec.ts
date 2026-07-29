@@ -20,6 +20,31 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await dict?.close();
   });
 
+  test("orders readings by gojuon from the stored sort key", async () => {
+    // WHY: #35 — the column exists so browseable lists can be ordered in SQL. The unit tests cover
+    // the normalizer; this covers the integration, which is where it would silently break: an
+    // unpopulated column still sorts, just wrongly, and by codepoint katakana lands in a block
+    // AFTER every hiragana entry instead of interleaved where a reader expects it.
+    const raw = await connect(DB_PATH);
+    try {
+      const stmt = await raw.prepare(
+        `SELECT text FROM kana
+          WHERE text IN ('ラーメン', 'あめ', 'コーヒー', 'ひと')
+          ORDER BY sort_key`
+      );
+      const rows = (await stmt.all()) as { text: string }[];
+      const seen = [...new Set(rows.map((r) => r.text))];
+      expect(seen).toEqual(["あめ", "コーヒー", "ひと", "ラーメン"]);
+
+      const empty = (await (
+        await raw.prepare("SELECT COUNT(*) AS n FROM kana WHERE sort_key = ''")
+      ).get()) as { n: number };
+      expect(empty.n).toBe(0);
+    } finally {
+      await raw.close();
+    }
+  });
+
   test("classifies radicals into the seven positional categories", async () => {
     // WHY: spec 04's picker filter offers these seven as the lookup axis, so a wrong category sends
     // a learner to the wrong shelf. Note the KEYS: Radkfile stores variant radicals under an

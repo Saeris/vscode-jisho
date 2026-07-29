@@ -16,7 +16,7 @@
  * (a new/renamed/dropped table or column). Once the schema is FROZEN (see `SCHEMA_FROZEN`), the
  * drift-guard test will remind you.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Whether the schema is frozen for release. While the v1 schema is still being developed it churns
