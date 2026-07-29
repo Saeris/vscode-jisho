@@ -107,11 +107,11 @@ describe("tokenizer over a real corpus — snapshots", () => {
 
 describe("slang user dictionary (spec 13 §B)", () => {
   // WHY: IPADIC shatters slang it lacks (きもい → き+も+い), which reaches the dictionary as garbage.
-  // Our user dictionary teaches these as single i-adjectives. Each entry MUST tokenize as one
-  // adjective segment; if the user dict fails to load, these shatter and the test catches it.
-  // (Only words IPADIC genuinely lacks are here — やばい/だるい/えぐい are already in IPADIC 4.x.)
-  it.each(["きもい", "うざい", "エモい"])(
-    "tokenizes the slang adjective %s as one segment",
+  // Our user dictionary (src/data/slang-userdict.csv) teaches these as single words. Each entry is
+  // a real IPADIC gap (probed — やばい/だるい/えぐい are already present); if the user dict fails to
+  // load, these shatter and the tests catch it.
+  it.each(["きもい", "うざい", "エモい", "エロい", "グロい"])(
+    "tokenizes the slang adjective %s as one adjective segment",
     async (word) => {
       const segments = await segment(word);
       expect(segments).toHaveLength(1);
@@ -120,10 +120,34 @@ describe("slang user dictionary (spec 13 §B)", () => {
     }
   );
 
+  it.each(["ワンチャン", "コスパ", "リア充", "陰キャ", "ぼっち"])(
+    "tokenizes the slang noun %s as one segment",
+    async (word) => {
+      const segments = await segment(word);
+      expect(segments).toHaveLength(1);
+      expect(segments[0]?.surface).toBe(word);
+    }
+  );
+
   it("keeps slang isolated in a sentence without disturbing normal words", async () => {
-    // WHY: a user-dict entry can over-fire; confirm it segments cleanly in context and the
-    // surrounding words are untouched.
+    // WHY: a user-dict entry can over-fire; confirm it segments cleanly in context.
     const surfaces = (await segment("この虫きもい")).map((s) => s.surface);
     expect(surfaces).toEqual(["この", "虫", "きもい"]);
+  });
+
+  // WHY: the CONTRACTIONS are the risky entries — they overlap grammatical forms. These regressions
+  // pin the over-firing controls that vetted them: a future edit that makes じゃんけん-style breakage
+  // must fail here. The user-dict word must NOT appear where its fragments should parse normally.
+  it.each([
+    ["少なくとも三人はいる", "なくちゃ/なきゃ don't break 少なくとも"],
+    ["手か足のどちらか", "てか doesn't break 手か"],
+    ["お茶を飲む", "ちゃ-forms don't break お茶"],
+    ["じゃんけんで決めよう", "no entry breaks じゃんけん"]
+  ])("does not over-fire on %s", async (sentence) => {
+    const surfaces = (await segment(sentence)).map((s) => s.surface);
+    // None of the slang contraction surfaces should appear as a segment here.
+    for (const slang of ["なくちゃ", "なきゃ", "てか", "そっか"]) {
+      expect(surfaces).not.toContain(slang);
+    }
   });
 });

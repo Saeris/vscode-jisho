@@ -4,9 +4,21 @@ A Lindera **user dictionary** of colloquial/slang words IPADIC lacks, layered on
 IPADIC dictionary at tokenize time (spec 13 §B / spec 14). Without it, a word like きもい shatters
 into き+も+い and never reaches the dictionary as one unit.
 
-Only add words IPADIC genuinely **lacks** — most everyday slang (やばい, だるい, えぐい, きしょい …)
-is already in IPADIC 4.x. Check first: tokenize the word with the base dictionary; if it comes back
-as one token, don't add it. As of writing, the shortlist is きもい / うざい / エモい.
+Only add words IPADIC genuinely **lacks** — much everyday slang (やばい, だるい, えぐい, きしょい, 草,
+推し, めっちゃ, マジ, ガチ …) is already in IPADIC 4.x. Check first: tokenize the word with the base
+dictionary; if it comes back as one token, don't add it. The current list (probed against IPADIC
+4.x) spans a few categories:
+
+- **i-adjectives**: きもい, うざい, エモい, ちゃちい, エロい, グロい
+- **modern nouns**: ワンチャン, コスパ, タイパ, リア充, 陰キャ, 陽キャ, ぼっち, ガチ勢
+- **adverb / interjections**: めちゃ, どんまい, やったー, そっか, まじか
+- **contractions**: てか, なくちゃ, なきゃ
+
+**Contractions are the risky class** — they overlap grammatical forms, so a bad entry can break
+legitimate segmentation (e.g. a じゃん entry mangles じゃんけん; っす breaks きっすい — both rejected in
+testing). Every contraction here passed an _over-firing_ check: adding it must NOT change how a
+sentence tokenizes where its component parts should parse normally (少なくとも, 手か, お茶, じゃんけん…).
+Test any new contraction the same way, and pin it with an over-firing regression in `corpus.spec.ts`.
 
 ## Format (IPADIC "detailed" 13-column CSV — comments NOT allowed)
 
