@@ -160,6 +160,11 @@ export interface KanjiWordDto {
 export interface RadicalDto {
   radical: string;
   strokeCount: number;
+  /**
+   * One of the seven positional categories (hen/tsukuri/kanmuri/ashi/kamae/tare/nyo), or null when
+   * the source marks the character as its own radical — a real distinction, not missing data.
+   */
+  position: string | null;
 }
 
 /** The radical picker's data: all radicals, plus the kanji matching the current selection. */

@@ -29,6 +29,7 @@ import type {
   MoreExamplesDto,
   PartOfSpeech,
   PoolSentenceDto,
+  RadicalDto,
   RadicalLookupDto,
   SearchResultDto,
   SenseDto,
@@ -59,7 +60,7 @@ export class SchemaVersionError extends Error {
 
 /** Cached radical grid + radical→kanji sets for the (repeatedly-called) radical picker. */
 interface RadicalCache {
-  list: Array<{ radical: string; strokeCount: number }>;
+  list: RadicalDto[];
   kanji: Map<string, Set<string>>;
 }
 
@@ -1007,12 +1008,14 @@ export class Dictionary {
       radical: string;
       stroke_count: number;
       kanji_json: string;
+      position: string | null;
     }>(
-      "SELECT radical, stroke_count, kanji_json FROM radicals ORDER BY stroke_count, radical"
+      "SELECT radical, stroke_count, kanji_json, position FROM radicals ORDER BY stroke_count, radical"
     );
     const list = rows.map((r) => ({
       radical: r.radical,
-      strokeCount: r.stroke_count
+      strokeCount: r.stroke_count,
+      position: r.position
     }));
     const kanji = new Map<string, Set<string>>();
     for (const r of rows) {
@@ -1095,14 +1098,7 @@ export class Dictionary {
       }
     }
 
-    return {
-      radicals: list.map((r) => ({
-        radical: r.radical,
-        strokeCount: r.strokeCount
-      })),
-      enabled,
-      matches
-    };
+    return { radicals: list, enabled, matches };
   }
 }
 

@@ -53,6 +53,7 @@ import {
 import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
 import { linkToken } from "../src/shared/exampleLinks.ts";
+import { fetchAcjkMap, parseAcjk, radicalPosition } from "./acjk.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
@@ -777,7 +778,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO similar_kanji(literal, similar, position) VALUES (?, ?, ?)"
   );
   const insRadical = await db.prepare(
-    "INSERT INTO radicals(radical, stroke_count, kanji_json) VALUES (?, ?, ?)"
+    "INSERT INTO radicals(radical, stroke_count, kanji_json, position) VALUES (?, ?, ?, ?)"
   );
   const insKanjiTerm = await db.prepare(
     "INSERT INTO search_terms(kanji, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
@@ -916,10 +917,63 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       position++;
     }
   }
-  // Radkfile radicals.
-  for (const [radical, info] of Object.entries(radkfile.radicals)) {
-    await insRadical.run(radical, info.strokeCount, JSON.stringify(info.kanji));
+  // Radkfile radicals, with their positional category (spec 04) voted from AnimCJK geometry. Same
+  // pinned SHA as the stroke SVGs (one constant, two consumers) so a radical is never classified
+  // against different data than the drawing it appears in.
+  console.log("Downloading dictionaryJa.txt (radical positions)…");
+  const acjkMap = await fetchAcjkMap();
+  const positionVotes = new Map<string, Map<string, number>>();
+  for (const [character, acjk] of acjkMap) {
+    const position = radicalPosition(character, acjk);
+    if (position === null) continue;
+    const parsed = parseAcjk(character, acjk);
+    const radicalPart = parsed?.parts.find((part) => part.radical);
+    if (radicalPart === undefined) continue;
+    const votes =
+      positionVotes.get(radicalPart.literal) ?? new Map<string, number>();
+    votes.set(position, (votes.get(position) ?? 0) + 1);
+    positionVotes.set(radicalPart.literal, votes);
   }
+  const winner = (radical: string): string | null => {
+    const votes = positionVotes.get(radical);
+    if (votes === undefined) return null;
+    return [...votes].reduce((best, v) => (v[1] > best[1] ? v : best))[0];
+  };
+  // Radkfile keys variant radicals by an EXEMPLAR KANJI, not by the component glyph: 亻 is stored
+  // as 化, ⻌ as 込, 扌 as 扎, 氵 as 汁. Those keys never match AnimCJK's component literal, so the
+  // vote above misses them entirely (69 of 253 radicals).
+  //
+  // The exemplar's OWN radical is the wrong bridge — AnimCJK marks 化's radical as 匕 (correct for
+  // 化 itself, it is Kangxi #21) and 九's as 乙, neither of which is the component being
+  // exemplified. Derive from the MEMBERS instead: the kanji Radkfile files under a radical share
+  // that component, so the most common radical-literal across them is what the key stands for.
+  const componentFor = (radical: string, members: string[]): string => {
+    const seen = new Map<string, number>();
+    for (const member of members) {
+      const acjk = acjkMap.get(member);
+      if (acjk === undefined) continue;
+      const part = parseAcjk(member, acjk)?.parts.find((p) => p.radical);
+      if (part === undefined) continue;
+      seen.set(part.literal, (seen.get(part.literal) ?? 0) + 1);
+    }
+    if (seen.size === 0) return radical;
+    return [...seen].reduce((best, v) => (v[1] > best[1] ? v : best))[0];
+  };
+  let positioned = 0;
+  for (const [radical, info] of Object.entries(radkfile.radicals)) {
+    const position =
+      winner(radical) ?? winner(componentFor(radical, info.kanji));
+    if (position !== null) positioned++;
+    await insRadical.run(
+      radical,
+      info.strokeCount,
+      JSON.stringify(info.kanji),
+      position
+    );
+  }
+  console.log(
+    `  radicals: ${positioned}/${Object.keys(radkfile.radicals).length} with a position category`
+  );
 
   // Similar kanji (F3): PRIMARY source is Yencken's human-validated confusion data (stroke-edit +
   // Yeh-Li radical, blended), which covers the 1,945 jōyō kanji well. For kanji BEYOND jōyō it has no
@@ -1034,6 +1088,10 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   );
   await insMeta.run("similarKanjiStrokeDate", yencken.stroke.lastModified);
   await insMeta.run("similarKanjiRadicalDate", yencken.radical.lastModified);
+  await insMeta.run(
+    "radicalPositionSource",
+    "Radical positions: derived from AnimCJK (© FM&SH) component geometry, Arphic Public License"
+  );
   await insMeta.run(
     "strokeSource",
     "Stroke order: AnimCJK (© FM&SH), glyph paths under the Arphic Public License"

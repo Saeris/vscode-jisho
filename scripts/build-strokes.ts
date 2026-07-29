@@ -13,15 +13,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchAcjkMap, parseAcjk, SOURCE_BASE, type AcjkPart } from "./acjk.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "assets", "kanji-svgs");
-
-// Pinned for reproducibility — an upstream change should be a deliberate, reviewable bump, not
-// something that silently rewrites 3,821 assets the next time this runs.
-const ANIMCJK_SHA = "ec5e17cca76c87587790bcbce5ea0b4d4fb753d6";
-const SOURCE_BASE = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/svgsJa`;
-const DICT_URL = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/dictionaryJa.txt`;
 
 /**
  * The offset distance the guide path is pushed away from its stroke, in viewBox units (0-1024).
@@ -439,74 +434,6 @@ const ARROW_MARKER =
   `<marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" ` +
   `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker>`;
 
-/** One top-level component of a kanji, with its 1-based inclusive stroke ranges in drawing order. */
-export interface AcjkPart {
-  literal: string;
-  radical: boolean;
-  ranges: Array<{ start: number; end: number }>;
-}
-
-/**
- * Parse dictionaryJa.txt's `acjk` field (e.g. `願⿰原10頁.9`) into components with stroke ranges.
- * `.` marks the radical, `:` marks a split component (an enclosure drawn in two runs, like 国's 囗 —
- * split segments of the same character merge into one part with multiple ranges). IDC layout
- * characters (⿰⿱…) carry no stroke data and are skipped. Returns null when the field describes
- * fewer than two parts (nothing to tell apart) or doesn't parse.
- */
-export const parseAcjk = (
-  character: string,
-  acjk: string
-): { parts: AcjkPart[]; strokeTotal: number } | null => {
-  if (!acjk.startsWith(character)) return null;
-  const rest = acjk.slice(character.length);
-  // A leading '.' means the whole character is its own radical — no per-part radical to mark.
-  let i = rest.startsWith(".") ? 1 : 0;
-  const segments: Array<{
-    literal: string;
-    radical: boolean;
-    split: boolean;
-    count: number;
-  }> = [];
-  while (i < rest.length) {
-    const cp = rest[i].codePointAt(0) ?? 0;
-    if (cp >= 0x2ff0 && cp <= 0x2fff) {
-      i++;
-      continue;
-    }
-    const literal = rest[i++];
-    let radical = false;
-    let split = false;
-    while (rest[i] === "." || rest[i] === ":") {
-      if (rest[i] === ".") radical = true;
-      else split = true;
-      i++;
-    }
-    let digits = "";
-    while (i < rest.length && rest[i] >= "0" && rest[i] <= "9") {
-      digits += rest[i++];
-    }
-    if (digits === "") return null;
-    segments.push({ literal, radical, split, count: Number(digits) });
-  }
-
-  const parts: AcjkPart[] = [];
-  let cursor = 0;
-  for (const s of segments) {
-    const range = { start: cursor + 1, end: cursor + s.count };
-    cursor = range.end;
-    const merged = s.split
-      ? parts.find((p) => p.literal === s.literal)
-      : undefined;
-    if (merged) {
-      merged.ranges.push(range);
-      merged.radical ||= s.radical;
-    } else {
-      parts.push({ literal: s.literal, radical: s.radical, ranges: [range] });
-    }
-  }
-  return parts.length < 2 ? null : { parts, strokeTotal: cursor };
-};
-
 /** Padding around a part's median bounds, in viewBox units — covers stroke width plus a hit margin. */
 const PART_PAD = 72;
 
@@ -624,35 +551,6 @@ export const transform = (
 
 /** How many source files to fetch at once. Enough to be quick, gentle enough not to get rate-limited. */
 const CONCURRENCY = 16;
-
-/** char → acjk decomposition string, from AnimCJK's dictionaryJa.txt (one JSON object per line). */
-const fetchAcjkMap = async (): Promise<Map<string, string>> => {
-  const res = await fetch(DICT_URL, {
-    headers: { "User-Agent": "vscode-jisho-build" }
-  });
-  if (!res.ok) throw new Error(`dictionaryJa.txt fetch failed: ${res.status}`);
-  const map = new Map<string, string>();
-  for (const line of (await res.text()).split("\n")) {
-    const t = line.trim().replace(/,$/, "");
-    if (!t.startsWith("{")) continue;
-    try {
-      const row: unknown = JSON.parse(t);
-      if (
-        typeof row === "object" &&
-        row !== null &&
-        "character" in row &&
-        typeof row.character === "string" &&
-        "acjk" in row &&
-        typeof row.acjk === "string"
-      ) {
-        map.set(row.character, row.acjk);
-      }
-    } catch {
-      // Non-JSON lines (array brackets, comments) carry no data.
-    }
-  }
-  return map;
-};
 
 /**
  * Fetch and transform every kanji in the manifest (the Japanese subset our dictionary surfaces).

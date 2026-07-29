@@ -20,6 +20,37 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await dict?.close();
   });
 
+  test("classifies radicals into the seven positional categories", async () => {
+    // WHY: spec 04's picker filter offers these seven as the lookup axis, so a wrong category sends
+    // a learner to the wrong shelf. Note the KEYS: Radkfile stores variant radicals under an
+    // EXEMPLAR KANJI, not the component glyph — 亻 is filed as 化 and ⻌ as 込 — which is why the
+    // build derives the component from a radical's MEMBERS rather than from the key itself. Looking
+    // these up as "亻"/"⻌" returns no row at all, which is how the mismatch first surfaced.
+    const radicals = (await dict.lookupRadicals([])).radicals;
+    const positionOf = (key: string): string | null =>
+      radicals.find((r) => r.radical === key)?.position ?? null;
+    expect(positionOf("化")).toBe("hen"); // 亻
+    expect(positionOf("込")).toBe("nyo"); // ⻌
+    expect(positionOf("宀")).toBe("kanmuri");
+    expect(positionOf("囗")).toBe("kamae");
+
+    // Every non-null value must be one of the seven; a typo in the build would otherwise reach the
+    // UI as a filter chip that matches nothing.
+    const allowed = new Set([
+      "hen",
+      "tsukuri",
+      "kanmuri",
+      "ashi",
+      "kamae",
+      "tare",
+      "nyo"
+    ]);
+    const bad = radicals.filter(
+      (r) => r.position !== null && !allowed.has(r.position)
+    );
+    expect(bad).toEqual([]);
+  });
+
   test("keeps the denormalized uk flag in step with its tag rows", async () => {
     // WHY: words.is_uk is a build-time denormalization of "any sense tagged uk", and sense_tags is
     // where that tag actually lives. Two representations of one fact drift the moment someone edits

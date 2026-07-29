@@ -223,7 +223,15 @@ CREATE TABLE component_tree (
 CREATE TABLE radicals (
   radical      TEXT PRIMARY KEY,
   stroke_count INTEGER NOT NULL,
-  kanji_json   TEXT NOT NULL DEFAULT '[]'
+  kanji_json   TEXT NOT NULL DEFAULT '[]',
+  -- One of the seven positional categories the Kanji Look & Learn textbook teaches — hen (left),
+  -- tsukuri (right), kanmuri (top), ashi (bottom), kamae (enclosure), tare (upper-left), nyo
+  -- (lower-left) — so the picker can filter the way learners are taught (spec 04). Derived from
+  -- AnimCJK's `acjk` geometry by MAJORITY VOTE across every kanji that marks this radical: a
+  -- radical's position is nearly always fixed (亻 is always hen), and the vote absorbs the odd
+  -- irregular entry. NULL where no kanji votes — ~6% of entries mark the character as its own
+  -- radical (見 IS Kangxi #147), which is a real distinction, not missing data.
+  position     TEXT
 );
 
 -- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a

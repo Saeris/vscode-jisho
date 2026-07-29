@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { parseAcjk, transform, type AcjkPart } from "../build-strokes";
+import { transform } from "../build-strokes";
+import type { AcjkPart } from "../acjk";
 
 // A real AnimCJK source SVG (近, U+8FD1), trimmed to what the transform reads: the embedded <style>,
 // the filled glyph paths, the clip-path defs, and the animated medians with their --d delays.
@@ -166,56 +167,6 @@ describe("stroke SVG transform", () => {
     const glyph = groupOf(out(), "glyph");
     expect([...glyph.matchAll(/<path/g)]).toHaveLength(2);
     expect(glyph).not.toContain("clip-path");
-  });
-});
-
-describe("acjk decomposition parsing", () => {
-  it("maps components to consecutive stroke ranges and marks the radical", () => {
-    // WHY: the acjk field is in DRAWING order, so ranges are cumulative — 原's 10 strokes come
-    // first, making 頁 strokes 11–19. Getting this wrong highlights the wrong half of the kanji.
-    expect(parseAcjk("願", "願⿰原10頁.9")).toEqual({
-      strokeTotal: 19,
-      parts: [
-        { literal: "原", radical: false, ranges: [{ start: 1, end: 10 }] },
-        { literal: "頁", radical: true, ranges: [{ start: 11, end: 19 }] }
-      ]
-    });
-  });
-
-  it("merges split components (:) into one part with multiple ranges", () => {
-    // WHY: an enclosure like 国's 囗 is drawn in two runs (strokes 1–2, then 8 closes the box).
-    // Both runs are the SAME part — hovering 囗 must highlight all three strokes, and there must be
-    // one hit rect, not two overlapping ones.
-    expect(parseAcjk("国", "国⿴囗.:2玉5囗.:1")).toEqual({
-      strokeTotal: 8,
-      parts: [
-        {
-          literal: "囗",
-          radical: true,
-          ranges: [
-            { start: 1, end: 2 },
-            { start: 8, end: 8 }
-          ]
-        },
-        { literal: "玉", radical: false, ranges: [{ start: 3, end: 7 }] }
-      ]
-    });
-  });
-
-  it("keeps repeated components separate when not split-marked", () => {
-    // WHY: 林-style repetition is two INSTANCES of the same shape, not one split shape — each gets
-    // its own hit rect. Only ':' signals continuation.
-    const result = parseAcjk("⺀", "⺀.⿱丶1丶1");
-    expect(result?.parts).toHaveLength(2);
-    expect(result?.parts.every((p) => !p.radical)).toBe(true);
-  });
-
-  it("returns null when there is nothing to tell apart or the field is malformed", () => {
-    // WHY: a single-part decomposition would put one rect over the whole character — a hit target
-    // that adds nothing. Malformed input must not produce garbage ranges.
-    expect(parseAcjk("丶", "丶丶1")).toBeNull();
-    expect(parseAcjk("⺄", "⺄.1")).toBeNull();
-    expect(parseAcjk("近", "斤4⻌.3")).toBeNull();
   });
 });
 
