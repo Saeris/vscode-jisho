@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { parseAcjk, transform, type AcjkPart } from "../build-strokes";
 
 // A real AnimCJK source SVG (近, U+8FD1), trimmed to what the transform reads: the embedded <style>,
@@ -214,5 +216,39 @@ describe("acjk decomposition parsing", () => {
     expect(parseAcjk("丶", "丶丶1")).toBeNull();
     expect(parseAcjk("⺄", "⺄.1")).toBeNull();
     expect(parseAcjk("近", "斤4⻌.3")).toBeNull();
+  });
+});
+
+describe("shipped stroke SVG filenames", () => {
+  const dir = join(process.cwd(), "assets", "kanji-svgs");
+
+  it("never ships two literals that a normalizing filesystem sees as one file", () => {
+    // WHY: the FILESYSTEM decides which names are distinct. macOS folds a CJK Compatibility
+    // Ideograph onto the unified codepoint it decomposes to, so shipping both means one silently
+    // overwrites the other: an unclean checkout, and ~59 kanji drawn with the WRONG glyph.
+    // Vacuous on macOS (the files cannot coexist to be seen); it bites on CI and Windows, which is
+    // where they get generated. Prevention lives in build-strokes.ts.
+    const names = readdirSync(dir).filter((f) => f.endsWith(".svg"));
+    const byNormalized = new Map<string, string[]>();
+    for (const name of names) {
+      const key = name.normalize("NFC");
+      byNormalized.set(key, [...(byNormalized.get(key) ?? []), name]);
+    }
+    const collisions = [...byNormalized.values()].filter((v) => v.length > 1);
+    expect(collisions).toEqual([]);
+  });
+
+  it("resolves a compatibility codepoint to the unified drawing", () => {
+    // WHY: dropping the compat files must not strand the 37 compat literals Kanjidic carries — the
+    // host normalizes so they land on the unified drawing. Codepoints are built by escape, never
+    // pasted: the two glyphs are identical on sight, so an editor that normalizes would gut this.
+    const compat = String.fromCodePoint(0xfa47); // CJK COMPATIBILITY IDEOGRAPH-FA47
+    const unified = String.fromCodePoint(0x6f22); // 漢
+    expect(compat.normalize("NFC")).toBe(unified);
+    expect(existsSync(join(dir, `${unified}.svg`))).toBe(true);
+    // readdir, not existsSync: a normalizing filesystem RESOLVES the compat name to the
+    // unified file, so an existence check would pass on macOS and fail on Windows. The stored
+    // name is what we care about, and only the directory listing reports it faithfully.
+    expect(readdirSync(dir)).not.toContain(`${compat}.svg`);
   });
 });

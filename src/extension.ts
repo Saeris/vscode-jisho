@@ -593,14 +593,18 @@ class JishoViewProvider
    */
   async #strokeSvg(request: GetStrokeSvgRequest): Promise<Response> {
     let svg: string | null = null;
+    // Only the unified drawing ships (its compat twin would collide on a normalizing filesystem —
+    // see build-strokes.ts), so fold compat codepoints onto it rather than 404 the 37 Kanjidic
+    // literals that use them.
+    const literal = request.literal.normalize("NFC");
     // The literal names a file, so insist on exactly one code point before touching the filesystem.
-    if (Array.from(request.literal).length === 1) {
+    if (Array.from(literal).length === 1) {
       try {
         const uri = vscode.Uri.joinPath(
           this.#context.extensionUri,
           "assets",
           "kanji-svgs",
-          `${request.literal}.svg`
+          `${literal}.svg`
         );
         svg = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
       } catch {

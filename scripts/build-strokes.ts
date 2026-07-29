@@ -660,9 +660,18 @@ const fetchAcjkMap = async (): Promise<Map<string, string>> => {
  * one can never hide the other.
  */
 const main = async (): Promise<void> => {
-  const literals = readFileSync(join(OUT_DIR, "MANIFEST.txt"), "utf8")
+  const manifest = readFileSync(join(OUT_DIR, "MANIFEST.txt"), "utf8")
     .split(/\r?\n/)
     .filter((l) => l.trim() !== "");
+  // CJK Compatibility Ideographs (U+F900-FAFF) decompose to a unified codepoint, and macOS treats
+  // the pair as ONE filename — shipping both makes the repo uncheckoutable there. Drop the compat
+  // twin; #strokeSvg normalizes on read, so its codepoint still finds the unified drawing.
+  const literals = manifest.filter(
+    (l) => l.normalize("NFC") === l || !manifest.includes(l.normalize("NFC"))
+  );
+  const collapsed = manifest.length - literals.length;
+  if (collapsed > 0)
+    console.log(`  skipping ${collapsed} compatibility-ideograph duplicates`);
   mkdirSync(OUT_DIR, { recursive: true });
   const acjkMap = await fetchAcjkMap();
 
