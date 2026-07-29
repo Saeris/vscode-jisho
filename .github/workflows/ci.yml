@@ -25,9 +25,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: true
 
-      # The `browser` Vitest project runs in real Chromium (jsdom has no layout engine, and the
-      # bugs it catches are geometric). Without an installed browser the whole `vp test` run fails
-      # even when every test passes, so the binary is a build requirement, not an optional extra.
+      # The `browser` Vitest project runs in real Chromium (jsdom has no layout engine, and the bugs
+      # it catches are geometric). Note `vp test` EXITS 0 when the browser is missing — those specs
+      # simply never run — so this install is what keeps them from silently disappearing.
       - name: Resolve Playwright version
         id: playwright
         run: echo "version=$(vp exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> "$GITHUB_OUTPUT"
@@ -47,4 +47,11 @@ jobs:
         run: vp exec playwright install --with-deps chromium
 
       - run: vp check
+
+      # The tokenizer loads IPADIC from a directory at runtime, so the corpus, spacing, furigana and
+      # tokenizer specs cannot run without it. It is a gitignored build artifact (~16MB from GitHub's
+      # own CDN), which is why it is provisioned here rather than committed.
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
       - run: vp test

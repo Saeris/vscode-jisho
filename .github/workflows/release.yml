@@ -37,6 +37,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: vp exec node scripts/check-data-release.ts
 
+      # The tokenizer dictionary is bundled INTO each .vsix (unlike the JMdict DB, which is
+      # downloaded on first run), so it must exist before packaging — package-platforms.ts refuses
+      # to build without it.
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
       # Bumpy runs the per-package build/publish commands from package.json's `bumpy` block:
       # package-platforms.ts builds one .vsix per target (each with its matching @tursodatabase
       # native binary), then publish-vsix.ts publishes every target to the Marketplace + Open VSX.

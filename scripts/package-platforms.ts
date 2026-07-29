@@ -173,6 +173,15 @@ const backupSlot = (depName: string): string =>
   join(BACKUP_DIR, depName.replace("/", "__"));
 
 const main = async (): Promise<void> => {
+  // .vscodeignore un-ignores assets/lindera-ipadic, but a negation matches nothing when the
+  // directory is absent — so without this the package would build clean and ship a tokenizer that
+  // cannot load its dictionary. Provisioning is deliberately explicit (like build:data), so demand
+  // it rather than run it here.
+  if (!existsSync(join(root, "assets", "lindera-ipadic", "dict.da"))) {
+    throw new Error(
+      "assets/lindera-ipadic/ is missing — run `vp run build:tokenizer-dict` before packaging."
+    );
+  }
   const manifest = readJson(join(root, "package.json"));
   const deps = resolveDeps();
 
