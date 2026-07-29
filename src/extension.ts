@@ -225,6 +225,14 @@ export function activate(context: vscode.ExtensionContext): void {
   log().info(
     `activating (${context.extensionMode === vscode.ExtensionMode.Development ? "development" : "production"})`
   );
+  // Point the tokenizer at the compiled IPADIC dictionary bundled in the .vsix (loaded by path —
+  // it isn't embedded in the native addon). Done eagerly at activation, NOT lazily on sidebar open:
+  // the hover and semantic-token providers tokenize on any markdown/plaintext file, which can happen
+  // before the sidebar is ever opened. Cheap (just stores the path); the tokenizer still builds lazily.
+  configureTokenizer(
+    vscode.Uri.joinPath(context.extensionUri, "assets", "lindera-ipadic").fsPath
+  );
+
   const provider = new JishoViewProvider(context);
   // Two warmups on different timers, because they cost differently.
   //
@@ -429,16 +437,8 @@ class JishoViewProvider
   #warmTokenizerOnce(): void {
     if (this.#warmedTokenizer) return;
     this.#warmedTokenizer = true;
-    // Point the tokenizer at the compiled IPADIC dictionary bundled in the .vsix (loaded by path —
-    // the dictionary is not embedded in the native addon). Set before warming so the first build
-    // resolves it.
-    configureTokenizer(
-      vscode.Uri.joinPath(
-        this.#context.extensionUri,
-        "assets",
-        "lindera-ipadic"
-      ).fsPath
-    );
+    // (The dictionary path is configured eagerly in `activate()`, so it's ready before any hover or
+    // semantic-token tokenization that may precede the sidebar being opened.)
     // A short delay so the build lands after the webview's own bundle has loaded and rendered,
     // rather than competing with it for the same thread.
     const timer = setTimeout(
