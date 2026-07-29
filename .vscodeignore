@@ -4,6 +4,11 @@
 .bumpy/**
 .yarn/**
 .yarnrc.yml
+# Per-platform packaging scratch + output — the platform-binary backup dir and the .vsix output
+# dir must never be packaged INTO a .vsix (they'd embed the host's binaries as dead weight).
+.platform-pkgs.tmp/**
+dist-vsix/**
+.vsix-verify.tmp/**
 .gitattributes
 .gitignore
 scripts/**
