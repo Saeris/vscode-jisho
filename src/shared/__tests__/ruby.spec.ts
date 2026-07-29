@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { stripRuby } from "../../host/hover";
-import { alignReading, toRubyHtml, toRubyMarkdown } from "../ruby";
+import {
+  alignReading,
+  stripRubyText,
+  toRubyHtml,
+  toRubyMarkdown
+} from "../ruby";
 
 describe("alignReading", () => {
   it("gives each kanji run only its own share of the reading", () => {
@@ -98,5 +103,43 @@ describe("toRubyHtml", () => {
     expect(toRubyHtml("食べる", "のむ")).toBe(
       "<ruby>食べる<rt>のむ</rt></ruby>"
     );
+  });
+});
+
+describe("stripRubyText", () => {
+  it("recovers the plain surface from annotated text", () => {
+    expect(stripRubyText("{食|た}べる")).toBe("食べる");
+    expect(stripRubyText("{買|か}い{物|もの}")).toBe("買い物");
+    expect(stripRubyText("ひらがなだけ")).toBe("ひらがなだけ");
+  });
+
+  it("round-trips whatever toRubyMarkdown produces", () => {
+    // WHY: the sentences table stores ONLY the annotated form now — the plain one the inline
+    // examples render is derived through here. If a shape the writer emits doesn't strip back
+    // exactly, example sentences render with braces and readings inline, on the page, in the UI.
+    for (const [surface, reading] of [
+      ["食べる", "たべる"],
+      ["買い物", "かいもの"],
+      ["日本語", "にほんご"],
+      ["取り扱い", "とりあつかい"],
+      ["食べる", "のむ"],
+      ["ひらがな", "ひらがな"],
+      ["食べる", ""]
+    ] as const) {
+      expect(stripRubyText(toRubyMarkdown(surface, reading))).toBe(surface);
+    }
+  });
+
+  it("agrees with the editor-side stripRuby on the same input", () => {
+    // WHY: two strippers exist for different jobs (this one is text-only; hover's carries index
+    // maps). They must not disagree about what the text IS, or a sentence would read one way in
+    // the panel and another under the cursor.
+    for (const annotated of [
+      "{食|た}べる",
+      "{買|か}い{物|もの}",
+      "私は{日本語|にほんご}を{勉強|べんきょう}します"
+    ]) {
+      expect(stripRubyText(annotated)).toBe(stripRuby(annotated).text);
+    }
   });
 });

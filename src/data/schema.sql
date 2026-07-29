@@ -7,9 +7,17 @@
 --    the UI can honor them (a kana reading may apply to only *some* kanji spellings; a
 --    naive kanji×kana cross-join produces wrong readings). "*" means "all".
 --  * Rich, rarely-filtered arrays (tags, xrefs, pos lists) are stored as JSON text rather
---    than exploded into rows — they are read whole when rendering a single word's detail,
---    never queried across words in M1.
+--    than exploded into rows — they are read whole when rendering a single word's detail.
+--    CAVEAT (2026-07-29): this stopped being wholly true. `pos_json` IS now read across words
+--    (resolveByLemma and the deinflection merge group_concat it, ship it to JS and filter there),
+--    because POS became a query predicate rather than display data. Values needed as PREDICATES
+--    belong in columns — see `words.is_uk`, which replaced a `misc_json LIKE '%"uk"%'` scan.
+--    BACKLOG #27 (tag search) will force the same treatment on the rest.
 --  * `position` columns retain source ordering (JMdict order is meaningful for display).
+--  * `kanji.text` / `kana.text` are deliberately NOT indexed: `search_terms` is the ONLY lookup
+--    surface for finding a word by its writing or reading. Querying those columns directly gets a
+--    full scan of the join product (it cost a flat 283ms on the hover path before being routed
+--    through `search_terms`); db.spec's index-shape test guards the regression.
 
 PRAGMA foreign_keys = ON;
 
@@ -29,7 +37,14 @@ CREATE TABLE words (
   -- The named priority tags (news1, ichi1, spec1, gai1…) as a JSON array, unioned across the
   -- entry's writings/readings. Kept for display badges + the planned tag search (BACKLOG #27);
   -- read whole per word, never queried across words.
-  priority_tags_json TEXT NOT NULL DEFAULT '[]'
+  priority_tags_json TEXT NOT NULL DEFAULT '[]',
+  -- 1 when ANY sense carries JMdict's `uk` misc tag ("usually written using kana alone"). Every
+  -- query that wants this asks it of the WORD, so it is denormalized here rather than derived per
+  -- sense: it drives whether a result leads with its kana or its kanji heading, and it floats
+  -- 為る above 擦る in lemma resolution (freq_rank is backwards for usually-kana words). Was three
+  -- correlated `misc_json LIKE '%"uk"%'` subqueries; senses.misc_json still carries the tag for
+  -- display. True for ~6% of senses.
+  is_uk INTEGER NOT NULL DEFAULT 0
 );
 
 -- Ranking scans words by frequency; NULLs (the majority) are excluded by the partial index so it
@@ -114,12 +129,15 @@ CREATE TABLE pitch_accents (
 -- sentence against the inline one already shown for that sense. `ja_furigana` is the Japanese text
 -- pre-annotated with mirrordown ruby ({漢字|かんじ}) at build time. Read whole when rendering a
 -- word's detail, never queried across words.
+--
+-- There is no plain `ja` column: it is `stripRubyText(ja_furigana)`, so storing it duplicated 2.8MB
+-- and let the two disagree. Each source also only ever read one of them (inline sentences render
+-- plain, the pool page renders furigana), so both columns were dead weight on the other's rows.
 CREATE TABLE sentences (
   word_id        TEXT NOT NULL REFERENCES words(id),
   sense_position INTEGER NOT NULL, -- sense index (matches senses.position); -1 = word-level pool
   position       INTEGER NOT NULL, -- order within the (word, sense_position) group
-  ja             TEXT NOT NULL,
-  ja_furigana    TEXT NOT NULL,    -- ja with build-time ruby markup ({漢字|かんじ})
+  ja_furigana    TEXT NOT NULL,    -- Japanese with build-time ruby markup ({漢字|かんじ})
   en             TEXT NOT NULL,
   tatoeba_id     INTEGER,          -- Tatoeba sentence id (provenance + dedup); null if unknown
   source         TEXT NOT NULL DEFAULT 'tanaka', -- 'tanaka' (inline) | 'tatoeba' (pool)

@@ -88,6 +88,19 @@ export const toRubyMarkdown = (surface: string, reading: string): string => {
     .join("");
 };
 
+/**
+ * The inverse of `toRubyMarkdown`: `{食|た}べる` → `食べる`, unescaping mirrordown's `\x`.
+ *
+ * Lets the plain form be derived rather than stored beside the annotated one, where the two could
+ * drift apart. Distinct from `hover.ts`'s `stripRuby`, which solves a harder problem for EDITOR
+ * text — index maps back to the original line, plus emphasis markers — that this does not need.
+ */
+export const stripRubyText = (text: string): string =>
+  text.replace(
+    /\{((?:\\.|[^|{}\n])+)\|(?:\\.|[^{}\n])*\}/g,
+    (_, base: string) => base.replace(/\\(.)/g, "$1")
+  );
+
 /** HTML ruby: `<ruby>食<rt>た</rt></ruby>べる`, same fallback behaviour. */
 export const toRubyHtml = (surface: string, reading: string): string => {
   const ruby = (text: string, rt: string): string =>

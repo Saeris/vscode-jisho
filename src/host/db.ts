@@ -17,7 +17,7 @@ import {
   WORD_LEVEL_SENSE
 } from "../shared/schema";
 import { anyPosMatches } from "../shared/pos";
-import { toHiragana } from "../shared/ruby";
+import { stripRubyText, toHiragana } from "../shared/ruby";
 import type {
   ComponentTreeDto,
   ExampleGroupDto,
@@ -440,8 +440,7 @@ export class Dictionary {
               (SELECT MAX(CASE WHEN text = ?2 THEN 1 ELSE 0 END)
                  FROM kana WHERE word_id = w.id) AS reading_match,
               (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
-              (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
-                 FROM senses WHERE word_id = w.id) AS uk,
+              w.is_uk AS uk,
               (SELECT COUNT(*) FROM senses WHERE word_id = w.id) AS sense_count,
               (SELECT MAX(is_common) FROM kanji WHERE word_id = w.id) AS has_common_kanji,
               w.freq_rank AS freq_rank,
@@ -588,10 +587,7 @@ export class Dictionary {
       id
     );
     const word = await this.#get<{ jlpt: number | null; uk: number | null }>(
-      `SELECT w.jlpt AS jlpt,
-              (SELECT MAX(CASE WHEN misc_json LIKE '%"uk"%' THEN 1 ELSE 0 END)
-                 FROM senses WHERE word_id = w.id) AS uk
-         FROM words w WHERE w.id = ?`,
+      "SELECT jlpt, is_uk AS uk FROM words WHERE id = ?",
       id
     );
 
@@ -751,16 +747,16 @@ export class Dictionary {
     // grouped by sense.
     const sentenceRows = await this.#all<{
       sense_position: number;
-      ja: string;
+      ja_furigana: string;
       en: string;
     }>(
-      "SELECT sense_position, ja, en FROM sentences WHERE word_id = ? AND source = 'tanaka' ORDER BY sense_position, position",
+      "SELECT sense_position, ja_furigana, en FROM sentences WHERE word_id = ? AND source = 'tanaka' ORDER BY sense_position, position",
       id
     );
     const sentencesBySense = new Map<number, SentenceDto[]>();
     for (const r of sentenceRows) {
       const list = sentencesBySense.get(r.sense_position) ?? [];
-      list.push({ ja: r.ja, en: r.en });
+      list.push({ ja: stripRubyText(r.ja_furigana), en: r.en });
       sentencesBySense.set(r.sense_position, list);
     }
 

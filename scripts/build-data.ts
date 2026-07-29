@@ -733,7 +733,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   }
 
   const insWord = await db.prepare(
-    "INSERT INTO words(id, is_common, freq_rank, priority_tags_json) VALUES (?, ?, ?, ?)"
+    "INSERT INTO words(id, is_common, freq_rank, priority_tags_json, is_uk) VALUES (?, ?, ?, ?, ?)"
   );
   const insKanji = await db.prepare(
     "INSERT INTO kanji(word_id, position, text, is_common, tags_json) VALUES (?, ?, ?, ?, ?)"
@@ -750,8 +750,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO glosses(sense_id, position, lang, text) VALUES (?, ?, ?, ?)"
   );
   const insSentence = await db.prepare(
-    `INSERT INTO sentences(word_id, sense_position, position, ja, ja_furigana, en, tatoeba_id, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sentences(word_id, sense_position, position, ja_furigana, en, tatoeba_id, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
   const insTerm = await db.prepare(
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -1136,11 +1136,15 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   // JMdict's own priority data, joined by entry id. Absent for most entries (nfXX only covers the
   // top ~24k words), which is why freq_rank is nullable and ranking must not assume it.
   const pri = s.priority.get(word.id);
+  // `uk` ("usually written using kana alone") is asked of the WORD by every query that wants it, so
+  // it is resolved once here instead of re-scanning misc_json per sense at query time.
+  const isUk = word.sense.some((sense) => sense.misc.includes("uk")) ? 1 : 0;
   await s.insWord.run(
     word.id,
     wordCommon,
     pri?.freqRank ?? null,
-    JSON.stringify(pri?.tags ?? [])
+    JSON.stringify(pri?.tags ?? []),
+    isUk
   );
   let sentenceCount = 0;
 
@@ -1300,7 +1304,6 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         word.id,
         i,
         kept,
-        ja,
         await annotateExample(ja, s.resolve),
         en,
         Number.isFinite(tatoebaId) ? tatoebaId : null,
@@ -1509,7 +1512,6 @@ const importTatoebaPool = async (
         wordId,
         p.sensePosition,
         base + nth,
-        p.ja,
         await annotateExample(p.ja, resolveWord),
         p.en,
         p.tatoebaId,
