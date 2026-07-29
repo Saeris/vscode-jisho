@@ -12,6 +12,7 @@
  * A `lindera-nodejs` token's fields are getters and its IPADIC features are a positional `details`
  * array (see `lindera.d.ts`), not the flat fields the old WASM binding exposed.
  */
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Tokenizer as LinderaTokenizer } from "../../vendor/lindera-nodejs/index.mjs";
 import type { PartOfSpeech, SegmentDto } from "../shared/messages";
@@ -61,7 +62,18 @@ const getTokenizer = async (): Promise<Tokenizer> => {
     // Dev/test fallback: the repo-local compiled dictionary (produced/vendored under assets/).
     const dir = dictPath ?? join(process.cwd(), "assets", "lindera-ipadic");
     const dictionary = lindera.loadDictionary(dir);
-    return new lindera.Tokenizer(dictionary, "normal");
+    // Layer our slang user-dictionary (colloquial words IPADIC lacks — きもい, うざい, エモい) if it
+    // was provisioned next to the compiled dict; degrade gracefully if it isn't present/loadable.
+    const csv = join(dir, "slang-userdict.csv");
+    let userDict = null;
+    if (existsSync(csv)) {
+      try {
+        userDict = lindera.loadUserDictionary(csv, new lindera.Metadata());
+      } catch {
+        userDict = null; // slang words just fall back to their shattered segmentation
+      }
+    }
+    return new lindera.Tokenizer(dictionary, "normal", userDict);
   })();
   return cached;
 };

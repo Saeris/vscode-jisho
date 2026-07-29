@@ -104,3 +104,26 @@ describe("tokenizer over a real corpus — snapshots", () => {
     expect(shape).toMatchSnapshot();
   });
 });
+
+describe("slang user dictionary (spec 13 §B)", () => {
+  // WHY: IPADIC shatters slang it lacks (きもい → き+も+い), which reaches the dictionary as garbage.
+  // Our user dictionary teaches these as single i-adjectives. Each entry MUST tokenize as one
+  // adjective segment; if the user dict fails to load, these shatter and the test catches it.
+  // (Only words IPADIC genuinely lacks are here — やばい/だるい/えぐい are already in IPADIC 4.x.)
+  it.each(["きもい", "うざい", "エモい"])(
+    "tokenizes the slang adjective %s as one segment",
+    async (word) => {
+      const segments = await segment(word);
+      expect(segments).toHaveLength(1);
+      expect(segments[0]?.surface).toBe(word);
+      expect(segments[0]?.pos).toBe("adjective");
+    }
+  );
+
+  it("keeps slang isolated in a sentence without disturbing normal words", async () => {
+    // WHY: a user-dict entry can over-fire; confirm it segments cleanly in context and the
+    // surrounding words are untouched.
+    const surfaces = (await segment("この虫きもい")).map((s) => s.surface);
+    expect(surfaces).toEqual(["この", "虫", "きもい"]);
+  });
+});

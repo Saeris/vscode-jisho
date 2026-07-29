@@ -13,13 +13,23 @@
  * version-locked to the lindera core that compiled it (loading a mismatched dict throws
  * `InvalidAutomatonError`), so this MUST match the `lindera-nodejs` dependency in package.json.
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "assets", "lindera-ipadic");
+// Our curated slang user-dictionary (committed source) is copied next to the compiled dict so it
+// ships in the same bundled directory and loads by path at runtime. See src/data/slang-userdict.md.
+const SLANG_SRC = join(root, "src", "data", "slang-userdict.csv");
+const SLANG_DEST = join(OUT_DIR, "slang-userdict.csv");
 
 // Pinned to the lindera-nodejs version in package.json (dictionary format is version-locked).
 const LINDERA_VERSION = "4.0.1";
@@ -81,7 +91,16 @@ const main = async (): Promise<void> => {
   );
 };
 
-// Skip the download when the dictionary is already present at the pinned version (idempotent, fast).
+/** Copy the committed slang user-dictionary next to the compiled dict (always — it's source that
+    changes independently of the lindera version). */
+const copySlang = (): void => {
+  mkdirSync(OUT_DIR, { recursive: true });
+  copyFileSync(SLANG_SRC, SLANG_DEST);
+  console.log(`Copied slang user-dictionary to assets/lindera-ipadic/.`);
+};
+
+// Skip the DOWNLOAD when the dictionary is already present at the pinned version (idempotent, fast),
+// but always refresh the slang copy (a cheap file copy of committed source).
 const versionMarker = join(OUT_DIR, "VERSION");
 if (existsSync(versionMarker)) {
   console.log(
@@ -90,3 +109,4 @@ if (existsSync(versionMarker)) {
 } else {
   await main();
 }
+copySlang();

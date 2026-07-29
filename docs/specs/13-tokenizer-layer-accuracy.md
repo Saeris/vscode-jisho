@@ -32,7 +32,16 @@ The lexicalized cases (お茶/ご飯) keep their honorific correctly because the
 - **IPADIC glues honorifics INCONSISTENTLY.** お送り/お電話 come through as one glued token, but 担当者がご案内いたします tokenizes ご as its OWN 接頭詞 token with lemma 案内 already correct — so the fallback isn't even reached there. The fallback fixes the glued cases; the split cases were never broken. The unit test drives the glued form directly (`resolveByLemma("ご案内")`), the reliable surface to test on, rather than a sentence whose gluing is IPADIC's whim.
 - **Verb-stem humbles need deinflection, not just stripping.** お送り is お + a verb REN'YŌKEI (送り), whose dictionary form is 送る — stripping お lands on the noun 送り (a real but wrong entry). Reaching 送る needs the deinflection engine, beyond a prefix strip. Left as a documented `optional` gold case, deferred.
 
-### B. Missing slang / colloquial adjectives — `きもい`, `やばい` (FIXABLE, medium effort, bounded)
+### B. Missing slang / colloquial adjectives — `きもい`, `うざい`, `エモい` (DONE 2026-07-28)
+
+**As built:** a Lindera **user dictionary** (`src/data/slang-userdict.csv`, committed source) layered on the main IPADIC dict via `lindera-nodejs`'s `loadUserDictionary` + `new Tokenizer(dict, "normal", userDict)`. This is what the tokenizer swap to `lindera-nodejs` (spec 14) unlocked — the sealed WASM couldn't load a user dict at all. Details:
+
+- **IPADIC "detailed" 13-column format** (not the simple 3-column, which mis-maps POS/reading against our positional `details[]` layout). Each slang word is modelled on a real IPADIC i-adjective (`きもい,19,19,-2000,形容詞,自立,*,*,形容詞・アウオ段,基本形,きもい,キモイ,キモイ`), so `details[0]=形容詞`, `[6]=base`, `[7]=reading` line up and it inflects.
+- **Curated to only what IPADIC 4.x LACKS** — probed every candidate against the base dict: やばい/だるい/えぐい/ずるい/きしょい/うまい are already present; only きもい/うざい/エモい shatter. So the CSV is 3 entries, not a speculative list.
+- **Shipping:** `build:tokenizer-dict` copies the CSV next to the compiled dict in `assets/lindera-ipadic/` (bundled in the .vsix); `getTokenizer()` loads it by path, degrading gracefully (null) if absent/unreadable. Format doc: `src/data/slang-userdict.md`.
+- **Verified:** `corpus.spec.ts` — each slang word tokenizes as one `adjective` segment, and `この虫きもい` segments cleanly without disturbing neighbours. (312 tests green.)
+
+The original diagnosis, kept below for the record:
 
 `きもい虫` → IPADIC has no きもい entry, so the lattice shatters it into garbage (き=来る + も + い=いる + 虫). やばい tokenizes (it's now common enough to be in IPADIC) but many slang adjectives don't. The word is gone before `segment()` sees a coherent token — post-processing can't reassemble it.
 
