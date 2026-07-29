@@ -12,10 +12,18 @@ permissions:
   pull-requests: write
 
 jobs:
+  # `main` is unprotected and this workflow runs on push, so a red check on the version PR informs
+  # but does not prevent anything — the publish would proceed the moment it merges. Running the gate
+  # here makes it mechanical: `needs` holds the publish until the suite passes against real data.
+  gate:
+    if: github.repository == 'Saeris/vscode-jisho'
+    uses: ./.github/workflows/full-test.yml
+
   release:
     name: Publish
     # Guard against forks running the publish flow.
     if: github.repository == 'Saeris/vscode-jisho'
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

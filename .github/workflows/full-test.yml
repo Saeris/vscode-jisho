@@ -1,0 +1,52 @@
+name: Full Test
+
+# The suite as it exists with real data provisioned. Kept out of the per-push path because building
+# the dictionary costs ~60s and five external hosts, and run where it actually decides something:
+# before a publish, and on the version PR that precedes one.
+#
+# Without assets/jisho.db the db/accuracy/names specs SKIP rather than fail (existsSync gates), so a
+# run without this provisioning reports green having never exercised search ranking or match
+# accuracy at all — the gates CONVENTIONS.md names for ranking-sensitive changes.
+on:
+  workflow_call:
+  # Runnable on demand, so the gate can be exercised without staging a release.
+  workflow_dispatch:
+
+jobs:
+  full-test:
+    name: Test with provisioned data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "lts"
+          cache: true
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(vp exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: vp exec playwright install --with-deps chromium
+
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
+      - name: Build the dictionary database
+        run: vp run build:data
+
+      # A half-built DB would leave the specs skipping and this job green, so assert the artifact
+      # answers before trusting a run that depends on it.
+      - name: Verify the database
+        run: vp exec node scripts/verify-db.ts assets/jisho.db
+
+      - run: vp test

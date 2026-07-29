@@ -7,6 +7,13 @@ on:
     branches: [main]
 
 jobs:
+  # Early warning on Bumpy's version PR: the same gate release.yml enforces before publishing, run
+  # while there is still a PR to fix rather than after the merge that triggers the release.
+  release-gate:
+    name: Release gate
+    if: github.event.pull_request.head.ref == 'bumpy/version-packages'
+    uses: ./.github/workflows/full-test.yml
+
   ci:
     name: Check & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
