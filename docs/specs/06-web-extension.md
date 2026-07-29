@@ -1,6 +1,6 @@
 # Spec 06 — Web extension viability: asset delivery without a filesystem
 
-**Backlog:** new (#40). **Status:** feasibility analysis + plan. **Verdict: viable, not blocked** — but it is a second delivery path for every asset, so do it deliberately, after the first desktop release.
+**Backlog:** new (#40). **Status:** feasibility analysis + plan. **Verdict: viable, not blocked** — but it is a second delivery path for every asset, so do it deliberately, after the first desktop release. **Read the stale-premise note below before relying on this verdict:** two of the facts it rests on (the tokenizer being WASM, and the common tier being 51 MB) no longer hold.
 
 ## The question
 
@@ -8,13 +8,15 @@ A web extension (vscode.dev, github.dev, Codespaces browser) runs in a **Web Wor
 
 ## Verified findings (checked, not assumed)
 
-| Dependency        | Desktop today                                                 | Browser                                                                                                                              | Status                            |
-| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
-| Database engine   | `@tursodatabase/database` (native, `database-win32-x64-msvc`) | **`@tursodatabase/database-wasm` v0.7.0** — "Turso Database for JavaScript in Browser", MIT, same version, published within the week | ✅ exists                         |
-| Persistence       | file in `globalStorage`                                       | **OPFS** — `Opfs`/`OpfsFile` exports; `connect()` "pre-opens necessary files in the OPFS"                                            | ✅ exists                         |
-| Tokenizer         | `lindera-wasm-nodejs-ipadic`                                  | **`lindera-wasm` / `lindera-wasm-ipadic` v2.1.0** — "morphological analysis library for WebAssembly"                                 | ✅ exists                         |
-| Stroke SVGs       | files in the .vsix, read with `workspace.fs`                  | `vscode.workspace.fs` + `extensionUri` **work in web** (it is the VS Code FS API, not Node's)                                        | ✅ works as-is                    |
-| Download + gunzip | `node:fs`, `node:zlib`, `node:crypto`                         | `fetch` + `DecompressionStream("gzip")` + `crypto.subtle.digest`                                                                     | ✅ web-standard equivalents exist |
+| Dependency        | Desktop today                                                                                              | Browser                                                                                                                              | Status                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Database engine   | `@tursodatabase/database` (native, `database-win32-x64-msvc`)                                              | **`@tursodatabase/database-wasm` v0.7.0** — "Turso Database for JavaScript in Browser", MIT, same version, published within the week | ✅ exists                          |
+| Persistence       | file in `globalStorage`                                                                                    | **OPFS** — `Opfs`/`OpfsFile` exports; `connect()` "pre-opens necessary files in the OPFS"                                            | ✅ exists                          |
+| Tokenizer         | ~~`lindera-wasm-nodejs-ipadic`~~ → **native `lindera-nodejs` 4.x** + an external compiled IPADIC directory | `lindera-wasm` exists but is **far behind the monorepo**, and spec 14 records why we left it                                         | ⚠️ **premise changed** — see below |
+| Stroke SVGs       | files in the .vsix, read with `workspace.fs`                                                               | `vscode.workspace.fs` + `extensionUri` **work in web** (it is the VS Code FS API, not Node's)                                        | ✅ works as-is                     |
+| Download + gunzip | `node:fs`, `node:zlib`, `node:crypto`                                                                      | `fetch` + `DecompressionStream("gzip")` + `crypto.subtle.digest`                                                                     | ✅ web-standard equivalents exist  |
+
+> **Stale premise (2026-07-29).** This spec's verdict assumed the tokenizer was already WASM, making web a recompile rather than a port. It is not: the tokenizer moved to the native `lindera-nodejs` binding, whose dictionary is a separate ~55 MB directory bundled into the .vsix. The published `lindera-wasm` packages lag the monorepo, and specs 13/14 record the two attempts to use them — the npm packages are broken, a custom build hit a NASM toolchain wall, and v5 still carries the defects. So the tokenizer is now a **second** platform seam of unknown cost, not a solved one, and upstream fixes are a prerequisite. The rest of the analysis (turso-wasm, OPFS, SVGs, download primitives) is unaffected.
 
 **Known risk, and why it does not block us:** turso's own test suite documents an OPFS/WASM **insert hang** (`core/io/memory_yield.rs::wasm_opfs_cache_spill_insert_hang`) — mid-transaction cache spilling blocks instead of yielding, because on the browser main thread OPFS completions only arrive when control returns to the JS event loop. That is a **write-path** bug. Our browser workload is **read-only** (the DB is downloaded, then queried), so we do not hit it — but the seeding step (writing the downloaded bytes into OPFS) must avoid one big transaction. Prefer writing the file to OPFS directly (`FileSystemWritableFileStream`) and _opening_ it, rather than INSERTing rows.
 
@@ -27,7 +29,7 @@ The blocker is not "can it run" — it is **~400 MB of database in browser stora
 
 **Therefore the web build should ship a different data tier**, not the same one:
 
-1. **Common-subset DB** (the existing `--common` variant — 51 MB raw, 21 MB gzipped, 22k entries). It already exists as the dev/test fixture and covers ordinary lookups.
+1. **Common-subset DB** (the existing `--common` variant — **101 MB raw, 39 MB gzipped**, 22.6k entries; re-measured 2026-07-29, was 51 MB / 21 MB when this spec was written). The Tatoeba example pool doubled it, which weakens the "ship the common subset to web" argument considerably — 39 MB to start using a dictionary on a transient vscode.dev session is a different proposition from 21 MB. Re-decide the tier before building against it: dropping the pool from a web-specific variant is the obvious lever.
 2. **Full DB as an explicit opt-in** ("Download full dictionary — 129 MB") for users who want it and have the quota.
 3. **Names DB: not offered in web** initially (409 MB is untenable in OPFS).
 
@@ -59,7 +61,7 @@ Doing it before the desktop release would mean maintaining two unproven delivery
 
 1. **Is web support a goal for v1.x at all**, or a "nice someday"? It roughly doubles the delivery surface; the answer determines whether the platform seam is worth extracting early (it is cheap now, expensive after more host code accretes).
 2. **Common-subset-only in web, or offer the full download?** Recommendation: ship common, offer full behind an explicit action.
-3. **Handwriting recognition** (`patterns.data.ts`, 1.7 MB) and the 12 MB tokenizer WASM both need bundling into the web build — acceptable, but they set a floor on the web extension's own size.
+3. **Handwriting recognition** (`patterns.data.ts`, 1.7 MB) needs bundling into the web build. The tokenizer's floor is no longer the 12 MB embedded-dictionary WASM this assumed — IPADIC is now an external ~55 MB compiled directory, so a web build must either ship that too or find a smaller dictionary. This is the largest unresolved number in the whole plan.
 
 ## Out of scope
 

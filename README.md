@@ -27,7 +27,7 @@ This extension has three build targets: the **extension host** bundle (`vp pack`
 
 ```bash
 vp install                   # install dependencies
-vp run build:data            # download JMdict → build assets/jisho.db (a one-off, ~8s)
+vp run build:data            # download JMdict → build assets/jisho.db (a one-off, ~60s)
 vp run build:tokenizer-dict  # download the compiled IPADIC tokenizer dictionary (a one-off)
 ```
 
