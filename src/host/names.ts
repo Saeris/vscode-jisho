@@ -13,6 +13,7 @@ import type {
 } from "../shared/messages";
 
 type Db = Awaited<ReturnType<typeof connect>>;
+type Statement = Awaited<ReturnType<Db["prepare"]>>;
 
 export class NamesDictionary {
   #db: Db;
@@ -44,8 +45,19 @@ export class NamesDictionary {
     return { code, description: this.#tags.get(code) ?? code };
   }
 
+  /** Prepared statements by SQL text — see the rationale on `Dictionary`'s cache. */
+  #stmts = new Map<string, Promise<Statement>>();
+
+  async #prepare(sql: string): Promise<Statement> {
+    const cached = this.#stmts.get(sql);
+    if (cached) return cached;
+    const pending = this.#db.prepare(sql);
+    this.#stmts.set(sql, pending);
+    return pending;
+  }
+
   async #all<T>(sql: string, ...params: Array<string | number>): Promise<T[]> {
-    const stmt = await this.#db.prepare(sql);
+    const stmt = await this.#prepare(sql);
     const rows: T[] = await stmt.all(...params);
     return rows;
   }
@@ -54,7 +66,7 @@ export class NamesDictionary {
     sql: string,
     ...params: Array<string | number>
   ): Promise<T | undefined> {
-    const stmt = await this.#db.prepare(sql);
+    const stmt = await this.#prepare(sql);
     const row: T | undefined = await stmt.get(...params);
     return row;
   }

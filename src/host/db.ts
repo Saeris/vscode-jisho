@@ -429,8 +429,14 @@ export class Dictionary {
       freq_rank: number | null;
       common: number;
     }>(
+      // Candidates come from `search_terms`, NOT from joining `kanji`/`kana` on their text. Neither
+      // of those tables indexes `text` (they key on word_id, position), so `WHERE k.text = ? OR
+      // ka.text = ?` across two LEFT JOINs scanned the whole join product — a flat 61ms per call on
+      // the common subset, on the hover's path. `search_terms` already indexes the same writings and
+      // readings (idx_search_term), giving identical rows in ~0.03ms.
       `SELECT w.id AS word_id,
-              MAX(CASE WHEN k.text = ?1 THEN 1 ELSE 0 END) AS kanji_match,
+              (SELECT MAX(CASE WHEN text = ?1 THEN 1 ELSE 0 END)
+                 FROM kanji WHERE word_id = w.id) AS kanji_match,
               (SELECT MAX(CASE WHEN text = ?2 THEN 1 ELSE 0 END)
                  FROM kana WHERE word_id = w.id) AS reading_match,
               (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
@@ -441,10 +447,9 @@ export class Dictionary {
               w.freq_rank AS freq_rank,
               w.is_common AS common
          FROM words w
-         LEFT JOIN kanji k ON k.word_id = w.id
-         LEFT JOIN kana ka ON ka.word_id = w.id
-        WHERE k.text = ?1 OR ka.text = ?1
-        GROUP BY w.id`,
+         JOIN (SELECT DISTINCT word_id FROM search_terms
+                WHERE term = ?1 AND (kind = 'kanji' OR kind = 'kana')) m
+           ON m.word_id = w.id`,
       lemma,
       // "" never equals a real kana reading, so an absent tokenizer reading leaves this tier off.
       hira
