@@ -23,14 +23,17 @@ Planned for later milestones: kanji detail with radical breakdown and stroke-ord
 
 This extension has three build targets: the **extension host** bundle (`vp pack` → a CommonJS `.cjs` VSCode loads in its Node extension host), the **webview** app (`vp build` → the React UI that renders in the sidebar), and a one-off **data build** (`vp run build:data` → the SQLite dictionary). The first two are wired into the F5 debug flow; the data build you run occasionally.
 
-### 1. Install dependencies and build the dictionary
+### 1. Install dependencies and provision the data
 
 ```bash
-vp install          # install dependencies
-vp run build:data   # download JMdict → build assets/jisho.db (a one-off, ~8s)
+vp install                   # install dependencies
+vp run build:data            # download JMdict → build assets/jisho.db (a one-off, ~8s)
+vp run build:tokenizer-dict  # download the compiled IPADIC tokenizer dictionary (a one-off)
 ```
 
-`build:data` downloads the latest [`jmdict-eng-common`][jmdict-simplified] release and compiles it into `assets/jisho.db`. You only need to re-run it to refresh the dictionary data. The database is **not** committed (it's a build artifact) and is **not** bundled into the published `.vsix` — see [Dictionary delivery](#-dictionary-delivery) below.
+`build:data` downloads the latest [`jmdict-eng-common`][jmdict-simplified] release and compiles it into `assets/jisho.db`. `build:tokenizer-dict` downloads the pinned Lindera IPADIC dictionary the Japanese tokenizer loads (the tokenizer is the native [`lindera-nodejs`][lindera] binding — see [Tokenizer](#-tokenizer) below) and copies our slang user-dictionary next to it, into `assets/lindera-ipadic/`. Re-run either only to refresh that data. Both are **provisioned build artifacts** — not committed, and either **bundled** into the `.vsix` (the tokenizer dictionary) or **downloaded on first activation** (the JMdict DB); see [Dictionary delivery](#-dictionary-delivery).
+
+**No Rust toolchain is needed for ordinary development** — the tokenizer ships as a prebuilt native binary, and the dictionary is downloaded compiled. Rust only enters the picture if we ever regenerate the tokenizer binary itself (see [Tokenizer](#-tokenizer)).
 
 ### 2. Run it with F5
 
@@ -85,6 +88,18 @@ gh release upload dictionary-latest --clobber \
   assets/jisho-names.db.zst assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
 ```
 
+## 🈁 Tokenizer
+
+Japanese word segmentation uses [Lindera][lindera] (MeCab/IPADIC-quality morphological analysis) via its native Node binding, [`lindera-nodejs`][lindera]. The binding ships as a **prebuilt per-platform binary** — the same model as our SQLite native addon — so **ordinary contributors need no Rust toolchain**. The IPADIC dictionary is not embedded in the binary: it's a compiled directory provisioned by `vp run build:tokenizer-dict` into `assets/lindera-ipadic/` (gitignored, ~55 MB) and **bundled into the `.vsix`** so the tokenizer works offline on install.
+
+### Adding slang / colloquial words
+
+IPADIC misses some slang (きもい, うざい, エモい …), which the lattice otherwise shatters into fragments. We fix this with a small **user dictionary** layered on IPADIC at tokenize time: `src/data/slang-userdict.csv` (committed source). To add a word, follow the format guide in [`src/data/slang-userdict.md`](src/data/slang-userdict.md) — **only add words IPADIC genuinely lacks** (check by tokenizing them first; most everyday slang is already present in IPADIC 4.x), and add a `corpus.spec.ts` regression. Re-run `vp run build:tokenizer-dict` to copy it next to the dictionary.
+
+### Regenerating the tokenizer binary (rare, needs Rust)
+
+We do **not** build the tokenizer binary — we consume the prebuilt `lindera-nodejs` from npm. The published package is currently broken (its npm tarball is missing its entry point; [upstream issue][lindera-issue]), so a small loader shim lives in [`vendor/lindera-nodejs/`](vendor/lindera-nodejs/); remove it once upstream ships a working release. Only if we ever needed a _custom_ build (e.g. a WASM build for a future web extension, or a lindera version bump) would Rust + `wasm-pack` enter the toolchain — the investigation and recipe are in [`docs/specs/14`](docs/specs/14-custom-lindera-wasm.md). The dictionary version is **pinned** to the `lindera-nodejs` package version (the compiled format is version-locked), so bump both together.
+
 ## 📣 Data sources & attribution
 
 This extension is built on the work of several open dictionary projects. Their licenses require attribution, which is reproduced here (and will be surfaced in-app):
@@ -104,6 +119,8 @@ This extension is built on the work of several open dictionary projects. Their l
 Additional sources (AnimCJK stroke data) will be added and credited as their features are implemented.
 
 ## 🤝 Contributing
+
+New here? [Development](#-development-running-the-extension) covers first-time setup (`vp install` + the two data-provisioning steps) — no Rust toolchain needed for ordinary work. Editing the tokenizer or its dictionaries? See [Tokenizer](#-tokenizer).
 
 The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release.
 
@@ -142,6 +159,8 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [perfect-freehand]: https://github.com/steveruizok/perfect-freehand
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [turso]: https://www.npmjs.com/package/@tursodatabase/database
+[lindera]: https://github.com/lindera/lindera
+[lindera-issue]: https://github.com/lindera/lindera/issues
 [viteplus]: https://viteplus.dev/
 [bumpy]: https://bumpy.varlock.dev/
 [license]: ./LICENSE.md
