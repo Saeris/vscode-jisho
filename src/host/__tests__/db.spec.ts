@@ -20,6 +20,29 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     await dict?.close();
   });
 
+  test("keeps the denormalized uk flag in step with its tag rows", async () => {
+    // WHY: words.is_uk is a build-time denormalization of "any sense tagged uk", and sense_tags is
+    // where that tag actually lives. Two representations of one fact drift the moment someone edits
+    // one path and not the other, and the failure is silent — is_uk only changes which heading a
+    // result leads with. Compares CARDINALITY rather than the sets themselves: a per-row EXISTS
+    // check is a full scan (~45s), while both counts below are indexed. A build that stopped
+    // populating either side, or populated them from different predicates, diverges here.
+    const raw = await connect(DB_PATH);
+    try {
+      const stmt = await raw.prepare(
+        `SELECT (SELECT COUNT(*) FROM words WHERE is_uk = 1) AS flagged,
+                (SELECT COUNT(DISTINCT s.word_id)
+                   FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+                  WHERE t.kind = 'misc' AND t.code = 'uk') AS tagged`
+      );
+      const row = (await stmt.get()) as { flagged: number; tagged: number };
+      expect(row.flagged).toBeGreaterThan(0);
+      expect(row.flagged).toBe(row.tagged);
+    } finally {
+      await raw.close();
+    }
+  });
+
   test("resolves a lemma by index rather than scanning", async () => {
     // WHY: this is the editor hover's lookup, so it runs on cursor movement — and it regressed to a
     // flat 283ms because it filtered `kanji.text`/`kana.text`, neither of which is indexed, and so

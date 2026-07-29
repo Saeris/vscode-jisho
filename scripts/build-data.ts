@@ -733,7 +733,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   }
 
   const insWord = await db.prepare(
-    "INSERT INTO words(id, is_common, freq_rank, priority_tags_json, is_uk) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO words(id, is_common, freq_rank, is_uk) VALUES (?, ?, ?, ?)"
   );
   const insKanji = await db.prepare(
     "INSERT INTO kanji(word_id, position, text, is_common, tags_json) VALUES (?, ?, ?, ?, ?)"
@@ -742,12 +742,18 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO kana(word_id, position, text, is_common, tags_json, applies_to_kanji_json) VALUES (?, ?, ?, ?, ?, ?)"
   );
   const insSense = await db.prepare(
-    `INSERT INTO senses(word_id, position, pos_json, field_json, misc_json, info_json, dialect_json,
+    `INSERT INTO senses(word_id, position, info_json,
        applies_to_kanji_json, applies_to_kana_json, related_json, antonym_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
   const insGloss = await db.prepare(
-    "INSERT INTO glosses(sense_id, position, lang, text) VALUES (?, ?, ?, ?)"
+    "INSERT INTO glosses(sense_id, position, text) VALUES (?, ?, ?)"
+  );
+  const insSenseTag = await db.prepare(
+    "INSERT INTO sense_tags(sense_id, kind, code) VALUES (?, ?, ?)"
+  );
+  const insWordTag = await db.prepare(
+    "INSERT INTO word_tags(word_id, code) VALUES (?, ?)"
   );
   const insSentence = await db.prepare(
     `INSERT INTO sentences(word_id, sense_position, position, ja_furigana, en, tatoeba_id, source)
@@ -796,6 +802,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       insKana,
       insSense,
       insGloss,
+      insSenseTag,
+      insWordTag,
       insTerm,
       insSentence,
       priority,
@@ -1106,6 +1114,8 @@ interface Stmts {
   insKana: Statement;
   insSense: Statement;
   insGloss: Statement;
+  insSenseTag: Statement;
+  insWordTag: Statement;
   insTerm: Statement;
   insSentence: Statement;
   /** JMdict-id → priority tags, from the original XML (jmdict-simplified drops them). */
@@ -1139,13 +1149,10 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   // `uk` ("usually written using kana alone") is asked of the WORD by every query that wants it, so
   // it is resolved once here instead of re-scanning misc_json per sense at query time.
   const isUk = word.sense.some((sense) => sense.misc.includes("uk")) ? 1 : 0;
-  await s.insWord.run(
-    word.id,
-    wordCommon,
-    pri?.freqRank ?? null,
-    JSON.stringify(pri?.tags ?? []),
-    isUk
-  );
+  await s.insWord.run(word.id, wordCommon, pri?.freqRank ?? null, isUk);
+  for (const code of new Set(pri?.tags ?? [])) {
+    await s.insWordTag.run(word.id, code);
+  }
   let sentenceCount = 0;
 
   for (let i = 0; i < word.kanji.length; i++) {
@@ -1222,16 +1229,24 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
     const { lastInsertRowid: senseId } = await s.insSense.run(
       word.id,
       i,
-      JSON.stringify(sense.partOfSpeech),
-      JSON.stringify(sense.field),
-      JSON.stringify(sense.misc),
       JSON.stringify(sense.info),
-      JSON.stringify(sense.dialect),
       JSON.stringify(sense.appliesToKanji),
       JSON.stringify(sense.appliesToKana),
       JSON.stringify(sense.related),
       JSON.stringify(sense.antonym)
     );
+    // Tag codes as rows (spec 15). De-duplicated per (kind, code) because the PK forbids repeats and
+    // JMdict does occasionally list one twice on a sense.
+    for (const [kind, codes] of [
+      ["pos", sense.partOfSpeech],
+      ["misc", sense.misc],
+      ["field", sense.field],
+      ["dialect", sense.dialect]
+    ] as const) {
+      for (const code of new Set(codes)) {
+        await s.insSenseTag.run(senseId, kind, code);
+      }
+    }
     // How many glosses this sense carries — a specificity signal for ranking. "to eat" alone
     // (食べる) is a much stronger match for "eat" than "to eat, to drink, to smoke, to take"
     // (喫する), where it's one of four near-synonyms. See schema.sql's sense_breadth.
@@ -1239,7 +1254,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
     for (let g = 0; g < sense.gloss.length; g++) {
       const gloss = sense.gloss[g];
       const isPrimary = i === 0 && g === 0 ? 1 : 0;
-      await s.insGloss.run(senseId, g, gloss.lang, gloss.text);
+      await s.insGloss.run(senseId, g, gloss.text);
       await s.insTerm.run(
         word.id,
         "gloss",

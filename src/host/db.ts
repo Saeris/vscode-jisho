@@ -310,7 +310,9 @@ export class Dictionary {
       }>(
         `SELECT st.word_id AS word_id, st.term AS term, MAX(st.is_common) AS common,
                 w.freq_rank AS freq_rank,
-                (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes
+                (SELECT group_concat(t.code, ' ') FROM sense_tags t
+                  JOIN senses se ON se.id = t.sense_id
+                 WHERE se.word_id = w.id AND t.kind = 'pos') AS pos_codes
            FROM search_terms st
            JOIN words w ON w.id = st.word_id
           WHERE kind IN ('kanji', 'kana')
@@ -439,7 +441,9 @@ export class Dictionary {
                  FROM kanji WHERE word_id = w.id) AS kanji_match,
               (SELECT MAX(CASE WHEN text = ?2 THEN 1 ELSE 0 END)
                  FROM kana WHERE word_id = w.id) AS reading_match,
-              (SELECT group_concat(pos_json, ' ') FROM senses WHERE word_id = w.id) AS pos_codes,
+              (SELECT group_concat(t.code, ' ') FROM sense_tags t
+                  JOIN senses se ON se.id = t.sense_id
+                 WHERE se.word_id = w.id AND t.kind = 'pos') AS pos_codes,
               w.is_uk AS uk,
               (SELECT COUNT(*) FROM senses WHERE word_id = w.id) AS sense_count,
               (SELECT MAX(is_common) FROM kanji WHERE word_id = w.id) AS has_common_kanji,
@@ -725,21 +729,49 @@ export class Dictionary {
     const senseRows = await this.#all<{
       id: number;
       position: number;
-      pos_json: string;
-      field_json: string;
-      misc_json: string;
       info_json: string;
-      dialect_json: string;
       applies_to_kanji_json: string;
       applies_to_kana_json: string;
       related_json: string;
       antonym_json: string;
     }>(
-      `SELECT id, position, pos_json, field_json, misc_json, info_json, dialect_json,
-              applies_to_kanji_json, applies_to_kana_json, related_json, antonym_json
+      `SELECT id, position, info_json, applies_to_kanji_json, applies_to_kana_json,
+              related_json, antonym_json
          FROM senses WHERE word_id = ? ORDER BY position`,
       id
     );
+
+    // Tags and glosses for every sense in one query each, grouped in memory. Both were previously
+    // per-sense — the glosses as an awaited query inside the sense loop.
+    const tagRows = await this.#all<{
+      sense_id: number;
+      kind: string;
+      code: string;
+    }>(
+      `SELECT t.sense_id AS sense_id, t.kind AS kind, t.code AS code
+         FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+        WHERE s.word_id = ?`,
+      id
+    );
+    const tagsBySense = new Map<number, Map<string, TagDto[]>>();
+    for (const t of tagRows) {
+      const byKind = tagsBySense.get(t.sense_id) ?? new Map<string, TagDto[]>();
+      byKind.set(t.kind, [...(byKind.get(t.kind) ?? []), this.#tag(t.code)]);
+      tagsBySense.set(t.sense_id, byKind);
+    }
+    const glossRows = await this.#all<{ sense_id: number; text: string }>(
+      `SELECT g.sense_id AS sense_id, g.text AS text
+         FROM glosses g JOIN senses s ON s.id = g.sense_id
+        WHERE s.word_id = ? ORDER BY s.position, g.position`,
+      id
+    );
+    const glossesBySense = new Map<number, string[]>();
+    for (const g of glossRows) {
+      glossesBySense.set(g.sense_id, [
+        ...(glossesBySense.get(g.sense_id) ?? []),
+        g.text
+      ]);
+    }
 
     // Inline example sentences: the curated per-sense Tanaka set (source='tanaka'), keyed by
     // sense_position. The fuller Tatoeba pool (source='tatoeba') is deliberately excluded here — it
@@ -762,17 +794,14 @@ export class Dictionary {
 
     const senses: SenseDto[] = [];
     for (const s of senseRows) {
-      const glossRows = await this.#all<{ text: string }>(
-        "SELECT text FROM glosses WHERE sense_id = ? ORDER BY position",
-        s.id
-      );
+      const tags = tagsBySense.get(s.id);
       senses.push({
-        partOfSpeech: parseStrings(s.pos_json).map((c) => this.#tag(c)),
-        field: parseStrings(s.field_json).map((c) => this.#tag(c)),
-        misc: parseStrings(s.misc_json).map((c) => this.#tag(c)),
+        partOfSpeech: tags?.get("pos") ?? [],
+        field: tags?.get("field") ?? [],
+        misc: tags?.get("misc") ?? [],
         info: parseStrings(s.info_json),
-        dialect: parseStrings(s.dialect_json).map((c) => this.#tag(c)),
-        glosses: glossRows.map((g) => g.text),
+        dialect: tags?.get("dialect") ?? [],
+        glosses: glossesBySense.get(s.id) ?? [],
         appliesToKanji: parseStrings(s.applies_to_kanji_json),
         appliesToKana: parseStrings(s.applies_to_kana_json),
         related: flattenXrefs(s.related_json),
@@ -1096,16 +1125,13 @@ const parseStrings = (json: string): string[] => {
 };
 
 /**
- * Parse the space-joined `group_concat` of several `pos_json` arrays (one per sense) into a flat set
- * of JMdict POS codes — e.g. `["v5r","vt"] ["n"]` → v5r, vt, n. Tolerates the malformed by scanning
- * for quoted tokens rather than JSON.parse-ing the concatenation (which isn't valid JSON as a whole).
+ * Flatten the space-joined `group_concat` of `sense_tags.code` across a word's senses into a unique
+ * set — `v5r vt n vt` → v5r, vt, n. NULL when the word has no rows of that kind.
  */
-const parseCodes = (concatenated: string | null): string[] => {
-  if (concatenated === null) return [];
-  const codes = new Set<string>();
-  for (const m of concatenated.matchAll(/"([^"]+)"/gu)) codes.add(m[1]);
-  return [...codes];
-};
+const parseCodes = (concatenated: string | null): string[] =>
+  concatenated === null
+    ? []
+    : [...new Set(concatenated.split(/\s+/).filter((c) => c !== ""))];
 
 /**
  * Strip a leading honorific お/ご from a lemma, or null when there's nothing safe to strip. The

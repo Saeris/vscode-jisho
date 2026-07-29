@@ -6,13 +6,11 @@
 --  * JMdict's `appliesToKanji` / `appliesToKana` links are preserved as JSON columns so
 --    the UI can honor them (a kana reading may apply to only *some* kanji spellings; a
 --    naive kanji×kana cross-join produces wrong readings). "*" means "all".
---  * Rich, rarely-filtered arrays (tags, xrefs, pos lists) are stored as JSON text rather
---    than exploded into rows — they are read whole when rendering a single word's detail.
---    CAVEAT (2026-07-29): this stopped being wholly true. `pos_json` IS now read across words
---    (resolveByLemma and the deinflection merge group_concat it, ship it to JS and filter there),
---    because POS became a query predicate rather than display data. Values needed as PREDICATES
---    belong in columns — see `words.is_uk`, which replaced a `misc_json LIKE '%"uk"%'` scan.
---    BACKLOG #27 (tag search) will force the same treatment on the rest.
+--  * The dividing line for arrays (spec 15): anything read as a PREDICATE is rows, anything read
+--    only for DISPLAY may stay JSON. Tag codes are rows (`sense_tags`, `word_tags`) because POS
+--    gates deinflection and #27 searches by code, and SQL cannot reach into a JSON string. Free
+--    text and xrefs (info, related, antonym, applies_to_*) stay JSON — not a closed vocabulary,
+--    never filtered on. A predicate needed per-word gets a column instead: see `words.is_uk`.
 --  * `position` columns retain source ordering (JMdict order is meaningful for display).
 --  * `kanji.text` / `kana.text` are deliberately NOT indexed: `search_terms` is the ONLY lookup
 --    surface for finding a word by its writing or reading. Querying those columns directly gets a
@@ -34,15 +32,11 @@ CREATE TABLE words (
   -- boolean `common` — without this gradient every exact match ties and ranking is arbitrary.
   -- Source corpus is the Mainichi Shimbun wordfreq file, so it has a newspaper's skew (BACKLOG #26).
   freq_rank INTEGER,
-  -- The named priority tags (news1, ichi1, spec1, gai1…) as a JSON array, unioned across the
-  -- entry's writings/readings. Kept for display badges + the planned tag search (BACKLOG #27);
-  -- read whole per word, never queried across words.
-  priority_tags_json TEXT NOT NULL DEFAULT '[]',
   -- 1 when ANY sense carries JMdict's `uk` misc tag ("usually written using kana alone"). Every
   -- query that wants this asks it of the WORD, so it is denormalized here rather than derived per
   -- sense: it drives whether a result leads with its kana or its kanji heading, and it floats
   -- 為る above 擦る in lemma resolution (freq_rank is backwards for usually-kana words). Was three
-  -- correlated `misc_json LIKE '%"uk"%'` subqueries; senses.misc_json still carries the tag for
+  -- correlated `misc_json LIKE '%"uk"%'` subqueries; `sense_tags` still carries the code itself for
   -- display. True for ~6% of senses.
   is_uk INTEGER NOT NULL DEFAULT 0
 );
@@ -74,14 +68,10 @@ CREATE TABLE kana (
 
 -- One row per sense (meaning group) of a word.
 CREATE TABLE senses (
-  id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+  id                     INTEGER PRIMARY KEY,
   word_id                TEXT NOT NULL REFERENCES words(id),
   position               INTEGER NOT NULL,
-  pos_json               TEXT NOT NULL DEFAULT '[]', -- parts of speech (tag codes)
-  field_json             TEXT NOT NULL DEFAULT '[]', -- fields of application
-  misc_json              TEXT NOT NULL DEFAULT '[]',
-  info_json              TEXT NOT NULL DEFAULT '[]',
-  dialect_json           TEXT NOT NULL DEFAULT '[]',
+  info_json              TEXT NOT NULL DEFAULT '[]', -- free-text notes, not codes
   applies_to_kanji_json  TEXT NOT NULL DEFAULT '["*"]',
   applies_to_kana_json   TEXT NOT NULL DEFAULT '["*"]',
   related_json           TEXT NOT NULL DEFAULT '[]', -- xrefs
@@ -94,7 +84,6 @@ CREATE INDEX idx_senses_word ON senses(word_id);
 CREATE TABLE glosses (
   sense_id INTEGER NOT NULL REFERENCES senses(id),
   position INTEGER NOT NULL,
-  lang     TEXT NOT NULL DEFAULT 'eng',
   text     TEXT NOT NULL,
   PRIMARY KEY (sense_id, position)
 );
@@ -104,6 +93,34 @@ CREATE TABLE tags (
   tag         TEXT PRIMARY KEY,
   description TEXT NOT NULL
 );
+
+-- JMdict tag codes as ROWS, not JSON arrays (spec 15). These are read as PREDICATES — POS decides
+-- whether a deinflection candidate is grammatically possible, and BACKLOG #27's tag search (#vulgar,
+-- #n5) filters by them across every word — and SQL cannot reach into a JSON string. They used to be
+-- `pos_json`/`misc_json`/`field_json`/`dialect_json`, group_concat'd and parsed in JavaScript to
+-- decide which rows to throw away.
+--
+-- Small: ~66k rows over ~173 distinct codes, against search_terms' ~428k. `code` leads the index
+-- because tag search looks up BY code. Free-text and xref arrays (info, related, antonym,
+-- applies_to_*) stay JSON — they are not codes from a closed vocabulary and are never predicates.
+CREATE TABLE sense_tags (
+  sense_id INTEGER NOT NULL REFERENCES senses(id),
+  kind     TEXT NOT NULL, -- 'pos' | 'misc' | 'field' | 'dialect'
+  code     TEXT NOT NULL, -- JMdict tag code, joinable to tags.tag
+  PRIMARY KEY (sense_id, kind, code)
+);
+
+CREATE INDEX idx_sense_tags_code ON sense_tags(code, kind);
+
+-- Word-level priority tags (news1, ichi1, spec1, gai1…), same rationale: #27 wants them as both
+-- display badges and search targets. Unioned across the entry's writings/readings by the build.
+CREATE TABLE word_tags (
+  word_id TEXT NOT NULL REFERENCES words(id),
+  code    TEXT NOT NULL,
+  PRIMARY KEY (word_id, code)
+);
+
+CREATE INDEX idx_word_tags_code ON word_tags(code);
 
 -- Pitch accent (Kanjium): mora-position accent pattern(s) per (word, reading). `accents_json` is
 -- a JSON array of mora numbers (0=heiban/flat, n=downstep after mora n), ordered by commonness;
