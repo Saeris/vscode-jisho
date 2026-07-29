@@ -38,6 +38,7 @@ import type {
 } from "../shared/messages";
 
 type Db = Awaited<ReturnType<typeof connect>>;
+type Statement = Awaited<ReturnType<Db["prepare"]>>;
 
 /**
  * Thrown when a database's schema version doesn't match this build's expectation. Typed so the
@@ -116,11 +117,34 @@ export class Dictionary {
     return { code, description: this.#tags.get(code) ?? code };
   }
 
+  /**
+   * Prepared statements, cached by SQL text.
+   *
+   * `prepare()` re-parses and re-plans every call, measured at 0.0158ms against 0.0039ms for a
+   * cached statement — 4x, paid by every query in this file. It dominated result hydration, which
+   * issues four lookups per result: a 50-result search spent ~90% of its time here.
+   *
+   * Keyed on SQL text, so the few queries built from a variable-length parameter list get one entry
+   * per distinct length. Those lists are short (deinflection candidates, a radical selection), which
+   * keeps the map bounded in practice — but it is the reason to keep them short.
+   */
+  #stmts = new Map<string, Promise<Statement>>();
+
+  async #prepare(sql: string): Promise<Statement> {
+    const cached = this.#stmts.get(sql);
+    if (cached) return cached;
+    // Cache the PROMISE, not the resolved statement: concurrent callers racing the same first
+    // prepare would otherwise each start their own.
+    const pending = this.#db.prepare(sql);
+    this.#stmts.set(sql, pending);
+    return pending;
+  }
+
   // Typed query helpers. Turso's `.get()`/`.all()` return `any`; funneling every read through
   // these two methods confines that single unavoidable boundary to one audited place and gives the
   // callers precise row types without scattered `as` assertions.
   async #all<T>(sql: string, ...params: Array<string | number>): Promise<T[]> {
-    const stmt = await this.#db.prepare(sql);
+    const stmt = await this.#prepare(sql);
     const rows: T[] = await stmt.all(...params);
     return rows;
   }
@@ -129,7 +153,7 @@ export class Dictionary {
     sql: string,
     ...params: Array<string | number>
   ): Promise<T | undefined> {
-    const stmt = await this.#db.prepare(sql);
+    const stmt = await this.#prepare(sql);
     const row: T | undefined = await stmt.get(...params);
     return row;
   }
@@ -272,6 +296,11 @@ export class Dictionary {
       // Fetch matched entries WITH the term that matched and the entry's POS codes, so a deinflection
       // is only accepted when the entry's part of speech is compatible with the conjugation that
       // produced it — rejecting して → 汁 (a noun) or きます → any non-verb, while keeping して → する.
+      //
+      // `term = ? OR term = ?` rather than `term IN (…)`: Turso does not use the index for IN, and
+      // measured 0.3788ms against 0.0200ms for the equivalent OR chain on this table — a 19x
+      // full-scan penalty on the common subset, which grows with the table. Same index-friendliness
+      // rule as the LIKE ban in CONVENTIONS.md.
       const deinflected = await this.#all<{
         word_id: string;
         term: string;
@@ -285,7 +314,7 @@ export class Dictionary {
            FROM search_terms st
            JOIN words w ON w.id = st.word_id
           WHERE kind IN ('kanji', 'kana')
-            AND term IN (${list.map(() => "?").join(", ")})
+            AND (${list.map(() => "term = ?").join(" OR ")})
           GROUP BY st.word_id, st.term
           LIMIT ?`,
         ...list,
@@ -1013,9 +1042,10 @@ export class Dictionary {
         kun_json: string;
         meanings_json: string;
       }>(
+        // OR chain, not IN — Turso does not index-optimize IN (see the deinflection query).
         `SELECT literal, stroke_count, grade, jlpt, frequency, on_json, kun_json, meanings_json
            FROM kanji_characters
-          WHERE literal IN (${literals.map(() => "?").join(", ")})
+          WHERE (${literals.map(() => "literal = ?").join(" OR ")})
           ORDER BY frequency IS NULL, frequency
           LIMIT 100`,
         ...literals

@@ -15,6 +15,8 @@ Read this before executing any milestone plan. It captures workflow rules and en
 
 - **`db.prepare()` is async** — always `await` it (runtime is lenient today; the types are not, and the WASM future won't be).
 - **No FTS5.** Turso replaces it with a native Tantivy index (`fts_match`) that we deliberately don't use yet. Search must stay **index-friendly**: exact matches and range scans (`col >= ? AND col < ?||'￿'`) only. **Never add an unanchored `LIKE '%…%'`** — at full-dictionary scale (~3M `search_terms` rows) it costs 400ms–3s per query. Precompute containment at build time instead (see the `word`/`char` kinds in `src/data/schema.sql`).
+- **`IN (…)` is not index-optimized either** (measured 2026-07-29): `term IN (?,?…)` cost 0.3788ms against 0.0200ms for the equivalent `term = ? OR term = ?` chain on `search_terms` — a 19x full-scan penalty on the _common_ subset, and it grows with the table. Same rule as the LIKE ban: build OR chains from a parameter list instead. `kind IN ('kanji','kana')` over a tiny literal set is fine; it is the indexed-column lookups that matter.
+- **`prepare()` is not free and is not cached for you** — re-parsing and re-planning each call measured 4x the cost of reusing a statement (0.0158ms vs 0.0039ms). `Dictionary` caches by SQL text; keep query SQL constant where you can, since variable-length parameter lists get one cache entry per length.
 - **Bulk imports must commit in batches** (~5k rows) with `PRAGMA wal_checkpoint(TRUNCATE)` between batches — one giant transaction ballooned the WAL past 5GB. Always checkpoint before `close()` so the shipped `.db` is self-contained.
 - Statement results are `any`; route all reads through `Dictionary`'s typed `#all`/`#get` helpers in [src/host/db.ts](../src/host/db.ts).
 
