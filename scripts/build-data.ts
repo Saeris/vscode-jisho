@@ -81,6 +81,9 @@ const RELEASE_API =
 // entries and would roughly double the main DB, so it's never bundled into it. Runs independently
 // of the word/kanji build.
 const NAMES = process.argv.includes("--names");
+// Build the database but skip the compressed release asset — for callers that only need something
+// to query (see full-test.yml).
+const NO_ARCHIVE = process.argv.includes("--no-archive");
 const NAMES_ASSET_PATTERN = /^jmnedict-all-\d.*\.json\.tgz$/;
 
 // `--full` builds the complete JMdict (~217k entries) — the variant delivered to users via the
@@ -1828,7 +1831,13 @@ const buildNamesDatabase = async (): Promise<void> => {
   writeFileSync(`${NAMES_DB}.version`, version, "utf8");
   console.log(`\nWrote ${NAMES_DB} — ${total} names.`);
 
-  // Names ship only as a download (no bundled dev copy), so always emit the zstd trio.
+  // Names ship only as a download (no bundled dev copy), so the zstd trio is the deliverable — but
+  // compressing 409MB at level 19 costs more than building the DB did, and a run that only needs a
+  // database to test against (CI's release gate) has no use for it.
+  if (NO_ARCHIVE) {
+    console.log("Skipping release asset (--no-archive).");
+    return;
+  }
   console.log("Compressing release asset…");
   const zstPath = await writeReleaseAsset(NAMES_DB, NAMES_DB, version);
   console.log(`Wrote ${zstPath} (+ .sha256, .version)`);

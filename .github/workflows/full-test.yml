@@ -44,9 +44,17 @@ jobs:
       - name: Build the dictionary database
         run: vp run build:data
 
-      # A half-built DB would leave the specs skipping and this job green, so assert the artifact
-      # answers before trusting a run that depends on it.
-      - name: Verify the database
-        run: vp exec node scripts/verify-db.ts assets/jisho.db
+      # NamesDictionary's only coverage is names.spec, which skips without this. --no-archive drops
+      # the zstd release asset: compressing 409MB at level 19 takes longer than building it, and
+      # nothing here consumes the archive. Measured: ~50s to build, ~120s to compress.
+      - name: Build the names database
+        run: vp exec node scripts/build-data.ts --names --no-archive
+
+      # A half-built DB would leave the specs skipping and this job green, so assert both artifacts
+      # answer before trusting a run that depends on them.
+      - name: Verify the databases
+        run: |
+          vp exec node scripts/verify-db.ts assets/jisho.db
+          vp exec node scripts/verify-db.ts assets/jisho-names.db --names
 
       - run: vp test
