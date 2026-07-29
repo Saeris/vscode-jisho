@@ -4,7 +4,7 @@
  * dictionary must never wait on it. Mirrors `Dictionary`'s index-friendly search discipline (exact
  * + prefix range scans over `name_search_terms`, never unanchored LIKE) and typed read helpers.
  */
-import { connect } from "@tursodatabase/database";
+import { SqliteStore } from "./store";
 import type {
   NameDetailDto,
   NameResultDto,
@@ -12,63 +12,37 @@ import type {
   TagDto
 } from "../shared/messages";
 
-type Db = Awaited<ReturnType<typeof connect>>;
-type Statement = Awaited<ReturnType<Db["prepare"]>>;
-
 export class NamesDictionary {
-  #db: Db;
-  #tags = new Map<string, string>();
+  #store: SqliteStore;
 
-  private constructor(db: Db) {
-    this.#db = db;
+  private constructor(store: SqliteStore) {
+    this.#store = store;
   }
 
   static async open(path: string): Promise<NamesDictionary> {
-    const db = await connect(path);
-    const dict = new NamesDictionary(db);
-    await dict.#loadTags();
-    return dict;
+    const store = await SqliteStore.open(path);
+    await store.loadTags("name_tags");
+    return new NamesDictionary(store);
   }
 
   async close(): Promise<void> {
-    await this.#db.close();
+    await this.#store.close();
   }
 
-  async #loadTags(): Promise<void> {
-    const rows = await this.#all<{ tag: string; description: string }>(
-      "SELECT tag, description FROM name_tags"
-    );
-    for (const { tag, description } of rows) this.#tags.set(tag, description);
-  }
-
-  #tag(code: string): TagDto {
-    return { code, description: this.#tags.get(code) ?? code };
-  }
-
-  /** Prepared statements by SQL text — see the rationale on `Dictionary`'s cache. */
-  #stmts = new Map<string, Promise<Statement>>();
-
-  async #prepare(sql: string): Promise<Statement> {
-    const cached = this.#stmts.get(sql);
-    if (cached) return cached;
-    const pending = this.#db.prepare(sql);
-    this.#stmts.set(sql, pending);
-    return pending;
-  }
-
+  // Delegates to the shared store — see src/host/store.ts for why these are not implemented twice.
   async #all<T>(sql: string, ...params: Array<string | number>): Promise<T[]> {
-    const stmt = await this.#prepare(sql);
-    const rows: T[] = await stmt.all(...params);
-    return rows;
+    return this.#store.all<T>(sql, ...params);
   }
 
   async #get<T>(
     sql: string,
     ...params: Array<string | number>
   ): Promise<T | undefined> {
-    const stmt = await this.#prepare(sql);
-    const row: T | undefined = await stmt.get(...params);
-    return row;
+    return this.#store.get<T>(sql, ...params);
+  }
+
+  #tag(code: string): TagDto {
+    return this.#store.tag(code);
   }
 
   /**

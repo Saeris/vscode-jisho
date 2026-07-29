@@ -3,8 +3,8 @@
  * async lookups that return the plain DTOs from `../shared/messages`. The UI never touches
  * SQL — it goes through the message protocol, which calls these.
  */
-import { connect } from "@tursodatabase/database";
 import { isKana, toKana } from "wanakana";
+import { SqliteStore } from "./store";
 import {
   candidateMatchesPos,
   deinflectCandidates,
@@ -38,9 +38,6 @@ import type {
   WordDetailDto
 } from "../shared/messages";
 
-type Db = Awaited<ReturnType<typeof connect>>;
-type Statement = Awaited<ReturnType<Db["prepare"]>>;
-
 /**
  * Thrown when a database's schema version doesn't match this build's expectation. Typed so the
  * delivery layer can distinguish "wrong shape, re-provision" from a genuine open/IO failure and
@@ -66,18 +63,17 @@ interface RadicalCache {
 
 /** Wraps an open database with prepared, hydrated queries. */
 export class Dictionary {
-  #db: Db;
-  #tags = new Map<string, string>();
+  #store: SqliteStore;
 
-  private constructor(db: Db) {
-    this.#db = db;
+  private constructor(store: SqliteStore) {
+    this.#store = store;
   }
 
   static async open(path: string): Promise<Dictionary> {
-    const db = await connect(path);
-    const dict = new Dictionary(db);
+    const store = await SqliteStore.open(path);
+    const dict = new Dictionary(store);
     await dict.#assertSchemaVersion();
-    await dict.#loadTags();
+    await store.loadTags("tags");
     return dict;
   }
 
@@ -104,59 +100,24 @@ export class Dictionary {
   }
 
   async close(): Promise<void> {
-    await this.#db.close();
+    await this.#store.close();
   }
 
-  async #loadTags(): Promise<void> {
-    const rows = await this.#all<{ tag: string; description: string }>(
-      "SELECT tag, description FROM tags"
-    );
-    for (const { tag, description } of rows) this.#tags.set(tag, description);
-  }
-
-  #tag(code: string): TagDto {
-    return { code, description: this.#tags.get(code) ?? code };
-  }
-
-  /**
-   * Prepared statements, cached by SQL text.
-   *
-   * `prepare()` re-parses and re-plans every call, measured at 0.0158ms against 0.0039ms for a
-   * cached statement — 4x, paid by every query in this file. It dominated result hydration, which
-   * issues four lookups per result: a 50-result search spent ~90% of its time here.
-   *
-   * Keyed on SQL text, so the few queries built from a variable-length parameter list get one entry
-   * per distinct length. Those lists are short (deinflection candidates, a radical selection), which
-   * keeps the map bounded in practice — but it is the reason to keep them short.
-   */
-  #stmts = new Map<string, Promise<Statement>>();
-
-  async #prepare(sql: string): Promise<Statement> {
-    const cached = this.#stmts.get(sql);
-    if (cached) return cached;
-    // Cache the PROMISE, not the resolved statement: concurrent callers racing the same first
-    // prepare would otherwise each start their own.
-    const pending = this.#db.prepare(sql);
-    this.#stmts.set(sql, pending);
-    return pending;
-  }
-
-  // Typed query helpers. Turso's `.get()`/`.all()` return `any`; funneling every read through
-  // these two methods confines that single unavoidable boundary to one audited place and gives the
-  // callers precise row types without scattered `as` assertions.
+  // Thin delegates so the ~50 call sites below read unchanged; the caching and typing live in
+  // SqliteStore, single-sourced with NamesDictionary.
   async #all<T>(sql: string, ...params: Array<string | number>): Promise<T[]> {
-    const stmt = await this.#prepare(sql);
-    const rows: T[] = await stmt.all(...params);
-    return rows;
+    return this.#store.all<T>(sql, ...params);
   }
 
   async #get<T>(
     sql: string,
     ...params: Array<string | number>
   ): Promise<T | undefined> {
-    const stmt = await this.#prepare(sql);
-    const row: T | undefined = await stmt.get(...params);
-    return row;
+    return this.#store.get<T>(sql, ...params);
+  }
+
+  #tag(code: string): TagDto {
+    return this.#store.tag(code);
   }
 
   /**
