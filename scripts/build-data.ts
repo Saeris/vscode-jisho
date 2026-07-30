@@ -165,8 +165,50 @@ const writeReleaseAsset = async (
 
 // The build script trusts the shapes of the GitHub API / JMdict JSON it fetches; a generic return
 // type keeps the (unavoidable) trust boundary at these two functions rather than at every call site.
+/**
+ * `fetch` with bounded retry, used for every source download.
+ *
+ * The build pulls from five independent hosts (api.github.com, ftp.edrdg.org,
+ * downloads.tatoeba.org, lars.yencken.org, raw.githubusercontent.com) and previously had no retry at
+ * all, so one transient blip on any of them killed a multi-minute run. That now also fails a release:
+ * full-test.yml builds both databases before a publish is allowed.
+ *
+ * Retries transport errors and the statuses worth retrying (5xx, 429). A 4xx is our bug — a bad URL
+ * or an unpinned asset name — so it returns immediately rather than waiting to fail three times.
+ */
+const FETCH_ATTEMPTS = 3;
+
+const fetchRetrying = async (
+  url: string,
+  init?: RequestInit
+): Promise<Response> => {
+  for (let attempt = 1; ; attempt++) {
+    const retriable = (status: number): boolean =>
+      status >= 500 || status === 429;
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || attempt === FETCH_ATTEMPTS || !retriable(res.status)) {
+        return res;
+      }
+      console.log(
+        `  retrying ${url} (${res.status}, attempt ${attempt}/${FETCH_ATTEMPTS})`
+      );
+    } catch (error) {
+      if (attempt === FETCH_ATTEMPTS) throw error;
+      const reason = error instanceof Error ? error.message : String(error);
+      console.log(
+        `  retrying ${url} (${reason}, attempt ${attempt}/${FETCH_ATTEMPTS})`
+      );
+    }
+    // Exponential backoff: 0.5s, then 1s.
+    await new Promise((resolve) =>
+      setTimeout(resolve, 500 * 2 ** (attempt - 1))
+    );
+  }
+};
+
 const fetchJson = async <T>(url: string): Promise<T> => {
-  const res = await fetch(url, {
+  const res = await fetchRetrying(url, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok) throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
@@ -290,7 +332,7 @@ const fetchAssetJson = async <T>(
   const asset = release.assets.find((a) => pattern.test(a.name));
   if (!asset) throw new Error(`No release asset matching ${String(pattern)}`);
   console.log(`Downloading ${asset.name}…`);
-  const res = await fetch(asset.browser_download_url, {
+  const res = await fetchRetrying(asset.browser_download_url, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok)
@@ -306,7 +348,7 @@ const fetchAssetJson = async <T>(
  */
 const fetchDecomposition = async (): Promise<Map<string, string[]>> => {
   console.log("Downloading cjk-decomp.txt…");
-  const res = await fetch(CJK_DECOMP_URL, {
+  const res = await fetchRetrying(CJK_DECOMP_URL, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok) throw new Error(`cjk-decomp → ${res.status} ${res.statusText}`);
@@ -327,7 +369,7 @@ const fetchDecomposition = async (): Promise<Map<string, string[]>> => {
 const fetchBz2 = async (
   url: string
 ): Promise<{ data: Buffer; lastModified: string }> => {
-  const res = await fetch(url, {
+  const res = await fetchRetrying(url, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok || res.body === null) {
@@ -509,7 +551,7 @@ export interface WordPriority {
  */
 const fetchWordPriorities = async (): Promise<Map<string, WordPriority>> => {
   console.log("Downloading JMdict_e.gz (priority tags)…");
-  const res = await fetch(JMDICT_XML_URL, {
+  const res = await fetchRetrying(JMDICT_XML_URL, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok) throw new Error(`JMdict XML → ${res.status} ${res.statusText}`);
@@ -574,7 +616,7 @@ const fetchWordPriorities = async (): Promise<Map<string, WordPriority>> => {
 const fetchJlptLevels = async (): Promise<Map<string, number>> => {
   const byId = new Map<string, number>();
   for (const { file, level } of JLPT_LEVELS) {
-    const res = await fetch(`${JLPT_RAW_BASE}/${file}`, {
+    const res = await fetchRetrying(`${JLPT_RAW_BASE}/${file}`, {
       headers: { "User-Agent": "vscode-jisho-build" }
     });
     if (!res.ok)
@@ -600,7 +642,7 @@ const fetchJlptLevels = async (): Promise<Map<string, number>> => {
  * positions in order. The key uses `\t` (never present in either field) as a safe separator.
  */
 const fetchPitchAccents = async (): Promise<Map<string, number[]>> => {
-  const res = await fetch(KANJIUM_ACCENTS_URL, {
+  const res = await fetchRetrying(KANJIUM_ACCENTS_URL, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok)
@@ -812,12 +854,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       resolve
     });
     done++;
-    if (done % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-      console.log(`  …${done}/${total} entries`);
-    }
+    await checkpointEvery(db, done);
+    if (done % BATCH === 0) console.log(`  …${done}/${total} entries`);
   }
 
   await db.exec("COMMIT");
@@ -847,11 +885,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
         pitchRows++;
       }
     }
-    if (++pdone % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-    }
+    await checkpointEvery(db, ++pdone);
   }
   await db.exec("COMMIT");
   console.log(`  pitch: ${pitchRows} (word, reading) accent rows`);
@@ -865,11 +899,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   for (const char of kanjidic.characters) {
     await importKanji(char, { insKanjiChar, insKanjiTerm });
     kanjiSet.add(char.literal);
-    if (++kdone % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-    }
+    await checkpointEvery(db, ++kdone);
   }
   // Kradfile components — only for kanji we have a character row for (FK).
   for (const [literal, components] of Object.entries(kradfile.kanji)) {
@@ -1035,11 +1065,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   for (const [id, level] of jlpt) {
     const { changes } = await updJlpt.run(level, id);
     if (changes > 0) jlptMatched++;
-    if (++jdone % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-    }
+    await checkpointEvery(db, ++jdone);
   }
   await db.exec("COMMIT");
   const jlptRate =
@@ -1132,6 +1158,32 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   console.log(
     `  sentences: ${sentenceRows} inline + ${tatoebaRows} pool example rows`
   );
+  // Gate on what was built, before anything is written that a release could pick up. Reads as a
+  // manifest of what a good build looks like; see FLOORS for why these numbers and not others.
+  atLeast("entries", total, FLOORS.entries);
+  atLeast("kanji characters", kanjiSet.size, FLOORS.kanjiCharacters);
+  atLeast("pitch rows", pitchRows, FLOORS.pitchRows);
+  atLeast("similar-kanji rows", similarRows, FLOORS.similarRows);
+  atLeast("radical positions", positioned, FLOORS.radicalPositions);
+  atLeast("inline sentences", sentenceRows, FLOORS.inlineSentences);
+  atLeast("pool sentences", tatoebaRows, FLOORS.poolSentences);
+  // Not tracked in a local (it is written per sense inside importWord), so read it back.
+  const tagRow: unknown = await (
+    await db.prepare("SELECT COUNT(*) AS n FROM sense_tags")
+  ).get();
+  const senseTagCount =
+    typeof tagRow === "object" && tagRow !== null && "n" in tagRow
+      ? Number(tagRow.n)
+      : 0;
+  atLeast("sense tags", senseTagCount, FLOORS.senseTags);
+  if (jlpt.size > 0 && jlptMatched / jlpt.size < RATE_FLOORS.jlptMatch) {
+    throw new Error(
+      `build matched ${jlptMatched}/${jlpt.size} JLPT words ` +
+        `(${((jlptMatched / jlpt.size) * 100).toFixed(1)}%), below the ` +
+        `${(RATE_FLOORS.jlptMatch * 100).toFixed(0)}% floor — the id join likely broke.`
+    );
+  }
+
   const builtAt = new Date().toISOString();
   await insMeta.run("variant", VARIANT);
   await insMeta.run("wordCount", String(total));
@@ -1196,7 +1248,79 @@ const MAX_SENTENCES_PER_SENSE = 3;
 const POOL_POSITION_BASE = MAX_SENTENCES_PER_SENSE;
 
 /** Commit + WAL-checkpoint every N rows so the write-ahead log can't balloon during the bulk build. */
+/**
+ * Floors for the figures the build already computes, so a collapsed join FAILS instead of shipping.
+ *
+ * Every number below was previously printed to the console and read by nobody: the build's only
+ * `throw`s were about INPUTS (a failed fetch, a malformed archive), so if a join silently stopped
+ * matching, the build succeeded, verify-db passed — it checks liveness, the schema version and one
+ * known word id, not coverage — and the release gate published it.
+ *
+ * These are EMPIRICAL, taken from the 2026-07-29 common build with a wide margin, not specified
+ * minimums. They are deliberately far below current values: the job is catching a collapse (a join
+ * matching 3% instead of 93%), not policing normal upstream drift. Calibrating on the COMMON subset
+ * makes them valid for `--full` too, which only ever has more of everything.
+ *
+ * When a figure legitimately falls — an upstream source shrinks — move the floor and say why.
+ */
+const FLOORS = {
+  /** 22,624 common / ~218k full. */
+  entries: 18000,
+  /** 10,384 — Kanjidic, variant-independent. */
+  kanjiCharacters: 9000,
+  /** 22,429 (word, reading) rows. */
+  pitchRows: 18000,
+  /** 24,207 rows, 1,945 of them Yencken-derived. */
+  similarRows: 20000,
+  /** 251 of 253 radicals classified (spec 04). */
+  radicalPositions: 220,
+  /** 65,903 tag rows over 173 codes (spec 15). */
+  senseTags: 55000,
+  /** 17,301 inline Tanaka + 116,269 Tatoeba pool. */
+  inlineSentences: 14000,
+  poolSentences: 90000,
+  /** 743,538 names — the separate JMnedict build. */
+  names: 600000
+};
+
+/** Rate floors, where a ratio is the meaningful signal rather than a count. */
+const RATE_FLOORS = {
+  /** 93.0% of the JLPT word list matched a JMdict id. */
+  jlptMatch: 0.8
+};
+
+const atLeast = (label: string, actual: number, floor: number): void => {
+  if (actual >= floor) return;
+  throw new Error(
+    `build produced ${label} = ${actual}, below the floor of ${floor}. ` +
+      `Either an upstream source changed shape or a join broke — investigate before shipping. ` +
+      `If the drop is legitimate, lower the floor in FLOORS and record why.`
+  );
+};
+
 const BATCH = 5000;
+
+/**
+ * One batched-commit checkpoint. Call it after each item; it commits, truncates the WAL and reopens
+ * a transaction every `BATCH` items.
+ *
+ * This exists because the three lines it replaces were hand-copied at six loop sites, and they are
+ * not optional: one giant transaction ballooned the WAL past 5GB (CONVENTIONS.md). A new import loop
+ * that forgets them does not fail a test — it fails as a multi-gigabyte file — so the discipline
+ * belongs in one place that every loop calls rather than in a pattern each loop remembers.
+ *
+ * Callers still own the surrounding BEGIN and the final COMMIT + checkpoint before close(), because
+ * those bracket a whole pass rather than pacing one.
+ */
+const checkpointEvery = async (
+  db: Awaited<ReturnType<typeof connect>>,
+  done: number
+): Promise<void> => {
+  if (done % BATCH !== 0) return;
+  await db.exec("COMMIT");
+  await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  await db.exec("BEGIN");
+};
 
 /** Imports one word; returns the number of example sentences inserted for it. */
 const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
@@ -1602,11 +1726,7 @@ const importTatoebaPool = async (
       );
       rows++;
     }
-    if (++done % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-    }
+    await checkpointEvery(db, ++done);
   }
   await db.exec("COMMIT");
   return rows;
@@ -1781,7 +1901,7 @@ type YenckenRow = Map<string, Array<{ kanji: string; score: number }>>;
 const fetchYencken = async (
   url: string
 ): Promise<{ rows: YenckenRow; lastModified: string }> => {
-  const res = await fetch(url, {
+  const res = await fetchRetrying(url, {
     headers: { "User-Agent": "vscode-jisho-build" }
   });
   if (!res.ok)
@@ -1851,7 +1971,9 @@ const buildNamesDatabase = async (): Promise<void> => {
   const dict = await fetchAssetJson<JMnedict>(release, NAMES_ASSET_PATTERN);
 
   mkdirSync(dirname(NAMES_DB), { recursive: true });
-  for (const suffix of ["", "-wal", "-shm"]) {
+  // The .version sidecar goes too: it is written only on success, so a surviving one would describe
+  // a database that no longer exists.
+  for (const suffix of ["", "-wal", "-shm", ".version"]) {
     rmSync(`${NAMES_DB}${suffix}`, { force: true });
   }
 
@@ -1885,12 +2007,8 @@ const buildNamesDatabase = async (): Promise<void> => {
   let done = 0;
   for (const name of dict.words) {
     await importName(name, { insWord, insKanji, insKana, insTrans, insTerm });
-    if (++done % BATCH === 0) {
-      await db.exec("COMMIT");
-      await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      await db.exec("BEGIN");
-      console.log(`  …${done}/${total} names`);
-    }
+    await checkpointEvery(db, ++done);
+    if (done % BATCH === 0) console.log(`  …${done}/${total} names`);
   }
   await db.exec("COMMIT");
 
@@ -1905,6 +2023,8 @@ const buildNamesDatabase = async (): Promise<void> => {
     "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
   );
   const builtAt = new Date().toISOString();
+  atLeast("names", total, FLOORS.names);
+
   await insMeta.run("variant", "names");
   await insMeta.run("nameCount", String(total));
   await insMeta.run("builtAt", builtAt);
@@ -1988,11 +2108,34 @@ const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
   }
 };
 
+/**
+ * Remove a half-written database so a failed build leaves nothing that looks usable.
+ *
+ * Any mid-build failure — a source host blipping, or the coverage gate rejecting the output — used to
+ * leave a partial .db plus its WAL on disk, and `verify-db` PASSES on one of those: it checks that
+ * the file answers, carries the right schema version and has non-empty tables, none of which a
+ * half-built database fails. In development the workspace copy is read directly, so the next F5 run
+ * would have queried it.
+ */
+const discardPartial = (path: string): void => {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${path}${suffix}`, { force: true });
+  }
+};
+
 console.time("build-data");
-if (NAMES) {
-  await buildNamesDatabase();
-} else {
-  const sources = await downloadSources();
-  await buildDatabase(sources);
+try {
+  if (NAMES) {
+    await buildNamesDatabase();
+  } else {
+    const sources = await downloadSources();
+    await buildDatabase(sources);
+  }
+} catch (error) {
+  discardPartial(NAMES ? NAMES_DB : OUT_DB);
+  console.error(
+    `build-data failed; removed the partial database at ${NAMES ? NAMES_DB : OUT_DB}`
+  );
+  throw error;
 }
 console.timeEnd("build-data");
