@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { copyVariants } from "../CopyAsMenu";
 
 /**
- * The menu's markup is a React Aria collection, which needs browser layout APIs jsdom does not
- * implement — the same limitation SearchResults.spec records for ListBox. The interaction (open the
- * menu, pick an entry, text reaches the clipboard) is covered end-to-end by smoke.e2e's "copy as:
- * furigana markdown reaches the system clipboard". What is worth pinning here is the decision the
- * component makes before any of that: which shapes exist, and what each one actually copies.
+ * The interaction (open the menu, pick an entry, text reaches the clipboard) is covered end-to-end by
+ * smoke.e2e's "copy as: furigana markdown reaches the system clipboard" — clipboard access is the
+ * part only a real VS Code can answer. What is worth pinning here is the decision the component makes
+ * before any of that: which shapes exist, and what each one actually copies.
+ *
+ * (This used to also cite jsdom being unable to render a React Aria collection. That constraint is
+ * gone — components run in Chromium now — so a component-level interaction test is possible if the
+ * E2E round-trip ever proves too slow a signal.)
  */
 describe("copyVariants", () => {
   it("offers every shape an author needs for a kanji word", () => {

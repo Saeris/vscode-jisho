@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { PitchAccent } from "../PitchAccent";
 
@@ -12,7 +12,7 @@ import { PitchAccent } from "../PitchAccent";
  * against its grid area — `inset-inline: 0` never stretched it. jsdom reports zero-size boxes and
  * resolves no real styles, so it cannot see either failure.
  *
- * So these assert what jsdom can't: computed geometry. The polyline's *topology* (which moras are
+ * So these assert computed geometry. The polyline's *topology* (which moras are
  * high, where the drop lands) is covered by `pitch.spec.ts` against the pure functions — no need to
  * pay for a browser to re-test that.
  */
@@ -38,8 +38,6 @@ const geometry = (): {
 };
 
 describe("pitch accent contour (real layout)", () => {
-  afterEach(cleanup);
-
   it("stretches the contour across the full width of the kana", () => {
     // WHY: this is the exact bug that shipped. The SVG must span the mora track — when it collapsed
     // to its ~3px intrinsic width the contour rendered as a stub next to the word, while every

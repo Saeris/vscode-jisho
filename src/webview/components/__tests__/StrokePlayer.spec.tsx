@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import svg from "../../../../assets/kanji-svgs/近.svg?raw";
 import { MS_PER_STROKE, StrokePlayer } from "../StrokePlayer";
@@ -51,13 +51,32 @@ const play = async (): Promise<void> => {
   await userEvent.click(screen.getByRole("button", { name: "Play animation" }));
 };
 
-const wait = async (duration: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, duration));
+/**
+ * Put the playhead exactly `strokes` in, instead of sleeping for `strokes × 600ms` and sampling
+ * whatever the clock happened to reach.
+ *
+ * The sleeping version was a bet on scheduler latency, and it lost: "advances the slider on its own"
+ * failed intermittently in full runs and passed alone, because an overshooting `setTimeout` could
+ * carry playback past the end of the 7-stroke animation and break `mid < 7`. Seeking keeps what is
+ * under test — does the UI TRACK the clock without user input — and drops what isn't, namely whether
+ * this machine hit its frame budget while 12 other spec files were running.
+ *
+ * Setting `currentTime` updates the animation's computed style immediately, so dash offsets can be
+ * read straight after. The SLIDER is downstream of a rAF follower plus a React commit, hence
+ * `advanceTo` for assertions about it.
+ */
+const seekTo = (strokes: number): void => {
+  clock().currentTime = ms(strokes);
+};
+
+const advanceTo = async (strokes: number): Promise<void> => {
+  seekTo(strokes);
+  await waitFor(() => {
+    expect(sliderValue()).toBe(Math.min(Math.floor(strokes), 7));
+  });
 };
 
 describe("stroke player: playback", () => {
-  afterEach(cleanup);
-
   it("shows nothing and stays paused until asked", () => {
     // WHY: the original bug — the SVG animated itself the instant it hit the DOM.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
@@ -71,12 +90,10 @@ describe("stroke player: playback", () => {
     // moved when the user did, so the handle sat at 0 while the character drew itself.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(2.5));
-    const mid = sliderValue();
-    expect(mid).toBeGreaterThan(0);
-    expect(mid).toBeLessThan(7);
-    await wait(ms(2));
-    expect(sliderValue()).toBeGreaterThan(mid); // still climbing
+    await advanceTo(2.5);
+    expect(sliderValue()).toBe(2);
+    await advanceTo(4.5);
+    expect(sliderValue()).toBe(4); // still climbing, and by the exact amount the clock moved
   });
 
   it("draws each stroke progressively rather than snapping it on", async () => {
@@ -87,7 +104,7 @@ describe("stroke player: playback", () => {
     // Mid-playback there must be exactly one stroke caught in the act of being drawn.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(2.5));
+    seekTo(2.5);
     expect(partial()).toBe(1);
     // …and it must be the one right after the finished ones.
     const offsets = strokes().map(dashOffset);
@@ -100,9 +117,9 @@ describe("stroke player: playback", () => {
     // shows the dash retracting, which is the drawing effect itself.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(0.25));
+    seekTo(0.25);
     const early = dashOffset(strokes()[0]);
-    await wait(ms(0.5));
+    seekTo(0.5);
     const later = dashOffset(strokes()[0]);
     expect(early).toBeGreaterThan(0);
     expect(later).toBeLessThan(early); // the dash is retracting = the stroke is being drawn
@@ -113,7 +130,7 @@ describe("stroke player: playback", () => {
     // any state change. Pause then play must continue — the playhead may not go backwards.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(3));
+    await advanceTo(3);
     await userEvent.click(
       screen.getByRole("button", { name: "Pause animation" })
     );
@@ -130,7 +147,7 @@ describe("stroke player: playback", () => {
     // WHY: pause must land on what the user SEES. A slider reading 3 over 2 drawn strokes is a lie.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(3.5));
+    await advanceTo(3.5);
     await userEvent.click(
       screen.getByRole("button", { name: "Pause animation" })
     );
@@ -140,8 +157,6 @@ describe("stroke player: playback", () => {
 });
 
 describe("stroke player: seeking", () => {
-  afterEach(cleanup);
-
   it("draws exactly the sought strokes at every position", async () => {
     // WHY: the core promise of a seek slider, checked at MULTIPLE points — a single position can pass
     // by luck (or by restarting and racing to the right count). Every stop must be exact.
@@ -165,7 +180,7 @@ describe("stroke player: seeking", () => {
     // handle jumps back — seeking has to stop the clock, not race it.
     render(<StrokePlayer svg={svg} strokeCount={7} />);
     await play();
-    await wait(ms(1.5));
+    await advanceTo(1.5);
     expect(clock().playState).toBe("running");
 
     slider().focus();
@@ -209,8 +224,6 @@ describe("stroke player: seeking", () => {
 });
 
 describe("stroke player: guides", () => {
-  afterEach(cleanup);
-
   const guideOpacity = (strokeNumber: number): number => {
     const marker = document.querySelector<SVGElement>(
       `svg.acjk .guides text.g${strokeNumber}`
@@ -250,8 +263,6 @@ describe("stroke player: guides", () => {
 });
 
 describe("stroke player: parts", () => {
-  afterEach(cleanup);
-
   // 近's acjk decomposition: 斤 = strokes 1–4 (drawn first), ⻌ = strokes 5–7 and the radical.
   const rectOf = (literal: string): SVGRectElement => {
     const rect = document.querySelector<SVGRectElement>(

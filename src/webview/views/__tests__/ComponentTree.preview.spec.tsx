@@ -1,18 +1,10 @@
-import { describe, it, vi } from "vitest";
+import { describe, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NavigationProvider } from "../../navigation";
+import { ComponentTree } from "../ComponentTree";
 import type { ComponentTreeDto } from "../../../shared/messages";
-
-// The bridge calls acquireVsCodeApi() at module load; stub it before importing anything that pulls
-// the bridge in (ComponentTree → queries → bridge). vi.hoisted runs before the imports below.
-vi.hoisted(() => {
-  (globalThis as { acquireVsCodeApi?: unknown }).acquireVsCodeApi = () => ({
-    postMessage: () => {}
-  });
-});
-const { ComponentTree } = await import("../ComponentTree");
-const { NavigationProvider } = await import("../../navigation");
 
 // 願's tree, shaped as the host returns it — a visual bench for the recursive layout without a live DB.
 const tree: ComponentTreeDto = {

@@ -3,8 +3,9 @@ import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 
-// `speech.ts` reaches for window.speechSynthesis, which jsdom does not implement. Mocked so these
-// tests are about the BUTTON's decisions, not the Web Speech API's.
+// `speech.ts` reaches for window.speechSynthesis. Chromium HAS it, which is the reason to mock it
+// rather than not: real synthesis depends on which voices the machine has installed, so these tests
+// would assert the runner's audio configuration instead of the BUTTON's decisions.
 const isSpeechAvailable = vi.fn<() => Promise<boolean>>();
 const speak = vi.fn<(text: string) => Promise<void>>();
 const play = vi.fn<(readings: string[]) => Promise<void>>();

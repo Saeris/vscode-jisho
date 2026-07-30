@@ -11,28 +11,33 @@ Surfaced during M7 handwriting testing:
 - The recognizer (and the webview generally) need a more robust, layered test suite.
 - We want a way to **drive the running extension** — both to catch regressions AND to let the agent visually iterate on the UI (screenshot → see → fix → re-screenshot).
 
-## Test layout: three Vitest projects + E2E
+## Test layout: two Vitest projects + E2E
 
 `vite.config.ts` splits Vitest into **projects** (one config file, `vp test --project <name>` to scope), so each layer only pays for what it needs:
 
-| Project     | Env           | Pattern                                 | For                                                  |
-| ----------- | ------------- | --------------------------------------- | ---------------------------------------------------- |
-| `unit`      | node          | `src/**/*.{test,spec}.ts`               | pure logic — pitch geometry, recognizer, query layer |
-| `component` | jsdom         | `src/**/*.{test,spec}.tsx`              | React components, no layout needed                   |
-| `browser`   | real Chromium | `src/**/*.browser.{test,spec}.{ts,tsx}` | **anything layout-dependent**                        |
+| Project     | Env           | Pattern                    | For                                                  |
+| ----------- | ------------- | -------------------------- | ---------------------------------------------------- |
+| `unit`      | node          | `src/**/*.{test,spec}.ts`  | pure logic — pitch geometry, recognizer, query layer |
+| `component` | real Chromium | `src/**/*.{test,spec}.tsx` | anything that renders                                |
+
+The file extension **is** the boundary: `.ts` is logic and runs in node, `.tsx` renders and runs in a browser. No exclude list restates it.
 
 Plus **E2E** (`e2e/*.e2e.ts`, Playwright driving real VS Code) — deliberately _not_ a Vitest project: it verifies the whole extension, not components in isolation.
 
-**Why a browser project exists.** jsdom has no layout engine — zero-size boxes, no real style resolution. The pitch contour shipped broken **twice** with a fully green jsdom suite: first per-mora CSS borders that couldn't draw a line spanning moras, then an SVG that silently collapsed to its ~3px intrinsic width (an abspos child of a grid resolves against its _grid area_, so `inset-inline: 0` never stretched it). Neither is observable without real layout. `PitchAccent.browser.spec.tsx` now catches the collapse in ~290ms (`expected 3.64 to be >= 49.03`) — verified by reverting the fix and watching it fail. **Rule: if a bug is only visible as pixels or geometry, it belongs in `browser`, not jsdom.**
+**Why components run in a real browser (2026-07-30).** They used to be split: `component` under jsdom, plus a separate `browser` project for the layout-dependent specs. jsdom has no layout engine — zero-size boxes, no real style resolution — and the pitch contour shipped broken **twice** with a fully green jsdom suite: first per-mora CSS borders that couldn't draw a line spanning moras, then an SVG that silently collapsed to its ~3px intrinsic width (an abspos child of a grid resolves against its _grid area_, so `inset-inline: 0` never stretched it). Neither is observable without real layout.
 
-**Component preview benches.** A `*.preview.browser.spec.tsx` renders every variant of a component and screenshots it (`page.screenshot`) — a fast visual bench for iterating on appearance without launching VS Code (~5s vs ~15s). Not assertions; correctness lives in the sibling `.browser.spec.tsx`. This is what caught the `1fr`-vs-`min-content` column bug that a single-example test would have missed.
+Rather than keep asking per-spec "is this one geometric?", the whole layer moved to Chromium. Measured before committing to it: jsdom spent **38s of cumulative environment setup** to make 54 tests take **10.1s**, while the same 54 tests take **1.9s** in Chromium — the browser costs more to start and much less to run, and the full suite landed at 25.2s versus ~27s split. It needed **zero changes to any spec**.
+
+What the split had been costing: a `@vitest-environment jsdom` pragma that 8 of 13 files carried and 5 didn't, two exclude patterns restating the naming convention, and — because only one project had `setupFiles` — browser specs hand-rolling the `acquireVsCodeApi` stub via `vi.hoisted` plus a dynamic `await import()` to reproduce what the other project got for free.
+
+**Component preview benches.** A `*.preview.spec.tsx` renders every variant of a component and screenshots it (`page.screenshot`) — a fast visual bench for iterating on appearance without launching VS Code (~5s vs ~15s). Not assertions; correctness lives in the sibling `.spec.tsx`. This is what caught the `1fr`-vs-`min-content` column bug that a single-example test would have missed.
 
 Setup notes (Vite+ specifics): browser mode needs the base **`playwright`** package (not just `@playwright/test`, which is the E2E _runner_), the `resolutions` remapping `vite`/`vitest` onto `@voidzero-dev/vite-plus-{core,test}` (already present), and `vp exec playwright install chromium`. Project literals are annotated `TestProjectConfiguration` and `react()` is **spread** (`[...react()]`) — it returns a `Plugin[]`, so `[react()]` is `Plugin[][]`.
 
 ## The testing pyramid (build bottom-up)
 
 1. **Recognizer unit tests (broaden).** Pure functions, no browser. Per-stage tests (each distance metric, moment normalization, feature extraction) + wider real-character recognition coverage + the degenerate-input guards (done). Cheapest, highest density.
-2. **Webview component tests (jsdom + @testing-library/react).** Test component logic without a real browser: `Handwriting.tsx` (pointer→stroke→chips, undo/clear — would have caught the `え` closure bug), and other views. Vitest already present; add the jsdom environment + Testing Library. **jsdom boundary found:** React Aria's `ListBox` focus/roving-tabindex machinery needs layout APIs jsdom lacks and throws when an option is programmatically focused — so the **keyboard-nav hand-off (#12: ↓ into results, ↑/Esc back)** is deferred to the E2E layer (real browser), not jsdom. jsdom covers rendering, query wiring, empty/degenerate states, and handler logic that moves focus _out_ of the ListBox.
+2. **Webview component tests (real Chromium + @testing-library/react).** Component logic and rendering: `Handwriting.tsx` (pointer→stroke→chips, undo/clear — would have caught the `え` closure bug), and the views. **A jsdom boundary that no longer exists:** React Aria's `ListBox` focus/roving-tabindex machinery needs layout APIs jsdom lacks and threw when an option was programmatically focused, so the **keyboard-nav hand-off (#12: ↓ into results, ↑/Esc back)** was deferred to E2E — where it was then never written, while a test asserting the searchbox merely EXISTS stood in for it. Since the move to a real browser it is covered in `SearchResults.spec.tsx`, including the ↑-only-from-the-first-option guard, each verified by breaking the handler and watching the right test fail.
 3. **Host integration tests (`@vscode/test-electron` + `@vscode/test-cli`).** The official runner: launch real VS Code with the extension loaded, test in the extension host — activation, DB provisioning, message round-trips, the `WebviewViewProvider` registration. Cannot reach inside the webview DOM (host-side only).
 4. **Full webview E2E (Playwright driving Electron).** The only layer that reaches the webview DOM — drawing canvas, rendered strokes, candidate chips, navigation. **Also the visual-iteration loop**: launch → drive → screenshot → the agent refines UI against real pixels. Highest setup; foundational for the visual-polish goal, so not "overkill" here.
 

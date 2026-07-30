@@ -9,14 +9,10 @@ import manifest from "./package.json" with { type: "json" };
 // Split by what each test actually needs, so the cheap layers stay cheap:
 //
 //  • "unit"      — pure logic (pitch geometry, recognizer, host query layer). Node, no DOM.
-//  • "component" — React components in jsdom. Fast, but jsdom has no layout engine: it reports
-//                  zero-size boxes and no real style resolution.
-//  • "browser"   — React components in a REAL Chromium. The only layer that can see LAYOUT, which
-//                  is where the visual bugs actually live. The pitch contour shipped broken twice
-//                  with green jsdom tests: first a per-mora border approach that couldn't draw a
-//                  connected line, then an SVG that silently collapsed to ~3px because an abspos
-//                  child of a grid resolves against its grid area. Neither is observable without a
-//                  layout engine — hence a browser project rather than more jsdom.
+//  • "component" — anything that renders, in a REAL Chromium. Layout is where the visual bugs live:
+//                  the pitch contour shipped broken twice under jsdom, first a per-mora border
+//                  approach that couldn't draw a connected line, then an SVG that silently collapsed
+//                  to ~3px because an abspos child of a grid resolves against its grid area.
 //
 // The E2E suite (e2e/*.e2e.ts, Playwright driving real VS Code) is deliberately NOT a vitest
 // project: it verifies the whole extension, not components in isolation, and is far too slow to sit
@@ -28,51 +24,52 @@ import manifest from "./package.json" with { type: "json" };
 // depth"), whatever the annotation.
 // Every project must exclude `bench/`: Vitest runs benchmark files in ANY project whose include
 // pattern matches them, so without this the benchmarks execute once per project — three redundant
-// runs, and results from environments (jsdom, a real browser) that the numbers do not claim to
-// describe.
+// runs, and results from an environment (a real browser) the numbers do not claim to describe.
 const NOT_BENCH = "bench/**";
 
 const unitProject: TestProjectConfiguration = {
   test: {
     name: "unit",
     // `scripts/` too: the data-build transforms are pure functions and belong at this layer.
+    // Only `.ts`: anything rendering a component is `.tsx` and belongs to the `component` project, so
+    // the extension IS the boundary — no exclude list has to restate it.
     include: ["src/**/*.{test,spec}.ts", "scripts/**/*.{test,spec}.ts"],
-    exclude: [
-      ...configDefaults.exclude,
-      NOT_BENCH,
-      "**/*.browser.{test,spec}.{ts,tsx}"
-    ],
+    exclude: [...configDefaults.exclude, NOT_BENCH],
     environment: "node"
   }
 };
 
+/**
+ * Component tests, in a real Chromium via Playwright.
+ *
+ * This was two projects — `component` under jsdom and `browser` for the specs that needed real
+ * layout — which is a split with no upside once the whole layer runs in a browser anyway. Measured
+ * before merging: jsdom spent 38s of cumulative environment setup to make 54 tests take 10.1s, while
+ * the same 54 tests take 1.9s in Chromium. The browser costs more to START and less to RUN, and the
+ * full suite came out at 27.3s either way.
+ *
+ * What the split cost: a `@vitest-environment jsdom` pragma that eight of thirteen files carried and
+ * five didn't, two exclude patterns restating the naming convention, and — because only one of the
+ * two projects had `setupFiles` — browser specs hand-rolling the `acquireVsCodeApi` stub through
+ * `vi.hoisted` plus a dynamic import, to reproduce what the other project got for free.
+ *
+ * jsdom is also not a browser: it reimplements DOM APIs in Node, so an event or a layout question it
+ * answers differently from Chromium is a test result that describes jsdom rather than the product.
+ */
 const componentProject: TestProjectConfiguration = {
   test: {
     name: "component",
     include: ["src/**/*.{test,spec}.tsx"],
-    exclude: [
-      ...configDefaults.exclude,
-      NOT_BENCH,
-      "**/*.browser.{test,spec}.{ts,tsx}"
-    ],
-    environment: "jsdom",
-    // bridge.ts calls acquireVsCodeApi() at import; without a stub, every component that reaches
-    // the bridge fails to load under jsdom. See the setup file.
-    setupFiles: ["src/webview/__tests__/setup.ts"]
-  }
-};
-
-const browserProject: TestProjectConfiguration = {
-  test: {
-    name: "browser",
-    include: ["src/**/*.browser.{test,spec}.{ts,tsx}"],
     exclude: [...configDefaults.exclude, NOT_BENCH],
     browser: {
       enabled: true,
       provider: playwright(),
       headless: true,
       instances: [{ browser: "chromium" }]
-    }
+    },
+    // Stubs `acquireVsCodeApi` (bridge.ts calls it at module load) and registers cleanup between
+    // tests. A property of the project rather than a preamble each spec remembers.
+    setupFiles: ["src/webview/__tests__/setup.ts"]
   }
 };
 
@@ -110,7 +107,7 @@ export default defineConfig({
     // `Cannot read properties of undefined` in the browser project instead of as a type error.
     overrides: [
       {
-        files: ["src/**/*.preview.browser.spec.tsx"],
+        files: ["src/**/*.preview.spec.tsx"],
         rules: { "vitest/expect-expect": "off" }
       }
     ]
@@ -178,6 +175,6 @@ export default defineConfig({
     restoreMocks: true,
     unstubGlobals: true,
     unstubEnvs: true,
-    projects: [unitProject, componentProject, browserProject, benchProject]
+    projects: [unitProject, componentProject, benchProject]
   }
 });

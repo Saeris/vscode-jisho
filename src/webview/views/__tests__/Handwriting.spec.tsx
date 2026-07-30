@@ -1,6 +1,5 @@
-// @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { Handwriting } from "../Handwriting";
 import type { Pattern, RefPattern } from "../../recognizer/types";
@@ -38,17 +37,6 @@ const getCanvas = (): Element => {
 };
 
 describe("handwriting view", () => {
-  beforeAll(() => {
-    // jsdom doesn't implement pointer capture; stub it so the handlers don't throw.
-    Element.prototype.setPointerCapture = (): void => {};
-    Element.prototype.releasePointerCapture = (): void => {};
-  });
-
-  afterEach(() => {
-    cleanup();
-    recognizeMock.mockClear();
-  });
-
   it("shows the hint before anything is drawn", () => {
     render(<Handwriting />);
     expect(screen.getByText(/draw a kanji/i)).toBeDefined();

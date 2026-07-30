@@ -1,17 +1,9 @@
-import { describe, it, vi } from "vitest";
+import { describe, it } from "vitest";
 import { page } from "vitest/browser";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithNavigation } from "../../__tests__/navigationHarness";
+import { WordDetail } from "../WordDetail";
 import type { WordDetailDto } from "../../../shared/messages";
-
-// The bridge calls acquireVsCodeApi() at module load; stub it before importing anything that pulls
-// the bridge in (WordDetail → queries → bridge). vi.hoisted runs before the imports below.
-vi.hoisted(() => {
-  (globalThis as { acquireVsCodeApi?: unknown }).acquireVsCodeApi = () => ({
-    postMessage: () => {}
-  });
-});
-const { WordDetail } = await import("../WordDetail");
 
 // 食べる as the host returns it — enough senses/sentences to exercise the example preview cap and
 // the conjugation section together.

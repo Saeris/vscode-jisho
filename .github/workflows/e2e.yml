@@ -25,7 +25,7 @@ jobs:
           cache: true
 
       # NO Playwright browser install. The harness attaches to VS Code's OWN Chromium over CDP
-      # (see e2e/launch.ts), so the ~300MB browser download the Vitest browser project needs is
+      # (see e2e/launch.ts), so the ~300MB browser download the Vitest component project needs is
       # pure waste here.
       #
       # Cached on the pinned VS Code version, which is the version launch.ts refuses to float:

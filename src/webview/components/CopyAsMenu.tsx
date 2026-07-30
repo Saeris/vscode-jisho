@@ -21,10 +21,9 @@ export interface CopyVariant {
 /**
  * The shapes a word can be copied as.
  *
- * Extracted from the component so it can be tested directly: the menu itself is a React Aria
- * collection, which needs browser layout APIs jsdom does not implement (the same limitation
- * SearchResults.spec records for ListBox), and the decisions worth pinning are all here rather than
- * in the markup — which variants exist for a given word, and what each one actually copies.
+ * Extracted from the component so it can be tested directly: the decisions worth pinning are all
+ * here rather than in the markup — which variants exist for a given word, and what each one
+ * actually copies.
  */
 export const copyVariants = (
   headword: string,
