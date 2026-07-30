@@ -102,14 +102,18 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
   ).toBeVisible();
 });
 
+// `ControlOrMeta`, never `Control`: Playwright maps it to Cmd on macOS and Ctrl elsewhere. Hardcoded
+// `Control+` presses meant this suite could not pass on a Mac at all — Ctrl+N opens no editor there,
+// so the first such test timed out on a locator waiting for an editor that was never created, and
+// serial mode then skipped everything after it.
 test("editor command: Look Up Selection drives the sidebar search", async () => {
   const win = app().window;
   // A real editor with Japanese text, selected. Focus sits in the editor, so the palette works
   // (inside the webview, F1 goes to the extension's own search box instead).
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   await win.keyboard.type("食べました");
-  await win.keyboard.press("Control+a");
+  await win.keyboard.press("ControlOrMeta+a");
 
   await win.keyboard.press("F1");
   await win.locator(".quick-input-widget").waitFor();
@@ -142,7 +146,7 @@ test("hovering Japanese text shows a dictionary hover", async () => {
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   // The hardest case in one line: mirrordown ruby markup AND a complex conjugation. The braces
   // must not split the run, the cursor lands on "{" and maps into the base, the auxiliaries
@@ -178,7 +182,7 @@ test("hovering する resolves the verb, not a homophone (POS-aware accuracy fix
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   // する must stand alone: in 勉強してXX the tokenizer folds 勉強+し into one サ変 verb (勉強する), so
   // it wouldn't isolate する. In 仕事をして…, し is its own segment with lemma する.
@@ -202,7 +206,7 @@ test("hovering a particle explains its grammar", async () => {
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   const editor = win.locator(".editor-group-container .monaco-editor").first();
   await editor.waitFor();
   // Click INTO the new editor before typing. Opening the sidebar leaves focus in the webview, and
@@ -244,7 +248,7 @@ test("hovering an auxiliary shows its grammar note alone, not the word definitio
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   const editor = win.locator(".editor-group-container .monaco-editor").first();
   await editor.waitFor();
   await editor.click();
@@ -281,10 +285,10 @@ const editorWith = async (win: Page, text: string): Promise<void> => {
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   await win.keyboard.type(text);
-  await win.keyboard.press("Control+a");
+  await win.keyboard.press("ControlOrMeta+a");
 };
 
 test("editor commands: word spacing round-trips through the palette", async () => {
@@ -343,7 +347,7 @@ test("copy as: furigana markdown reaches the system clipboard", async () => {
 
   // Read the clipboard by PASTING: clipboard reads from Playwright are unreliable, pastes aren't.
   await editorWith(win, "");
-  await win.keyboard.press("Control+v");
+  await win.keyboard.press("ControlOrMeta+v");
   await expect(
     win.locator(".view-line", { hasText: "{食|た}べる" }).first()
   ).toBeVisible({ timeout: 15_000 });

@@ -73,7 +73,7 @@ test("hover.enabled=false suppresses the dictionary hover", async () => {
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   await win.keyboard.type("食べました");
   const word = win.locator(".view-line", { hasText: "食べました" }).first();
@@ -92,7 +92,7 @@ test("highlighting.enabled colors Japanese by part of speech", async () => {
     .locator(".editor-group-container")
     .first()
     .click({ position: { x: 200, y: 200 } });
-  await win.keyboard.press("Control+n");
+  await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
   // noun + particle + conjugated verb: at least three token types land on one line.
   await win.keyboard.type("写真を見せました");
