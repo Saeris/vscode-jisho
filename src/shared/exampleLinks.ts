@@ -15,6 +15,7 @@
  * Example:  `お[{茶|ちゃ}](n:1000710)を[{飲|の}みませんか](v:1168720)`
  */
 import type { PartOfSpeech } from "./messages";
+import { stripRubyText } from "./ruby";
 
 /**
  * Compact codes for each part of speech, and the inverse. Stable — the DB stores the codes. Declared
@@ -85,3 +86,18 @@ export const parseExampleMarkup = (markup: string): ExamplePart[] => {
   }
   return parts;
 };
+
+/**
+ * The sentence as plain text: both markup layers removed, links first then ruby.
+ *
+ * For surfaces that cannot render either — the editor hover, whose markdown VS Code sanitizes down
+ * to a fixed subset. `stripRubyText` alone is NOT enough and failing to notice that is what shipped
+ * `[もっと](adv:1012620)` into the word page: stripping ruby leaves the link syntax intact, so a
+ * consumer that only knows about ruby prints half the markup and looks like it worked.
+ */
+export const exampleText = (markup: string): string =>
+  stripRubyText(
+    parseExampleMarkup(markup)
+      .map((part) => part.markup)
+      .join("")
+  );

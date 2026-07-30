@@ -5,6 +5,7 @@ import { connect } from "@tursodatabase/database";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { Dictionary, SchemaVersionError } from "../db";
 import { SCHEMA_VERSION } from "../../shared/schema";
+import { exampleText } from "../../shared/exampleLinks";
 
 // These tests run against the real database produced by `vp run build:data`. If it hasn't been
 // built yet, skip rather than fail — the build is an occasional, network-dependent step.
@@ -472,8 +473,25 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     const withSentences = word!.senses.filter((s) => s.sentences.length > 0);
     expect(withSentences.length).toBeGreaterThan(0);
     const first = withSentences[0].sentences[0];
-    expect(first.ja).toMatch(/[぀-ヿ㐀-鿿]/); // a real Japanese sentence
+    expect(first.jaFurigana).toMatch(/[぀-ヿ㐀-鿿]/); // a real Japanese sentence
     expect(first.en.length).toBeGreaterThan(0); // paired with an English translation
+  });
+
+  test("inline examples carry the markup layers, not a half-stripped string", async () => {
+    // WHY: the DTO must hand the renderer the SAME markup the pool page gets, because `ExampleSentence`
+    // is what turns it into furigana and tap targets. The old assertion here ("matches a Japanese
+    // character") could not fail for the bug that actually shipped: getWord stripped ruby but not
+    // F1-links, so `[もっと](adv:1012620)` reached the page — and that string matches a Japanese
+    // character just fine. So assert the two layers are intact AND that plain text is still
+    // derivable, which is what the hover needs.
+    const [top] = await dict.search("食べる");
+    const word = await dict.getWord(top.id);
+    const sentences = word!.senses.flatMap((s) => s.sentences);
+    const linked = sentences.filter((s) => s.jaFurigana.includes("]("));
+    expect(linked.length).toBeGreaterThan(0);
+    for (const s of linked) {
+      expect(exampleText(s.jaFurigana)).not.toMatch(/[[\]{}]/u);
+    }
   });
 
   test("caps example sentences per sense", async () => {

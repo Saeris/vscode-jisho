@@ -17,7 +17,12 @@ const base: WordHover = {
         { code: "vs", description: "suru verb" }
       ],
       glosses: ["attention", "notice", "heed", "care"],
-      sentences: [{ ja: "注意してください。", en: "Please be careful." }]
+      sentences: [
+        {
+          jaFurigana: "[{注意|ちゅうい}](n:1370760)してください。",
+          en: "Please be careful."
+        }
+      ]
     }
   ]
 };
@@ -119,6 +124,11 @@ describe("wordHoverMarkdown", () => {
   });
 
   it("shows one example as a blockquote with a dimmed translation", () => {
+    // WHY the fixture sentence carries BOTH markup layers: VS Code's hover renders a fixed markdown
+    // subset with no ruby-brace or link syntax, so anything left in reaches the user as literal
+    // `[{注意|ちゅうい}](n:1370760)`. That is the bug that shipped on the word page — ruby was
+    // stripped, links were not — and it looks like success from a distance, because half-stripped
+    // markup still contains the sentence. Asserting the exact plain string is what makes this fail.
     const md = wordHoverMarkdown(base);
     expect(md).toContain("> 注意してください。");
     expect(md).toContain("<small>*Please be careful.*</small>");

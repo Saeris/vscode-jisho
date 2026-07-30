@@ -2,14 +2,16 @@
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { WordDetail } from "../WordDetail";
+import { renderWithNavigation } from "../../__tests__/navigationHarness";
+import type { NavEvent } from "../../machines/navigation";
 import type { SenseDto, WordDetailDto } from "../../../shared/messages";
 
 const sense = (
   posCodes: string[],
-  sentences: { ja: string; en: string }[] = []
+  sentences: { jaFurigana: string; en: string }[] = []
 ): SenseDto => ({
   partOfSpeech: posCodes.map((code) => ({ code, description: code })),
   field: [],
@@ -27,7 +29,7 @@ const sense = (
 const word = (
   headword: string,
   posCodes: string[],
-  sentences: { ja: string; en: string }[] = []
+  sentences: { jaFurigana: string; en: string }[] = []
 ): WordDetailDto => ({
   id: "1",
   common: true,
@@ -62,7 +64,7 @@ vi.mock("../../queries", () => ({
 const renderView = (
   w: WordDetailDto,
   kanji: Record<string, unknown> = {}
-): void => {
+): NavEvent[] => {
   current = w;
   kanjiDetails = kanji;
   const client = new QueryClient({
@@ -71,17 +73,7 @@ const renderView = (
   const wrapper = (ui: ReactElement): ReactElement => (
     <QueryClientProvider client={client}>{ui}</QueryClientProvider>
   );
-  render(
-    wrapper(
-      <WordDetail
-        id="1"
-        onBack={vi.fn<() => void>()}
-        onSearchTerm={vi.fn<(term: string) => void>()}
-        onOpenKanji={vi.fn<(literal: string) => void>()}
-        onOpenMoreExamples={vi.fn<(id: string) => void>()}
-      />
-    )
-  );
+  return renderWithNavigation(wrapper(<WordDetail id="1" />)).sent;
 };
 
 describe("word detail conjugations", () => {
@@ -141,7 +133,6 @@ describe("word detail form marks & sections", () => {
   it("renders a kanji row per character with an entry, none for gaps", async () => {
     // WHY: the Kanji section must never dead-end — a character without a Kanjidic entry gets no
     // row at all rather than a row that opens "Kanji not found".
-    const onOpenKanji = vi.fn<(literal: string) => void>();
     current = word("食べる", ["v1"]);
     kanjiDetails = {
       食: {
@@ -151,7 +142,7 @@ describe("word detail form marks & sections", () => {
         kun: ["た.べる"]
       }
     };
-    render(
+    const { sent } = renderWithNavigation(
       <QueryClientProvider
         client={
           new QueryClient({
@@ -159,27 +150,21 @@ describe("word detail form marks & sections", () => {
           })
         }
       >
-        <WordDetail
-          id="1"
-          onBack={vi.fn<() => void>()}
-          onSearchTerm={vi.fn<(term: string) => void>()}
-          onOpenKanji={onOpenKanji}
-          onOpenMoreExamples={vi.fn<(id: string) => void>()}
-        />
+        <WordDetail id="1" />
       </QueryClientProvider>
     );
     const row = await screen.findByRole("button", { name: "View kanji 食" });
     expect(row.textContent).toContain("eat, food");
     await userEvent.click(row);
-    expect(onOpenKanji).toHaveBeenCalledWith("食");
+    expect(sent).toEqual([{ type: "openKanji", literal: "食" }]);
   });
 });
 
 describe("word detail examples", () => {
   const sentences = [
-    { ja: "一", en: "one" },
-    { ja: "二", en: "two" },
-    { ja: "三", en: "three" }
+    { jaFurigana: "一", en: "one" },
+    { jaFurigana: "二", en: "two" },
+    { jaFurigana: "三", en: "three" }
   ];
 
   it("shows the first examples inline and the rest behind Show all", async () => {

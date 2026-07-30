@@ -18,6 +18,8 @@
  * Only the attribute path needs this: element *content* is Japanese/English text that the markdown
  * renderer already handles, but an unescaped `"` or `<` in a title would break out of the attribute.
  */
+import { exampleText } from "./exampleLinks";
+
 const escapeAttr = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -122,7 +124,8 @@ export interface WordHover {
 export interface HoverSense {
   partOfSpeech: Array<{ code: string; description: string }>;
   glosses: string[];
-  sentences: Array<{ ja: string; en: string }>;
+  /** Ruby + F1-link markup, as stored. Stripped to plain text here — the hover can render neither. */
+  sentences: Array<{ jaFurigana: string; en: string }>;
 }
 
 /**
@@ -163,7 +166,9 @@ export const wordHoverMarkdown = (word: WordHover): string => {
       const [example] = sense.sentences;
       // Blockquote: the one place the example reads as a quotation rather than more metadata. The
       // translation is dimmed with <small> so the Japanese leads.
-      parts.push(`> ${example.ja}  \n> <small>*${example.en}*</small>`);
+      parts.push(
+        `> ${exampleText(example.jaFurigana)}  \n> <small>*${example.en}*</small>`
+      );
     }
   }
 

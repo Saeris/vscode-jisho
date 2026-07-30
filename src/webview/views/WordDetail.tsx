@@ -8,13 +8,15 @@ import type {
   SentenceDto,
   WordDetailDto
 } from "../../shared/messages";
+import { useNavigate } from "../navigation";
 import { kanjiQuery, wordQuery } from "../queries";
 import { conjugate } from "../conjugate";
 import { Badge } from "../components/Badge";
 import { CopyAsMenu } from "../components/CopyAsMenu";
 import { PitchAccent } from "../components/PitchAccent";
 import { WaniKaniLink } from "../components/WaniKaniLink";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
+import { ExampleSentence } from "../components/ExampleSentence";
 import { Term } from "../components/Term";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
@@ -22,48 +24,21 @@ import { isKanjiChar } from "../../shared/japanese";
 
 interface WordDetailProps {
   id: string;
-  onBack: () => void;
-  onHome?: () => void;
-  /** Tap-through: search for a referenced term (cross-references are surface strings, not ids). */
-  onSearchTerm: (term: string) => void;
-  /** Tap a kanji character in the headword to open its detail. */
-  onOpenKanji: (literal: string) => void;
-  /** Open the "more examples" page (the fuller Tatoeba pool for this word). */
-  onOpenMoreExamples: (id: string) => void;
 }
 
-export const WordDetail = ({
-  id,
-  onBack,
-  onHome,
-  onSearchTerm,
-  onOpenKanji,
-  onOpenMoreExamples
-}: WordDetailProps): React.ReactElement => {
-  const { data, isPending, isError, error } = useQuery(wordQuery(id));
-
-  return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
-        {isPending ? (
-          <p>Loading…</p>
-        ) : isError ? (
-          <p>{error instanceof Error ? error.message : "Failed to load."}</p>
-        ) : data === null ? (
-          <p>Word not found.</p>
-        ) : (
-          <WordBody
-            word={data}
-            onSearchTerm={onSearchTerm}
-            onOpenKanji={onOpenKanji}
-            onOpenMoreExamples={() => onOpenMoreExamples(id)}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
+/**
+ * Navigation is read from context by the components that navigate, not threaded from here.
+ *
+ * KanjiDetail destructures the actions at the view and hands them to its body, which is fine at one
+ * level deep. This view's consumers are five and six levels down (Sense → Examples, KanjiSection →
+ * KanjiRow), so threading meant six components declaring a callback they only forwarded. The leaf
+ * calling `useNavigate()` itself is the same context, minus the relay.
+ */
+export const WordDetail = ({ id }: WordDetailProps): React.ReactElement => (
+  <DetailView query={useQuery(wordQuery(id))} empty="Word not found.">
+    {(word) => <WordBody word={word} />}
+  </DetailView>
+);
 
 /**
  * Single-kanji markers for JMdict form tags, Shirabe-style (喰べる探): a superscript flag on the
@@ -113,17 +88,8 @@ const writingsFor = (kana: KanaDto, word: WordDetailDto): KanjiDto[] => {
     : word.kanji.filter((k) => kana.appliesToKanji.includes(k.text));
 };
 
-const WordBody = ({
-  word,
-  onSearchTerm,
-  onOpenKanji,
-  onOpenMoreExamples
-}: {
-  word: WordDetailDto;
-  onSearchTerm: (term: string) => void;
-  onOpenKanji: (literal: string) => void;
-  onOpenMoreExamples: () => void;
-}): React.ReactElement => {
+const WordBody = ({ word }: { word: WordDetailDto }): React.ReactElement => {
+  const { openMoreExamples } = useNavigate();
   // `word.kanji`/`word.kana` may be empty (kana-only words have no kanji); guard on length
   // rather than optional-chaining, which the array element type reports as always-present.
   const headword =
@@ -155,7 +121,7 @@ const WordBody = ({
                 {writingsFor(kana, word).map((w, j) => (
                   <span key={w.text} className={styles.writingItem}>
                     {j > 0 ? ", " : null}
-                    <Headword text={w.text} onOpenKanji={onOpenKanji} />
+                    <Headword text={w.text} />
                     <Marks tags={w.tags} />
                   </span>
                 ))}
@@ -183,13 +149,16 @@ const WordBody = ({
         </div>
       </div>
 
-      <SenseList word={word} onSearchTerm={onSearchTerm} />
+      <SenseList word={word} />
       <MarkLegend word={word} />
 
       {/* The fuller Tatoeba example pool, on its own page. The per-sense inline examples above stay
           the curated set; this is "see many more". Shown unconditionally — the pool exists for the
           vast majority of words, and the page degrades gracefully if this one has none. */}
-      <Button className={styles.moreExamplesLink} onPress={onOpenMoreExamples}>
+      <Button
+        className={styles.moreExamplesLink}
+        onPress={() => openMoreExamples(word.id)}
+      >
         <span aria-hidden="true">📖</span>
         More examples
         <span className={styles.chevron} aria-hidden="true">
@@ -198,7 +167,7 @@ const WordBody = ({
       </Button>
 
       <Info word={word} headword={headword} />
-      <KanjiSection word={word} onOpenKanji={onOpenKanji} />
+      <KanjiSection word={word} />
       <Conjugations headword={headword} word={word} />
     </>
   );
@@ -268,12 +237,11 @@ const kanjiChars = (word: WordDetailDto): string[] => [
 
 /** Shirabe's Kanji section: one tappable row per character, opening its kanji detail. */
 const KanjiSection = ({
-  word,
-  onOpenKanji
+  word
 }: {
   word: WordDetailDto;
-  onOpenKanji: (literal: string) => void;
 }): React.ReactElement | null => {
+  const { openKanji } = useNavigate();
   const chars = kanjiChars(word);
   if (chars.length === 0) return null;
   return (
@@ -282,7 +250,7 @@ const KanjiSection = ({
         Kanji
       </Heading>
       {chars.map((c) => (
-        <KanjiRow key={c} literal={c} onOpen={() => onOpenKanji(c)} />
+        <KanjiRow key={c} literal={c} onOpen={() => openKanji(c)} />
       ))}
     </section>
   );
@@ -416,30 +384,27 @@ const Conjugations = ({
 };
 
 /** The headword with each CJK character rendered as a button that opens its kanji detail. */
-const Headword = ({
-  text,
-  onOpenKanji
-}: {
-  text: string;
-  onOpenKanji: (literal: string) => void;
-}): React.ReactElement => (
-  <>
-    {Array.from(text).map((char, i) =>
-      isKanjiChar(char) ? (
-        <Button
-          key={i}
-          className={styles.kanjiChar}
-          onPress={() => onOpenKanji(char)}
-          aria-label={`Open kanji ${char}`}
-        >
-          {char}
-        </Button>
-      ) : (
-        <span key={i}>{char}</span>
-      )
-    )}
-  </>
-);
+const Headword = ({ text }: { text: string }): React.ReactElement => {
+  const { openKanji } = useNavigate();
+  return (
+    <>
+      {Array.from(text).map((char, i) =>
+        isKanjiChar(char) ? (
+          <Button
+            key={i}
+            className={styles.kanjiChar}
+            onPress={() => openKanji(char)}
+            aria-label={`Open kanji ${char}`}
+          >
+            {char}
+          </Button>
+        ) : (
+          <span key={i}>{char}</span>
+        )
+      )}
+    </>
+  );
+};
 
 /** The muted grammar line above a run of senses: parts of speech plus usage tags, spelled out. */
 const senseLabel = (sense: SenseDto): string =>
@@ -454,13 +419,7 @@ const senseMarker = (index: number): string =>
  * governs and again only when it changes (見せる: "Ichidan verb, transitive verb" for Ⓐ–Ⓔ, then
  * "auxiliary verb" for Ⓕ–Ⓖ). Sense letters run through the whole word, not per group.
  */
-const SenseList = ({
-  word,
-  onSearchTerm
-}: {
-  word: WordDetailDto;
-  onSearchTerm: (term: string) => void;
-}): React.ReactElement => (
+const SenseList = ({ word }: { word: WordDetailDto }): React.ReactElement => (
   <div className={styles.senses}>
     {word.senses.map((sense, i) => {
       const label = senseLabel(sense);
@@ -470,7 +429,7 @@ const SenseList = ({
           {changed && label !== "" ? (
             <p className={styles.posLine}>{label}</p>
           ) : null}
-          <Sense sense={sense} index={i} onSearchTerm={onSearchTerm} />
+          <Sense sense={sense} index={i} />
         </div>
       );
     })}
@@ -480,13 +439,12 @@ const SenseList = ({
 /** A muted inline annotation: " (label: linked terms)" — Shirabe's xref formatting. */
 const InlineXrefs = ({
   label,
-  terms,
-  onSearchTerm
+  terms
 }: {
   label: string;
   terms: string[];
-  onSearchTerm: (term: string) => void;
 }): React.ReactElement | null => {
+  const { searchFor } = useNavigate();
   if (terms.length === 0) return null;
   return (
     <span className={styles.senseNote} lang="ja">
@@ -498,7 +456,7 @@ const InlineXrefs = ({
           {i > 0 ? ", " : null}
           <Button
             className={styles.xrefLink}
-            onPress={() => onSearchTerm(term)}
+            onPress={() => searchFor(term)}
             aria-label={`Search for ${term}`}
           >
             {term}
@@ -512,12 +470,10 @@ const InlineXrefs = ({
 
 const Sense = ({
   sense,
-  index,
-  onSearchTerm
+  index
 }: {
   sense: SenseDto;
   index: number;
-  onSearchTerm: (term: string) => void;
 }): React.ReactElement => {
   const notes = [
     ...sense.field.map((t) => t.description),
@@ -534,16 +490,8 @@ const Sense = ({
         {notes.length > 0 ? (
           <span className={styles.senseNote}> ({notes.join("; ")})</span>
         ) : null}
-        <InlineXrefs
-          label="see also"
-          terms={sense.related}
-          onSearchTerm={onSearchTerm}
-        />
-        <InlineXrefs
-          label="antonyms"
-          terms={sense.antonym}
-          onSearchTerm={onSearchTerm}
-        />
+        <InlineXrefs label="see also" terms={sense.related} />
+        <InlineXrefs label="antonyms" terms={sense.antonym} />
       </p>
       {sense.sentences.length > 0 ? (
         <Examples sentences={sense.sentences} />
@@ -565,6 +513,7 @@ const Examples = ({
 }: {
   sentences: SentenceDto[];
 }): React.ReactElement => {
+  const { openWord } = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? sentences : sentences.slice(0, EXAMPLE_PREVIEW);
   return (
@@ -573,7 +522,7 @@ const Examples = ({
         {visible.map((s, i) => (
           <li key={i} className={styles.example}>
             <span className={styles.exampleJa} lang="ja">
-              {s.ja}
+              <ExampleSentence markup={s.jaFurigana} onOpenWord={openWord} />
             </span>
             <span className={styles.exampleEn}>{s.en}</span>
           </li>

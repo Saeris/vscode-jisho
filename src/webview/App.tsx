@@ -55,24 +55,8 @@ export const App = (): React.ReactElement => {
       <Activity mode={view.name === "search" ? "visible" : "hidden"}>
         <SearchResults query={state.context.searchQuery} />
       </Activity>
-      {view.name === "wordDetail" ? (
-        <WordDetail
-          id={view.id}
-          onBack={() => send({ type: "back" })}
-          onHome={
-            canGoHome(state.context) ? () => send({ type: "home" }) : undefined
-          }
-          onSearchTerm={(term) => send({ type: "searchFor", term })}
-          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
-          onOpenMoreExamples={(id) => send({ type: "openMoreExamples", id })}
-        />
-      ) : null}
-      {view.name === "moreExamples" ? (
-        <MoreExamples
-          id={view.id}
-          onOpenWord={(wordId) => send({ type: "openWord", id: wordId })}
-        />
-      ) : null}
+      {view.name === "wordDetail" ? <WordDetail id={view.id} /> : null}
+      {view.name === "moreExamples" ? <MoreExamples id={view.id} /> : null}
       {view.name === "kanjiDetail" ? (
         <KanjiDetail literal={view.literal} />
       ) : null}

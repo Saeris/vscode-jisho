@@ -51,9 +51,16 @@ A first attempt made the furigana groups tappable — REJECTED: build-time furig
 
 Observed limitation: tokenizer segmentation isn't perfect (食べるよう merges the nominalizer, なったのです merges), so a few links have slightly-off boundaries — but each still lands on a useful entry; it's tokenizer granularity, not a linkification bug. Notably the example linkifier resolves words the hover mis-resolves (し→する, where the hover hits 死ぬ) — a data point recorded for the accuracy-harness work.
 
-## Inline examples
+## Inline examples — done (2026-07-30)
 
-The inline per-sense examples still render `ja` as plain text; they can switch to the stored `ja_furigana` (ruby) once the inline renderer parses the markup — fold this in with F1-links, since both touch the same rendering.
+The inline per-sense examples render through the same `ExampleSentence` as the pool page, so they now carry furigana and tap-through links too.
+
+This was NOT merely a deferred nicety by the time it got done: leaving the inline renderer on a plain string turned into a visible defect the moment F1-links changed what the stored markup contains. `getWord` stripped ruby with `stripRubyText` and printed the result, so `[もっと](adv:1012620)[果物](n:1193060)を…` reached the word page verbatim. Two things let it through — worth recording, because both are shapes that recur:
+
+- **A half-correct transform looks correct.** Stripping one of two markup layers leaves a string that still contains the sentence, so nothing downstream could tell the difference by inspection.
+- **The test that covered it could not fail.** `db.spec` asserted the sentence "matches a Japanese character", which `[もっと](adv:1012620)` satisfies. The assertion was about the join being wired up, and it kept passing while the rendering broke underneath it.
+
+`SentenceDto` and `PoolSentenceDto` were identical once the inline DTO carried markup, so they are one type. Plain text is now derived where it is actually needed rather than in the query layer: `exampleText()` in `exampleLinks.ts` strips BOTH layers, and the editor hover — whose markdown subset renders neither — is its one caller.
 
 ## Attribution
 

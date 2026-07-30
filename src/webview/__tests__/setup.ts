@@ -1,5 +1,19 @@
 import { afterEach } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
+
+/**
+ * Widen the `findBy*` budget from Testing Library's 1s default.
+ *
+ * Every view spec awaits a TanStack query resolving, and 1s is a wall-clock budget competing with
+ * however many other spec files this project happens to run in parallel. That made a passing suite
+ * depend on machine load: KanjiDetail's parts test failed in the full run and passed on its own,
+ * reporting "unable to find button" while the DOM plainly showed the view still in its Loading state
+ * — a message that describes a missing element when the real answer is "not yet".
+ *
+ * 5s cannot mask a broken assertion (a view that never resolves still fails, just later), so this
+ * only removes the load sensitivity.
+ */
+configure({ asyncUtilTimeout: 5_000 });
 
 /**
  * Component-project setup: stub the webview host API.

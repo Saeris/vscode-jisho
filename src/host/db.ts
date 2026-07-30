@@ -17,7 +17,7 @@ import {
   WORD_LEVEL_SENSE
 } from "../shared/schema";
 import { anyPosMatches } from "../shared/pos";
-import { stripRubyText, toHiragana } from "../shared/ruby";
+import { toHiragana } from "../shared/ruby";
 import type {
   ComponentTreeDto,
   ExampleGroupDto,
@@ -28,7 +28,6 @@ import type {
   KanjiWordDto,
   MoreExamplesDto,
   PartOfSpeech,
-  PoolSentenceDto,
   RadicalDto,
   RadicalLookupDto,
   SearchResultDto,
@@ -751,7 +750,7 @@ export class Dictionary {
     const sentencesBySense = new Map<number, SentenceDto[]>();
     for (const r of sentenceRows) {
       const list = sentencesBySense.get(r.sense_position) ?? [];
-      list.push({ ja: stripRubyText(r.ja_furigana), en: r.en });
+      list.push({ jaFurigana: r.ja_furigana, en: r.en });
       sentencesBySense.set(r.sense_position, list);
     }
 
@@ -814,10 +813,10 @@ export class Dictionary {
         id
       ));
 
-    const wordLevel: PoolSentenceDto[] = [];
-    const bySense = new Map<number, PoolSentenceDto[]>();
+    const wordLevel: SentenceDto[] = [];
+    const bySense = new Map<number, SentenceDto[]>();
     for (const r of rows) {
-      const sentence: PoolSentenceDto = { jaFurigana: r.ja_furigana, en: r.en };
+      const sentence: SentenceDto = { jaFurigana: r.ja_furigana, en: r.en };
       if (r.sense_position === WORD_LEVEL_SENSE) {
         wordLevel.push(sentence);
       } else {

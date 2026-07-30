@@ -39,15 +39,14 @@ export interface TagDto {
   description: string;
 }
 
-/** An example sentence: a Japanese sentence paired with its English translation. */
+/**
+ * An example sentence, in the one form the DB stores and both example surfaces render.
+ *
+ * `jaFurigana` carries BOTH build-time layers: mirrordown ruby (`{漢字|かんじ}`) for furigana and
+ * F1-links markup (`[word](pos:entseq)`) for tap-through. Neither is optional to handle — a consumer
+ * that renders this as a plain string prints the markup, so it goes through `ExampleSentence`.
+ */
 export interface SentenceDto {
-  ja: string;
-  en: string;
-}
-
-/** A pooled example (F1 "more examples"): the Japanese with build-time ruby markup, plus English. */
-export interface PoolSentenceDto {
-  /** Japanese with mirrordown ruby (`{漢字|かんじ}`), rendered as furigana on the page. */
   jaFurigana: string;
   en: string;
 }
@@ -56,7 +55,7 @@ export interface PoolSentenceDto {
 export interface ExampleGroupDto {
   /** The sense's first gloss, e.g. "to eat" — the section header. */
   gloss: string;
-  sentences: PoolSentenceDto[];
+  sentences: SentenceDto[];
 }
 
 /**
@@ -69,7 +68,7 @@ export interface MoreExamplesDto {
   /** Per-sense example groups (only senses that have pooled sentences). */
   senses: ExampleGroupDto[];
   /** Word-level pool: sentences the source did not attribute to a sense. */
-  wordLevel: PoolSentenceDto[];
+  wordLevel: SentenceDto[];
 }
 
 /** One sense (meaning group): glosses plus grammatical/usage metadata. */

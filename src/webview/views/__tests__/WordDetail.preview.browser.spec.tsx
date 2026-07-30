@@ -1,7 +1,7 @@
 import { describe, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithNavigation } from "../../__tests__/navigationHarness";
 import type { WordDetailDto } from "../../../shared/messages";
 
 // The bridge calls acquireVsCodeApi() at module load; stub it before importing anything that pulls
@@ -45,9 +45,15 @@ const word: WordDetailDto = {
       related: [],
       antonym: [],
       sentences: [
-        { ja: "パンを食べます。", en: "I eat bread." },
-        { ja: "朝ご飯を食べましたか。", en: "Did you eat breakfast?" },
-        { ja: "何か食べたい。", en: "I want to eat something." }
+        { jaFurigana: "パンを{食|た}べます。", en: "I eat bread." },
+        {
+          jaFurigana: "{朝|あさ}ご{飯|はん}を{食|た}べましたか。",
+          en: "Did you eat breakfast?"
+        },
+        {
+          jaFurigana: "{何|なに}か{食|た}べたい。",
+          en: "I want to eat something."
+        }
       ]
     }
   ]
@@ -82,7 +88,7 @@ describe("word detail preview", () => {
       kun: ["く.う", "た.べる"]
     });
     client.setQueryData(["kanji", "喰"], null);
-    render(
+    renderWithNavigation(
       <QueryClientProvider client={client}>
         <div style={{ display: "flex", gap: "16px", alignItems: "start" }}>
           {[300, 430].map((width) => (
@@ -90,12 +96,7 @@ describe("word detail preview", () => {
               key={width}
               style={{ ...vars, width: `${width}px`, flexShrink: 0 }}
             >
-              <WordDetail
-                id="1"
-                onBack={() => {}}
-                onSearchTerm={() => {}}
-                onOpenKanji={() => {}}
-              />
+              <WordDetail id="1" />
             </div>
           ))}
         </div>

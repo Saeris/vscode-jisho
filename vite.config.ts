@@ -103,7 +103,17 @@ export default defineConfig({
     // Preview benches render a component's variants and screenshot them for visual review — they're
     // a bench, not a test, so `expect-expect` rightly finds no assertions. The correctness they'd
     // otherwise assert lives in the sibling *.browser.spec.tsx.
-    ignorePatterns: ["src/**/*.preview.browser.spec.tsx"]
+    //
+    // Scoped to the ONE rule, not the file. This was `ignorePatterns` and that silently dropped these
+    // files from TYPE checking as well: a preview fixture went on constructing a DTO with a field the
+    // interface no longer had, `vp check` stayed green, and the failure surfaced as a runtime
+    // `Cannot read properties of undefined` in the browser project instead of as a type error.
+    overrides: [
+      {
+        files: ["src/**/*.preview.browser.spec.tsx"],
+        rules: { "vitest/expect-expect": "off" }
+      }
+    ]
   }),
   fmt: {
     ...fmt,
