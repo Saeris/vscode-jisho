@@ -75,8 +75,23 @@ const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
 const NAMES_DB = join(root, "assets", "jisho-names.db");
 const NAMES_SCHEMA = join(root, "src", "data", "names-schema.sql");
+/**
+ * Which jmdict-simplified release to build from.
+ *
+ * Defaults to `latest`, deliberately: dictionary refreshes are decoupled from extension releases (the
+ * rolling `dictionary-latest` GitHub Release), so a maintainer-triggered data build is SUPPOSED to
+ * pick up current JMdict without a code change. Pinning by default would defeat that.
+ *
+ * The cost is that "the same command" produces different databases on different days, which matters
+ * when reproducing a specific build. `JISHO_JMDICT_RELEASE=<tag>` pins it for exactly that — and the
+ * resolved tag is recorded in `meta.dictRelease` either way, so any built database says which release
+ * it came from. See the reproducibility note in CONVENTIONS.md for what can and cannot be pinned.
+ */
+const JMDICT_RELEASE = process.env.JISHO_JMDICT_RELEASE;
 const RELEASE_API =
-  "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
+  JMDICT_RELEASE === undefined || JMDICT_RELEASE === ""
+    ? "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest"
+    : `https://api.github.com/repos/scriptin/jmdict-simplified/releases/tags/${JMDICT_RELEASE}`;
 
 // `--names` builds the separate JMnedict names database (`jisho-names.db`), an optional download
 // delivered as its own `jisho-names.db.zst` trio on the dictionary-latest release. It's ~743k
@@ -685,10 +700,16 @@ interface Sources {
     stroke: Awaited<ReturnType<typeof fetchYencken>>;
     radical: Awaited<ReturnType<typeof fetchYencken>>;
   };
+  /** The resolved jmdict-simplified release tag, recorded so a build says what it came from. */
+  release: string;
 }
 
 const downloadSources = async (): Promise<Sources> => {
-  console.log("Resolving latest jmdict-simplified release…");
+  console.log(
+    JMDICT_RELEASE === undefined || JMDICT_RELEASE === ""
+      ? "Resolving latest jmdict-simplified release…"
+      : `Resolving pinned jmdict-simplified release ${JMDICT_RELEASE}…`
+  );
   const release = await fetchJson<GithubRelease>(RELEASE_API);
   console.log(`Release ${release.tag_name}`);
   const [
@@ -737,7 +758,8 @@ const downloadSources = async (): Promise<Sources> => {
     priority,
     decomp,
     tatoeba,
-    yencken: { stroke: yenckenStroke, radical: yenckenRadical }
+    yencken: { stroke: yenckenStroke, radical: yenckenRadical },
+    release: release.tag_name
   };
 };
 
@@ -1095,6 +1117,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // present even if a later meta insert fails.
   await insMeta.run(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
   await insMeta.run("source", `JMdict (jmdict-simplified, eng-${VARIANT})`);
+  await insMeta.run("dictRelease", sources.release);
   await insMeta.run("dictDate", dict.dictDate);
   await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
   await insMeta.run(
