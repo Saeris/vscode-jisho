@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import {
   Button,
   Label,
@@ -7,12 +6,10 @@ import {
   SliderTrack
 } from "react-aria-components";
 import styles from "./StrokePlayer.module.css";
+import { MS_PER_STROKE, useStrokeClock } from "../useStrokeClock";
 
-/** Milliseconds per stroke — the unit converting the clock's currentTime ↔ stroke numbers. */
-export const MS_PER_STROKE = 600;
-
-const prefersReducedMotion = (): boolean =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Re-exported: the browser spec imports it from here, and it is the unit this component displays in.
+export { MS_PER_STROKE };
 
 /** The part hit-rect (if any) at or above an event target — the delegation lookup. */
 const partRect = (target: EventTarget | null): SVGRectElement | null =>
@@ -36,94 +33,8 @@ export const StrokePlayer = ({
   /** Called with a part's literal when its hit-target is clicked or keyboard-activated. */
   onOpenPart?: (literal: string) => void;
 }): React.ReactElement => {
-  const canvas = useRef<HTMLDivElement>(null);
-  const clock = useRef<Animation | null>(null);
-  const [playing, setPlaying] = useState(false);
-  // The slider's controlled value, in whole strokes. Mirrors the clock for display; never derived
-  // from anything else, or the thumb fights the pointer (docs/STROKE-ORDER.md, lesson 6).
-  const [position, setPosition] = useState(0);
-
-  useEffect(() => {
-    const el = canvas.current;
-    if (!el) return undefined;
-    const anim = el.animate(
-      [{ "--stroke-index": "0" }, { "--stroke-index": String(strokeCount) }],
-      {
-        duration: strokeCount * MS_PER_STROKE,
-        easing: "linear",
-        fill: "forwards"
-      }
-    );
-    anim.pause(); // created at rest — autoplay is impossible by construction
-    anim.onfinish = (): void => {
-      setPlaying(false);
-      setPosition(strokeCount);
-    };
-    clock.current = anim;
-    setPlaying(false);
-    setPosition(0);
-    return (): void => {
-      clock.current = null;
-      anim.cancel();
-    };
-  }, [svg, strokeCount]);
-
-  // The Web Animations API has no progress event, so follow the running clock with rAF to keep the
-  // slider handle moving during playback.
-  useEffect((): (() => void) | undefined => {
-    if (!playing) return undefined;
-    let frame = requestAnimationFrame(function follow(): void {
-      const anim = clock.current;
-      if (!anim) return;
-      const strokesDrawn = Number(anim.currentTime ?? 0) / MS_PER_STROKE;
-      setPosition(Math.min(Math.floor(strokesDrawn), strokeCount));
-      frame = requestAnimationFrame(follow);
-    });
-    return (): void => cancelAnimationFrame(frame);
-  }, [playing, strokeCount]);
-
-  /** Seek to a whole stroke and take control: a manual seek always stops playback there. */
-  const scrubTo = (stroke: number): void => {
-    const anim = clock.current;
-    if (!anim) return;
-    anim.pause();
-    anim.currentTime = stroke * MS_PER_STROKE;
-    setPlaying(false);
-    setPosition(stroke);
-  };
-
-  const togglePlay = (): void => {
-    const anim = clock.current;
-    if (!anim) return;
-    if (playing) {
-      // Snap down to the last completed stroke (the paused-position invariant).
-      anim.pause();
-      const stroke = Math.floor(Number(anim.currentTime ?? 0) / MS_PER_STROKE);
-      anim.currentTime = stroke * MS_PER_STROKE;
-      setPlaying(false);
-      setPosition(stroke);
-      return;
-    }
-    if (prefersReducedMotion()) {
-      anim.finish();
-      return;
-    }
-    anim.play(); // resumes from the paused position; auto-rewinds only when already finished
-    setPlaying(true);
-  };
-
-  const replay = (): void => {
-    const anim = clock.current;
-    if (!anim) return;
-    anim.currentTime = 0;
-    setPosition(0);
-    if (prefersReducedMotion()) {
-      anim.finish();
-      return;
-    }
-    anim.play();
-    setPlaying(true);
-  };
+  const { canvas, playing, position, togglePlay, replay, scrubTo } =
+    useStrokeClock(svg, strokeCount);
 
   // Part highlighting bypasses React state on purpose: hover writes one CSS variable, the
   // stylesheet does the rest — no re-render per pointer move. The rects live inside injected

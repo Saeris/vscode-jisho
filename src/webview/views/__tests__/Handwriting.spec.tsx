@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { Handwriting } from "../Handwriting";
 import type { Pattern, RefPattern } from "../../recognizer/types";
 
@@ -49,14 +50,14 @@ describe("handwriting view", () => {
   });
 
   it("shows the hint before anything is drawn", () => {
-    render(<Handwriting onBack={() => {}} onPick={() => {}} />);
+    render(<Handwriting />);
     expect(screen.getByText(/draw a kanji/i)).toBeDefined();
   });
 
   it("recognizes ALL committed strokes, not a stale subset (regression: え crash)", async () => {
     // WHY: the original bug recognized the *previous* render's strokes (stale closure), so a second
     // stroke was dropped. Draw two strokes and assert recognize saw both — the exact wiring failure.
-    render(<Handwriting onBack={() => {}} onPick={() => {}} />);
+    render(<Handwriting />);
     const canvas = getCanvas();
     drawStroke(canvas, [
       [10, 10],
@@ -72,20 +73,22 @@ describe("handwriting view", () => {
     expect(lastStrokes).toHaveLength(2); // both strokes present, not one
   });
 
-  it("renders candidate chips and calls onPick with the chosen character", async () => {
-    const onPick = vi.fn<(char: string) => void>();
-    render(<Handwriting onBack={() => {}} onPick={onPick} />);
+  it("renders candidate chips and appends the chosen character to the search", async () => {
+    // Picking a candidate now dispatches through navigation rather than calling a prop, so the
+    // assertion is on the event: append the character AND return to search, which is the flow the
+    // view exists for (Shirabe's draw → pick → search).
+    const { sent } = render(<Handwriting />);
     drawStroke(getCanvas(), [
       [10, 10],
       [40, 40]
     ]);
     const chip = await screen.findByRole("button", { name: "日" });
     fireEvent.click(chip);
-    expect(onPick).toHaveBeenCalledWith("日");
+    expect(sent).toContainEqual({ type: "appendToSearch", char: "日" });
   });
 
   it("clear removes strokes and candidates", async () => {
-    render(<Handwriting onBack={() => {}} onPick={() => {}} />);
+    render(<Handwriting />);
     drawStroke(getCanvas(), [
       [10, 10],
       [40, 40]
@@ -97,7 +100,7 @@ describe("handwriting view", () => {
   });
 
   it("undo removes the last stroke", async () => {
-    render(<Handwriting onBack={() => {}} onPick={() => {}} />);
+    render(<Handwriting />);
     const canvas = getCanvas();
     drawStroke(canvas, [
       [10, 10],

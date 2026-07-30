@@ -1,15 +1,10 @@
-import { useRef, useState } from "react";
 import { Button } from "react-aria-components";
 import { getStroke } from "perfect-freehand";
 import { DetailHeader } from "../components/DetailHeader";
-import type { Point, Stroke } from "../recognizer/types";
+import { useNavigate } from "../navigation";
+import type { Point } from "../recognizer/types";
+import { useStrokeCapture } from "../useStrokeCapture";
 import styles from "./Handwriting.module.css";
-
-interface HandwritingProps {
-  onBack: () => void;
-  /** Append the chosen character to the search query and return to search. */
-  onPick: (char: string) => void;
-}
 
 /** Turn a raw stroke's points into a closed SVG path via perfect-freehand's variable-width outline. */
 const strokeToPath = (points: readonly Point[]): string => {
@@ -27,86 +22,32 @@ const strokeToPath = (points: readonly Point[]): string => {
   return `${parts.join(" ")} Z`;
 };
 
-// The recognizer + its 6.7MB reference patterns are loaded on demand (dynamic import) the first time
-// a stroke is completed, so the base webview bundle stays small — the chunk downloads only when the
-// handwriting view is actually used.
-type Recognize = (strokes: Stroke[], limit?: number) => string[];
-let recognizerPromise: Promise<Recognize> | undefined;
-const loadRecognizer = async (): Promise<Recognize> => {
-  recognizerPromise ??= (async (): Promise<Recognize> => {
-    const [{ recognize }, { refPatterns }] = await Promise.all([
-      import("../recognizer/index"),
-      import("../recognizer/patterns")
-    ]);
-    return (strokes, limit = 8) => recognize(strokes, refPatterns, limit);
-  })();
-  return recognizerPromise;
-};
-
 /**
  * Draw-to-search handwriting. Captures pointer strokes (rendered with perfect-freehand), and on each
  * stroke end runs the (lazily-loaded) recognizer to show candidate kanji as chips — tapping one
  * appends it to the search query and returns to search, mirroring Shirabe's flow. Stroke order and
  * count don't matter (the recognizer is free of both).
  */
-export const Handwriting = ({
-  onBack,
-  onPick
-}: HandwritingProps): React.ReactElement => {
-  // The stroke data lives in a ref (the source of truth, always current in event handlers — no
-  // stale-closure races); `strokes` state is a render mirror bumped after each mutation.
-  const strokesRef = useRef<Point[][]>([]);
-  const [strokes, setStrokes] = useState<Point[][]>([]);
-  const [candidates, setCandidates] = useState<string[]>([]);
-  const drawing = useRef(false);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const sync = (): void => setStrokes(strokesRef.current.map((s) => [...s]));
-
-  const toLocal = (e: React.PointerEvent): Point => {
-    const rect = svgRef.current?.getBoundingClientRect();
-    return [e.clientX - (rect?.left ?? 0), e.clientY - (rect?.top ?? 0)];
-  };
-
-  const onPointerDown = (e: React.PointerEvent): void => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drawing.current = true;
-    strokesRef.current.push([toLocal(e)]);
-    sync();
-  };
-
-  const onPointerMove = (e: React.PointerEvent): void => {
-    if (!drawing.current) return;
-    strokesRef.current[strokesRef.current.length - 1].push(toLocal(e));
-    sync();
-  };
-
-  const onPointerUp = async (): Promise<void> => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    const recognize = await loadRecognizer();
-    // Recognize the current committed strokes (from the ref, not a stale render closure).
-    setCandidates(recognize(strokesRef.current));
-  };
-
-  const undo = (): void => {
-    strokesRef.current.pop();
-    sync();
-    if (strokesRef.current.length === 0) setCandidates([]);
-  };
-
-  const clear = (): void => {
-    strokesRef.current = [];
-    setStrokes([]);
-    setCandidates([]);
-  };
+export const Handwriting = (): React.ReactElement => {
+  const { back, appendToSearch } = useNavigate();
+  const {
+    strokes,
+    candidates,
+    surface,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    undo,
+    clear,
+    hasStrokes
+  } = useStrokeCapture();
 
   return (
     <div className={styles.container}>
-      <DetailHeader onBack={onBack} />
+      <DetailHeader onBack={back} />
       <div className={styles.body}>
         <svg
-          ref={svgRef}
+          ref={surface}
           className={styles.canvas}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -121,14 +62,14 @@ export const Handwriting = ({
           <Button
             className={styles.control}
             onPress={undo}
-            isDisabled={strokes.length === 0}
+            isDisabled={!hasStrokes}
           >
             Undo
           </Button>
           <Button
             className={styles.control}
             onPress={clear}
-            isDisabled={strokes.length === 0}
+            isDisabled={!hasStrokes}
           >
             Clear
           </Button>
@@ -140,7 +81,7 @@ export const Handwriting = ({
               <Button
                 key={char}
                 className={styles.candidate}
-                onPress={() => onPick(char)}
+                onPress={() => appendToSearch(char)}
                 lang="ja"
               >
                 {char}

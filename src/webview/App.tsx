@@ -102,12 +102,7 @@ export const App = (): React.ReactElement => {
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
       ) : null}
-      {view.name === "handwriting" ? (
-        <Handwriting
-          onBack={() => send({ type: "back" })}
-          onPick={(char) => send({ type: "appendToSearch", char })}
-        />
-      ) : null}
+      {view.name === "handwriting" ? <Handwriting /> : null}
       {view.name === "about" ? <About /> : null}
     </NavigationProvider>
   );
