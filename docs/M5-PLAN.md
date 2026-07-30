@@ -1,6 +1,6 @@
 # Milestone 5 Plan — Morphology & multi-word search
 
-> **Status:** planned. Add real morphological analysis so multi-word queries work (`日本語を勉強します` → 日本語 / を / 勉強 / します, each searchable) with a jisho.org-style POS breakdown UI, and tokenizer-backed deinflection. Read [CONVENTIONS.md](CONVENTIONS.md) first. The engine spike gates everything.
+> **Status:** shipped. Delivered with **Lindera** rather than the kuromoji port this document proposes — see BACKLOG #4. The plan below is the original proposal, kept for context; where it names an engine, the code does not follow it. The original scope: Add real morphological analysis so multi-word queries work (`日本語を勉強します` → 日本語 / を / 勉強 / します, each searchable) with a jisho.org-style POS breakdown UI, and tokenizer-backed deinflection. Read [CONVENTIONS.md](CONVENTIONS.md) first. The engine spike gates everything.
 
 ## Context & engine decision
 

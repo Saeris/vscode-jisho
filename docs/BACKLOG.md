@@ -1,36 +1,54 @@
 # Backlog
 
-Search-quality and UX improvements observed during M1 testing, ordered roughly by increasing complexity. Tackle one layer at a time. Each item notes its root cause and whether it's a fix (existing behavior is wrong) or a feature (new capability).
+Search-quality and UX improvements, ordered roughly by increasing complexity. Each item notes its root cause and whether it's a fix (existing behavior is wrong) or a feature (new capability).
 
-> **Milestone 2 = Search quality** ([M2-PLAN.md](M2-PLAN.md)) scopes items **#1 (relevance ranking)**, **#6 (persist on back)**, **#2 (deinflection)**, and **#7 (tap-through)** — the refinements that need no new dataset. Item **#5** (kanji-as-first-class) is scheduled as **M4**, and **#3/#4** (tokenizer, multi-word) as **M5** — see [ROADMAP.md](ROADMAP.md) for the full sequence.
+**Items are numbered in the order they were RAISED, not the order they were done, and the list is append-only** — so a low number means "noticed early", not "outstanding" or "next". Read the status suffix on each heading, never the position:
+
+| suffix                | meaning                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `— ✅ shipped`        | done; the body is kept as the record of why, including where the build diverged from the plan |
+| `— ⚠️ partly shipped` | some sub-items done; the heading says which remain                                            |
+| _(no suffix)_         | genuinely outstanding                                                                         |
+
+[ROADMAP.md](ROADMAP.md) is the milestone view and is the better starting point for "what does this product do today" — M1 through M7 are shipped, M8 (web extension) is not started. Everything this file's items #1–#7 describe shipped across M2, M4 and M5; they are retained because their bodies record decisions the code no longer shows.
+
+Audited against the code on 2026-07-30. Items not explicitly marked were not re-verified in that pass.
 
 ## Search relevance & matching
 
-### 1. Rank results by relevance, not just match tier (fix)
+### 1. Rank results by relevance, not just match tier (fix) — ✅ shipped in M2
 
 Results are currently ordered `exact > prefix > substring` on raw terms, with common-first only as a tiebreak. This buries the obvious answer: searching "to study" does not surface 勉強する near the top, because "study" appears as a substring in many glosses before it appears as a standalone sense.
 
 **Approach:** add a relevance score. Signals to weight: whole-word gloss match > substring; match on the _first_ gloss of the _first_ sense > a later sense; shorter headword (more likely the base word) > longer; common flag; exact reading/kanji match. Score in SQL or in the query layer (`src/host/db.ts` `search`), then order by score. This is the highest-leverage fix — it improves every query.
 
-### 2. Deinflection: match conjugated input to dictionary forms (feature)
+**As built:** a composite relevance score computed in SQL (`Dictionary.search`, `src/host/db.ts`), best-scoring term per word, every tier index-friendly. Frequency is a TIEBREAKER rather than a score component — folding it in let a very frequent word outrank an exact match. Four `db.spec.ts` tests pin the behaviour, including the regression where every exact match scored identically and "eat" led with 食らう instead of 食べる.
+
+### 2. Deinflection: match conjugated input to dictionary forms (feature) — ✅ shipped in M2
 
 `はなします` / `hanashimasu` returns nothing, because JMdict stores the dictionary form (話す / はなし) and our `LIKE` only matches literal terms. Learners search inflected forms constantly.
 
 **Approach:** a deinflection pass on the query before searching — strip common verb/adjective conjugations (-ます, -ました, -て, -ない, -た, -れる, い→く, etc.) to candidate dictionary forms, then search each. Reference implementations: Yomitan/10ten's deinflection rule tables (well-tested, MIT-ish). This is a bounded, rule-based transform — no ML needed. Runs in the query layer.
 
-### 3. Multi-word queries: search each segment (feature, depends on #4)
+**As built:** `src/host/deinflect.ts`, a rule table run over the query before the SQL. Largely superseded by the M5 tokenizer for Japanese input (see #8) — it now serves the tokenizer-not-ready fallback and the romaji→kana path. Benchmarked in `bench/deinflect.bench.ts`.
+
+### 3. Multi-word queries: search each segment (feature, depends on #4) — ✅ shipped in M5
 
 Like Shirabe, entering multiple words (`日本語 を 勉強 します`) should return the closest matches for _each_ segment, not treat the whole string as one term. Naively splitting on spaces/particles helps, but robust segmentation of unspaced Japanese needs a tokenizer (see #4).
 
 ## Kanji as a first-class result type
 
-### 4. Japanese tokenization / morphological analysis (feature — largest item)
+**As built:** the tokenizer segments the query and the webview renders a tappable breakdown bar (`SegmentBar.tsx`, `SegmentDto`), so each segment can be searched on its own.
+
+### 4. Japanese tokenization / morphological analysis (feature — largest item) — ✅ shipped in M5, with a different engine
 
 `日本語を勉強します` should break into 日本語 / を / 勉強 / します with parts of speech, so the user can focus on individual vocabulary — the jisho.org-style breakdown (see the reference screenshot in the conversation). This is the enabler for #3 and a better #2, and it's the biggest single piece of work here.
 
 **Approach:** use the author's own maintained TypeScript port of kuromoji — [@saeris/kuromoji](https://github.com/Saeris/kuromoji) — rather than the unmaintained upstream kuromoji.js. It's typed, controlled by us, and already proven in [@saeris/remark-ayaji](https://github.com/Saeris/remark-ayaji) (a remark plugin that uses it to auto-generate furigana), which exercises the same tokenize-Japanese-text path we need here. Reuse that integration as the reference. Remaining unknowns to check: IPADIC dictionary size and how it's delivered (bundled vs. loaded), tokenizer startup cost, and whether it runs cleanly in the VSCode extension host (and later the WASM/web-extension target). Runs in the host, feeds POS-segmented terms to the search + the breakdown UI.
 
-### 5. Separate kanji search results from vocabulary (feature)
+**As built — the recommendation below was NOT followed.** The engine is **Lindera** (`lindera-nodejs`, a Rust NAPI binding, via a vendored loader shim) with IPADIC provisioned as a build artifact (`vp run build:tokenizer-dict`), not `@saeris/kuromoji`. There is no kuromoji anywhere in the tree. The approach paragraph below is kept as the record of what was originally proposed; treat it as history, not as the design.
+
+### 5. Separate kanji search results from vocabulary (feature) — ✅ shipped in M4
 
 Searching a single kanji currently returns the closest _vocabulary_ term containing it, not a definition of the _character_ itself. Both Shirabe and jisho.org treat vocab and kanji as distinct result types (a mixed list with separate sections).
 
@@ -38,17 +56,23 @@ Searching a single kanji currently returns the closest _vocabulary_ term contain
 
 ## Navigation & interaction UX
 
-### 6. Persist search state across back navigation (fix)
+**As built:** Kanjidic2 in the data build, `Dictionary.searchKanji`, and a separate "Kanji results" section in the search view feeding a full kanji detail page.
+
+### 6. Persist search state across back navigation (fix) — ✅ shipped in M2
 
 Clicking "Back" from a word detail returns to an empty search — the query text and results are lost. The search view should restore its prior query and scroll position.
 
 **Approach:** the XState navigation machine already models a view stack; carry the search query (and ideally scroll offset) in the machine context (or lift the search query state above the view switch in `App.tsx`) so it survives the push/pop. Small, self-contained; good candidate to pair with any of the above.
 
-### 7. Tap-through on glosses / cross-references / example terms (feature)
+**As built:** `searchQuery` lives in the navigation machine's context, and the search view stays mounted inside a React `<Activity>` rather than being unmounted — so scroll position and list state survive natively rather than being restored.
+
+### 7. Tap-through on glosses / cross-references / example terms (feature) — ✅ shipped in M2, extended later
 
 Shirabe lets you tap a term within a definition, cross-reference, or example sentence to search for it. Our detail view already _renders_ cross-references (`related`/`antonym`) but they aren't interactive. Make xref terms (and eventually gloss words / example vocabulary) clickable to trigger a new search or open that word.
 
 **Approach:** render xrefs as buttons that dispatch `openWord`/a new search via the navigation machine. Note Shirabe's own weakness here — it doesn't clearly signal what's tappable; we can do better with subtle affordances (underline/hover). Depends on nothing else; can follow #6.
+
+**As built:** xrefs render as buttons in M2. Example vocabulary followed later via build-time linkification (F1-links, spec 09) — every content word in an example sentence is a tap target that opens its entry by id.
 
 ### 8. Harden the deinflection rule table (refinement of #2 as shipped in M2) — largely superseded by M5
 
@@ -65,7 +89,7 @@ Caveat: typed-japanese self-reports LLM-generated rules with possible inaccuraci
 
 ## Post-M4 UX feedback (from testing the kanji features)
 
-### 9. Escape hatch back to search root (fix — small)
+### 9. Escape hatch back to search root (fix — small) — ✅ shipped
 
 Link-driven navigation (word → kanji → component kanji → word → …) builds a deep stack that's tedious to Back out of. The navigation machine already has a `home`/`reset` action (collapses the stack to `search`) — it just needs a UI affordance. Add a persistent "home"/breadcrumb control in detail-view headers (a 🏠 or the app title as a button) dispatching `home`. Consider showing it only when `canGoBack` and stack depth > 1. Trivial; independent.
 
@@ -124,7 +148,7 @@ Play buttons on word/kanji detail pages speak readings via the Web Speech API, w
 
 **Persistence:** webview state doesn't survive reloads on its own. Persist prefs via a `setState`/`getState` message to the host, stored in the extension's `Memento` (`context.globalState`) — a small new message pair. Defer building the view until there are ≥2–3 real preferences to justify the chrome (voice + furigana is enough to start).
 
-### 15. Furigana over kanji (feature — medium)
+### 15. Furigana over kanji (feature — medium) — ✅ shipped
 
 Optionally render furigana (kana reading ruby text) above kanji in headwords, and possibly in example sentences later. Uses HTML `<ruby>`/`<rt>`. The alignment problem — mapping which kana annotate which kanji — is non-trivial for mixed kanji/okurigana words (食べる → 食[た]べる, not 食べる[たべる]); JMdict-simplified publishes **furigana** data (kanji-to-kana spans) that solves exactly this, so add it as another build asset joined per word. Gated behind the #14 furigana toggle (some learners want the challenge of no readings).
 
@@ -152,7 +176,7 @@ Shirabe draws the pitch contour as an overline over the high-pitch moras with a 
 
 Shirabe shows a full conjugation reference on the word page: Positive / Negative / Masu / Masu-negative groups, each covering present, past, -te, -eba/-tara conditionals, potential, passive, causative, imperative, volitional (screenshots show ~30 forms for 食べる). We have no conjugation display. This is **generation** logic — the inverse of `deinflect.ts` — so it pairs conceptually with BACKLOG #8's "forward conjugator" idea (a forward conjugator would both power this table _and_ give #8's round-trip deinflection tests). Scope: a conjugation engine keyed on the word's POS tags (v1/v5x/adj-i…), rendered as a labelled table on `WordDetail`, gated to conjugable POS. Large; a milestone candidate of its own or a big backlog item. Note colloquial variants Shirabe shows in parens (食べれる ら-nuki potential).
 
-### 20. Two-tier examples + dedicated example pages (feature — medium, depends on M6 #2)
+### 20. Two-tier examples + dedicated example pages (feature — medium, depends on M6 #2) — ✅ shipped
 
 Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied to each sense, (b) a word-level "Examples" section aggregating across senses, (c) a "More…" link to a full **Example sentences** page, and (d) tapping a sentence opens an **example-sentence breakdown** page — the sentence with furigana, a play button, and a "Words" list (each word tokenized out with reading + gloss, tappable). We ship only (a). Enhancements, each independent:
 
@@ -230,7 +254,7 @@ Two halves of one idea, both unlocked by the JMdict priority-tag extraction in t
 
 **Research first:** study [Jisho.org's tag vocabulary](https://jisho.org/docs) — it has a well-developed set (`#jlpt-n5`, `#common`, `#verb`, wildcards) and its search-operator docs are the reference implementation for this feature. Also relates to #16 (the parts-of-speech breakdown filter), which is the same "filter results by a classifier" affordance arrived at from a different direction — design them together.
 
-### 28. Recursive component tree (data + view) — IN PROGRESS
+### 28. Recursive component tree (data + view) — ✅ shipped
 
 The Jisho-style recursive breakdown from the 願 reference screenshot (願 → 原 + 頁 → 貝 → 目 + 八, indented, each node showing meaning/readings). We shipped only a **flat Parts list** (see #the kanji parts fix). Kradfile cannot produce the tree: it decomposes to a flat set of atoms and **omits intermediate nodes** — 願 gives ハ 厂 小 白 目 貝 頁 all at once, with no 原. So this needs a hierarchical decomposition source.
 
@@ -245,7 +269,7 @@ The Jisho-style recursive breakdown from the 願 reference screenshot (願 → �
 
 **Build:** precompute the pruned tree per kanji at build time into a new table (avoid recursing 84k records at query time), fetch pinned to a commit like the other sources.
 
-### 29. Stroke-SVG transform: research findings (IN PROGRESS — supersedes #21a)
+### 29. Stroke-SVG transform: research findings — ✅ concluded; the transform ships via `scripts/build-strokes.ts` (supersedes #21a)
 
 Everything below was verified against the real runtime or the real data. Recorded because most of it is non-obvious and was learned the hard way.
 
@@ -329,7 +353,7 @@ Ingredients already decided by adjacent feedback: explicit section splits with t
 
 **Still to do from the references:** word-level Examples with furigana and the target word bolded, then per-sense "Examples Ⓐ" sections at the bottom (#20's restructure); bold target-word in sentences. Notes are out of scope forever.
 
-### 33. Editor integrations: lookup, translate-replace, and furigana authoring tools (feature — large, user priority)
+### 33. Editor integrations: lookup, translate-replace, and furigana authoring tools (feature — large, user priority) — ⚠️ partly shipped; translate-replace remains
 
 > See also #34 (contextual grammar notes) — born from this item's hover work.
 
@@ -357,6 +381,8 @@ User direction (2026-07-17): _"these are the kind of deeper integrations that ma
 
 Sequencing: lookup-selection + context menu and speak-selection are small and independent (do first); copy/paste-as needs the copy-variant plumbing on the word page; add-furigana is the deep one (tokenizer + readings + #15 spans + degenerate cases like names). Licensing: mirrordown is MIT and the user's own project — integrate freely.
 
+**Shipped:** `lookupSelection`, `speakSelection`, `addFurigana`/`removeFurigana`, `addSpacing`/`removeSpacing`, all registered commands with an editor submenu. **Not shipped:** translate-replace.
+
 ### 34. Contextual grammar notes: explain particles, auxiliaries, and conjugation fragments (feature — large, content-heavy)
 
 User direction (2026-07-18), prompted by hovering grammatical fragments: dictionary entries explain WORDS, but a learner hovering は, を, 〜たくなかった, or 〜てしまう needs a GRAMMAR explanation — what the construct does, when it's used, its register. Quality bar: **Tae Kim's Guide to Japanese** and **Tofugu's grammar articles** are the user's reference standard for explaining nuance. Neither can be consumed as-is (Tae Kim is CC BY-NC-SA; Tofugu is plainly copyrighted) — **we derive our own original content**, using them only as models of what good explanations cover.
@@ -369,11 +395,13 @@ Shape: a curated grammar-notes dataset (our own writing, versioned in-repo — i
 
 Start small: the ~15 N5 particles and the auxiliary chain the conjugation table already generates. This is a writing task as much as a coding one — budget accordingly.
 
-### 35. Sort browseable lists by reading — gojūon order (fix — small)
+### 35. Sort browseable lists by reading — gojūon order (fix — small) — ⚠️ groundwork only
 
 Codepoint order over kanji is meaningless; Japanese "alphabetical" order is 五十音順 applied to the READING — and we already store readings for everything, so proper Japanese collation is nearly free. Apply to any browseable list (kanji detail's word list, name results, radical-picker matches): normalize katakana → hiragana, fold small kana and voiced marks (JIS X 4061 is the reference standard for the comparison rules), sort. Most Western dictionary apps get this wrong; getting it right is cheap differentiation. Note: search RESULTS keep relevance order — this is for lists a user scans like an index.
 
-### 36. Name-reading fallback in the hover (JMnedict) — gated against false positives (feature — medium)
+**Status, checked 2026-07-30:** the `kana.sort_key` column exists, is populated by the build (`sortKey` in `src/shared/kana.ts`) and has a `db.spec.ts` test — but NO query orders by it. The column is ready; the feature is not, and there is no browseable list consuming it yet. Easy to mistake for done, because the test asserts the ordering directly over raw SQL rather than through any product surface.
+
+### 36. Name-reading fallback in the hover (JMnedict) — gated against false positives (feature — medium) — ✅ shipped
 
 Hovering 田中 or 由紀子 in a document should resolve name readings — the "name readings are unknowable data" problem the whole Japanese ecosystem (furigana form fields, the 2025 Family Register reading requirement) is built around, and we already ship JMnedict. **User-flagged risk (2026-07-18): false positives** — JMnedict is enormous and nearly every common word is also somebody's name; an unconditional fallback would caption half the vocabulary with "female given name". Design gates from the start: (a) fire only when the WORD dictionary misses entirely; (b) boost confidence on adjacent name markers (さん/様/氏/くん/ちゃん); (c) render as a clearly-secondary line ("as a name: タナカ — surname"). Depends on the names DB being provisioned (it's an opt-in download — degrade to nothing, never prompt from a hover).
 
@@ -412,7 +440,7 @@ User direction (2026-07-18). Tree-sitter itself doesn't fit — natural Japanese
 
 Sequencing within: semantic highlighting first (pure win, reuses everything), then the formatter (small, high personal value to the user), references, profiling; LSP extraction last, once the services stabilize. #37's diagnostics ride the same infrastructure.
 
-### 39. Automated data builds, asset delivery, and update lifecycle (infrastructure — large, RELEASE BLOCKER)
+### 39. Automated data builds, asset delivery, and update lifecycle (infrastructure — large) — ✅ shipped; no longer a release blocker
 
 Full spec: [specs/05-asset-delivery.md](specs/05-asset-delivery.md). The dictionary download client is complete (sha256-verified, atomic, version sidecars) but the **producer does not exist** — `dictionary-latest` has never been published, so no installed user could obtain a dictionary. This is the last major piece before the first release.
 
@@ -536,9 +564,6 @@ Related and already fixed: `removeFuriganaFromLine` used to be `stripRuby(line).
 
 ## Suggested sequencing
 
-1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.
-2. **#6 (persist search state)** — small UX win, independent.
-3. **#2 (deinflection)** — bounded rule-based transform; big correctness win for learners.
-4. **#5 (Kanjidic + kanji results)** — adds the next dataset; unlocks kanji detail later.
-5. **#7 (tap-through)** — interaction polish once results are good.
-6. **#4 (tokenizer)** then **#3 (multi-word)** — the largest work; do last, after evaluating Kuromoji.
+**Superseded — every item this section ordered is shipped.** It read "1. #1 (relevance ranking) — highest leverage, do this first" long after #1 shipped in M2, which is exactly the trap the numbering warning at the top of this file exists to prevent. Kept as a record of the original M1-era plan; do not read it as a plan.
+
+For what to do next, use [ROADMAP.md](ROADMAP.md) (milestone view — M1–M7 shipped, M8 not started) together with the unmarked items above. As of the 2026-07-30 audit the nearest candidates are **#32** (word-detail redesign) with **#50** (POS pills) folded in, since they touch the same surface; **#17** (recent-search history) and **#48** (mouse-button navigation) as small independent wins; and **#35**, which needs only a consumer for a column that already exists.

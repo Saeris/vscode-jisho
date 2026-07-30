@@ -1,6 +1,6 @@
 # Milestone 6 Plan — Enrichment datasets
 
-> **Status:** planned. Layer the remaining reference data onto existing views: pitch accent, example sentences, JLPT word lists, WaniKani citations, and the names dictionary. Read [CONVENTIONS.md](CONVENTIONS.md) first.
+> **Status:** shipped. Pitch accent, the Tatoeba example pool, JLPT levels, WaniKani citations and the JMnedict name data all landed. The original scope: Layer the remaining reference data onto existing views: pitch accent, example sentences, JLPT word lists, WaniKani citations, and the names dictionary. Read [CONVENTIONS.md](CONVENTIONS.md) first.
 
 ## Context
 

@@ -11,10 +11,10 @@ The single consolidated view of where vscode-jisho is going. Every milestone has
 | M1  | Vocabulary search + detail     | ✅ shipped                                 | [M1-PLAN.md](M1-PLAN.md) |
 | M2  | Search quality                 | ✅ shipped                                 | [M2-PLAN.md](M2-PLAN.md) |
 | M3  | Release — installable v0.1     | ✅ code complete (publish pending secrets) | [M3-PLAN.md](M3-PLAN.md) |
-| M4  | Kanji as first-class           | shipped                                    | —                        |
-| M5  | Morphology & multi-word search | shipped                                    | —                        |
-| M6  | Enrichment datasets            | shipped                                    | —                        |
-| M7  | Stroke order & handwriting     | shipped                                    | —                        |
+| M4  | Kanji as first-class           | ✅ shipped                                 | [M4-PLAN.md](M4-PLAN.md) |
+| M5  | Morphology & multi-word search | ✅ shipped                                 | [M5-PLAN.md](M5-PLAN.md) |
+| M6  | Enrichment datasets            | ✅ shipped                                 | [M6-PLAN.md](M6-PLAN.md) |
+| M7  | Stroke order & handwriting     | ✅ shipped                                 | [M7-PLAN.md](M7-PLAN.md) |
 
 ## M1 — Vocabulary search + detail (shipped)
 

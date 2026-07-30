@@ -12,12 +12,36 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 
 ## ✨ Features
 
-- **Vocabulary search** — search by Japanese (kanji or kana), Hepburn romaji, _or_ English, with common words ranked first. Exact matches beat prefix matches beat substring matches.
-- **Rich word detail** — every reading and kanji writing, senses grouped by part of speech, common-word badges, and cross-references.
-- **Offline** — all lookups run against a local database bundled from open dictionary data. No network, no account, no context switch.
-- **Theme-aware** — the UI is built on VSCode's own theme variables, so it matches whatever color theme you use (light, dark, or high-contrast) automatically.
+**Lookup**
 
-Planned for later milestones: kanji detail with radical breakdown and stroke-order animation, pitch-accent notation, example sentences, JLPT word lists, names dictionary, and handwriting-based kanji search — see the [roadmap](./docs/ROADMAP.md) for the full sequence.
+- **Vocabulary search** — by Japanese (kanji or kana), Hepburn romaji, _or_ English, ranked by relevance rather than raw match tier. Conjugated input works: type 食べました and get 食べる.
+- **Multi-word queries** — a sentence is tokenized into its words with parts of speech, shown as a breakdown bar you can tap to search any single word.
+- **Kanji as a first-class result** — searches surface matching characters in their own section, with a full kanji page: meanings, on/kun readings, stroke count, grade, JLPT level, component breakdown, and visually-similar look-alikes.
+- **Radical picker & handwriting** — find a character you can't type, either by picking its radicals (filterable by position) or by drawing it.
+- **Names** — JMnedict readings, so a name in your text resolves instead of coming back empty.
+
+**Rich definitions**
+
+- Every reading and kanji writing, senses grouped by part of speech, cross-references you can tap through, common/JLPT badges, and WaniKani citations.
+- **Pitch accent** drawn as a contour over the reading, and **text-to-speech** for any reading.
+- **Conjugation tables** for verbs and adjectives, with each form's grammar explained.
+- **Example sentences** with furigana, where every word is a tap target to its own entry — a couple inline, the full pooled set on its own page.
+- **Stroke order**, animated with a scrubber plus a per-stroke chart.
+- **Copy as** — the word, its reading, romaji, or furigana as Markdown ruby or HTML.
+
+**In-editor conveniences**
+
+- **Hover** any Japanese word for a definition, reading and conjugation breakdown.
+- **Commands** on a selection: look up, speak, add/remove furigana, add/remove spacing (分かち書き).
+- **Part-of-speech highlighting** for Japanese text, driven by the same tokenizer.
+
+**Throughout**
+
+- **Offline** — every lookup runs against a local database. No network, no account, no context switch.
+- **Theme-aware** — built on VS Code's own theme variables, so it matches whatever theme you use, including high-contrast.
+- **Configurable** — text scale, hover on/off, highlighting on/off, grammar notes, stroke-guide style, and dictionary auto-update checks.
+
+Still to come: running in web VS Code (vscode.dev). See the [roadmap](./docs/ROADMAP.md) for the full sequence and [BACKLOG.md](./docs/BACKLOG.md) for the open ideas.
 
 ## 🛠 Development (running the extension)
 

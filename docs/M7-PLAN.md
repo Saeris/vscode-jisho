@@ -1,6 +1,6 @@
 # Milestone 7 Plan — Stroke order & handwriting
 
-> **Status:** planned. The drawing milestone: animated stroke order on the kanji detail view, and draw-to-search handwriting recognition. Both build on decisions reserved since M1. Read [CONVENTIONS.md](CONVENTIONS.md) first. Depends on M4 (kanji detail view exists).
+> **Status:** shipped. Animated stroke order, the stroke chart and draw-to-search handwriting all landed; the hard-won details are written up in [STROKE-ORDER.md](STROKE-ORDER.md). The original scope: The drawing milestone: animated stroke order on the kanji detail view, and draw-to-search handwriting recognition. Both build on decisions reserved since M1. Read [CONVENTIONS.md](CONVENTIONS.md) first. Depends on M4 (kanji detail view exists).
 
 ## Context
 
