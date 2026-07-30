@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Request, SegmentDto } from "../../shared/messages";
+import type { SegmentDto } from "../../shared/messages";
+import type { Dictionary } from "../db";
 
 // Only `openSettings`/`copyText` touch the vscode API, and neither is exercised here — but the
 // module imports it at load, so it needs to resolve.
@@ -24,6 +25,9 @@ vi.mock("../tokenizer", () => ({
 }));
 
 const { respond } = await import("../dispatch");
+
+/** The request subset `respond` accepts — narrower than `Request`, and not exported. */
+type WordRequest = Parameters<typeof respond>[1];
 
 const seg = (
   surface: string,
@@ -55,8 +59,8 @@ const fakeDict = () => {
   return { dict, calls };
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a structural stand-in, not a Dictionary
-const asDict = (d: unknown): any => d;
+/** The fake exposes only the methods `respond` calls, so it is widened rather than implemented. */
+const asDict = (d: unknown): Dictionary => d as Dictionary;
 
 describe("dispatch: request/response correlation", () => {
   it("echoes the requestId on every kind of response", async () => {
@@ -67,7 +71,7 @@ describe("dispatch: request/response correlation", () => {
     const { dict } = fakeDict();
     segmentMock.mockResolvedValue([]);
 
-    const requests: Request[] = [
+    const requests: WordRequest[] = [
       { type: "search", requestId: "r1", query: "test" },
       { type: "getWord", requestId: "r2", id: "1" },
       { type: "getMoreExamples", requestId: "r3", id: "1" },
@@ -78,7 +82,7 @@ describe("dispatch: request/response correlation", () => {
     ];
 
     for (const request of requests) {
-      const response = await respond(asDict(dict), asDict(request));
+      const response = await respond(asDict(dict), request);
       expect(response.requestId).toBe(request.requestId);
       // The response type must match the request it answers, or the bridge hands the caller a
       // correctly-correlated payload of the wrong shape.

@@ -99,9 +99,6 @@ export const warmTokenizer = async (): Promise<void> => {
   }
 };
 
-/** Whether the tokenizer has finished building — i.e. `segment()` will not pay init cost. */
-export const tokenizerStarted = (): boolean => cached !== undefined;
-
 /**
  * Segment Japanese text into meaningful units with part of speech and dictionary form.
  *

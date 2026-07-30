@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type * as vsc from "vscode";
 
 vi.mock("vscode", () => ({
   Uri: {
@@ -18,9 +19,14 @@ const webview = {
   })
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- structural stand-ins
+// Structural stand-ins for the slices actually read, widened through `unknown` rather than `any`.
 const build = (): string =>
-  webviewHtml(webview as any, { fsPath: "/ext" } as any);
+  webviewHtml(
+    webview as unknown as vsc.Webview,
+    {
+      fsPath: "/ext"
+    } as unknown as vsc.Uri
+  );
 
 const cspOf = (html: string): string =>
   /content="([^"]*)"/u.exec(html)?.[1] ?? "";

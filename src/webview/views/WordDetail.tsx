@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Heading } from "react-aria-components";
 import type {
@@ -334,9 +334,16 @@ const Conjugations = ({
   headword: string;
   word: WordDetailDto;
 }): React.ReactElement | null => {
-  const rows = conjugate(
-    headword,
-    word.senses.flatMap((s) => s.partOfSpeech.map((t) => t.code))
+  // Memoized on the two things it derives from: this rebuilds a ~14-row table (and allocates the
+  // flattened POS list to do it) on EVERY render of the page, including ones caused by an unrelated
+  // "Show all examples" toggle. The word does not change while you are looking at it.
+  const rows = useMemo(
+    () =>
+      conjugate(
+        headword,
+        word.senses.flatMap((s) => s.partOfSpeech.map((t) => t.code))
+      ),
+    [headword, word]
   );
   if (rows === null) return null;
   return (

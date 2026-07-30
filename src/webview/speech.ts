@@ -84,9 +84,6 @@ const utter = (
   return u;
 };
 
-/** Cancel any in-progress speech. */
-export const cancelSpeech = (): void => synth?.cancel();
-
 /** Speak one reading. Cancels anything currently playing first. */
 export const speak = async (text: string): Promise<void> => {
   const voice = await japaneseVoice();
