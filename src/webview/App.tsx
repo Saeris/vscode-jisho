@@ -24,20 +24,11 @@ import { WordDetail } from "./views/WordDetail";
  * incarnation of this document left behind and cannot change while we are running, and re-seeding a
  * machine mid-session would throw away live navigation.
  */
-const machine = navigationMachineFrom(readPersistedState());
+const machine = navigationMachineFrom(readPersistedState(), persistState);
 
 export const App = (): React.ReactElement => {
   const [state, send] = useMachine(machine);
   const view = activeView(state.context);
-
-  // Persist the stack and query on every navigation. Cheap (one small JSON object) and unconditional
-  // — the alternative, persisting only on some transitions, is how a stack and its saved copy drift.
-  useEffect(() => {
-    persistState({
-      stack: state.context.stack,
-      searchQuery: state.context.searchQuery
-    });
-  }, [state.context.stack, state.context.searchQuery]);
 
   // Editor commands arrive as host pushes: "Look Up Selection" searches (and navigates to the
   // search view), "Speak Selection" goes straight to TTS. An external event subscription is the

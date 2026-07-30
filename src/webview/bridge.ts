@@ -137,121 +137,71 @@ const send = async (request: Request): Promise<Response> =>
 
 const nextRequestId = (): string => `r${nextId++}`;
 
-export const searchWords = async (query: string): Promise<SearchResponse> => {
+/**
+ * Send a request and return the response of the matching type.
+ *
+ * Ten call sites wrote out the same three steps: send, assert the response type, return it. The type
+ * guard is not ceremony — `send` resolves to the whole `Response` union, and narrowing it is what
+ * makes each caller's return type sound — so this keeps the guard and removes only the copy. Extra
+ * request fields are passed as `payload` rather than spread by the caller, so `requestId` cannot be
+ * forgotten or supplied twice.
+ */
+const request = async <T extends Request["type"]>(
+  type: T,
+  payload: Omit<Extract<Request, { type: T }>, "type" | "requestId">
+): Promise<Extract<Response, { type: T }>> => {
+  // Two assertions, both confined here rather than repeated at ten call sites — the same trade as
+  // `Dictionary`'s typed read helpers. TypeScript cannot prove that spreading `payload` onto a `type`
+  // reconstitutes the matching union member, nor that a response whose `type` equals `T` is that
+  // member; the runtime check on the next line is what actually establishes the second.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const response = await send({
-    type: "search",
+    type,
     requestId: nextRequestId(),
-    query
-  });
-  if (response.type !== "search")
-    throw new Error("Unexpected response for search");
-  return response;
+    ...payload
+  } as Request);
+  if (response.type !== type) {
+    throw new Error(`Unexpected response for ${type}`);
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return response as Extract<Response, { type: T }>;
 };
 
-export const getWord = async (id: string): Promise<GetWordResponse> => {
-  const response = await send({
-    type: "getWord",
-    requestId: nextRequestId(),
-    id
-  });
-  if (response.type !== "getWord")
-    throw new Error("Unexpected response for getWord");
-  return response;
-};
+export const searchWords = async (query: string): Promise<SearchResponse> =>
+  request("search", { query });
+
+export const getWord = async (id: string): Promise<GetWordResponse> =>
+  request("getWord", { id });
 
 export const getMoreExamples = async (
   id: string
-): Promise<GetMoreExamplesResponse> => {
-  const response = await send({
-    type: "getMoreExamples",
-    requestId: nextRequestId(),
-    id
-  });
-  if (response.type !== "getMoreExamples")
-    throw new Error("Unexpected response for getMoreExamples");
-  return response;
-};
+): Promise<GetMoreExamplesResponse> => request("getMoreExamples", { id });
 
-export const getKanji = async (literal: string): Promise<GetKanjiResponse> => {
-  const response = await send({
-    type: "getKanji",
-    requestId: nextRequestId(),
-    literal
-  });
-  if (response.type !== "getKanji")
-    throw new Error("Unexpected response for getKanji");
-  return response;
-};
+export const getKanji = async (literal: string): Promise<GetKanjiResponse> =>
+  request("getKanji", { literal });
 
 export const getStrokeSvg = async (
   literal: string
-): Promise<GetStrokeSvgResponse> => {
-  const response = await send({
-    type: "getStrokeSvg",
-    requestId: nextRequestId(),
-    literal
-  });
-  if (response.type !== "getStrokeSvg")
-    throw new Error("Unexpected response for getStrokeSvg");
-  return response;
-};
+): Promise<GetStrokeSvgResponse> => request("getStrokeSvg", { literal });
 
 export const getComponentTree = async (
   literal: string
-): Promise<GetComponentTreeResponse> => {
-  const response = await send({
-    type: "getComponentTree",
-    requestId: nextRequestId(),
-    literal
-  });
-  if (response.type !== "getComponentTree")
-    throw new Error("Unexpected response for getComponentTree");
-  return response;
-};
+): Promise<GetComponentTreeResponse> =>
+  request("getComponentTree", { literal });
 
 export const lookupRadicals = async (
   selected: string[]
-): Promise<LookupRadicalsResponse> => {
-  const response = await send({
-    type: "lookupRadicals",
-    requestId: nextRequestId(),
-    selected
-  });
-  if (response.type !== "lookupRadicals")
-    throw new Error("Unexpected response for lookupRadicals");
-  return response;
-};
+): Promise<LookupRadicalsResponse> => request("lookupRadicals", { selected });
 
-export const getAbout = async (): Promise<GetAboutResponse> => {
-  const response = await send({ type: "getAbout", requestId: nextRequestId() });
-  if (response.type !== "getAbout")
-    throw new Error("Unexpected response for getAbout");
-  return response;
-};
+export const getAbout = async (): Promise<GetAboutResponse> =>
+  request("getAbout", {});
 
 export const searchNames = async (
   query: string
-): Promise<SearchNamesResponse> => {
-  const response = await send({
-    type: "searchNames",
-    requestId: nextRequestId(),
-    query
-  });
-  if (response.type !== "searchNames")
-    throw new Error("Unexpected response for searchNames");
-  return response;
-};
+): Promise<SearchNamesResponse> => request("searchNames", { query });
 
-export const getName = async (id: string): Promise<GetNameResponse> => {
-  const response = await send({
-    type: "getName",
-    requestId: nextRequestId(),
-    id
-  });
-  if (response.type !== "getName")
-    throw new Error("Unexpected response for getName");
-  return response;
-};
+export const getName = async (id: string): Promise<GetNameResponse> =>
+  request("getName", { id });
 
 /** Ask the host to open VS Code's Settings UI at the Jisho section (the sidebar's ⚙). */
 export const openSettings = async (): Promise<void> => {

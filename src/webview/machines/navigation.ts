@@ -65,7 +65,19 @@ export type NavEvent =
 // practically writable by hand — `NavigationMachine` below names it by inference instead, which is
 // what every caller actually uses.
 // oxlint-disable-next-line typescript/explicit-function-return-type
-const define = (initial: NavContext) =>
+/**
+ * Where the machine writes its context so it survives the webview document being deallocated.
+ *
+ * Injected rather than imported so the machine stays testable without a webview — the unit tests pass
+ * a no-op, and only App wires in the real `persistState`.
+ */
+export type Persist = (context: NavContext) => void;
+
+// No explicit return type: XState's machine type is a dozen inferred parameters deep and not
+// practically writable by hand — `NavigationMachine` below names it by inference, which is what every
+// caller actually uses.
+// oxlint-disable-next-line typescript/explicit-function-return-type
+const define = (initial: NavContext, persist: Persist) =>
   setup({
     // `{} as T` is XState v5's documented idiom for declaring machine types — there is no
     // cast-free alternative, so the assertion is expected here.
@@ -174,34 +186,48 @@ const define = (initial: NavContext) =>
           event.type === "appendToSearch"
             ? context.searchQuery + event.char
             : context.searchQuery
-      })
+      }),
+      /**
+       * Write the context out after a navigation.
+       *
+       * An ACTION rather than a React effect: an effect fires after render, so persistence depended
+       * on render timing and on the dependency list naming every field that matters — miss one and
+       * the saved copy silently drifts from the stack. Here it cannot miss a transition, because
+       * every event that changes context lists it.
+       */
+      persist: ({ context }) => {
+        persist(context);
+      }
     }
   }).createMachine({
     id: "navigation",
     context: initial,
     on: {
-      openWord: { actions: "pushWord" },
-      openMoreExamples: { actions: "pushMoreExamples" },
-      openKanji: { actions: "pushKanji" },
-      openStrokeOrder: { actions: "pushStrokeOrder" },
-      openComponentTree: { actions: "pushComponentTree" },
-      openName: { actions: "pushName" },
-      openRadicals: { actions: "pushRadicals" },
-      openHandwriting: { actions: "pushHandwriting" },
-      openAbout: { actions: "pushAbout" },
-      back: { actions: "pop" },
-      home: { actions: "reset" },
-      setSearchQuery: { actions: "setQuery" },
-      searchFor: { actions: "searchFor" },
-      appendToSearch: { actions: "appendToSearch" }
+      openWord: { actions: ["pushWord", "persist"] },
+      openMoreExamples: { actions: ["pushMoreExamples", "persist"] },
+      openKanji: { actions: ["pushKanji", "persist"] },
+      openStrokeOrder: { actions: ["pushStrokeOrder", "persist"] },
+      openComponentTree: { actions: ["pushComponentTree", "persist"] },
+      openName: { actions: ["pushName", "persist"] },
+      openRadicals: { actions: ["pushRadicals", "persist"] },
+      openHandwriting: { actions: ["pushHandwriting", "persist"] },
+      openAbout: { actions: ["pushAbout", "persist"] },
+      back: { actions: ["pop", "persist"] },
+      home: { actions: ["reset", "persist"] },
+      setSearchQuery: { actions: ["setQuery", "persist"] },
+      searchFor: { actions: ["searchFor", "persist"] },
+      appendToSearch: { actions: ["appendToSearch", "persist"] }
     }
   });
 
 /** The machine's type, named once so the two entry points below can be annotated. */
 export type NavigationMachine = ReturnType<typeof define>;
 
-/** The machine with a fresh stack — the default, and what the unit tests exercise. */
-export const navigationMachine: NavigationMachine = define(freshContext());
+/** The machine with a fresh stack and no persistence — the default the unit tests exercise. */
+export const navigationMachine: NavigationMachine = define(
+  freshContext(),
+  () => {}
+);
 
 /**
  * The same machine seeded from state a previous incarnation of the webview persisted.
@@ -210,8 +236,10 @@ export const navigationMachine: NavigationMachine = define(freshContext());
  * way back, and views have no `retainContextWhenHidden`, so this is the only way an open word or a
  * typed query survives the user glancing at their file tree.
  */
-export const navigationMachineFrom = (persisted: unknown): NavigationMachine =>
-  define(hydrateContext(persisted));
+export const navigationMachineFrom = (
+  persisted: unknown,
+  persist: Persist = () => {}
+): NavigationMachine => define(hydrateContext(persisted), persist);
 
 /**
  * Rebuild a context from state persisted by a previous incarnation of this document.

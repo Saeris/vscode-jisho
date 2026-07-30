@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render as rtlRender,
+  screen,
+  waitFor
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 
 // `speech.ts` reaches for window.speechSynthesis, which jsdom does not implement. Mocked so these
@@ -26,6 +32,23 @@ vi.mock("../../speech", () => ({
 }));
 
 const { PlayButton, SequencePlayButton } = await import("../PlayButton");
+
+/**
+ * Availability is a QUERY now (see queries.ts), so these need a client. A fresh one per render keeps
+ * the cached answer from leaking between tests that set up different availability.
+ */
+const render = (ui: React.ReactElement): ReturnType<typeof rtlRender> =>
+  rtlRender(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false } }
+        })
+      }
+    >
+      {ui}
+    </QueryClientProvider>
+  );
 
 describe("playButton", () => {
   // No auto-cleanup in this project (see KanjiDetail.spec): a button left mounted by the previous
