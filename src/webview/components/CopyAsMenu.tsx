@@ -11,28 +11,28 @@ import { useCopyStatus } from "./useCopyStatus";
 import styles from "./CopyButton.module.css";
 import menuStyles from "./CopyAsMenu.module.css";
 
-interface CopyAsMenuProps {
-  /** The word as written — the kanji spelling when there is one. */
-  headword: string;
-  /** Its primary kana reading; "" when unknown. */
-  reading: string;
+/** One offered shape of the word: what to show, and what lands on the clipboard. */
+export interface CopyVariant {
+  id: string;
+  label: string;
+  value: string;
 }
 
 /**
- * "Copy as…" for a word: the same text in the shapes an author actually needs — plain, reading,
- * romaji, and furigana in both mirrordown ruby markdown and HTML. Ruby variants annotate only the
- * kanji ({食|た}べる), which is why they're worth offering: hand-writing that markup is tedious and
- * error-prone.
+ * The shapes a word can be copied as.
+ *
+ * Extracted from the component so it can be tested directly: the menu itself is a React Aria
+ * collection, which needs browser layout APIs jsdom does not implement (the same limitation
+ * SearchResults.spec records for ListBox), and the decisions worth pinning are all here rather than
+ * in the markup — which variants exist for a given word, and what each one actually copies.
  */
-export const CopyAsMenu = ({
-  headword,
-  reading
-}: CopyAsMenuProps): React.ReactElement => {
-  const { status, copy } = useCopyStatus();
+export const copyVariants = (
+  headword: string,
+  reading: string
+): CopyVariant[] => {
   // A kana-only word has nothing to annotate; offering ruby variants would just repeat the word.
   const hasRuby = reading !== "" && headword !== reading;
-
-  const items: Array<{ id: string; label: string; value: string }> = [
+  return [
     { id: "word", label: "Word", value: headword },
     ...(reading === ""
       ? []
@@ -55,6 +55,27 @@ export const CopyAsMenu = ({
         ]
       : [])
   ];
+};
+
+interface CopyAsMenuProps {
+  /** The word as written — the kanji spelling when there is one. */
+  headword: string;
+  /** Its primary kana reading; "" when unknown. */
+  reading: string;
+}
+
+/**
+ * "Copy as…" for a word: the same text in the shapes an author actually needs — plain, reading,
+ * romaji, and furigana in both mirrordown ruby markdown and HTML. Ruby variants annotate only the
+ * kanji ({食|た}べる), which is why they're worth offering: hand-writing that markup is tedious and
+ * error-prone.
+ */
+export const CopyAsMenu = ({
+  headword,
+  reading
+}: CopyAsMenuProps): React.ReactElement => {
+  const { status, copy } = useCopyStatus();
+  const items = copyVariants(headword, reading);
 
   return (
     <MenuTrigger>

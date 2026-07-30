@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/react";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { DetailView } from "../DetailView";
 
@@ -20,6 +20,10 @@ const q = <T,>(
 });
 
 describe("detailView", () => {
+  // No auto-cleanup in this project: leaked DOM from a previous test makes negative
+  // assertions ("renders nothing", "is not shown") unreliable.
+  afterEach(cleanup);
+
   it("shows content only once data has resolved", () => {
     render(
       <DetailView query={q({ data: "本" })}>
