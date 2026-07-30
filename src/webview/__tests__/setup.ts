@@ -8,7 +8,13 @@
  * about bridge behaviour still mock it explicitly, and the rest just work.
  */
 const postedMessages: unknown[] = [];
+// A single slot, like the real API: setState replaces rather than merges.
+let persisted: unknown;
 
 (globalThis as { acquireVsCodeApi?: unknown }).acquireVsCodeApi = () => ({
-  postMessage: (message: unknown) => postedMessages.push(message)
+  postMessage: (message: unknown) => postedMessages.push(message),
+  getState: () => persisted,
+  setState: (state: unknown) => {
+    persisted = state;
+  }
 });

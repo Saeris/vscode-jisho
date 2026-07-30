@@ -22,11 +22,31 @@ import type {
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
+  /**
+   * The ONLY way webview state survives the sidebar being hidden.
+   *
+   * VS Code deallocates a `WebviewView`'s document when its container is collapsed or the user
+   * switches activity-bar containers, then recreates it on the way back — and unlike a
+   * `WebviewPanel`, a view has no `retainContextWhenHidden` to opt out of that. (The typings' own
+   * `WebviewViewResolveContext` doc points at `WebviewOptions.retainContextWhenHidden`, which does
+   * not exist; that error is why the advice online contradicts itself.) State written here outlives
+   * the document, so it is what a reopened sidebar reads to rebuild itself.
+   */
+  getState(): unknown;
+  setState(state: unknown): void;
 }
 
 declare function acquireVsCodeApi(): VsCodeApi;
 
 const vscode = acquireVsCodeApi();
+
+/** Read the persisted webview state, or undefined when there is none (a first, cold open). */
+export const readPersistedState = (): unknown => vscode.getState();
+
+/** Persist webview state across the document being deallocated. Cheap; called on every navigation. */
+export const persistState = (state: unknown): void => {
+  vscode.setState(state);
+};
 
 let nextId = 0;
 const pending = new Map<string, (response: Response) => void>();

@@ -4,7 +4,9 @@ import {
   activeView,
   canGoBack,
   canGoHome,
-  navigationMachine
+  hydrateContext,
+  navigationMachine,
+  navigationMachineFrom
 } from "../navigation";
 
 describe("navigationMachine", () => {
@@ -202,5 +204,96 @@ describe("navigationMachine", () => {
     const ctx = actor.getSnapshot().context;
     expect(activeView(ctx)).toEqual({ name: "search" });
     expect(ctx.searchQuery).toBe("日本語");
+  });
+});
+
+describe("hydrateContext", () => {
+  it("restores a persisted stack and query", () => {
+    // WHY: this is the whole point — VS Code deallocates the webview document when the sidebar is
+    // hidden, so without this a user who glances at their file tree comes back to an empty search
+    // box having lost the word they were reading (confirmed in e2e/navigation-persistence).
+    const restored = hydrateContext({
+      stack: [{ name: "search" }, { name: "wordDetail", id: "1358280" }],
+      searchQuery: "食べる"
+    });
+    expect(activeView(restored)).toEqual({ name: "wordDetail", id: "1358280" });
+    expect(restored.searchQuery).toBe("食べる");
+    expect(canGoBack(restored)).toBe(true);
+  });
+
+  it("falls back to a fresh stack on a view name it cannot render", () => {
+    // WHY: persisted state outlives extension UPDATES, so it can carry a view from a build whose
+    // `View` union differed. Pushing one App has no case for renders a blank sidebar with no way
+    // out — strictly worse than losing the stack.
+    const restored = hydrateContext({
+      stack: [{ name: "search" }, { name: "someRemovedView", id: "x" }],
+      searchQuery: "kept?"
+    });
+    expect(restored.stack).toEqual([{ name: "search" }]);
+    expect(restored.searchQuery).toBe("");
+  });
+
+  it("refuses a stack that is not rooted at search", () => {
+    // WHY: `search` is the floor. A stack that starts elsewhere lets Back and Home pop to a view the
+    // user can never leave.
+    const restored = hydrateContext({
+      stack: [{ name: "wordDetail", id: "1358280" }],
+      searchQuery: ""
+    });
+    expect(restored.stack).toEqual([{ name: "search" }]);
+  });
+
+  it("survives anything that is not a context at all", () => {
+    // WHY: getState() returns whatever was last written, including from a build that stored a
+    // different shape. Every one of these has to yield a usable app, not a crash on first render.
+    for (const junk of [
+      undefined,
+      null,
+      0,
+      "",
+      "search",
+      [],
+      {},
+      { stack: [] }
+    ]) {
+      expect(hydrateContext(junk)).toEqual({
+        stack: [{ name: "search" }],
+        searchQuery: ""
+      });
+    }
+  });
+
+  it("ignores a non-string query without discarding a valid stack", () => {
+    const restored = hydrateContext({
+      stack: [{ name: "search" }, { name: "about" }],
+      searchQuery: 42
+    });
+    expect(activeView(restored)).toEqual({ name: "about" });
+    expect(restored.searchQuery).toBe("");
+  });
+});
+
+describe("navigationMachineFrom", () => {
+  it("actually seeds the machine with the restored context", () => {
+    // WHY: XState ignores `input` when `context` is a static literal, so the obvious wiring — pass
+    // input, declare context as an object — typechecks and silently does nothing. This asserts the
+    // seeding takes effect through the real actor, not just that hydrateContext returned something.
+    const actor = createActor(
+      navigationMachineFrom({
+        stack: [{ name: "search" }, { name: "kanjiDetail", literal: "水" }],
+        searchQuery: "みず"
+      })
+    ).start();
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "kanjiDetail",
+      literal: "水"
+    });
+    expect(actor.getSnapshot().context.searchQuery).toBe("みず");
+  });
+
+  it("starts fresh when nothing was persisted", () => {
+    const actor = createActor(navigationMachineFrom(undefined)).start();
+    expect(activeView(actor.getSnapshot().context)).toEqual({ name: "search" });
+    expect(canGoBack(actor.getSnapshot().context)).toBe(false);
   });
 });

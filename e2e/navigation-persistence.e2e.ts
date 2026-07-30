@@ -31,14 +31,19 @@ test.afterAll(async () => {
   await vscode?.close();
 });
 
-/** Switch the sidebar to Explorer and back, which is what deallocates the webview document. */
+/**
+ * Switch the sidebar to Explorer and back, which is what deallocates the webview document.
+ *
+ * The wait target is scoped to `.sidebar`: the agent Chat panel is ALSO a `.webview` iframe, but it
+ * lives in the auxiliary bar, so an unscoped `iframe.webview` resolves to it and the assertion
+ * measures the wrong pane — which is what made this helper pass in one test and hang in the next.
+ */
 const switchAwayAndBack = async (window: Page): Promise<void> => {
   await window
     .locator('.activitybar [aria-label*="Explorer" i]')
     .first()
     .click();
-  // The Jisho webview must actually go away, or we would be asserting on a view that never reloaded.
-  await expect(window.locator("iframe.webview")).toBeHidden({
+  await expect(window.locator(".sidebar iframe.webview")).toHaveCount(0, {
     timeout: 15_000
   });
   await openJishoSidebar(window);

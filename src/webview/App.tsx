@@ -1,11 +1,11 @@
 import { Activity, useEffect } from "react";
 import { useMachine } from "@xstate/react";
-import { onHostPush } from "./bridge";
+import { onHostPush, persistState, readPersistedState } from "./bridge";
 import { speak } from "./speech";
 import {
   activeView,
   canGoHome,
-  navigationMachine
+  navigationMachineFrom
 } from "./machines/navigation";
 import { About } from "./views/About";
 import { Handwriting } from "./views/Handwriting";
@@ -18,9 +18,25 @@ import { SearchResults } from "./views/SearchResults";
 import { StrokeOrder } from "./views/StrokeOrder";
 import { WordDetail } from "./views/WordDetail";
 
+/**
+ * Built once, at module scope rather than per render: the persisted state is what the PREVIOUS
+ * incarnation of this document left behind and cannot change while we are running, and re-seeding a
+ * machine mid-session would throw away live navigation.
+ */
+const machine = navigationMachineFrom(readPersistedState());
+
 export const App = (): React.ReactElement => {
-  const [state, send] = useMachine(navigationMachine);
+  const [state, send] = useMachine(machine);
   const view = activeView(state.context);
+
+  // Persist the stack and query on every navigation. Cheap (one small JSON object) and unconditional
+  // — the alternative, persisting only on some transitions, is how a stack and its saved copy drift.
+  useEffect(() => {
+    persistState({
+      stack: state.context.stack,
+      searchQuery: state.context.searchQuery
+    });
+  }, [state.context.stack, state.context.searchQuery]);
 
   // Editor commands arrive as host pushes: "Look Up Selection" searches (and navigates to the
   // search view), "Speak Selection" goes straight to TTS. An external event subscription is the
