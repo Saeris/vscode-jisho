@@ -8,6 +8,7 @@
  */
 import * as vscode from "vscode";
 import { Dictionary } from "./db";
+import { webviewHtml } from "./webviewHtml";
 import { copyText, openSettings, respond, respondNames } from "./dispatch";
 import { ensureDatabase, ensureNamesDatabase } from "./ensureDatabase";
 import { provideHover } from "./hoverProvider";
@@ -203,7 +204,7 @@ export class JishoViewProvider
         vscode.Uri.joinPath(this.#context.extensionUri, "dist", "webview")
       ]
     };
-    view.webview.html = this.#html(view.webview);
+    view.webview.html = webviewHtml(view.webview, this.#context.extensionUri);
     view.webview.onDidReceiveMessage((msg: Request | WebviewReady) => {
       if (msg.type === "webviewReady") {
         // The React app has booted and attached its bridge. The gap from "sidebar opened" to here
@@ -286,43 +287,6 @@ export class JishoViewProvider
     return { type: "getStrokeSvg", requestId: request.requestId, svg };
   }
 
-  #html(webview: vscode.Webview): string {
-    const base = vscode.Uri.joinPath(
-      this.#context.extensionUri,
-      "dist",
-      "webview"
-    );
-    const script = webview
-      .asWebviewUri(vscode.Uri.joinPath(base, "index.js"))
-      .toString();
-    const style = webview
-      .asWebviewUri(vscode.Uri.joinPath(base, "index.css"))
-      .toString();
-    const nonce = makeNonce();
-    const csp = [
-      `default-src 'none'`,
-      `img-src ${webview.cspSource} data:`,
-      `style-src ${webview.cspSource} 'unsafe-inline'`,
-      `font-src ${webview.cspSource}`,
-      `script-src 'nonce-${nonce}'`
-    ].join("; ");
-
-    return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="${style}" />
-    <title>Jisho</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" nonce="${nonce}" src="${script}"></script>
-  </body>
-</html>`;
-  }
-
   async dispose(): Promise<void> {
     for (const opened of [this.#dictionary, this.#names]) {
       if (opened) {
@@ -335,12 +299,3 @@ export class JishoViewProvider
     }
   }
 }
-
-const makeNonce = (): string => {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let nonce = "";
-  for (let i = 0; i < 32; i++)
-    nonce += chars[Math.floor(Math.random() * chars.length)];
-  return nonce;
-};
