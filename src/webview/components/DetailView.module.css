@@ -1,0 +1,17 @@
+/* The shared shell for every pushed detail view: a fixed header with a scrolling body under it.
+   These rules were identical in six view stylesheets. */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.empty {
+  color: var(--jisho-muted);
+}

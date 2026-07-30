@@ -4,7 +4,7 @@ import type { KanjiDetailDto } from "../../shared/messages";
 import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { CopyButton } from "../components/CopyButton";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
 import { SequencePlayButton } from "../components/PlayButton";
 import { Term } from "../components/Term";
 import { WaniKaniLink } from "../components/WaniKaniLink";
@@ -36,30 +36,24 @@ export const KanjiDetail = ({
   onOpenComponentTree,
   onFindByPart
 }: KanjiDetailProps): React.ReactElement => {
-  const { data, isPending, isError, error } = useQuery(kanjiQuery(literal));
-
   return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
-        {isPending ? (
-          <p>Loading…</p>
-        ) : isError ? (
-          <p>{error instanceof Error ? error.message : "Failed to load."}</p>
-        ) : data === null ? (
-          <p>Kanji not found.</p>
-        ) : (
-          <KanjiBody
-            kanji={data}
-            onOpenKanji={onOpenKanji}
-            onOpenWord={onOpenWord}
-            onOpenStrokeOrder={onOpenStrokeOrder}
-            onOpenComponentTree={onOpenComponentTree}
-            onFindByPart={onFindByPart}
-          />
-        )}
-      </div>
-    </div>
+    <DetailView
+      query={useQuery(kanjiQuery(literal))}
+      onBack={onBack}
+      onHome={onHome}
+      empty="Kanji not found."
+    >
+      {(kanji) => (
+        <KanjiBody
+          kanji={kanji}
+          onOpenKanji={onOpenKanji}
+          onOpenWord={onOpenWord}
+          onOpenStrokeOrder={onOpenStrokeOrder}
+          onOpenComponentTree={onOpenComponentTree}
+          onFindByPart={onFindByPart}
+        />
+      )}
+    </DetailView>
   );
 };
 

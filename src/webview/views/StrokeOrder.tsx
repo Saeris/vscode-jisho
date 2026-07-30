@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { kanjiQuery, strokeSvgQuery } from "../queries";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
 import { StrokeChart } from "../components/StrokeChart";
 import { StrokePlayer } from "../components/StrokePlayer";
 import styles from "./StrokeOrder.module.css";
@@ -29,7 +29,7 @@ export const StrokeOrder = ({
   onOpenKanji,
   onFindByPart
 }: StrokeOrderProps): React.ReactElement => {
-  const { data: svg, isPending, isError } = useQuery(strokeSvgQuery(literal));
+  const query = useQuery(strokeSvgQuery(literal));
   const queryClient = useQueryClient();
 
   // A part is a kanji in its own right (頁) or a radical-only shape (⻌). Route by which detail
@@ -41,30 +41,26 @@ export const StrokeOrder = ({
   };
 
   return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
+    <DetailView
+      query={query}
+      onBack={onBack}
+      onHome={onHome}
+      // Not every character in the dictionary has an AnimCJK drawing (rare/variant forms).
+      empty="No stroke-order drawing is available for this character."
+      above={
         <h1 className={styles.literal} lang="ja">
           {literal}
         </h1>
-        {isPending ? (
-          <p className={styles.status}>Loading strokes…</p>
-        ) : isError ? (
-          <p className={styles.status}>Failed to load stroke data.</p>
-        ) : svg === null ? (
-          // Not every character in the dictionary has an AnimCJK drawing (rare/variant forms).
-          <p className={styles.status}>
-            No stroke-order drawing is available for this character.
-          </p>
-        ) : (
-          <StrokeBody
-            svg={svg}
-            literal={literal}
-            onOpenPart={(part) => void openPart(part)}
-          />
-        )}
-      </div>
-    </div>
+      }
+    >
+      {(svg) => (
+        <StrokeBody
+          svg={svg}
+          literal={literal}
+          onOpenPart={(part) => void openPart(part)}
+        />
+      )}
+    </DetailView>
   );
 };
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ExampleGroupDto, PoolSentenceDto } from "../../shared/messages";
 import { moreExamplesQuery } from "../queries";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
 import { ExampleSentence } from "../components/ExampleSentence";
 import styles from "./MoreExamples.module.css";
 
@@ -24,45 +24,41 @@ export const MoreExamples = ({
   onHome,
   onOpenWord
 }: MoreExamplesProps): React.ReactElement => {
-  const { data, isPending, isError, error } = useQuery(moreExamplesQuery(id));
-
   return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
-        {isPending ? (
-          <p>Loading…</p>
-        ) : isError ? (
-          <p>{error instanceof Error ? error.message : "Failed to load."}</p>
-        ) : data === null ||
-          (data.senses.length === 0 && data.wordLevel.length === 0) ? (
-          <p className={styles.empty}>No additional examples for this word.</p>
-        ) : (
-          <>
-            <h1 className={styles.title}>
-              Examples for <span lang="ja">{data.headword}</span>
-            </h1>
-            {data.senses.map((group, i) => (
-              // eslint-disable-next-line react/no-array-index-key -- groups are positional, sense order
-              <SenseGroup key={i} group={group} onOpenWord={onOpenWord} />
-            ))}
-            {data.wordLevel.length > 0 ? (
-              <section className={styles.group}>
-                {/* Only label the word-level pool as "more" when senses were shown above it, so a
+    <DetailView
+      query={useQuery(moreExamplesQuery(id))}
+      onBack={onBack}
+      onHome={onHome}
+      empty="No additional examples for this word."
+      isEmpty={(data) =>
+        data.senses.length === 0 && data.wordLevel.length === 0
+      }
+    >
+      {(data) => (
+        <>
+          <h1 className={styles.title}>
+            Examples for <span lang="ja">{data.headword}</span>
+          </h1>
+          {data.senses.map((group, i) => (
+            // eslint-disable-next-line react/no-array-index-key -- groups are positional, sense order
+            <SenseGroup key={i} group={group} onOpenWord={onOpenWord} />
+          ))}
+          {data.wordLevel.length > 0 ? (
+            <section className={styles.group}>
+              {/* Only label the word-level pool as "more" when senses were shown above it, so a
                     word with no sense-tagged examples doesn't get a redundant header. */}
-                {data.senses.length > 0 ? (
-                  <h2 className={styles.groupHead}>More examples</h2>
-                ) : null}
-                <SentenceList
-                  sentences={data.wordLevel}
-                  onOpenWord={onOpenWord}
-                />
-              </section>
-            ) : null}
-          </>
-        )}
-      </div>
-    </div>
+              {data.senses.length > 0 ? (
+                <h2 className={styles.groupHead}>More examples</h2>
+              ) : null}
+              <SentenceList
+                sentences={data.wordLevel}
+                onOpenWord={onOpenWord}
+              />
+            </section>
+          ) : null}
+        </>
+      )}
+    </DetailView>
   );
 };
 

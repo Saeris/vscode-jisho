@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import type { ComponentTreeDto } from "../../shared/messages";
 import { componentTreeQuery } from "../queries";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
 import styles from "./ComponentTree.module.css";
 
 interface ComponentTreeProps {
@@ -28,35 +28,31 @@ export const ComponentTree = ({
   onHome,
   onOpenKanji
 }: ComponentTreeProps): React.ReactElement => {
-  const { data, isPending, isError } = useQuery(componentTreeQuery(literal));
-
   return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
+    <DetailView
+      query={useQuery(componentTreeQuery(literal))}
+      onBack={onBack}
+      onHome={onHome}
+      empty="No component breakdown for this kanji."
+      above={
         <h1 className={styles.title}>
           <span lang="ja">{literal}</span> component tree
         </h1>
-        {isPending ? (
-          <p className={styles.status}>Loading…</p>
-        ) : isError || data === null ? (
-          <p className={styles.status}>
-            No component breakdown for this kanji.
-          </p>
-        ) : (
-          // The root itself is the kanji we're on, so render its children as the top level.
-          <ul className={styles.tree}>
-            {data.children.map((child, i) => (
-              <TreeNode
-                key={`${child.literal}-${i}`}
-                node={child}
-                onOpenKanji={onOpenKanji}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      }
+    >
+      {(data) => (
+        // The root itself is the kanji we're on, so render its children as the top level.
+        <ul className={styles.tree}>
+          {data.children.map((child, i) => (
+            <TreeNode
+              key={`${child.literal}-${i}`}
+              node={child}
+              onOpenKanji={onOpenKanji}
+            />
+          ))}
+        </ul>
+      )}
+    </DetailView>
   );
 };
 

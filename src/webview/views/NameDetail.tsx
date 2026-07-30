@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { NameDetailDto } from "../../shared/messages";
 import { nameQuery } from "../queries";
 import { Badge } from "../components/Badge";
-import { DetailHeader } from "../components/DetailHeader";
+import { DetailView } from "../components/DetailView";
 import styles from "./NameDetail.module.css";
 
 interface NameDetailProps {
@@ -20,23 +20,15 @@ export const NameDetail = ({
   onBack,
   onHome
 }: NameDetailProps): React.ReactElement => {
-  const { data, isPending, isError, error } = useQuery(nameQuery(id));
-
   return (
-    <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
-      <div className={styles.body}>
-        {isPending ? (
-          <p>Loading…</p>
-        ) : isError ? (
-          <p>{error instanceof Error ? error.message : "Failed to load."}</p>
-        ) : data === null ? (
-          <p>Name not found.</p>
-        ) : (
-          <NameBody name={data} />
-        )}
-      </div>
-    </div>
+    <DetailView
+      query={useQuery(nameQuery(id))}
+      onBack={onBack}
+      onHome={onHome}
+      empty="Name not found."
+    >
+      {(name) => <NameBody name={name} />}
+    </DetailView>
   );
 };
 
