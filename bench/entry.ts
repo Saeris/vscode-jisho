@@ -17,3 +17,8 @@ export { addSpacingToLine } from "../src/host/spacing";
 export { segment } from "../src/host/tokenizer";
 export { japaneseRuns, stripRuby } from "../src/host/hover";
 export { deinflect } from "../src/host/deinflect";
+// The example-markup path (F1-links): parsed on every surface that shows an example, including the
+// editor hover, which renders on cursor rest.
+export { exampleText, parseExampleMarkup } from "../src/shared/exampleLinks";
+export { stripRubyText } from "../src/shared/ruby";
+export { wordHoverMarkdown } from "../src/shared/hoverHtml";

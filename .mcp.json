@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "deopt": {
+      "type": "stdio",
+      "command": "vp",
+      "args": ["exec", "deoptkit", "mcp"],
+      "env": {}
+    }
+  }
+}

@@ -96,8 +96,4 @@ export const parseExampleMarkup = (markup: string): ExamplePart[] => {
  * consumer that only knows about ruby prints half the markup and looks like it worked.
  */
 export const exampleText = (markup: string): string =>
-  stripRubyText(
-    parseExampleMarkup(markup)
-      .map((part) => part.markup)
-      .join("")
-  );
+  stripRubyText(markup.replace(LINK, "$1"));

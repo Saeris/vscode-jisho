@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-07-30T10:59:26.348Z",
+  "script": "bench/examples.bench.mjs",
+  "findings": [
+    {
+      "identity": "megamorphic-ic|file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/bench/entry.mjs|parseExampleMarkup|n",
+      "kind": "megamorphic-ic",
+      "file": "file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/bench/entry.mjs",
+      "functionName": "parseExampleMarkup",
+      "summary": "KeyedLoadIC for property \"n\" went megamorphic (1 recorded transitions) — keyed/dynamic access, often inherent to generic dispatch"
+    }
+  ]
+}

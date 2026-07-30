@@ -22,6 +22,11 @@ Baselines are **gitignored on purpose**: they are machine-specific, so comparing
 CI's or a teammate's measures the hardware, not the change. Save a baseline, change code, compare
 on the same machine in the same session.
 
+**Absolute microsecond figures in the `*.bench.ts` headers are indicative, not baselines.** They were
+measured on whichever machine wrote them, so treat the SPREAD between cases as the portable claim and
+the absolutes as a rough scale. Re-measuring deinflect on a different machine moved every case 20-40%
+with no code change, which reads exactly like a regression if you compare across machines.
+
 **Read the margin of error before believing a delta.** Two runs of _identical_ code on this
 project's recognizer differ by up to ~9% (`[0.91x] ⇓` was observed with no code change at all), and
 `rme` is typically ±1–4%. A change under ~10% is noise unless it reproduces across several runs.
@@ -35,11 +40,29 @@ changes object shapes and inlining, so findings against source describe code tha
 ```
 vp run bench:build
 vp exec node bench/recognize.bench.mjs        # run it
-# then, via the deopt MCP server:
+# then, via the deopt MCP server (registered in .mcp.json; approve it once per machine):
 #   profile_run { command: ["node", "bench/recognize.bench.mjs"] }
 #   get_findings { sessionId, fromMark: "recognize_start", toMark: "recognize_end" }
 #   list_functions { sessionId }               # where CPU actually goes
 ```
+
+**Without the MCP server**, the same two questions have CLI answers — useful when a session predates
+the server being registered, or in CI:
+
+```
+vp exec deoptkit ci --out-dir .deopt bench/examples.bench.mjs   # structural findings vs baseline
+vp exec deoptkit ci --update --out-dir .deopt <script.mjs>      # accept the current findings
+
+# ticks, via Node's own profiler (this is what list_functions reports):
+vp exec node --prof --logfile=/tmp/v8.log --no-logfile-per-isolate bench/examples.bench.mjs
+vp exec node --prof-process /tmp/v8.log | sed -n '/\[JavaScript\]:/,/^$/p'
+```
+
+`.deopt/baselines/` **is committed**, unlike `bench/baseline.json`, and the difference is the point:
+throughput is a property of the machine, while a megamorphic IC or a deopt loop is a property of the
+code. So findings port across machines and can gate; ops/sec cannot. (`deoptkit ci` exits non-zero on
+NEW findings — not yet wired into CI, because nobody has checked whether the counts are stable across
+Node versions and platforms. Verify that before making it a gate.)
 
 **`list_functions` and `get_findings` often disagree — trust the ticks.** On the recognizer, the
 flagged inline-cache sites hold ~1.5% of CPU while the two functions holding 67% produce no
