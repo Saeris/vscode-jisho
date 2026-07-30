@@ -13,30 +13,32 @@ import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
 import { SegmentBar } from "../components/SegmentBar";
 import { openSettings } from "../bridge";
+import { useNavigate } from "../navigation";
 import styles from "./SearchResults.module.css";
 
 interface SearchResultsProps {
-  /** Controlled query text — owned by the navigation machine so it survives view changes. */
+  /**
+   * Controlled query text — owned by the navigation machine so it survives view changes.
+   *
+   * Stays a PROP while the actions come from context: this is the value being rendered, and a
+   * component that reads its own display state from context is harder to test and to reason about
+   * than one handed it. Data down, actions through the hook.
+   */
   query: string;
-  onQueryChange: (query: string) => void;
-  onOpenWord: (id: string) => void;
-  onOpenKanji: (literal: string) => void;
-  onOpenName: (id: string) => void;
-  onOpenRadicals: () => void;
-  onOpenHandwriting: () => void;
-  onOpenAbout: () => void;
 }
 
 export const SearchResults = ({
-  query,
-  onQueryChange,
-  onOpenWord,
-  onOpenKanji,
-  onOpenName,
-  onOpenRadicals,
-  onOpenHandwriting,
-  onOpenAbout
+  query
 }: SearchResultsProps): React.ReactElement => {
+  const {
+    setSearchQuery: onQueryChange,
+    openWord: onOpenWord,
+    openKanji: onOpenKanji,
+    openName: onOpenName,
+    openRadicals,
+    openHandwriting,
+    openAbout
+  } = useNavigate();
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
   const deferredQuery = useDeferredValue(query);
@@ -121,14 +123,14 @@ export const SearchResults = ({
         </SearchField>
         <Button
           className={styles.iconButton}
-          onPress={onOpenRadicals}
+          onPress={() => openRadicals()}
           aria-label="Look up kanji by radicals"
         >
           <span lang="ja">部</span>
         </Button>
         <Button
           className={styles.iconButton}
-          onPress={onOpenHandwriting}
+          onPress={openHandwriting}
           aria-label="Draw a kanji to search"
         >
           ✏️
@@ -142,7 +144,7 @@ export const SearchResults = ({
         </Button>
         <Button
           className={styles.iconButton}
-          onPress={onOpenAbout}
+          onPress={openAbout}
           aria-label="About this extension and its dictionary data"
         >
           ⓘ

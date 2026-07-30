@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
+import type { NavEvent } from "../../machines/navigation";
 import { KanjiDetail } from "../KanjiDetail";
 import type { KanjiDetailDto } from "../../../shared/messages";
 
@@ -44,28 +45,17 @@ vi.mock("../../queries", () => ({
   })
 }));
 
-const renderView = (
-  props?: Partial<Parameters<typeof KanjiDetail>[0]>
-): void => {
+/** Render the view and return the navigation events it dispatched. */
+const renderView = (): NavEvent[] => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
   const wrapper = (ui: ReactElement): ReactElement => (
     <QueryClientProvider client={client}>{ui}</QueryClientProvider>
   );
-  render(
-    wrapper(
-      <KanjiDetail
-        literal="久"
-        onOpenKanji={vi.fn<(literal: string) => void>()}
-        onOpenWord={vi.fn<(id: string) => void>()}
-        onOpenStrokeOrder={vi.fn<(literal: string) => void>()}
-        onOpenComponentTree={vi.fn<(literal: string) => void>()}
-        onFindByPart={vi.fn<(parts: string[]) => void>()}
-        {...props}
-      />
-    )
-  );
+  // Navigation now comes from context, so assertions are on the EVENTS the view dispatches rather
+  // than on which callback prop fired — which is closer to what the user experiences anyway.
+  return render(wrapper(<KanjiDetail literal="久" />)).sent;
 };
 
 describe("kanji detail parts", () => {
@@ -73,12 +63,11 @@ describe("kanji detail parts", () => {
 
   it("opens the kanji detail for a part that is a real kanji", async () => {
     // WHY: the common case must keep working — drilling 久 → 入 is the whole point of the parts list.
-    const onOpenKanji = vi.fn<(literal: string) => void>();
-    renderView({ onOpenKanji });
+    const sent = renderView();
     await userEvent.click(
       await screen.findByRole("button", { name: "Open 入" })
     );
-    expect(onOpenKanji).toHaveBeenCalledWith("入");
+    expect(sent).toContainEqual({ type: "openKanji", literal: "入" });
   });
 
   it("sends a part with no kanji entry to the radical picker instead", async () => {
@@ -86,15 +75,13 @@ describe("kanji detail parts", () => {
     // hit a "Kanji not found" dead end. ノ is a real part (1,415 kanji contain it) — Kradfile just
     // borrows the katakana glyph because the true radical 丿 isn't JIS X 0208-encodable. The
     // meaningful question "what is built from this part?" is the radical picker's, so route there.
-    const onFindByPart = vi.fn<(parts: string[]) => void>();
-    const onOpenKanji = vi.fn<(literal: string) => void>();
-    renderView({ onFindByPart, onOpenKanji });
+    const sent = renderView();
     await userEvent.click(
       await screen.findByRole("button", { name: "Find kanji containing ノ" })
     );
-    expect(onFindByPart).toHaveBeenCalledWith(["ノ"]);
+    expect(sent).toContainEqual({ type: "openRadicals", preselect: ["ノ"] });
     // Crucially it must NOT try to open a detail page that cannot exist.
-    expect(onOpenKanji).not.toHaveBeenCalled();
+    expect(sent).not.toContainEqual({ type: "openKanji", literal: "ノ" });
   });
 
   it("keeps every part tappable", async () => {
@@ -113,8 +100,7 @@ describe("kanji detail parts", () => {
     // WHY: the similar-kanji section is the F3 payoff — each look-alike is a tile carrying a short
     // meaning (so the row reads as "look alike, mean different things") and opens that kanji's page.
     // The accessible name pairs literal + meaning so a screen reader announces both.
-    const onOpenKanji = vi.fn<(literal: string) => void>();
-    renderView({ onOpenKanji });
+    const sent = renderView();
     await expect(
       screen.findByRole("heading", { name: "Similar kanji" })
     ).resolves.toBeDefined();
@@ -123,6 +109,6 @@ describe("kanji detail parts", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "Open 夂 (winter)" })
     );
-    expect(onOpenKanji).toHaveBeenCalledWith("夂");
+    expect(sent).toContainEqual({ type: "openKanji", literal: "夂" });
   });
 });

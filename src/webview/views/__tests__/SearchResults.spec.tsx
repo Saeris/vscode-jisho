@@ -2,7 +2,9 @@
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
+import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
+import type { NavEvent } from "../../machines/navigation";
 import { SearchResults } from "../SearchResults";
 import type { SearchResultDto } from "../../../shared/messages";
 
@@ -45,30 +47,17 @@ vi.mock("../../queries", () => ({
   })
 }));
 
+/** Render the view and return the navigation events it dispatched. */
 const renderView = (
   props?: Partial<Parameters<typeof SearchResults>[0]>
-): void => {
+): NavEvent[] => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
   const wrapper = (ui: ReactElement): ReactElement => (
     <QueryClientProvider client={client}>{ui}</QueryClientProvider>
   );
-  render(
-    wrapper(
-      <SearchResults
-        query="食べる"
-        onQueryChange={() => {}}
-        onOpenWord={() => {}}
-        onOpenKanji={() => {}}
-        onOpenName={() => {}}
-        onOpenRadicals={() => {}}
-        onOpenHandwriting={() => {}}
-        onOpenAbout={() => {}}
-        {...props}
-      />
-    )
-  );
+  return render(wrapper(<SearchResults query="食べる" {...props} />)).sent;
 };
 
 // jsdom scope note: the keyboard-navigation hand-off (BACKLOG #12 — ↓ from the input into the

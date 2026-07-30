@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import type { KanjiDetailDto } from "../../shared/messages";
+import { useNavigate, type Navigation } from "../navigation";
 import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { CopyButton } from "../components/CopyButton";
@@ -12,36 +13,31 @@ import styles from "./KanjiDetail.module.css";
 
 interface KanjiDetailProps {
   literal: string;
-  /** Tap a component to open that character's detail. */
-  onOpenKanji: (literal: string) => void;
-  /** Tap a containing word to open its detail. */
-  onOpenWord: (id: string) => void;
-  /** Open the stroke-order sub-page (animation + chart). */
-  onOpenStrokeOrder: (literal: string) => void;
-  /** Open the recursive component-tree sub-page. */
-  onOpenComponentTree: (literal: string) => void;
-  /** Open the radical picker seeded with these parts — for components with no kanji detail. */
-  onFindByPart: (parts: string[]) => void;
 }
 
 export const KanjiDetail = ({
-  literal,
-  onOpenKanji,
-  onOpenWord,
-  onOpenStrokeOrder,
-  onOpenComponentTree,
-  onFindByPart
+  literal
 }: KanjiDetailProps): React.ReactElement => {
+  // Navigation arrives from context rather than from App, which used to hand this view five
+  // closures. Passing the actions inward to `KanjiBody` is ordinary local wiring — the win was
+  // removing the thread from App through here, not forbidding props inside one file.
+  const {
+    openKanji,
+    openWord,
+    openStrokeOrder,
+    openComponentTree,
+    openRadicals
+  } = useNavigate();
   return (
     <DetailView query={useQuery(kanjiQuery(literal))} empty="Kanji not found.">
       {(kanji) => (
         <KanjiBody
           kanji={kanji}
-          onOpenKanji={onOpenKanji}
-          onOpenWord={onOpenWord}
-          onOpenStrokeOrder={onOpenStrokeOrder}
-          onOpenComponentTree={onOpenComponentTree}
-          onFindByPart={onFindByPart}
+          openKanji={openKanji}
+          openWord={openWord}
+          openStrokeOrder={openStrokeOrder}
+          openComponentTree={openComponentTree}
+          openRadicals={openRadicals}
         />
       )}
     </DetailView>
@@ -50,19 +46,21 @@ export const KanjiDetail = ({
 
 const KanjiBody = ({
   kanji,
-  onOpenKanji,
-  onOpenWord,
-  onOpenStrokeOrder,
-  onOpenComponentTree,
-  onFindByPart
+  openKanji,
+  openWord,
+  openStrokeOrder,
+  openComponentTree,
+  openRadicals
 }: {
   kanji: KanjiDetailDto;
-  onOpenKanji: (literal: string) => void;
-  onOpenWord: (id: string) => void;
-  onOpenStrokeOrder: (literal: string) => void;
-  onOpenComponentTree: (literal: string) => void;
-  onFindByPart: (parts: string[]) => void;
-}): React.ReactElement => (
+} & Pick<
+  Navigation,
+  | "openKanji"
+  | "openWord"
+  | "openStrokeOrder"
+  | "openComponentTree"
+  | "openRadicals"
+>): React.ReactElement => (
   <>
     <div className={styles.hero}>
       {/* Copying the character is a primary action here: the point of this extension is getting
@@ -107,7 +105,7 @@ const KanjiBody = ({
 
     <Button
       className={styles.strokeLink}
-      onPress={() => onOpenStrokeOrder(kanji.literal)}
+      onPress={() => openStrokeOrder(kanji.literal)}
     >
       <span aria-hidden="true">✏️</span>
       Stroke order
@@ -119,7 +117,7 @@ const KanjiBody = ({
     {kanji.hasTree ? (
       <Button
         className={styles.strokeLink}
-        onPress={() => onOpenComponentTree(kanji.literal)}
+        onPress={() => openComponentTree(kanji.literal)}
       >
         <span aria-hidden="true">🌳</span>
         Component tree
@@ -145,7 +143,7 @@ const KanjiBody = ({
               // no Kanjidic entry, so it opens the radical picker seeded with it — "kanji built
               // from this part", which is the question tapping it actually asks.
               onPress={() =>
-                c.hasDetail ? onOpenKanji(c.literal) : onFindByPart([c.literal])
+                c.hasDetail ? openKanji(c.literal) : openRadicals([c.literal])
               }
               aria-label={
                 c.hasDetail
@@ -173,7 +171,7 @@ const KanjiBody = ({
             <Button
               key={s.literal}
               className={styles.similar}
-              onPress={() => onOpenKanji(s.literal)}
+              onPress={() => openKanji(s.literal)}
               aria-label={
                 s.meaning
                   ? `Open ${s.literal} (${s.meaning})`
@@ -200,7 +198,7 @@ const KanjiBody = ({
             <li key={w.id}>
               <Button
                 className={styles.word}
-                onPress={() => onOpenWord(w.id)}
+                onPress={() => openWord(w.id)}
                 aria-label={`Open ${w.headword}`}
               >
                 <span className={styles.wordHead} lang="ja">

@@ -62,16 +62,7 @@ export const App = (): React.ReactElement => {
           view is active; the query text lives in machine context because tap-through
           (`searchFor`) also writes it. */}
       <Activity mode={view.name === "search" ? "visible" : "hidden"}>
-        <SearchResults
-          query={state.context.searchQuery}
-          onQueryChange={(query) => send({ type: "setSearchQuery", query })}
-          onOpenWord={(id) => send({ type: "openWord", id })}
-          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
-          onOpenName={(id) => send({ type: "openName", id })}
-          onOpenRadicals={() => send({ type: "openRadicals" })}
-          onOpenHandwriting={() => send({ type: "openHandwriting" })}
-          onOpenAbout={() => send({ type: "openAbout" })}
-        />
+        <SearchResults query={state.context.searchQuery} />
       </Activity>
       {view.name === "wordDetail" ? (
         <WordDetail
@@ -92,20 +83,7 @@ export const App = (): React.ReactElement => {
         />
       ) : null}
       {view.name === "kanjiDetail" ? (
-        <KanjiDetail
-          literal={view.literal}
-          onOpenKanji={(literal) => send({ type: "openKanji", literal })}
-          onOpenWord={(id) => send({ type: "openWord", id })}
-          onOpenStrokeOrder={(literal) =>
-            send({ type: "openStrokeOrder", literal })
-          }
-          onOpenComponentTree={(literal) =>
-            send({ type: "openComponentTree", literal })
-          }
-          onFindByPart={(preselect) =>
-            send({ type: "openRadicals", preselect })
-          }
-        />
+        <KanjiDetail literal={view.literal} />
       ) : null}
       {view.name === "componentTree" ? (
         <ComponentTree
