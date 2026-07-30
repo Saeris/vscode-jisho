@@ -11,8 +11,6 @@ const countStrokes = (svg: string): number =>
 
 interface StrokeOrderProps {
   literal: string;
-  onBack: () => void;
-  onHome?: () => void;
   onOpenKanji: (literal: string) => void;
   onFindByPart: (parts: string[]) => void;
 }
@@ -24,8 +22,6 @@ interface StrokeOrderProps {
  */
 export const StrokeOrder = ({
   literal,
-  onBack,
-  onHome,
   onOpenKanji,
   onFindByPart
 }: StrokeOrderProps): React.ReactElement => {
@@ -43,8 +39,6 @@ export const StrokeOrder = ({
   return (
     <DetailView
       query={query}
-      onBack={onBack}
-      onHome={onHome}
       // Not every character in the dictionary has an AnimCJK drawing (rare/variant forms).
       empty="No stroke-order drawing is available for this character."
       above={

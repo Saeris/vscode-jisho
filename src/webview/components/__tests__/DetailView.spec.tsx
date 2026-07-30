@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { DetailView } from "../DetailView";
 
 // The four states DetailView decides between. Only the shape it reads is needed, not a real query.
@@ -21,7 +22,7 @@ const q = <T,>(
 describe("detailView", () => {
   it("shows content only once data has resolved", () => {
     render(
-      <DetailView query={q({ data: "本" })} onBack={vi.fn<() => void>()}>
+      <DetailView query={q({ data: "本" })}>
         {(data) => <p>loaded {data}</p>}
       </DetailView>
     );
@@ -33,11 +34,7 @@ describe("detailView", () => {
     // its data exists instead of re-narrowing it. If children ran during pending, every view would
     // have to handle undefined again and the abstraction would buy nothing.
     const children = vi.fn<() => React.ReactElement>(() => <p>body</p>);
-    render(
-      <DetailView query={q({ isPending: true })} onBack={vi.fn<() => void>()}>
-        {children}
-      </DetailView>
-    );
+    render(<DetailView query={q({ isPending: true })}>{children}</DetailView>);
     expect(children).not.toHaveBeenCalled();
     expect(screen.getByText("Loading…")).toBeDefined();
   });
@@ -49,7 +46,6 @@ describe("detailView", () => {
     render(
       <DetailView
         query={q({ isError: true, error: new Error("bridge died") })}
-        onBack={vi.fn<() => void>()}
         empty="nothing here"
       >
         {() => <p>body</p>}
@@ -61,11 +57,7 @@ describe("detailView", () => {
 
   it("treats null as empty, and lets a view widen what empty means", () => {
     const { unmount } = render(
-      <DetailView
-        query={q({ data: null })}
-        onBack={vi.fn<() => void>()}
-        empty="no name"
-      >
+      <DetailView query={q({ data: null })} empty="no name">
         {() => <p>body</p>}
       </DetailView>
     );
@@ -76,7 +68,6 @@ describe("detailView", () => {
     render(
       <DetailView
         query={q({ data: { items: [] as string[] } })}
-        onBack={vi.fn<() => void>()}
         empty="no examples"
         isEmpty={(d) => d.items.length === 0}
       >
@@ -95,11 +86,7 @@ describe("detailView", () => {
       { data: "ok" }
     ]) {
       const { unmount } = render(
-        <DetailView
-          query={q(state)}
-          onBack={vi.fn<() => void>()}
-          above={<h1>水</h1>}
-        >
+        <DetailView query={q(state)} above={<h1>水</h1>}>
           {() => <p>body</p>}
         </DetailView>
       );

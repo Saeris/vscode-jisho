@@ -1,23 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { aboutQuery } from "../queries";
+import { useNavigate } from "../navigation";
 import { DetailHeader } from "../components/DetailHeader";
 import styles from "./About.module.css";
-
-interface AboutProps {
-  onBack: () => void;
-}
 
 /**
  * Attribution and provenance. The EDRDG license requires visible attribution for JMdict-derived
  * data, so this view is a license obligation, not decoration. Static credits are listed here;
  * dictionary provenance (revision dates, entry counts) comes live from the DB's meta table.
  */
-export const About = ({ onBack }: AboutProps): React.ReactElement => {
+export const About = (): React.ReactElement => {
+  const { back } = useNavigate();
   const { data: meta } = useQuery(aboutQuery());
 
   return (
     <div className={styles.container}>
-      <DetailHeader onBack={onBack} />
+      <DetailHeader onBack={back} />
       <div className={styles.body}>
         <div className={styles.section}>
           <h2>Jisho — Japanese Dictionary</h2>

@@ -12,6 +12,7 @@ vi.hoisted(() => {
   });
 });
 const { ComponentTree } = await import("../ComponentTree");
+const { NavigationProvider } = await import("../../navigation");
 
 // 願's tree, shaped as the host returns it — a visual bench for the recursive layout without a live DB.
 const tree: ComponentTreeDto = {
@@ -102,11 +103,10 @@ describe("component tree preview", () => {
         }}
       >
         <QueryClientProvider client={client}>
-          <ComponentTree
-            literal="願"
-            onBack={() => {}}
-            onOpenKanji={() => {}}
-          />
+          {/* Navigation comes from context now; the preview only needs it to exist. */}
+          <NavigationProvider send={() => {}} canGoHome={false}>
+            <ComponentTree literal="願" onOpenKanji={() => {}} />
+          </NavigationProvider>
         </QueryClientProvider>
       </div>
     );

@@ -7,26 +7,15 @@ import styles from "./NameDetail.module.css";
 
 interface NameDetailProps {
   id: string;
-  onBack: () => void;
-  onHome?: () => void;
 }
 
 /**
  * A simplified word-detail variant for a JMnedict name: writing(s), reading(s), and each
  * translation with its name-type badges (surname/place/given/company…). No senses, POS, or pitch.
  */
-export const NameDetail = ({
-  id,
-  onBack,
-  onHome
-}: NameDetailProps): React.ReactElement => {
+export const NameDetail = ({ id }: NameDetailProps): React.ReactElement => {
   return (
-    <DetailView
-      query={useQuery(nameQuery(id))}
-      onBack={onBack}
-      onHome={onHome}
-      empty="Name not found."
-    >
+    <DetailView query={useQuery(nameQuery(id))} empty="Name not found.">
       {(name) => <NameBody name={name} />}
     </DetailView>
   );

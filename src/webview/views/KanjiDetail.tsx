@@ -12,8 +12,6 @@ import styles from "./KanjiDetail.module.css";
 
 interface KanjiDetailProps {
   literal: string;
-  onBack: () => void;
-  onHome?: () => void;
   /** Tap a component to open that character's detail. */
   onOpenKanji: (literal: string) => void;
   /** Tap a containing word to open its detail. */
@@ -28,8 +26,6 @@ interface KanjiDetailProps {
 
 export const KanjiDetail = ({
   literal,
-  onBack,
-  onHome,
   onOpenKanji,
   onOpenWord,
   onOpenStrokeOrder,
@@ -37,12 +33,7 @@ export const KanjiDetail = ({
   onFindByPart
 }: KanjiDetailProps): React.ReactElement => {
   return (
-    <DetailView
-      query={useQuery(kanjiQuery(literal))}
-      onBack={onBack}
-      onHome={onHome}
-      empty="Kanji not found."
-    >
+    <DetailView query={useQuery(kanjiQuery(literal))} empty="Kanji not found.">
       {(kanji) => (
         <KanjiBody
           kanji={kanji}

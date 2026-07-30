@@ -7,8 +7,6 @@ import styles from "./MoreExamples.module.css";
 
 interface MoreExamplesProps {
   id: string;
-  onBack: () => void;
-  onHome?: () => void;
   /** Tap a word in an example to open its entry directly (F1-links, open-by-id). */
   onOpenWord: (id: string) => void;
 }
@@ -20,15 +18,11 @@ interface MoreExamplesProps {
  */
 export const MoreExamples = ({
   id,
-  onBack,
-  onHome,
   onOpenWord
 }: MoreExamplesProps): React.ReactElement => {
   return (
     <DetailView
       query={useQuery(moreExamplesQuery(id))}
-      onBack={onBack}
-      onHome={onHome}
       empty="No additional examples for this word."
       isEmpty={(data) =>
         data.senses.length === 0 && data.wordLevel.length === 0

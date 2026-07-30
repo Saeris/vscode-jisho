@@ -2,8 +2,9 @@
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
+import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { KanjiDetail } from "../KanjiDetail";
 import type { KanjiDetailDto } from "../../../shared/messages";
 
@@ -56,7 +57,6 @@ const renderView = (
     wrapper(
       <KanjiDetail
         literal="久"
-        onBack={vi.fn<() => void>()}
         onOpenKanji={vi.fn<(literal: string) => void>()}
         onOpenWord={vi.fn<(id: string) => void>()}
         onOpenStrokeOrder={vi.fn<(literal: string) => void>()}

@@ -1,3 +1,4 @@
+import { useNavigate } from "../navigation";
 import { DetailHeader } from "./DetailHeader";
 import styles from "./DetailView.module.css";
 
@@ -19,8 +20,6 @@ export interface QueryState<T> {
 interface DetailViewProps<T> {
   /** The query this view is a rendering of. */
   query: QueryState<T>;
-  onBack: () => void;
-  onHome?: () => void;
   /**
    * Shown when the query succeeds but there is nothing to render — a missing id, or a word with no
    * examples. Distinct from an error: the request worked, the answer is empty.
@@ -48,20 +47,21 @@ interface DetailViewProps<T> {
  */
 export const DetailView = <T,>({
   query,
-  onBack,
-  onHome,
   empty = "Not found.",
   isEmpty,
   above,
   children
 }: DetailViewProps<T>): React.ReactElement => {
+  // Back/Home come from the navigation context rather than props: every one of the five callers
+  // passed the same two closures over the same machine, and App wrote them out per call site.
+  const { back, home } = useNavigate();
   const { data, isPending, isError, error } = query;
   const resolved = data ?? null;
   const blank = resolved === null || isEmpty?.(resolved) === true;
 
   return (
     <div className={styles.container}>
-      <DetailHeader onBack={onBack} onHome={onHome} />
+      <DetailHeader onBack={back} onHome={home} />
       <div className={styles.body}>
         {above}
         {isPending ? (

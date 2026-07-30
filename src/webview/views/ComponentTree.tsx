@@ -7,8 +7,6 @@ import styles from "./ComponentTree.module.css";
 
 interface ComponentTreeProps {
   literal: string;
-  onBack: () => void;
-  onHome?: () => void;
   /** Tap a node to open that character's detail. */
   onOpenKanji: (literal: string) => void;
 }
@@ -24,15 +22,11 @@ interface ComponentTreeProps {
  */
 export const ComponentTree = ({
   literal,
-  onBack,
-  onHome,
   onOpenKanji
 }: ComponentTreeProps): React.ReactElement => {
   return (
     <DetailView
       query={useQuery(componentTreeQuery(literal))}
-      onBack={onBack}
-      onHome={onHome}
       empty="No component breakdown for this kanji."
       above={
         <h1 className={styles.title}>

@@ -1,6 +1,7 @@
 import { Activity, useEffect } from "react";
 import { useMachine } from "@xstate/react";
 import { onHostPush, persistState, readPersistedState } from "./bridge";
+import { NavigationProvider } from "./navigation";
 import { speak } from "./speech";
 import {
   activeView,
@@ -50,13 +51,11 @@ export const App = (): React.ReactElement => {
       }),
     [send]
   );
-  // The Home escape hatch is only offered when it differs from Back (drilled >1 level deep).
-  const onHome: (() => void) | undefined = canGoHome(state.context)
-    ? (): void => send({ type: "home" })
-    : undefined;
-
   return (
-    <>
+    // The Home escape hatch is only offered when it differs from Back (drilled >1 level deep); the
+    // provider turns that into `home` being undefined, so headers omit the control rather than
+    // rendering a second button that does what Back already does.
+    <NavigationProvider send={send} canGoHome={canGoHome(state.context)}>
       {/* The search view stays mounted inside an <Activity> instead of unmounting when a detail
           view is pushed on top: its scroll position, list state, and query subscriptions all
           survive Back natively. The navigation machine remains the source of truth for which
@@ -78,7 +77,9 @@ export const App = (): React.ReactElement => {
         <WordDetail
           id={view.id}
           onBack={() => send({ type: "back" })}
-          onHome={onHome}
+          onHome={
+            canGoHome(state.context) ? () => send({ type: "home" }) : undefined
+          }
           onSearchTerm={(term) => send({ type: "searchFor", term })}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenMoreExamples={(id) => send({ type: "openMoreExamples", id })}
@@ -87,16 +88,12 @@ export const App = (): React.ReactElement => {
       {view.name === "moreExamples" ? (
         <MoreExamples
           id={view.id}
-          onBack={() => send({ type: "back" })}
-          onHome={onHome}
           onOpenWord={(wordId) => send({ type: "openWord", id: wordId })}
         />
       ) : null}
       {view.name === "kanjiDetail" ? (
         <KanjiDetail
           literal={view.literal}
-          onBack={() => send({ type: "back" })}
-          onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onOpenWord={(id) => send({ type: "openWord", id })}
           onOpenStrokeOrder={(literal) =>
@@ -113,29 +110,19 @@ export const App = (): React.ReactElement => {
       {view.name === "componentTree" ? (
         <ComponentTree
           literal={view.literal}
-          onBack={() => send({ type: "back" })}
-          onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
       ) : null}
       {view.name === "strokeOrder" ? (
         <StrokeOrder
           literal={view.literal}
-          onBack={() => send({ type: "back" })}
-          onHome={onHome}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
           onFindByPart={(preselect) =>
             send({ type: "openRadicals", preselect })
           }
         />
       ) : null}
-      {view.name === "nameDetail" ? (
-        <NameDetail
-          id={view.id}
-          onBack={() => send({ type: "back" })}
-          onHome={onHome}
-        />
-      ) : null}
+      {view.name === "nameDetail" ? <NameDetail id={view.id} /> : null}
       {view.name === "radicals" ? (
         <RadicalPicker
           // Remount when the preselection changes: the picker seeds its local selection from this
@@ -152,9 +139,7 @@ export const App = (): React.ReactElement => {
           onPick={(char) => send({ type: "appendToSearch", char })}
         />
       ) : null}
-      {view.name === "about" ? (
-        <About onBack={() => send({ type: "back" })} />
-      ) : null}
-    </>
+      {view.name === "about" ? <About /> : null}
+    </NavigationProvider>
   );
 };
