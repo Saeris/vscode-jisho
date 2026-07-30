@@ -196,4 +196,91 @@ test("capture: copy-as menu on the word detail", async () => {
     .getByRole("menuitem", { name: /Furigana \(Markdown\)/ })
     .waitFor();
   await screenshotSidebar(app().window, "test-results/shots/17-copy-as.png");
+  // Close the menu we opened. It is an overlay, so leaving it up makes the NEXT test's first click
+  // land on the menu instead of the page — a failure with no visible connection to this test.
+  const menu = frame.getByRole("menu");
+  await menu.press("Escape");
+  await menu.waitFor({ state: "hidden" });
+});
+
+/**
+ * Light-theme contrast audit, in the SAME launch as the dark captures above.
+ *
+ * It used to need its own VS Code instance because driving the theme picker raced quick-input focus.
+ * `setTheme` sidesteps the picker entirely — it rewrites the profile's settings.json and waits for
+ * the workbench to report the new theme kind — so the audit is now four more captures rather than a
+ * second 8-second boot. Stock "Default Light Modern" ships in every install; derived colors
+ * (--jisho-inflection and friends) must stay legible here, not just on dark themes.
+ *
+ * Declared last on purpose: the suite is serial, so everything above captures dark.
+ */
+test.describe("light theme", () => {
+  test.beforeAll(async () => {
+    await app().setTheme("light");
+  });
+
+  test("capture: word detail in light theme (contrast audit)", async () => {
+    const frame = await jishoFrame(app().window);
+    await returnToSearch(frame);
+    await frame.getByRole("searchbox").fill("食べる");
+    await frame
+      .getByRole("option", { name: /食べる/ })
+      .first()
+      .click();
+    await frame.getByRole("heading", { name: "Conjugations" }).waitFor();
+    await screenshotSidebar(
+      app().window,
+      "test-results/shots/16-word-detail-light.png"
+    );
+  });
+
+  test("capture: more examples page in light theme (F1)", async () => {
+    const frame = await jishoFrame(app().window);
+    await returnToSearch(frame);
+    await frame.getByRole("searchbox").fill("食べる");
+    await frame
+      .getByRole("option", { name: /食べる/ })
+      .first()
+      .click();
+    await frame.getByRole("button", { name: "More examples" }).click();
+    await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
+    await screenshotSidebar(
+      app().window,
+      "test-results/shots/16d-more-examples-light.png"
+    );
+  });
+
+  test("capture: kanji similar section in light theme (F3)", async () => {
+    const frame = await jishoFrame(app().window);
+    await returnToSearch(frame);
+    await frame.getByRole("searchbox").fill("未");
+    await frame
+      .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+      .first()
+      .click();
+    await frame.getByRole("heading", { name: "Similar kanji" }).waitFor();
+    await screenshotSidebar(
+      app().window,
+      "test-results/shots/16c-kanji-similar-light.png"
+    );
+  });
+
+  test("capture: stroke order in light theme", async () => {
+    const frame = await jishoFrame(app().window);
+    await returnToSearch(frame);
+    await frame.getByRole("searchbox").fill("近");
+    await frame
+      .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+      .first()
+      .click();
+    await frame.getByRole("button", { name: /stroke order/i }).click();
+    await frame.getByRole("slider").waitFor();
+    // Park the pointer: it comes to rest over the canvas after the click, which hover-highlights a
+    // part and makes the capture nondeterministic.
+    await app().window.mouse.move(0, 0);
+    await screenshotSidebar(
+      app().window,
+      "test-results/shots/16b-stroke-order-light.png"
+    );
+  });
 });

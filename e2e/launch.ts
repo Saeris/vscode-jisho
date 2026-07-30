@@ -37,10 +37,33 @@ const VSCODE_VERSION = "1.128.1";
 // or a debug session. We additionally verify the endpoint is OUR spawned process before using it.
 export const DEBUG_PORT = 39871;
 
+/**
+ * The two stock themes the capture suites audit against. Both ship in every VS Code install, so no
+ * suite depends on a marketplace extension being present.
+ *
+ * `workbenchClass` is what makes a theme switch AWAITABLE: VS Code stamps the active theme's kind
+ * onto `.monaco-workbench`, so "the theme is now light" is a selector rather than a timeout.
+ */
+const THEMES = {
+  dark: { name: "Default Dark Modern", workbenchClass: "vs-dark" },
+  light: { name: "Default Light Modern", workbenchClass: "vs" }
+} as const;
+
+export type ThemeKind = keyof typeof THEMES;
+
 export interface Launched {
   browser: Browser;
   /** The main VS Code workbench window as a Playwright Page. */
   window: Page;
+  /**
+   * Switch themes in place, so one launch can capture both passes.
+   *
+   * Rewrites the profile's `settings.json` and waits for the workbench to report the new theme kind.
+   * VS Code watches that file, which is why this works where driving the theme PICKER did not: the
+   * picker races quick-input focus (focus lives inside our webview, and the palette steps outran it),
+   * whereas a file write has a settled end state to wait for.
+   */
+  setTheme: (kind: ThemeKind) => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -116,7 +139,15 @@ const seedUserData = (
         "telemetry.telemetryLevel": "off",
         "extensions.autoUpdate": false,
         "extensions.autoCheckUpdates": false,
-        "git.enabled": false
+        "git.enabled": false,
+        // A fresh profile offers extension recommendations as toasts, which float over the
+        // bottom-right of the window and land in failure screenshots. Suppressed by class rather
+        // than dismissed after the fact — a notification cleared by command races the one that
+        // arrives late on a slow runner.
+        "extensions.ignoreRecommendations": true,
+        // Experiments can change workbench UI between runs with no code change on our side, which is
+        // the same reason `update.mode` and telemetry are off above.
+        "workbench.enableExperiments": false
       },
       null,
       2
@@ -144,6 +175,25 @@ const assertPortFree = async (): Promise<void> => {
     if (err instanceof Error && err.message.includes("already in use"))
       throw err;
   }
+};
+
+/**
+ * Close the Chat view, which VS Code opens in the secondary side bar by default and which then eats
+ * the right quarter of every full-window failure screenshot.
+ *
+ * This is the one piece of screenshot chrome that CANNOT be seeded through `settings.json`: side-bar
+ * visibility lives in the profile's workbench state (`state.vscdb`), not in settings. So it has to be
+ * a UI action — but an AWAITED one. Clicking and then waiting for the part to actually go away is not
+ * the racy "dismiss the modal and hope" pattern; if the click misses, the wait fails loudly here
+ * instead of showing up as noise in someone's screenshot later.
+ */
+const closeChatPanel = async (window: Page): Promise<void> => {
+  const auxBar = window.locator(".part.auxiliarybar");
+  if (!(await auxBar.isVisible())) return;
+  // Selected by codicon class, not by accessible name: the name is localized, the icon is the
+  // action's identity.
+  await auxBar.locator(".codicon-auxiliarybar-close").first().click();
+  await auxBar.waitFor({ state: "hidden", timeout: 5_000 });
 };
 
 export const launchVSCode = async (
@@ -236,10 +286,18 @@ export const launchVSCode = async (
     );
   };
   const window = await findWorkbench();
+  await closeChatPanel(window);
 
   return {
     browser,
     window,
+    setTheme: async (kind: ThemeKind): Promise<void> => {
+      const { name, workbenchClass } = THEMES[kind];
+      seedUserData(userDataDir, { ...settings, "workbench.colorTheme": name });
+      await window
+        .locator(`.monaco-workbench.${workbenchClass}`)
+        .waitFor({ timeout: 15_000 });
+    },
     close: async (): Promise<void> => {
       // Cleanup is PID-scoped, deliberately. NEVER call browser.close() over a CDP *attach* — it can
       // shut the target down, and an earlier version of this file closed the developer's real VS
