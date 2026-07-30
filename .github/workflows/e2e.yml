@@ -1,0 +1,70 @@
+name: E2E
+
+# The end-to-end suite drives a REAL VS Code with the extension loaded, so it is the only layer that
+# proves activation, the webview bridge, hovers, editor commands and navigation persistence actually
+# work in the product rather than in a test double. It had never run in CI.
+#
+# Kept out of the per-push path deliberately: it downloads VS Code (~224MB), builds both bundles, and
+# takes ~45s of wall clock on top of that. It runs where it decides something — on Bumpy's version PR
+# and before a publish — matching the reasoning behind full-test.yml.
+on:
+  workflow_call:
+  # Runnable on demand, so the suite can be exercised without staging a release.
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: End-to-end (real VS Code)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "lts"
+          cache: true
+
+      # NO Playwright browser install. The harness attaches to VS Code's OWN Chromium over CDP
+      # (see e2e/launch.ts), so the ~300MB browser download the Vitest browser project needs is
+      # pure waste here.
+      #
+      # Cached on the pinned VS Code version, which is the version launch.ts refuses to float:
+      # "PINNED, not 'stable'" — a release that silently swapped the binary would turn this suite red
+      # with no code change.
+      - name: Read the pinned VS Code version
+        id: vscode
+        run: |
+          version=$(grep -oE 'VSCODE_VERSION = "[^"]+"' e2e/launch.ts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache VS Code
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: ${{ runner.os }}-vscode-${{ steps.vscode.outputs.version }}
+
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
+      # The E2E asserts real dictionary results (searching 食べる returns "to eat"), so it needs a
+      # real database — the extension resolves assets/jisho.db directly under
+      # --extensionDevelopmentPath rather than downloading one.
+      - name: Build the dictionary database
+        run: vp run build:data
+
+      - name: Build the extension and webview
+        run: vp pack && vp build
+
+      # VS Code draws a real window — there is no headless mode for the workbench — so a Linux runner
+      # needs a virtual display. xvfb-run is the same approach VS Code's own extension CI uses.
+      - name: Run the E2E suite
+        run: xvfb-run -a vp exec playwright test
+
+      # Screenshots and traces are the whole point of a failed E2E run; without them a red CI tells
+      # you only that something was not visible.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: test-results/
+          retention-days: 7

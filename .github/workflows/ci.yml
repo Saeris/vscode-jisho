@@ -14,6 +14,14 @@ jobs:
     if: github.event.pull_request.head.ref == 'bumpy/version-packages'
     uses: ./.github/workflows/full-test.yml
 
+  # The E2E suite runs alongside the gate rather than inside it: it needs a different provisioning set
+  # (VS Code, both bundles, a virtual display) and no Playwright browser, so folding it into
+  # full-test.yml would make each job pay for the other's setup.
+  release-gate-e2e:
+    name: Release gate (E2E)
+    if: github.event.pull_request.head.ref == 'bumpy/version-packages'
+    uses: ./.github/workflows/e2e.yml
+
   ci:
     name: Check & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest

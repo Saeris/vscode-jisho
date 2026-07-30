@@ -19,11 +19,17 @@ jobs:
     if: github.repository == 'Saeris/vscode-jisho'
     uses: ./.github/workflows/full-test.yml
 
+  # Publishing without ever having driven the real product would mean the extension's activation,
+  # webview bridge and editor commands were last verified on someone's laptop.
+  gate-e2e:
+    if: github.repository == 'Saeris/vscode-jisho'
+    uses: ./.github/workflows/e2e.yml
+
   release:
     name: Publish
     # Guard against forks running the publish flow.
     if: github.repository == 'Saeris/vscode-jisho'
-    needs: gate
+    needs: [gate, gate-e2e]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
