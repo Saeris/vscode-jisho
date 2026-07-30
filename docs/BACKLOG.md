@@ -505,6 +505,29 @@ Distinct from deinflection (spec 12 — that expands _correct_ conjugations) and
 
 Notable: **Yomitan itself does not do typo correction** (exact + deinflection + wildcard only) — Japanese IME input makes kana/kanji typos rarer (you pick from candidates), which is why romaji is where tolerance pays off most. Sequencing: kana normalization (small) → romaji SymSpell (medium) → lean on F3 for the kanji "did you mean". Design + sign-off before building; measure precision impact against the accuracy eval (#43).
 
+## Editor commands
+
+### 52. `addFurigana` silently skips kanji next to markdown emphasis (bug — small/medium)
+
+Found 2026-07-30 while benchmarking the editor commands. `addFuriganaToLine` annotates nothing for some words adjacent to inline emphasis markers, and does so SILENTLY — the command reports success and the kanji simply has no reading. Reproduced (`vp run bench:build`, then call `addFuriganaToLine` from `dist/entry.mjs`):
+
+| input                | result                                          |
+| -------------------- | ----------------------------------------------- |
+| `重要です`           | `{重要\|じゅうよう}です` — fine, no emphasis    |
+| `*重要*です`         | `*重要*です` — **no furigana**                  |
+| `*重要*`             | `*{重要\|じゅうよう}*` — fine                   |
+| `*重要*を見せました` | `*{重要\|じゅうよう}*を{見\|み}せました` — fine |
+| `重要*です*`         | `重要*です*` — **no furigana**                  |
+| `あ*重要*です`       | `あ*重要*です` — **no furigana**                |
+
+So it is not the marker (single and double both fail), not the word, and not position in the line — it depends on what FOLLOWS the emphasised span. Every marker class (`*` `_` `` ` `` `**` `__` `~~` `==`) reproduces it.
+
+Suspected cause, not yet confirmed: the "words that already carry ruby markup are left alone" guard in `addFuriganaToLine`, which decides by comparing the group's span in the stripped text against the same span in the original. `stripRuby` drops emphasis markers but folds each dropped position's span into a neighbouring character's `starts`/`ends` entry, so a group next to a marker maps back to a source span that INCLUDES the marker. The two strings then differ, the guard reads that as "already annotated", and the word is skipped. That would explain the dependence on trailing context, since the folding differs at a line end versus mid-line.
+
+Needs care: those index maps are load-bearing for the hover and for semantic tokens (`stripRuby` has six callers), so narrowing the guard is safer than changing the folding. Whatever the fix, the guard should distinguish "this span already has ruby" from "this span picked up an emphasis marker" rather than inferring both from string inequality.
+
+Related and already fixed: `removeFuriganaFromLine` used to be `stripRuby(line).text`, which meant the same emphasis-dropping DELETED the user's markdown when they ran "Remove furigana". It now uses `stripRubyText`, which touches only ruby.
+
 ## Suggested sequencing
 
 1. **#1 (relevance ranking)** — highest leverage, self-contained, improves every query.

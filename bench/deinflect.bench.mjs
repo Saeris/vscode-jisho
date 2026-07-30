@@ -13,7 +13,7 @@
  *       list_functions { sessionId }
  */
 import { observed } from "deoptkit/harness";
-import { deinflect } from "../dist/bench/entry.mjs";
+import { deinflect } from "../dist/entry.mjs";
 
 // The same realistic spread the throughput bench uses, cycled so V8 sees VARIED input shapes rather
 // than one repeated string — the input distribution, not a single case, is what a real query stream

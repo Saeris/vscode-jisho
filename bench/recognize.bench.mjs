@@ -24,7 +24,7 @@
  * Then: profile_run { command: ["node", "bench/recognize.bench.mjs"] } → get_findings
  */
 import { observed } from "deoptkit/harness";
-import { recognize, refPatterns } from "../dist/bench/entry.mjs";
+import { recognize, refPatterns } from "../dist/entry.mjs";
 
 /** Characters spanning the cost curve, including its 9-stroke peak. */
 const SAMPLE_CHARS = ["一", "人", "口", "水", "字", "食", "問", "識", "議"];

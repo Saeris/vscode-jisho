@@ -57,4 +57,34 @@ describe("removeFuriganaFromLine", () => {
     const annotated = await addFuriganaToLine(original);
     expect(removeFuriganaFromLine(annotated)).toBe(original);
   });
+
+  it("leaves markdown emphasis alone", () => {
+    // WHY: this shipped broken, and the round-trip test above could not catch it — its input has no
+    // emphasis to lose. The command was built on `stripRuby`, which drops `*`/`**`/`_`/`` ` ``/`==`/`~~`
+    // ON PURPOSE so a wrapped span reads as ONE Japanese run for highlighting. Correct for analysis,
+    // data loss for a command that rewrites the user's document: "Remove furigana" on
+    // `これは**重要**です` returned `これは重要です` and took the bold with it.
+    expect(removeFuriganaFromLine("これは**重要**です")).toBe(
+      "これは**重要**です"
+    );
+    expect(removeFuriganaFromLine("彼に*遅れない*ように")).toBe(
+      "彼に*遅れない*ように"
+    );
+    expect(removeFuriganaFromLine("`コード`と_強調_")).toBe("`コード`と_強調_");
+    expect(removeFuriganaFromLine("~~取り消し~~ と ==強調==")).toBe(
+      "~~取り消し~~ と ==強調=="
+    );
+    // The ruby still goes, including when emphasis wraps it.
+    expect(removeFuriganaFromLine("*{食|た}べる*")).toBe("*食べる*");
+  });
+
+  it("round-trips emphasised text byte-for-byte", async () => {
+    // WHY: the two features have to compose, and the assertion has to be against the ORIGINAL. Written
+    // first as `strip(add(x)) === strip(x)`, it passed on the broken implementation — both sides lost
+    // the emphasis, so the loss cancelled and the test proved nothing.
+    const original = "これは**重要**な写真です";
+    expect(removeFuriganaFromLine(await addFuriganaToLine(original))).toBe(
+      original
+    );
+  });
 });

@@ -19,7 +19,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { mark } from "deoptkit/harness";
-import { segment, stripRuby, japaneseRuns } from "../dist/bench/entry.mjs";
+import { segment, stripRuby, japaneseRuns } from "../dist/entry.mjs";
 
 const HAS_KANJI = /[㐀-鿿豈-﫿]/;
 

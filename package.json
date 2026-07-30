@@ -36,7 +36,7 @@
     "bench": "vp test bench --run --project bench",
     "bench:save": "vp test bench --run --project bench --outputJson bench/baseline.json",
     "bench:compare": "vp test bench --run --project bench --compare bench/baseline.json",
-    "bench:build": "vp pack --entry bench/entry.ts --format esm --outDir dist/bench --no-dts",
+    "bench:build": "vp pack --entry bench/entry.ts --format esm --outDir dist --no-dts",
     "e2e": "vp pack && vp build && vp exec playwright test",
     "check": "vp check",
     "format": "vp check --fix",

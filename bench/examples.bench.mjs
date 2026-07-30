@@ -31,7 +31,7 @@ import {
   parseExampleMarkup,
   stripRubyText,
   wordHoverMarkdown
-} from "../dist/bench/entry.mjs";
+} from "../dist/entry.mjs";
 
 // The same distribution-faithful sample the throughput bench uses, cycled so V8 sees varied inputs
 // rather than one repeated string (bench/README.md rule 3).

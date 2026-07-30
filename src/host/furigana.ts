@@ -4,7 +4,7 @@
  * spacing.ts — same whole-line, ruby-aware, right-to-left splicing shape. BACKLOG #33.
  */
 import { groupSegments, japaneseRuns, stripRuby } from "./hover";
-import { toRubyMarkdown } from "../shared/ruby";
+import { stripRubyText, toRubyMarkdown } from "../shared/ruby";
 import { segment } from "./tokenizer";
 import { hasKanji } from "../shared/japanese";
 
@@ -49,9 +49,20 @@ export const addFuriganaToLine = async (line: string): Promise<string> => {
   return result;
 };
 
-/** Remove every ruby group, leaving the base text — exactly what the readers already parse. */
+/**
+ * Remove every ruby group, leaving the base text — and NOTHING else touched.
+ *
+ * Uses `stripRubyText` rather than `stripRuby(line).text`, and the distinction is a data-loss bug
+ * rather than a preference. `stripRuby` exists for ANALYSIS: it also drops markdown emphasis markers,
+ * so `彼に*遅れない*ように` reads as one Japanese run for highlighting and hover. This command
+ * REWRITES the user's document, where that same behaviour silently ate their markdown —
+ * `これは**重要**です` came back as `これは重要です`. The round-trip test above says "neither
+ * direction may lose text" and could not catch it, because its input had no emphasis to lose.
+ *
+ * Cheaper too, incidentally: no index maps and no emphasis set, both of which this discarded.
+ */
 export const removeFuriganaFromLine = (line: string): string =>
-  stripRuby(line).text;
+  stripRubyText(line);
 
 /** Split-transform-join over lines, preserving the text's own line endings. */
 const perLine = async (
