@@ -35,7 +35,7 @@ const VSCODE_VERSION = "1.128.1";
 // A deliberately uncommon port. NOT 9229 (Node's default inspector) or 9222 (Chrome's default) —
 // attaching to a port some other process already owns risks driving/closing the user's real editor
 // or a debug session. We additionally verify the endpoint is OUR spawned process before using it.
-const DEBUG_PORT = 39871;
+export const DEBUG_PORT = 39871;
 
 export interface Launched {
   browser: Browser;

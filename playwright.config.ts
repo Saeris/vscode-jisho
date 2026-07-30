@@ -7,6 +7,9 @@ import { defineConfig } from "@playwright/test";
  * multiple VS Code downloads racing.
  */
 export default defineConfig({
+  // Reap VS Code instances a previous run left behind. The harness refuses to attach to a port it did
+  // not open, so one leaked process otherwise fails every subsequent run until killed by hand.
+  globalSetup: "./e2e/globalSetup.ts",
   testDir: "./e2e",
   testMatch: "**/*.e2e.ts",
   fullyParallel: false,
