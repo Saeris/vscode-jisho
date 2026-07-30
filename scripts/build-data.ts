@@ -54,7 +54,7 @@ import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
 import { linkToken } from "../src/shared/exampleLinks.ts";
 import { searchFold, sortKey } from "../src/shared/kana.ts";
-import { fetchAcjkMap, parseAcjk, radicalPosition } from "./acjk.ts";
+import { fetchAcjkMap, voteRadicalPositions } from "./acjk.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
@@ -975,55 +975,16 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // against different data than the drawing it appears in.
   console.log("Downloading dictionaryJa.txt (radical positions)…");
   const acjkMap = await fetchAcjkMap();
-  const positionVotes = new Map<string, Map<string, number>>();
-  for (const [character, acjk] of acjkMap) {
-    const position = radicalPosition(character, acjk);
-    if (position === null) continue;
-    const parsed = parseAcjk(character, acjk);
-    const radicalPart = parsed?.parts.find((part) => part.radical);
-    if (radicalPart === undefined) continue;
-    const votes =
-      positionVotes.get(radicalPart.literal) ?? new Map<string, number>();
-    votes.set(position, (votes.get(position) ?? 0) + 1);
-    positionVotes.set(radicalPart.literal, votes);
-  }
-  const winner = (radical: string): string | null => {
-    const votes = positionVotes.get(radical);
-    if (votes === undefined) return null;
-    return [...votes].reduce((best, v) => (v[1] > best[1] ? v : best))[0];
-  };
-  // Radkfile keys variant radicals by an EXEMPLAR KANJI, not by the component glyph: 亻 is stored
-  // as 化, ⻌ as 込, 扌 as 扎, 氵 as 汁. Those keys never match AnimCJK's component literal, so the
-  // vote above misses them entirely (69 of 253 radicals).
-  //
-  // The exemplar's OWN radical is the wrong bridge — AnimCJK marks 化's radical as 匕 (correct for
-  // 化 itself, it is Kangxi #21) and 九's as 乙, neither of which is the component being
-  // exemplified. Derive from the MEMBERS instead: the kanji Radkfile files under a radical share
-  // that component, so the most common radical-literal across them is what the key stands for.
-  const componentFor = (radical: string, members: string[]): string => {
-    const seen = new Map<string, number>();
-    for (const member of members) {
-      const acjk = acjkMap.get(member);
-      if (acjk === undefined) continue;
-      const part = parseAcjk(member, acjk)?.parts.find((p) => p.radical);
-      if (part === undefined) continue;
-      seen.set(part.literal, (seen.get(part.literal) ?? 0) + 1);
-    }
-    if (seen.size === 0) return radical;
-    return [...seen].reduce((best, v) => (v[1] > best[1] ? v : best))[0];
-  };
-  let positioned = 0;
+  const positions = voteRadicalPositions(radkfile.radicals, acjkMap);
   for (const [radical, info] of Object.entries(radkfile.radicals)) {
-    const position =
-      winner(radical) ?? winner(componentFor(radical, info.kanji));
-    if (position !== null) positioned++;
     await insRadical.run(
       radical,
       info.strokeCount,
       JSON.stringify(info.kanji),
-      position
+      positions.get(radical) ?? null
     );
   }
+  const positioned = positions.size;
   console.log(
     `  radicals: ${positioned}/${Object.keys(radkfile.radicals).length} with a position category`
   );
@@ -1115,69 +1076,80 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   );
   // The schema version the host verifies on open (see src/shared/schema.ts). Stamped first so it is
   // present even if a later meta insert fails.
-  await insMeta.run(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
-  await insMeta.run("source", `JMdict (jmdict-simplified, eng-${VARIANT})`);
-  await insMeta.run("dictRelease", sources.release);
-  await insMeta.run("dictDate", dict.dictDate);
-  await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
-  await insMeta.run(
-    "license",
-    "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
-  );
-  await insMeta.run("kanjidicDate", kanjidic.dictDate);
-  await insMeta.run("kanjidicVersion", kanjidic.databaseVersion);
-  await insMeta.run("kanjiCount", String(kanjiSet.size));
-  await insMeta.run("similarKanjiRows", String(similarRows));
-  await insMeta.run(
-    "similarKanjiSource",
-    "Similar kanji: Lars Yencken's kanji-confusion data (stroke-edit + Yeh-Li radical distance) for jōyō, with a Kradfile-component heuristic filling in the rest"
-  );
-  await insMeta.run(
-    "similarKanjiLicense",
-    "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/) — Lars Yencken, https://lars.yencken.org/datasets/kanji-confusion/"
-  );
-  await insMeta.run("similarKanjiStrokeDate", yencken.stroke.lastModified);
-  await insMeta.run("similarKanjiRadicalDate", yencken.radical.lastModified);
-  await insMeta.run(
-    "radicalPositionSource",
-    "Radical positions: derived from AnimCJK (© FM&SH) component geometry, Arphic Public License"
-  );
-  await insMeta.run(
-    "strokeSource",
-    "Stroke order: AnimCJK (© FM&SH), glyph paths under the Arphic Public License"
-  );
-  await insMeta.run(
-    "jlptSource",
-    "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk, via stephenmk/yomitan-jlpt-vocab"
-  );
-  await insMeta.run(
-    "jlptLicense",
-    "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
-  );
-  await insMeta.run("jlptMatched", String(jlptMatched));
-  await insMeta.run(
-    "pitchSource",
-    "Pitch accent: Kanjium (Uros O.), from NHK/Wadoku data"
-  );
-  await insMeta.run(
-    "pitchLicense",
-    "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
-  );
-  await insMeta.run("pitchRows", String(pitchRows));
-  await insMeta.run(
-    "sentenceSource",
-    "Example sentences: Tanaka corpus (inline, via jmdict-examples-eng) + the fuller Tatoeba corpus (more-examples pool)"
-  );
-  await insMeta.run(
-    "sentenceLicense",
-    "CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/deed.en)"
-  );
-  await insMeta.run("sentenceRows", String(sentenceRows));
-  await insMeta.run("tatoebaPoolRows", String(tatoebaRows));
-  // The exports are rolling weekly; their last-modified dates are the closest thing to a version.
-  await insMeta.run("tatoebaIndicesDate", tatoeba.dates.indices);
-  await insMeta.run("tatoebaJpnDate", tatoeba.dates.jpn);
-  await insMeta.run("tatoebaEngDate", tatoeba.dates.eng);
+  // Provenance and attribution as DATA, not 32 imperative writes. CONVENTIONS.md requires every new
+  // dataset to extend attribution in the same change; a list makes that obligation something you can
+  // see a hole in, and keeps each source's rows (what it is, its licence, its version, its yield)
+  // adjacent instead of scattered down the function.
+  const metaRows: Array<[string, string]> = [
+    [SCHEMA_VERSION_KEY, String(SCHEMA_VERSION)],
+    ["variant", VARIANT],
+
+    ["source", `JMdict (jmdict-simplified, eng-${VARIANT})`],
+    ["license", "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"],
+    ["dictRelease", sources.release],
+    ["dictDate", dict.dictDate],
+    ["dictRevisions", dict.dictRevisions.join(", ")],
+    ["wordCount", String(total)],
+
+    ["kanjidicDate", kanjidic.dictDate],
+    ["kanjidicVersion", kanjidic.databaseVersion],
+    ["kanjiCount", String(kanjiSet.size)],
+
+    [
+      "similarKanjiSource",
+      "Similar kanji: Lars Yencken's kanji-confusion data (stroke-edit + Yeh-Li radical distance) for jōyō, with a Kradfile-component heuristic filling in the rest"
+    ],
+    [
+      "similarKanjiLicense",
+      "CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/) — Lars Yencken, https://lars.yencken.org/datasets/kanji-confusion/"
+    ],
+    ["similarKanjiStrokeDate", yencken.stroke.lastModified],
+    ["similarKanjiRadicalDate", yencken.radical.lastModified],
+    ["similarKanjiRows", String(similarRows)],
+
+    [
+      "radicalPositionSource",
+      "Radical positions: derived from AnimCJK (© FM&SH) component geometry, Arphic Public License"
+    ],
+    [
+      "strokeSource",
+      "Stroke order: AnimCJK (© FM&SH), glyph paths under the Arphic Public License"
+    ],
+
+    [
+      "jlptSource",
+      "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk, via stephenmk/yomitan-jlpt-vocab"
+    ],
+    [
+      "jlptLicense",
+      "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
+    ],
+    ["jlptMatched", String(jlptMatched)],
+
+    ["pitchSource", "Pitch accent: Kanjium (Uros O.), from NHK/Wadoku data"],
+    [
+      "pitchLicense",
+      "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
+    ],
+    ["pitchRows", String(pitchRows)],
+
+    [
+      "sentenceSource",
+      "Example sentences: Tanaka corpus (inline, via jmdict-examples-eng) + the fuller Tatoeba corpus (more-examples pool)"
+    ],
+    [
+      "sentenceLicense",
+      "CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/deed.en)"
+    ],
+    ["sentenceRows", String(sentenceRows)],
+    ["tatoebaPoolRows", String(tatoebaRows)],
+    // The exports roll weekly; their last-modified dates are the closest thing to a version.
+    ["tatoebaIndicesDate", tatoeba.dates.indices],
+    ["tatoebaJpnDate", tatoeba.dates.jpn],
+    ["tatoebaEngDate", tatoeba.dates.eng]
+  ];
+  for (const [key, value] of metaRows) await insMeta.run(key, value);
+
   console.log(
     `  sentences: ${sentenceRows} inline + ${tatoebaRows} pool example rows`
   );
@@ -1207,9 +1179,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     );
   }
 
+  // builtAt last, so it reflects the moment the build actually completed its gate.
   const builtAt = new Date().toISOString();
-  await insMeta.run("variant", VARIANT);
-  await insMeta.run("wordCount", String(total));
   await insMeta.run("builtAt", builtAt);
 
   // Fold the WAL back into the main file so `jisho.db` is a self-contained, shippable artifact

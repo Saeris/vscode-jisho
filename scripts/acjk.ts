@@ -171,6 +171,70 @@ export const radicalPosition = (
   return radicalSegment === 0 ? bySegment.first : bySegment.later;
 };
 
+/**
+ * Which position each Radkfile radical sits in, voted across every kanji that marks it.
+ *
+ * A radical's position is nearly always fixed (亻 is always hen), so a majority vote absorbs the odd
+ * irregular entry rather than trusting any single character.
+ *
+ * The subtle part is the KEY. Radkfile files variant radicals under an EXEMPLAR KANJI rather than the
+ * component glyph — 亻 is stored as 化, ⻌ as 込, 扌 as 扎, 氵 as 汁 — and those keys never match
+ * AnimCJK's component literal, so a direct vote misses 69 of 253 radicals. Reading the exemplar's OWN
+ * radical is the wrong bridge: AnimCJK marks 化's radical as 匕 (correct — 化 is Kangxi #21) and 九's
+ * as 乙, neither being the component exemplified. The MEMBERS are the bridge instead: the kanji filed
+ * under a radical all share that component, so the most common radical-literal across them is what
+ * the key stands for. That took coverage from 184/253 to 251/253.
+ *
+ * Returns radical → position, omitting radicals no kanji votes for (~2: 鬯 and 鼎, which essentially
+ * only ever ARE the whole character).
+ */
+export const voteRadicalPositions = (
+  radicals: Record<string, { kanji: string[] }>,
+  acjkMap: Map<string, string>
+): Map<string, Position> => {
+  // Votes keyed by AnimCJK's component literal.
+  const votes = new Map<string, Map<Position, number>>();
+  for (const [character, acjk] of acjkMap) {
+    const position = radicalPosition(character, acjk);
+    if (position === null) continue;
+    const radicalPart = parseAcjk(character, acjk)?.parts.find(
+      (p) => p.radical
+    );
+    if (radicalPart === undefined) continue;
+    const forLiteral =
+      votes.get(radicalPart.literal) ?? new Map<Position, number>();
+    forLiteral.set(position, (forLiteral.get(position) ?? 0) + 1);
+    votes.set(radicalPart.literal, forLiteral);
+  }
+  const plurality = <T>(counts: Map<T, number>): T | undefined =>
+    counts.size === 0
+      ? undefined
+      : [...counts].reduce((best, v) => (v[1] > best[1] ? v : best))[0];
+
+  /** The component an exemplar key stands for, from the components its members share. */
+  const componentFor = (radical: string, members: string[]): string => {
+    const seen = new Map<string, number>();
+    for (const member of members) {
+      const acjk = acjkMap.get(member);
+      if (acjk === undefined) continue;
+      const part = parseAcjk(member, acjk)?.parts.find((p) => p.radical);
+      if (part === undefined) continue;
+      seen.set(part.literal, (seen.get(part.literal) ?? 0) + 1);
+    }
+    return plurality(seen) ?? radical;
+  };
+
+  const positions = new Map<string, Position>();
+  for (const [radical, info] of Object.entries(radicals)) {
+    const direct = votes.get(radical);
+    const position =
+      (direct === undefined ? undefined : plurality(direct)) ??
+      plurality(votes.get(componentFor(radical, info.kanji)) ?? new Map());
+    if (position !== undefined) positions.set(radical, position);
+  }
+  return positions;
+};
+
 /** `character` → `acjk` for every entry in dictionaryJa.txt (one JSON object per line). */
 export const fetchAcjkMap = async (): Promise<Map<string, string>> => {
   const res = await fetch(DICT_URL, {

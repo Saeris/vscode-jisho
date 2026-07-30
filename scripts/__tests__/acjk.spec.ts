@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAcjk, radicalPosition } from "../acjk";
+import { parseAcjk, radicalPosition, voteRadicalPositions } from "../acjk";
 
 describe("acjk decomposition parsing", () => {
   it("maps components to consecutive stroke ranges and marks the radical", () => {
@@ -90,5 +90,55 @@ describe("radicalPosition", () => {
   it("returns null on input it cannot parse", () => {
     expect(radicalPosition("体", "別⿰亻.2本5")).toBeNull();
     expect(radicalPosition("体", "体⿰亻.本")).toBeNull();
+  });
+});
+
+describe("voteRadicalPositions", () => {
+  // Real acjk strings; 化 and 込 are the exemplar-keyed cases that broke the naive derivation.
+  const acjk = new Map([
+    ["体", "体⿰亻.2本5"],
+    ["何", "何⿰亻.2可5"],
+    ["位", "位⿰亻.2立5"],
+    ["化", "化⿰亻2匕.2"],
+    ["逢", "逢⿺夆7⻌.3"],
+    ["違", "違⿺韋9⻌.3"],
+    ["込", "込⿺入2⻌.3"],
+    ["宀", "宀.3"],
+    ["字", "字⿱宀3子.3"]
+  ]);
+
+  it("votes a radical's position across the kanji that mark it", () => {
+    // WHY: a radical's position is fixed in practice, but a single character can be irregular — the
+    // vote is what makes one odd entry unable to mislabel a whole category in the picker.
+    const positions = voteRadicalPositions(
+      { 亻: { kanji: ["体", "何", "位"] } },
+      acjk
+    );
+    expect(positions.get("亻")).toBe("hen");
+  });
+
+  it("resolves an exemplar key through its members, not through itself", () => {
+    // WHY: this is the bug that cost 69 of 253 radicals. Radkfile files 亻 under 化 and ⻌ under 込.
+    // Reading the exemplar's OWN radical gives 匕 for 化 (correct for 化 — Kangxi #21 — and useless
+    // here), so the derivation has to go through the members, which all genuinely share 亻.
+    const positions = voteRadicalPositions(
+      {
+        化: { kanji: ["体", "何", "位"] },
+        込: { kanji: ["逢", "違"] }
+      },
+      acjk
+    );
+    expect(positions.get("化")).toBe("hen");
+    expect(positions.get("込")).toBe("nyo");
+  });
+
+  it("omits radicals nothing votes for", () => {
+    // WHY: absence is a real distinction here — a radical whose members all mark themselves as their
+    // own radical has no position to report, and inventing one would file it under a wrong category.
+    const positions = voteRadicalPositions(
+      { 鼎: { kanji: ["鼎"] } },
+      new Map([["鼎", "鼎.13"]])
+    );
+    expect(positions.has("鼎")).toBe(false);
   });
 });
