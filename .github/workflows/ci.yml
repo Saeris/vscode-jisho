@@ -33,8 +33,10 @@ jobs:
           cache: true
 
       # The `browser` Vitest project runs in real Chromium (jsdom has no layout engine, and the bugs
-      # it catches are geometric). Note `vp test` EXITS 0 when the browser is missing — those specs
-      # simply never run — so this install is what keeps them from silently disappearing.
+      # it catches are geometric), so the binary is a build requirement rather than an optional extra.
+      # A missing browser does FAIL the run (verified: `vp test` exits 1 with an unhandled
+      # browserType.launch error) — an earlier version of this comment claimed it exited 0, which was
+      # a measurement mistake from piping the command through `tail` and reading tail's exit code.
       - name: Resolve Playwright version
         id: playwright
         run: echo "version=$(vp exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> "$GITHUB_OUTPUT"
