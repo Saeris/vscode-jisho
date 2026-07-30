@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { SegmentBar } from "../SegmentBar";
 import type { SegmentDto } from "../../../shared/messages";
 
@@ -18,8 +18,6 @@ const segments: SegmentDto[] = [
 ];
 
 describe("segment bar", () => {
-  afterEach(cleanup);
-
   it("renders content words as tappable chips and particles as inert text", () => {
     // WHY: the whole affordance is "content words are clickable, particles aren't" — a particle
     // rendered as a button would mislead the user into a pointless search.

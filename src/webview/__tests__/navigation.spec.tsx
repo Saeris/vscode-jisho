@@ -1,14 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { makeNavigation, NavigationProvider, useNavigate } from "../navigation";
 import type { NavEvent } from "../machines/navigation";
 
 describe("makeNavigation", () => {
-  // No auto-cleanup in this project: leaked DOM from a previous test makes negative
-  // assertions ("renders nothing", "is not shown") unreliable.
-  afterEach(cleanup);
-
   it("maps every action onto its machine event", () => {
     // WHY: this layer exists so a view says what it wants ("openKanji") instead of hand-writing the
     // event a machine expects. If a mapping is wrong the view navigates somewhere else entirely, and
@@ -68,10 +64,6 @@ describe("makeNavigation", () => {
 });
 
 describe("useNavigate", () => {
-  // No auto-cleanup in this project: leaked DOM from a previous test makes negative
-  // assertions ("renders nothing", "is not shown") unreliable.
-  afterEach(cleanup);
-
   it("reaches the provider from a nested component", async () => {
     const send = vi.fn<(event: NavEvent) => void>();
     const Deep = (): React.ReactElement => {

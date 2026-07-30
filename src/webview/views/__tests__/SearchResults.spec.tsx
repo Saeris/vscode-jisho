@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import type { ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import type { NavEvent } from "../../machines/navigation";
 import { SearchResults } from "../SearchResults";
@@ -67,8 +67,6 @@ const renderView = (
 // verified in the E2E (real-browser) layer, not here. These jsdom tests cover what renders reliably:
 // result rendering, the query→results wiring, and empty state.
 describe("search results (rendering + query wiring)", () => {
-  afterEach(cleanup);
-
   it("renders word results with their headwords and readings", async () => {
     renderView();
     await expect(screen.findByText("食べる")).resolves.toBeDefined();

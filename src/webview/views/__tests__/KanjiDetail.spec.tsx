@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import type { ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import type { NavEvent } from "../../machines/navigation";
@@ -59,8 +59,6 @@ const renderView = (): NavEvent[] => {
 };
 
 describe("kanji detail parts", () => {
-  afterEach(cleanup);
-
   it("opens the kanji detail for a part that is a real kanji", async () => {
     // WHY: the common case must keep working — drilling 久 → 入 is the whole point of the parts list.
     const sent = renderView();

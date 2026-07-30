@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import type { ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { WordDetail } from "../WordDetail";
 import type { SenseDto, WordDetailDto } from "../../../shared/messages";
@@ -85,8 +85,6 @@ const renderView = (
 };
 
 describe("word detail conjugations", () => {
-  afterEach(cleanup);
-
   it("shows the table for a conjugable word, visible without interaction", async () => {
     // WHY (user feedback): the collapsed-disclosure version hid the content — the section split
     // should come from the heading, not a collapse. The table renders below the senses directly.
@@ -122,8 +120,6 @@ describe("word detail conjugations", () => {
 });
 
 describe("word detail form marks & sections", () => {
-  afterEach(cleanup);
-
   it("flags search-only writings with 探 and explains it in the legend", async () => {
     // WHY (Shirabe reference): 喰べる exists so searches FIND it, but presenting it as a normal
     // alternative teaches learners a form nobody writes — the mark plus legend says so.
@@ -180,8 +176,6 @@ describe("word detail form marks & sections", () => {
 });
 
 describe("word detail examples", () => {
-  afterEach(cleanup);
-
   const sentences = [
     { ja: "一", en: "one" },
     { ja: "二", en: "two" },

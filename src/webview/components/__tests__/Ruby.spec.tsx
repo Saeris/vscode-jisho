@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
 import { Ruby } from "../Ruby";
 
 describe("ruby furigana", () => {
-  afterEach(cleanup);
-
   it("renders kanji with furigana over it", () => {
     // WHY: the whole point — {食|た}べる shows た above 食, plain kana passes through.
     render(<Ruby markup="{食|た}べる" />);

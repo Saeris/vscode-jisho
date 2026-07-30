@@ -158,6 +158,16 @@ export default defineConfig({
     name: manifest.name,
     globals: true,
     passWithNoTests: true,
+    // Mock hygiene as configuration rather than per-file discipline. Mock state (call history AND
+    // implementation) otherwise leaks between tests in a file, which produces the worst failure mode
+    // there is: a test that passes alone and fails in suite, or vice versa.
+    //   mockReset    — clears calls and removes implementations between tests
+    //   restoreMocks — puts spied-on originals back
+    //   unstubGlobals/unstubEnvs — undoes vi.stubGlobal / vi.stubEnv
+    mockReset: true,
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
     projects: [unitProject, componentProject, browserProject, benchProject]
   }
 });

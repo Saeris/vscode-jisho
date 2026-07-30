@@ -1,10 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  cleanup,
-  render as rtlRender,
-  screen,
-  waitFor
-} from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 
@@ -51,10 +46,6 @@ const render = (ui: React.ReactElement): ReturnType<typeof rtlRender> =>
   );
 
 describe("playButton", () => {
-  // No auto-cleanup in this project (see KanjiDetail.spec): a button left mounted by the previous
-  // test would otherwise satisfy a "renders nothing" assertion.
-  afterEach(cleanup);
-
   it("renders nothing until the voice check resolves", async () => {
     // WHY: the check is async, and a speaker button that appears and then vanishes is worse than one
     // that arrives late. Callers rely on this so they do not each have to guard.
@@ -77,10 +68,6 @@ describe("playButton", () => {
 });
 
 describe("sequencePlayButton", () => {
-  // No auto-cleanup in this project (see KanjiDetail.spec): a button left mounted by the previous
-  // test would otherwise satisfy a "renders nothing" assertion.
-  afterEach(cleanup);
-
   it("renders nothing for an empty reading list", async () => {
     // WHY: a kanji with no on-readings would otherwise get a button that plays silence.
     isSpeechAvailable.mockResolvedValue(true);
