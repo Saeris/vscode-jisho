@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import { isSpeechAvailable, speak, SpeechSequence } from "../speech";
@@ -68,9 +68,13 @@ export const SequencePlayButton = ({
 }: SequencePlayButtonProps): React.ReactElement | null => {
   const available = useSpeechAvailable();
   const [playing, setPlaying] = useState(false);
-  const sequence = useMemo(() => new SpeechSequence(setPlaying), []);
+  // `useState` with a lazy initializer, not `useMemo`: React documents useMemo as a performance hint
+  // it MAY discard, and this object's identity carries in-flight, cancellable speech. A discarded
+  // memo would hand the cleanup below a different sequence than the one actually speaking.
+  const [sequence] = useState(() => new SpeechSequence(setPlaying));
 
-  // Stop any in-progress playback if this button unmounts (e.g. navigating away).
+  // Stop any in-progress playback if this button unmounts (e.g. navigating away). Cleanup on unmount
+  // is the one thing an effect is for that has no alternative — there is no other unmount hook.
   useEffect(() => (): void => sequence.cancel(), [sequence]);
 
   if (!available || readings.length === 0) return null;

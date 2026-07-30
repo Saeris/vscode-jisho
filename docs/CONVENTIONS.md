@@ -40,6 +40,14 @@ Read this before executing any milestone plan. It captures workflow rules and en
 - **State ownership line (hold it):** TanStack Query = all async state (bridge calls as `queryFn`) · XState navigation machine ([src/webview/machines/navigation.ts](../src/webview/machines/navigation.ts)) = view stack + UI state · React Aria = interaction primitives · CVA + CSS Modules over `--vscode-*` vars = styling (no hardcoded colors, no `prefers-color-scheme`) · RHF+Valibot reserved for real forms.
 - New views: extend the machine's `View` union + an event + a case in [src/webview/App.tsx](../src/webview/App.tsx). The search view stays mounted via React `<Activity>`; pushed views render as siblings.
 - The webview targets one known Chromium (Electron) — no cross-browser fallbacks needed. CSP: scripts need the nonce; assets via `webview.cspSource`.
+- **`useEffect` is a last resort, and the whole webview currently has four.** Async state is a query, derived values are computed in render, and "reset state when a prop changes" is a `key` — none of those are effects. Audited 2026-07-30; all four survive, and the reasons are the only ones that count:
+  - `App.tsx` — subscribing to host pushes. An external event source is the canonical case.
+  - `PlayButton.tsx`, `useCopyStatus.ts` — cancelling in-flight speech / a pending timer **on unmount**. There is no other unmount hook.
+  - `useStrokeClock.ts` — creating the `Animation` on a ref'd node (impossible during render), and the rAF loop that follows it (WAAPI has no progress event).
+
+  The rAF follower looks like a `useSyncExternalStore` candidate and is not one: `getSnapshot` would read a continuously-advancing `currentTime`, which React expects to be stable within a render, and — decisively — `scrubTo`/`replay`/pause move the clock **while nothing is animating**, so a frame-loop subscription would never fire for them. Replacing it means hand-rolling a listener registry, i.e. more code than the effect.
+
+  Related: prefer `useState(() => new X())` over `useMemo(() => new X(), [])` when an object's IDENTITY matters. React documents useMemo as a hint it may discard; useState's lazy initializer is a guarantee.
 
 ## Packaging
 
