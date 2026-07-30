@@ -52,7 +52,7 @@ Unclassifiable (≈6%, e.g. `見.⿱目5儿2` — the character IS its own radic
 - **Unit (`scripts/__tests__/acjk.spec.ts`)**: the textbook examples from #30 — 体→hen, 頭→tsukuri, 広→tare, 道→nyō, 国→kamae (split-segment enclosure!), 聞→kamae, plus 見→null (self-radical). Use real acjk strings from #30/the probe logs, not invented ones.
 - **DB (`db.spec.ts`)**: the spot-checks above, plus "every non-null position is one of the seven values".
 - **Component**: picker filter behavior — toggling 冠 hides 亻 and shows 宀; toggling again restores all; a selected radical survives being filtered from view.
-- **E2E capture**: extend the existing picker capture (if one exists in visual.e2e.ts — check; else add) with a filtered state for the visual pass.
+- **E2E capture**: extend the existing picker capture (if one exists under `e2e/visual/` — check; else add) with a filtered state for the visual pass.
 
 ## Verification loop
 

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { launchVSCode, type Launched } from "./launch";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./fixtures";
 import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
 
 /**
@@ -15,21 +15,6 @@ import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
  * This is easy to miss in development because the F5 loop rarely collapses the sidebar.
  */
 test.describe.configure({ mode: "serial" });
-
-let vscode: Launched | undefined;
-
-const app = (): Launched => {
-  if (!vscode) throw new Error("VS Code was not launched");
-  return vscode;
-};
-
-test.beforeAll(async () => {
-  vscode = await launchVSCode();
-});
-
-test.afterAll(async () => {
-  await vscode?.close();
-});
 
 /**
  * Switch the sidebar to Explorer and back, which is what deallocates the webview document.
@@ -49,9 +34,11 @@ const switchAwayAndBack = async (window: Page): Promise<void> => {
   await openJishoSidebar(window);
 };
 
-test("keeps the open word on the stack when the sidebar is hidden and reopened", async () => {
-  await openJishoSidebar(app().window);
-  const frame = await jishoFrame(app().window);
+test("keeps the open word on the stack when the sidebar is hidden and reopened", async ({
+  vscode
+}) => {
+  await openJishoSidebar(vscode.window);
+  const frame = await jishoFrame(vscode.window);
   await returnToSearch(frame);
 
   await frame.getByRole("searchbox").fill("食べる");
@@ -62,26 +49,28 @@ test("keeps the open word on the stack when the sidebar is hidden and reopened",
   const back = frame.getByRole("button", { name: "Back", exact: true });
   await expect(back).toBeVisible();
 
-  await switchAwayAndBack(app().window);
+  await switchAwayAndBack(vscode.window);
 
   // WHY this assertion: a user who taps a word, glances at their file tree, and comes back expects
   // to still be reading that word. Losing the stack drops them at an empty search box having
   // forgotten what they looked up.
-  const reopened = await jishoFrame(app().window);
+  const reopened = await jishoFrame(vscode.window);
   await expect(
     reopened.getByRole("button", { name: "Back", exact: true })
   ).toBeVisible({ timeout: 15_000 });
 });
 
-test("keeps the search query when the sidebar is hidden and reopened", async () => {
-  const frame = await jishoFrame(app().window);
+test("keeps the search query when the sidebar is hidden and reopened", async ({
+  vscode
+}) => {
+  const frame = await jishoFrame(vscode.window);
   await returnToSearch(frame);
   await frame.getByRole("searchbox").fill("water");
   await expect(frame.getByRole("option").first()).toBeVisible();
 
-  await switchAwayAndBack(app().window);
+  await switchAwayAndBack(vscode.window);
 
-  const reopened = await jishoFrame(app().window);
+  const reopened = await jishoFrame(vscode.window);
   await expect(reopened.getByRole("searchbox")).toHaveValue("water", {
     timeout: 15_000
   });

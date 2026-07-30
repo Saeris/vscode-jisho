@@ -77,7 +77,7 @@ Extend the existing `hostSettings` push (`HostSettings["settings"]`) with the ac
 
 - **Unit**: taxonomy probes (above); `posRanges` on a crafted line with ruby + conjugation (fixture style of `hover.spec.ts` — e.g. `{写真|しゃしん}を見せました` yields noun/particle/verb/auxiliary ranges with ruby-widened spans).
 - **E2E (`e2e/settings.e2e.ts`)**: it already launches with overridden settings — add `"vscode-jisho.highlighting.palette": "jisho"` and assert an editor span's computed color EQUALS the palette's dark hex for its POS (decorations render as inline styles — checkable, unlike theme mode). Theme mode keeps its existing coverage; assert one mode per launch (flipping settings mid-E2E through the UI is unreliable).
-- **Light theme**: add a palette capture/assertion to `e2e/visual-light.e2e.ts` proving the `light:` variant renders.
+- **Light theme**: add a palette capture/assertion to `e2e/visual/theme.e2e.ts` proving the `light:` variant renders.
 - **Round-trip sanity**: with the palette active then disabled via a fresh launch, palette-colored span count is 0 (decorations cleared).
 
 ## Verification loop

@@ -169,3 +169,21 @@ export const jishoFrame = async (window: Page): Promise<FrameLocator> => {
   await expect(frame.locator("#root")).toBeAttached({ timeout: 30_000 });
   return frame;
 };
+
+/**
+ * Search a literal and open its first KANJI result.
+ *
+ * Targets the Kanji section's listbox specifically. Both sections render `role=option`, and the kanji
+ * row's accessible name is the whole row ("食eat, foodショク、ジキ…") rather than the literal, so it is
+ * matched by the section's aria-label instead.
+ */
+export const openKanjiResult = async (
+  frame: FrameLocator,
+  literal: string
+): Promise<void> => {
+  await frame.getByRole("searchbox").fill(literal);
+  await frame
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+};
