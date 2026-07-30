@@ -33,9 +33,7 @@ import { wordHoverMarkdown } from "../shared/hoverHtml";
 import { asPartOfSpeech } from "../shared/pos";
 import type { DetailedSegment } from "./tokenizer";
 import type { PartOfSpeech, WordDetailDto } from "../shared/messages";
-
-/** Requires at least one kanji: pure-kana runs tokenize into garbage (no script transitions). */
-const HAS_KANJI = /[㐀-鿿豈-﫿]/;
+import { hasKanji } from "../shared/japanese";
 
 /**
  * Everything the hover needs from the outside world, injected so this module stays free of the
@@ -123,7 +121,7 @@ export const provideHover = async (
 
   // Group auxiliaries (and a verb's て/で) onto their verb/adjective, so hovering anywhere in
   // 食べたくなかった resolves 食べる — not the たい fragment under the cursor.
-  const groups = HAS_KANJI.test(run.text)
+  const groups = hasKanji(run.text)
     ? groupSegments(await deps.segment(run.text))
     : [];
   const {

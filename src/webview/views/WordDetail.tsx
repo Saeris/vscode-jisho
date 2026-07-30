@@ -18,6 +18,7 @@ import { DetailHeader } from "../components/DetailHeader";
 import { Term } from "../components/Term";
 import { PlayButton } from "../components/PlayButton";
 import styles from "./WordDetail.module.css";
+import { isKanjiChar } from "../../shared/japanese";
 
 interface WordDetailProps {
   id: string;
@@ -261,7 +262,7 @@ const Info = ({
 /** Every distinct CJK character across the word's writings, in first-appearance order. */
 const kanjiChars = (word: WordDetailDto): string[] => [
   ...new Set(
-    word.kanji.flatMap((k) => Array.from(k.text)).filter((c) => CJK.test(c))
+    word.kanji.flatMap((k) => Array.from(k.text)).filter((c) => isKanjiChar(c))
   )
 ];
 
@@ -414,8 +415,6 @@ const Conjugations = ({
   );
 };
 
-const CJK = /[㐀-鿿豈-﫿]/u;
-
 /** The headword with each CJK character rendered as a button that opens its kanji detail. */
 const Headword = ({
   text,
@@ -426,7 +425,7 @@ const Headword = ({
 }): React.ReactElement => (
   <>
     {Array.from(text).map((char, i) =>
-      CJK.test(char) ? (
+      isKanjiChar(char) ? (
         <Button
           key={i}
           className={styles.kanjiChar}

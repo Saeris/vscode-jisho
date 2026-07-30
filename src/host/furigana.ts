@@ -6,8 +6,7 @@
 import { groupSegments, japaneseRuns, stripRuby } from "./hover";
 import { toRubyMarkdown } from "../shared/ruby";
 import { segment } from "./tokenizer";
-
-const HAS_KANJI = /[㐀-鿿豈-﫿]/;
+import { hasKanji } from "../shared/japanese";
 
 /**
  * Annotate every kanji-bearing word group in a line. Words that already carry ruby markup are
@@ -20,14 +19,14 @@ export const addFuriganaToLine = async (line: string): Promise<string> => {
   // Collect replacements first, apply right-to-left so earlier indexes stay valid.
   const edits: Array<{ start: number; end: number; text: string }> = [];
   for (const run of japaneseRuns(stripped.text)) {
-    if (!HAS_KANJI.test(run.text)) continue;
+    if (!hasKanji(run.text)) continue;
     const groups = groupSegments(await segment(run.text));
     let offset = run.start;
     for (const group of groups) {
       const start = offset;
       const end = offset + group.surface.length;
       offset = end;
-      if (!HAS_KANJI.test(group.surface)) continue;
+      if (!hasKanji(group.surface)) continue;
 
       const origStart = stripped.starts[start];
       const origEnd = stripped.ends[end - 1];

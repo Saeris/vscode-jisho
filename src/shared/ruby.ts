@@ -12,9 +12,7 @@
  * miss for authoring — where the user reviews output — and `null` plus the whole-word fallback
  * covers the cases where nothing matches at all.
  */
-
-/** CJK ideographs (+ compatibility) and the iteration marks that behave like them. */
-const KANJI = /[㐀-鿿豈-﫿々〆]/;
+import { isKanjiForReading } from "./japanese";
 
 export interface RubySpan {
   /** A run of the surface, in order. Concatenating every `text` rebuilds the surface exactly. */
@@ -33,7 +31,7 @@ export const toHiragana = (text: string): string =>
 const runs = (surface: string): Array<{ text: string; kanji: boolean }> => {
   const out: Array<{ text: string; kanji: boolean }> = [];
   for (const char of surface) {
-    const kanji = KANJI.test(char);
+    const kanji = isKanjiForReading(char);
     const last = out.at(-1);
     if (last?.kanji === kanji) last.text += char;
     else out.push({ text: char, kanji });

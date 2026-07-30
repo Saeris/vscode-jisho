@@ -6,8 +6,8 @@
  */
 import { groupSegments, japaneseRuns, stripRuby } from "./hover";
 import { segment } from "./tokenizer";
+import { hasKanji } from "../shared/japanese";
 
-const HAS_KANJI = /[㐀-鿿豈-﫿]/;
 const JA_OR_RUBY_EDGE = /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ{}]/;
 
 /**
@@ -21,7 +21,7 @@ export const addSpacingToLine = async (line: string): Promise<string> => {
   // Collect original-index insertion points first; apply right-to-left so indexes stay valid.
   const insertions: number[] = [];
   for (const run of japaneseRuns(stripped.text)) {
-    if (!HAS_KANJI.test(run.text)) continue;
+    if (!hasKanji(run.text)) continue;
     const groups = groupSegments(await segment(run.text));
     let offset = run.start;
     for (const group of groups.slice(0, -1)) {

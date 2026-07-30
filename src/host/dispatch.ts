@@ -8,7 +8,7 @@
  */
 import * as vscode from "vscode";
 import type { Dictionary } from "./db";
-import { HAS_KANJI } from "./japanese";
+import { hasKanji } from "../shared/japanese";
 import { timed } from "./log";
 import type { NamesDictionary } from "./names";
 import { contentSegmentCount, segment } from "./tokenizer";
@@ -35,7 +35,7 @@ interface QueryAnalysis {
  */
 const analyzeQuery = async (query: string): Promise<QueryAnalysis> => {
   const trimmed = query.trim();
-  if (trimmed.length < 2 || !HAS_KANJI.test(trimmed)) {
+  if (trimmed.length < 2 || !hasKanji(trimmed)) {
     return { segments: [], lemmas: [] };
   }
   // The tokenizer's first call pays a WASM + IPADIC init (~200ms locally, but it is a 12MB

@@ -37,6 +37,7 @@ import type {
   TagDto,
   WordDetailDto
 } from "../shared/messages";
+import { hasKanji, isKanjiChar } from "../shared/japanese";
 
 /**
  * Thrown when a database's schema version doesn't match this build's expectation. Typed so the
@@ -373,7 +374,7 @@ export class Dictionary {
     reading?: string
   ): Promise<SearchResultDto | null> {
     if (lemma === "") return null;
-    const hasKanji = /[㐀-鿿豈-﫿]/u.test(lemma);
+    const lemmaHasKanji = hasKanji(lemma);
     // Tokenizer readings are katakana (ホン); DB kana is hiragana (ほん). Empty when the tokenizer
     // had none (unknown word) — then there's nothing to disambiguate on and this tier stays off.
     const hira = reading !== undefined ? toHiragana(reading) : "";
@@ -426,7 +427,7 @@ export class Dictionary {
       const posOk = anyPosMatches(pos, codes);
       // Kana lemma normally written in kana: `uk`, or the entry has no common kanji form.
       const kanaPrimary =
-        !hasKanji && (r.uk === 1 || (r.has_common_kanji ?? 0) === 0);
+        !lemmaHasKanji && (r.uk === 1 || (r.has_common_kanji ?? 0) === 0);
       return {
         id: r.word_id,
         common: r.common === 1,
@@ -434,7 +435,7 @@ export class Dictionary {
         rank:
           // Reading match dominates: 本 read ほん is 本/ほん, not the homograph 元/もと (freq-ranked).
           (r.reading_match === 1 ? 2000 : 0) +
-          (hasKanji && r.kanji_match === 1 ? 1000 : 0) +
+          (lemmaHasKanji && r.kanji_match === 1 ? 1000 : 0) +
           (posOk ? 400 : 0) +
           (kanaPrimary ? 200 : 0) +
           (r.common === 1 ? 20 : 0) +
@@ -490,7 +491,7 @@ export class Dictionary {
       // Array.from iterates by code point, so multi-unit characters stay intact.
       const seen = new Set<string>();
       const chars = Array.from(query)
-        .filter((c) => /[㐀-鿿豈-﫿]/.test(c) && !seen.has(c) && seen.add(c))
+        .filter((c) => isKanjiChar(c) && !seen.has(c) && seen.add(c))
         .slice(0, limit);
       if (chars.length === 0) return [];
       literals = [];

@@ -13,7 +13,7 @@ import {
   stripRuby,
   toStrippedIndex
 } from "./hover";
-import { HAS_KANJI } from "./japanese";
+import { hasKanji } from "../shared/japanese";
 import { segment } from "./tokenizer";
 
 /**
@@ -35,7 +35,7 @@ export const targetWord = async (): Promise<
   const cursor = toStrippedIndex(stripped, position.character);
   const run = japaneseRunAt(stripped.text, cursor);
   if (run === null) return undefined;
-  const groups = HAS_KANJI.test(run.text)
+  const groups = hasKanji(run.text)
     ? groupSegments(await segment(run.text))
     : [];
   const { surface, lookup } = resolveWord(run, groups, cursor);

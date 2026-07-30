@@ -4,7 +4,7 @@
  */
 import * as vscode from "vscode";
 import { japaneseRuns, stripRuby } from "./hover";
-import { HAS_KANJI } from "./japanese";
+import { hasKanji } from "../shared/japanese";
 import { segment } from "./tokenizer";
 
 /**
@@ -51,7 +51,7 @@ export const provideSemanticTokens = async (
     for (const run of japaneseRuns(stripped.text)) {
       // Same constraint as the hover: pure-kana runs tokenize into garbage (no script
       // transitions), and wrong coloring teaches wrong boundaries — skip them.
-      if (!HAS_KANJI.test(run.text)) continue;
+      if (!hasKanji(run.text)) continue;
       const segments = await segment(run.text);
       let offset = run.start;
       for (const seg of segments) {
