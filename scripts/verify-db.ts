@@ -31,7 +31,9 @@ const dbPath =
   positional ?? fail("usage: verify-db.ts <db-path> [--zst <path>] [--names]");
 if (!existsSync(dbPath)) fail(`database not found: ${dbPath}`);
 
-const db = await connect(dbPath);
+// Read-only: this script only asks questions, and a writable open would leave -wal/-shm beside a
+// release artifact we are about to upload.
+const db = await connect(dbPath, { readonly: true });
 
 const scalar = async (sql: string, ...params: unknown[]): Promise<unknown> => {
   const rows: unknown = await (await db.prepare(sql)).all(...params);

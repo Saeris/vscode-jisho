@@ -24,8 +24,21 @@ export class SqliteStore {
     this.#db = db;
   }
 
+  /**
+   * Open a dictionary for querying.
+   *
+   * READ-ONLY, deliberately. Nothing in this layer writes — grep the query modules for INSERT,
+   * UPDATE, DELETE, CREATE or DROP and you get nothing — so asking for write access was asking for
+   * permission we do not use. Two consequences follow:
+   *
+   *  * It stops the extension creating `-wal`/`-shm` files beside the database it downloaded into the
+   *    user's global storage, for a file it only ever reads.
+   *  * A writable connection is EXCLUSIVE across processes, so two test files that each opened the
+   *    dictionary collided ("File is locked by another process"). Read-only connections coexist,
+   *    which is what lets DB-backed specs run in parallel workers at all.
+   */
   static async open(path: string): Promise<SqliteStore> {
-    return new SqliteStore(await connect(path));
+    return new SqliteStore(await connect(path, { readonly: true }));
   }
 
   /**

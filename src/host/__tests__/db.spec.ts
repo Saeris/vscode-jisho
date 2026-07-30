@@ -25,7 +25,7 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // the normalizer; this covers the integration, which is where it would silently break: an
     // unpopulated column still sorts, just wrongly, and by codepoint katakana lands in a block
     // AFTER every hiragana entry instead of interleaved where a reader expects it.
-    const raw = await connect(DB_PATH);
+    const raw = await connect(DB_PATH, { readonly: true });
     try {
       const stmt = await raw.prepare(
         `SELECT text FROM kana
@@ -83,7 +83,7 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // result leads with. Compares CARDINALITY rather than the sets themselves: a per-row EXISTS
     // check is a full scan (~45s), while both counts below are indexed. A build that stopped
     // populating either side, or populated them from different predicates, diverges here.
-    const raw = await connect(DB_PATH);
+    const raw = await connect(DB_PATH, { readonly: true });
     try {
       const stmt = await raw.prepare(
         `SELECT (SELECT COUNT(*) FROM words WHERE is_uk = 1) AS flagged,
@@ -492,7 +492,7 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // Tanaka examples, deduped by Tatoeba id and furigana-annotated at build time. This guards the
     // build's invariants at the storage seam the future more-examples page reads: the pool exists, it
     // never duplicates an inline sentence for the same word, and every stored sentence carries ruby.
-    const raw = await connect(DB_PATH);
+    const raw = await connect(DB_PATH, { readonly: true });
     try {
       const rows = async <T>(sql: string): Promise<T[]> =>
         (await (await raw.prepare(sql)).all()) as T[];
@@ -556,7 +556,7 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // against the raw table: no getMoreExamples sentence shares a Tatoeba id with a tanaka row.
     const [top] = await dict.search("食べる");
     const more = await dict.getMoreExamples(top.id);
-    const raw = await connect(DB_PATH);
+    const raw = await connect(DB_PATH, { readonly: true });
     try {
       const tanaka = (await (
         await raw.prepare(
@@ -602,7 +602,7 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // the ordering INVARIANT (holds on any variant): among the returned words, once a less-common one
     // appears no more-common one follows it, and the frequency-ranked words lead the unranked ones.
     // A word's own `common` flag and rank aren't on the DTO, so re-derive the guarantee from the DB.
-    const raw = await connect(DB_PATH);
+    const raw = await connect(DB_PATH, { readonly: true });
     try {
       const rows = (await (
         await raw.prepare(
