@@ -47,7 +47,7 @@ export const provideSemanticTokens = async (
   if (!enabled) return builder.build(); // empty set clears any previous coloring
   for (let lineNo = 0; lineNo < document.lineCount; lineNo++) {
     if (token.isCancellationRequested) return undefined;
-    const stripped = stripRuby(document.lineAt(lineNo).text);
+    const stripped = stripRuby(document.lineAt(lineNo).text, "drop");
     for (const run of japaneseRuns(stripped.text)) {
       // Same constraint as the hover: pure-kana runs tokenize into garbage (no script
       // transitions), and wrong coloring teaches wrong boundaries — skip them.

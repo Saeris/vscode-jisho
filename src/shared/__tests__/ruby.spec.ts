@@ -84,7 +84,9 @@ describe("toRubyMarkdown", () => {
       ["取り扱い", "とりあつかい"],
       ["見せる", "ミセル"]
     ] as const) {
-      expect(stripRuby(toRubyMarkdown(surface, reading)).text).toBe(surface);
+      expect(stripRuby(toRubyMarkdown(surface, reading), "drop").text).toBe(
+        surface
+      );
     }
   });
 });
@@ -139,7 +141,7 @@ describe("stripRubyText", () => {
       "{買|か}い{物|もの}",
       "私は{日本語|にほんご}を{勉強|べんきょう}します"
     ]) {
-      expect(stripRubyText(annotated)).toBe(stripRuby(annotated).text);
+      expect(stripRubyText(annotated)).toBe(stripRuby(annotated, "drop").text);
     }
   });
 });

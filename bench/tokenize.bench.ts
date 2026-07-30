@@ -62,7 +62,7 @@ describe("tokenize", () => {
     "highlight walk 吾輩は猫である (strip + runs + tokenize)",
     async () => {
       for (const line of corpus) {
-        const stripped = stripRuby(line);
+        const stripped = stripRuby(line, "drop");
         for (const run of japaneseRuns(stripped.text)) {
           if (HAS_KANJI.test(run.text)) await segment(run.text);
         }

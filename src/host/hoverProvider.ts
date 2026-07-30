@@ -98,7 +98,7 @@ export const provideHover = async (
   // would otherwise split the Japanese run. All indexes below are stripped-space; the maps translate
   // back for the highlight range.
   const line = document.lineAt(position.line).text;
-  const stripped = stripRuby(line);
+  const stripped = stripRuby(line, "drop");
   const cursor = toStrippedIndex(stripped, position.character);
   const run = japaneseRunAt(stripped.text, cursor);
   if (run === null) return undefined;

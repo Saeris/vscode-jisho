@@ -509,7 +509,7 @@ Notable: **Yomitan itself does not do typo correction** (exact + deinflection + 
 
 ## Editor commands
 
-### 52. `addFurigana` silently skips kanji next to markdown emphasis (bug — small/medium)
+### 52. `addFurigana` silently skips kanji next to markdown emphasis (bug — small/medium) — ✅ fixed 2026-07-30
 
 Found 2026-07-30 while benchmarking the editor commands. `addFuriganaToLine` annotates nothing for some words adjacent to inline emphasis markers, and does so SILENTLY — the command reports success and the kanji simply has no reading. Reproduced (`vp run bench:build`, then call `addFuriganaToLine` from `dist/entry.mjs`):
 
@@ -526,7 +526,9 @@ So it is not the marker (single and double both fail), not the word, and not pos
 
 Suspected cause, not yet confirmed: the "words that already carry ruby markup are left alone" guard in `addFuriganaToLine`, which decides by comparing the group's span in the stripped text against the same span in the original. `stripRuby` drops emphasis markers but folds each dropped position's span into a neighbouring character's `starts`/`ends` entry, so a group next to a marker maps back to a source span that INCLUDES the marker. The two strings then differ, the guard reads that as "already annotated", and the word is skipped. That would explain the dependence on trailing context, since the folding differs at a line end versus mid-line.
 
-Needs care: those index maps are load-bearing for the hover and for semantic tokens (`stripRuby` has six callers), so narrowing the guard is safer than changing the folding. Whatever the fix, the guard should distinguish "this span already has ruby" from "this span picked up an emphasis marker" rather than inferring both from string inequality.
+**Cause, confirmed:** not folding — `emitPlain` maps 1:1. The tokenizer merges `です` into the group, so `重要です` maps to source span 1..6 of `*重要*です`, which SPANS the closing `*`. The guard compared 5 against a surface length of 4 and skipped. It was right to refuse: emitting that edit would have deleted the marker, which is exactly what `addSpacing` did do (`私 は** 本** を 読む`) and what `removeFurigana` did outright.
+
+**Fix:** `stripRuby` now takes a required `"drop" | "keep"` for emphasis. `"drop"` stays the analysis behaviour (hover, semantic tokens, editor commands, run detection). `"keep"` is used by the two REWRITE commands, so every edit span exists verbatim in the source and markers can never sit inside one. No default — a default that is right for four callers and destructive for two is the shape of the original mistake. Coverage improved as well as correctness: `彼に*遅れない*ように` now annotates 遅, which it never did.
 
 Related and already fixed: `removeFuriganaFromLine` used to be `stripRuby(line).text`, which meant the same emphasis-dropping DELETED the user's markdown when they ran "Remove furigana". It now uses `stripRubyText`, which touches only ruby.
 

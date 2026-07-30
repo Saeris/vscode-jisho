@@ -15,7 +15,9 @@ import { hasKanji } from "../shared/japanese";
  * conjugations annotate as one word.
  */
 export const addFuriganaToLine = async (line: string): Promise<string> => {
-  const stripped = stripRuby(line);
+  // "keep": this REWRITES the line, so every edit span must still exist in the source. Dropping a
+  // marker lets a group's span contain it, and the guard below then refuses the whole word.
+  const stripped = stripRuby(line, "keep");
   // Collect replacements first, apply right-to-left so earlier indexes stay valid.
   const edits: Array<{ start: number; end: number; text: string }> = [];
   for (const run of japaneseRuns(stripped.text)) {

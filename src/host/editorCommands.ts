@@ -31,7 +31,10 @@ export const targetWord = async (): Promise<
   if (selected !== "") return { surface: selected, lookup: selected };
 
   const position = editor.selection.active;
-  const stripped = stripRuby(editor.document.lineAt(position.line).text);
+  const stripped = stripRuby(
+    editor.document.lineAt(position.line).text,
+    "drop"
+  );
   const cursor = toStrippedIndex(stripped, position.character);
   const run = japaneseRunAt(stripped.text, cursor);
   if (run === null) return undefined;

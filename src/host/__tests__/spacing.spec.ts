@@ -27,6 +27,18 @@ describe("addSpacingToLine (分かち書き)", () => {
     const line = "I said これはペンです to him";
     await expect(addSpacingToLine(line)).resolves.toBe(line);
   });
+
+  it("puts spaces between words, not inside markdown markers", async () => {
+    // WHY: the sibling of BACKLOG #52, and this one produced GARBLED output rather than silently
+    // doing nothing — offsets were computed against emphasis-stripped text the source did not have,
+    // so `私は**本**を読む` came back as `私 は** 本** を 読む` with spaces inside the markup.
+    await expect(addSpacingToLine("私は**本**を読む")).resolves.toBe(
+      "私 は**本**を 読む"
+    );
+    await expect(addSpacingToLine("私は本を読む")).resolves.toBe(
+      "私 は 本 を 読む"
+    );
+  });
 });
 
 describe("removeSpacingFromLine", () => {

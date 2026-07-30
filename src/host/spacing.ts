@@ -17,7 +17,9 @@ const JA_OR_RUBY_EDGE = /[぀-ゟ゠-ヿ㐀-鿿豈-﫿々〆ヶ{}]/;
  * ruby-marked word lands before its `{`.
  */
 export const addSpacingToLine = async (line: string): Promise<string> => {
-  const stripped = stripRuby(line);
+  // "keep": rewriting, same as furigana.ts — with markers dropped the offsets are computed against
+  // text the source does not have, and spaces land inside the markup (`私 は** 本** を 読む`).
+  const stripped = stripRuby(line, "keep");
   // Collect original-index insertion points first; apply right-to-left so indexes stay valid.
   const insertions: number[] = [];
   for (const run of japaneseRuns(stripped.text)) {

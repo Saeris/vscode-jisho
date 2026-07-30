@@ -58,6 +58,34 @@ describe("removeFuriganaFromLine", () => {
     expect(removeFuriganaFromLine(annotated)).toBe(original);
   });
 
+  it("annotates kanji that sit next to markdown emphasis", async () => {
+    // WHY: BACKLOG #52, and it failed SILENTLY — the command reported success and the kanji simply
+    // had no reading. `stripRuby` dropped the markers, so a group's source span could CONTAIN one
+    // (`重要です` maps to source 1..6 of `*重要*です`, which spans the closing `*`). The
+    // already-annotated guard compares span width against surface length, saw 5 vs 4, and skipped
+    // the word rather than emit an edit that would have deleted the marker. Both readings of that
+    // situation are bad; the fix is to not drop the markers on a REWRITE path at all.
+    await expect(addFuriganaToLine("*重要*です")).resolves.toBe(
+      "*{重要|じゅうよう}*です"
+    );
+    await expect(addFuriganaToLine("**重要**です")).resolves.toBe(
+      "**{重要|じゅうよう}**です"
+    );
+    await expect(addFuriganaToLine("重要*です*")).resolves.toBe(
+      "{重要|じゅうよう}*です*"
+    );
+    // It also FIXES coverage that was missing before: 遅 inside the emphasis never got a reading.
+    await expect(addFuriganaToLine("彼に*遅れない*ように")).resolves.toBe(
+      "{彼|かれ}に*{遅|おく}れない*ように"
+    );
+  });
+
+  it("still refuses to re-annotate text that already has ruby", async () => {
+    // WHY: the guard that caused #52 is load-bearing for its actual purpose — re-wrapping would
+    // nest braces. Relaxing the emphasis case must not relax this one.
+    await expect(addFuriganaToLine("{食|た}べる")).resolves.toBe("{食|た}べる");
+  });
+
   it("leaves markdown emphasis alone", () => {
     // WHY: this shipped broken, and the round-trip test above could not catch it — its input has no
     // emphasis to lose. The command was built on `stripRuby`, which drops `*`/`**`/`_`/`` ` ``/`==`/`~~`

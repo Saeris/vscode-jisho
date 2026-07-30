@@ -73,14 +73,35 @@ const RUBY = /\{((?:\\.|[^|{}\n])+)\|((?:\\.|[^{}\n])*)\}/g;
 const unescape = (s: string): string => s.replace(/\\(.)/g, "$1");
 
 /**
- * Inline markdown emphasis/marker runs that wrap Japanese but are not part of it. Stripped before
- * run detection so `彼に*遅れない*ように` reads as ONE run, not three — the "gaps in coverage" the
- * user reported. Order matters: the longer `**`/`__` before the single `*`/`_`. Backtick (code) and
- * `==` (highlight) too. NOT a markdown parser — just the inline markers that fragment a Japanese run.
+ * Inline markdown emphasis/marker runs that wrap Japanese but are not part of it. Order matters: the
+ * longer `**`/`__` before the single `*`/`_`. Backtick (code) and `==` (highlight) too. NOT a markdown
+ * parser — just the inline markers that fragment a Japanese run.
  */
 const EMPHASIS = /(\*\*|__|~~|==|\*|_|`)/g;
 
-export const stripRuby = (line: string): RubyStripped => {
+/**
+ * What to do with those markers — a REQUIRED choice, because the two answers serve opposite purposes
+ * and picking the wrong one has now caused three bugs.
+ *
+ * `"drop"` is for ANALYSIS: it makes `彼に*遅れない*ように` read as ONE Japanese run instead of three,
+ * which is what run detection, tokenization and the hover want (the "gaps in coverage" the user
+ * originally reported).
+ *
+ * `"keep"` is for REWRITING. A command that edits the user's document must map its edits onto spans
+ * that still exist in the source; dropping a marker means a group's source span can CONTAIN that
+ * marker, and any edit over that span deletes it. `addFurigana` avoided the deletion by refusing to
+ * annotate at all (BACKLOG #52 — `*重要*です` silently got no furigana), `addSpacing` did not and
+ * emitted `私 は** 本** を 読む`, and `removeFurigana` deleted emphasis outright.
+ *
+ * No default. A default that is right for four callers and destructive for two is the shape of the
+ * original mistake.
+ */
+export type EmphasisHandling = "drop" | "keep";
+
+export const stripRuby = (
+  line: string,
+  emphasis: EmphasisHandling
+): RubyStripped => {
   const starts: number[] = [];
   const ends: number[] = [];
   let text = "";
@@ -95,8 +116,10 @@ export const stripRuby = (line: string): RubyStripped => {
   // Positions covered by an emphasis marker — dropped from output, but their span is folded into a
   // neighbouring char's map so no original index is lost.
   const dropped = new Set<number>();
-  for (const m of line.matchAll(EMPHASIS)) {
-    for (let i = m.index; i < m.index + m[0].length; i++) dropped.add(i);
+  if (emphasis === "drop") {
+    for (const m of line.matchAll(EMPHASIS)) {
+      for (let i = m.index; i < m.index + m[0].length; i++) dropped.add(i);
+    }
   }
 
   let cursor = 0;
