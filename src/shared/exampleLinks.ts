@@ -15,7 +15,7 @@
  * Example:  `お[{茶|ちゃ}](n:1000710)を[{飲|の}みませんか](v:1168720)`
  */
 import type { PartOfSpeech } from "./messages";
-import { stripRubyText } from "./ruby";
+import { stripRubyText } from "./ruby.ts";
 
 /**
  * Compact codes for each part of speech, and the inverse. Stable — the DB stores the codes. Declared

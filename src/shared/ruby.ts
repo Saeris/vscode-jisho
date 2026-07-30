@@ -12,7 +12,7 @@
  * miss for authoring — where the user reviews output — and `null` plus the whole-word fallback
  * covers the cases where nothing matches at all.
  */
-import { isKanjiForReading } from "./japanese";
+import { isKanjiForReading } from "./japanese.ts";
 
 export interface RubySpan {
   /** A run of the surface, in order. Concatenating every `text` rebuilds the surface exactly. */
