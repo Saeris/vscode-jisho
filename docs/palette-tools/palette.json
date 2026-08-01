@@ -1,0 +1,74 @@
+{
+ "dark": {
+  "bg": "#39302c",
+  "css": {
+   "utterance": "oklch(0.84 0.08 157.5)",
+   "pronoun": "oklch(0.84 0.08 202.5)",
+   "noun": "oklch(0.85 0.08 247.5)",
+   "adnominal": "oklch(0.86 0.08 285)",
+   "adjective": "oklch(0.86 0.08 315)",
+   "adverb": "oklch(0.86 0.08 345)",
+   "verb": "oklch(0.86 0.08 22.5)",
+   "auxiliary": "oklch(0.86 0.08 67.5)",
+   "particle": "oklch(0.85 0.08 112.5)"
+  },
+  "rgb": {
+   "utterance": "rgb(158.7 218.9 182.3)",
+   "pronoun": "rgb(137.1 218.4 225.2)",
+   "noun": "rgb(164.1 211.2 255)",
+   "adnominal": "rgb(202.8 202.3 255)",
+   "adjective": "rgb(229.1 193.7 245.6)",
+   "adverb": "rgb(248.2 188.4 221)",
+   "verb": "rgb(255 188.9 185)",
+   "auxiliary": "rgb(244.8 199.6 152.6)",
+   "particle": "rgb(206 211.7 151)"
+  },
+  "hex": {
+   "utterance": "#9fdbb6",
+   "pronoun": "#89dae1",
+   "noun": "#a4d3ff",
+   "adnominal": "#cbcaff",
+   "adjective": "#e5c2f6",
+   "adverb": "#f8bcdd",
+   "verb": "#ffbdb9",
+   "auxiliary": "#f5c899",
+   "particle": "#ced497"
+  }
+ },
+ "light": {
+  "bg": "#faf9f8",
+  "css": {
+   "utterance": "oklch(0.52 0.12 157.5)",
+   "pronoun": "oklch(0.52 0.12 202.5)",
+   "noun": "oklch(0.54 0.12 247.5)",
+   "adnominal": "oklch(0.55 0.12 285)",
+   "adjective": "oklch(0.55 0.12 315)",
+   "adverb": "oklch(0.55 0.12 345)",
+   "verb": "oklch(0.55 0.12 22.5)",
+   "auxiliary": "oklch(0.54 0.12 67.5)",
+   "particle": "oklch(0.53 0.12 112.5)"
+  },
+  "rgb": {
+   "utterance": "rgb(9.7 124.9 76.6)",
+   "pronoun": "rgb(0 122.1 131.8)",
+   "noun": "rgb(40.8 115 176.3)",
+   "adnominal": "rgb(107.2 101.6 180.2)",
+   "adjective": "rgb(139.6 89.9 161.3)",
+   "adverb": "rgb(161.5 82 129.5)",
+   "verb": "rgb(172.6 81.5 80.3)",
+   "auxiliary": "rgb(155.7 94.6 0)",
+   "particle": "rgb(109.5 114 0)"
+  },
+  "hex": {
+   "utterance": "#0a7d4d",
+   "pronoun": "#007a84",
+   "noun": "#2973b0",
+   "adnominal": "#6b66b4",
+   "adjective": "#8c5aa1",
+   "adverb": "#a25281",
+   "verb": "#ad5150",
+   "auxiliary": "#9c5f00",
+   "particle": "#6d7200"
+  }
+ }
+}

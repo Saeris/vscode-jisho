@@ -109,6 +109,21 @@ export default defineConfig({
       {
         files: ["src/**/*.preview.spec.tsx"],
         rules: { "vitest/expect-expect": "off" }
+      },
+      {
+        // Palette research scripts (docs/palette-tools) are standalone numerical tools, not
+        // extension code — they never ship and are run by hand. The idioms flagged here are
+        // deliberate in that context: `| 0` for fast integer coercion in an annealing inner loop,
+        // `continue` to reject an invalid neighbour move, `undefined` as an explicit sentinel.
+        // Scoped to the RULES rather than dropping the files, so type checking still applies.
+        files: ["docs/palette-tools/**/*.mjs"],
+        rules: {
+          "eslint/no-bitwise": "off",
+          "eslint/no-continue": "off",
+          "eslint/no-undefined": "off",
+          "eslint/no-shadow": "off",
+          "import/first": "off"
+        }
       }
     ]
   }),
@@ -116,7 +131,18 @@ export default defineConfig({
     ...fmt,
     // The compiled IPADIC tokenizer dictionary is a vendored build artifact (incl. metadata.json);
     // it must not be reformatted. See docs/specs/14.
-    ignorePatterns: [...(fmt.ignorePatterns ?? []), "assets/lindera-ipadic/**"]
+    //
+    // The palette documents are GENERATED (docs/palette-tools/gen-palettes.mjs) and carry inline
+    // <style> blocks whose formatting the generator owns; reformatting them here would be undone by
+    // the next run. Their generated JSON is likewise machine-written.
+    ignorePatterns: [
+      ...(fmt.ignorePatterns ?? []),
+      "assets/lindera-ipadic/**",
+      "docs/pos-palette-comparison.md",
+      "docs/pos-palettes.md",
+      "docs/pos-palettes-review.md",
+      "docs/palette-tools/*.json"
+    ]
   },
   // ── Webview app build (Vite / Rolldown, via `vp build`) ──────────────
   // The React sidebar UI runs in a webview (a browser context), so it is a

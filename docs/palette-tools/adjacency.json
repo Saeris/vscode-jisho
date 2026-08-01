@@ -1,0 +1,223 @@
+{
+ "transitions": 672371,
+ "pairs": [
+  {
+   "pair": "noun|particle",
+   "n": 277681,
+   "pct": 41.29877701447564
+  },
+  {
+   "pair": "particle|verb",
+   "n": 124850,
+   "pct": 18.56861762330618
+  },
+  {
+   "pair": "auxiliary|verb",
+   "n": 55291,
+   "pct": 8.223287441010989
+  },
+  {
+   "pair": "particle|pronoun",
+   "n": 55018,
+   "pct": 8.1826848570209
+  },
+  {
+   "pair": "auxiliary|noun",
+   "n": 35099,
+   "pct": 5.220183499883249
+  },
+  {
+   "pair": "noun|verb",
+   "n": 34297,
+   "pct": 5.100904113948995
+  },
+  {
+   "pair": "auxiliary|particle",
+   "n": 16848,
+   "pct": 2.5057594691026233
+  },
+  {
+   "pair": "adverb|particle",
+   "n": 13125,
+   "pct": 1.952047307215808
+  },
+  {
+   "pair": "adnominal|noun",
+   "n": 12535,
+   "pct": 1.8642981330247734
+  },
+  {
+   "pair": "adjective|particle",
+   "n": 11521,
+   "pct": 1.7134885353473008
+  },
+  {
+   "pair": "adverb|noun",
+   "n": 7331,
+   "pct": 1.0903206711770734
+  },
+  {
+   "pair": "adjective|noun",
+   "n": 7074,
+   "pct": 1.0520977258091142
+  },
+  {
+   "pair": "adnominal|particle",
+   "n": 5056,
+   "pct": 0.751965804593
+  },
+  {
+   "pair": "adverb|verb",
+   "n": 4310,
+   "pct": 0.6410151538362006
+  },
+  {
+   "pair": "noun|pronoun",
+   "n": 3331,
+   "pct": 0.4954110156446367
+  },
+  {
+   "pair": "adjective|verb",
+   "n": 1927,
+   "pct": 0.2865977265527514
+  },
+  {
+   "pair": "adjective|auxiliary",
+   "n": 1813,
+   "pct": 0.26964280137007696
+  },
+  {
+   "pair": "adjective|adverb",
+   "n": 1326,
+   "pct": 0.19721255080900277
+  },
+  {
+   "pair": "adverb|pronoun",
+   "n": 890,
+   "pct": 0.13236739835596717
+  },
+  {
+   "pair": "adverb|auxiliary",
+   "n": 654,
+   "pct": 0.0972677286795534
+  },
+  {
+   "pair": "auxiliary|pronoun",
+   "n": 559,
+   "pct": 0.08313862436065803
+  },
+  {
+   "pair": "adnominal|adverb",
+   "n": 394,
+   "pct": 0.058598601069945015
+  },
+  {
+   "pair": "adjective|adnominal",
+   "n": 303,
+   "pct": 0.04506440640658208
+  },
+  {
+   "pair": "particle|utterance",
+   "n": 182,
+   "pct": 0.02706838932672587
+  },
+  {
+   "pair": "pronoun|verb",
+   "n": 164,
+   "pct": 0.024391295876829904
+  },
+  {
+   "pair": "noun|utterance",
+   "n": 149,
+   "pct": 0.022160384668583267
+  },
+  {
+   "pair": "adnominal|verb",
+   "n": 128,
+   "pct": 0.019037108977037975
+  },
+  {
+   "pair": "adnominal|auxiliary",
+   "n": 122,
+   "pct": 0.01814474449373932
+  },
+  {
+   "pair": "auxiliary|utterance",
+   "n": 81,
+   "pct": 0.012046920524531842
+  },
+  {
+   "pair": "adjective|pronoun",
+   "n": 70,
+   "pct": 0.010410918971817642
+  },
+  {
+   "pair": "utterance|verb",
+   "n": 57,
+   "pct": 0.008477462591337224
+  },
+  {
+   "pair": "adverb|utterance",
+   "n": 54,
+   "pct": 0.008031280349687895
+  },
+  {
+   "pair": "pronoun|utterance",
+   "n": 54,
+   "pct": 0.008031280349687895
+  },
+  {
+   "pair": "adnominal|pronoun",
+   "n": 39,
+   "pct": 0.005800369141441258
+  },
+  {
+   "pair": "adjective|utterance",
+   "n": 29,
+   "pct": 0.004313095002610166
+  },
+  {
+   "pair": "adnominal|utterance",
+   "n": 9,
+   "pct": 0.0013385467249479826
+  }
+ ],
+ "unigram": [
+  [
+   "pronoun",
+   47690
+  ],
+  [
+   "particle",
+   275158
+  ],
+  [
+   "adnominal",
+   13007
+  ],
+  [
+   "noun",
+   251964
+  ],
+  [
+   "verb",
+   129125
+  ],
+  [
+   "auxiliary",
+   95665
+  ],
+  [
+   "adjective",
+   14186
+  ],
+  [
+   "adverb",
+   17038
+  ],
+  [
+   "utterance",
+   938
+  ]
+ ]
+}
