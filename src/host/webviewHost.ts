@@ -14,16 +14,31 @@ import { ensureDatabase, ensureNamesDatabase } from "./ensureDatabase";
 import { provideHover } from "./hoverProvider";
 import { mark, timed } from "./log";
 import { NamesDictionary } from "./names";
+import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
 import type {
+  ClearRecentSearchesRequest,
+  GetRecentSearchesRequest,
   GetStrokeSvgRequest,
   HostPush,
   HostSettings,
+  RecordRecentSearchRequest,
   Request,
   Response,
   WebviewReady
 } from "../shared/messages";
 import { currentSettings, grammarEnabled, VIEW_ID } from "./hostSettings";
+
+/** The three requests backed by `globalState` rather than by a dictionary. */
+type RecentRequest =
+  | GetRecentSearchesRequest
+  | RecordRecentSearchRequest
+  | ClearRecentSearchesRequest;
+
+const isRecentRequest = (request: Request): request is RecentRequest =>
+  request.type === "getRecentSearches" ||
+  request.type === "recordRecentSearch" ||
+  request.type === "clearRecentSearches";
 
 /**
  * Serves the React webview into the sidebar and bridges its messages to the dictionary. The DB is
@@ -254,9 +269,39 @@ export class JishoViewProvider
         ? copyText(request)
         : request.type === "getStrokeSvg"
           ? this.#strokeSvg(request)
-          : request.type === "searchNames" || request.type === "getName"
-            ? respondNames(await this.#namesDict(), request)
-            : respond(await this.#dict(), request);
+          : isRecentRequest(request)
+            ? this.#recentSearches(request)
+            : request.type === "searchNames" || request.type === "getName"
+              ? respondNames(await this.#namesDict(), request)
+              : respond(await this.#dict(), request);
+  }
+
+  /**
+   * Recent-search history. Served here rather than in `dispatch.ts` because it is backed by the
+   * extension's `globalState`, not by the dictionary — every one of these replies with the full
+   * list, so a record or a clear needs no follow-up fetch.
+   */
+  async #recentSearches(
+    request:
+      | GetRecentSearchesRequest
+      | RecordRecentSearchRequest
+      | ClearRecentSearchesRequest
+  ): Promise<Response> {
+    if (request.type === "recordRecentSearch") {
+      await recordRecent(this.#context, {
+        query: request.query,
+        headword: request.headword
+      });
+    } else if (request.type === "clearRecentSearches") {
+      await clearRecent(this.#context);
+    }
+    // Echo the REQUEST's type: the webview bridge correlates a reply by matching `type`, so a
+    // shared response type would fail that check on every call.
+    return {
+      type: request.type,
+      requestId: request.requestId,
+      recent: readRecent(this.#context)
+    };
   }
 
   /**

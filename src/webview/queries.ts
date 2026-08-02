@@ -11,6 +11,7 @@ import type {
   ComponentTreeDto,
   NameResultDto,
   RadicalLookupDto,
+  RecentSearchDto,
   SearchResultDto,
   SegmentDto,
   WordDetailDto
@@ -21,6 +22,7 @@ import {
   getMoreExamples,
   getName,
   getComponentTree,
+  getRecentSearches,
   getStrokeSvg,
   getWord,
   lookupRadicals,
@@ -179,4 +181,17 @@ export const aboutQuery = (): ReturnType<
   queryOptions({
     queryKey: ["about"],
     queryFn: async () => (await getAbout()).meta
+  });
+
+/**
+ * Recent-search history (#17). Cached like anything else, but the cache is also written directly
+ * by `recordRecentSearch`/`clearRecentSearches` — every host reply carries the full list, so the
+ * UI updates without a refetch round-trip.
+ */
+export const recentSearchesQuery = (): ReturnType<
+  typeof queryOptions<RecentSearchDto[], Error, RecentSearchDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["recentSearches"],
+    queryFn: async () => (await getRecentSearches()).recent
   });

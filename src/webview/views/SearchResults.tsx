@@ -1,5 +1,5 @@
 import { useDeferredValue, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Input,
@@ -11,8 +11,9 @@ import type { Selection } from "react-aria-components";
 import { namesQuery, searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
+import { RecentSearches } from "../components/RecentSearches";
 import { SegmentBar } from "../components/SegmentBar";
-import { openSettings } from "../bridge";
+import { openSettings, recordRecentSearch } from "../bridge";
 import { useNavigate } from "../navigation";
 import styles from "./SearchResults.module.css";
 
@@ -42,6 +43,32 @@ export const SearchResults = ({
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
   const deferredQuery = useDeferredValue(query);
+  const client = useQueryClient();
+  /**
+   * Remember a lookup (#17).
+   *
+   * Called when the user OPENS a result, not as they type — the query text changes on every
+   * keystroke, so recording that would remember `食`, `食べ`, `食べる`, every prefix of every
+   * search. Opening a result is the discrete signal of intent, and it makes the list read as
+   * "words I looked up" rather than "things I typed".
+   *
+   * Fire-and-forget: the history is a convenience, and a failure to record one must not interrupt
+   * the navigation the user actually asked for.
+   */
+  const remember = (headword: string | undefined): void => {
+    if (headword === undefined) return;
+    void (async (): Promise<void> => {
+      try {
+        const response = await recordRecentSearch(query, headword);
+        // The host replies with the full list, so write it into the cache rather than invalidating
+        // and paying a second round trip for something we already have.
+        client.setQueryData(["recentSearches"], response.recent);
+      } catch {
+        // Swallowed: the history is a convenience, and failing to record one lookup must not
+        // interrupt the navigation the user actually asked for.
+      }
+    })();
+  };
   const {
     data,
     isFetching,
@@ -155,13 +182,17 @@ export const SearchResults = ({
         <SegmentBar segments={segments} onSelectSegment={onQueryChange} />
       ) : null}
 
-      {renderStatus({
-        query: deferredQuery,
-        isFetching,
-        isError,
-        error,
-        count
-      })}
+      {query.trim() === "" ? (
+        <RecentSearches onSelect={onQueryChange} />
+      ) : (
+        renderStatus({
+          query: deferredQuery,
+          isFetching,
+          isError,
+          error,
+          count
+        })
+      )}
 
       <div className={styles.list} ref={listRef} onKeyDown={onListKeyDown}>
         {words.length > 0 ? (
@@ -169,7 +200,11 @@ export const SearchResults = ({
             aria-label="Word results"
             selectionMode="single"
             onSelectionChange={noop}
-            onAction={(key) => onOpenWord(String(key))}
+            onAction={(key) => {
+              const id = String(key);
+              remember(words.find((w) => w.id === id)?.headword);
+              onOpenWord(id);
+            }}
             items={words}
           >
             {(item) => (
@@ -199,7 +234,12 @@ export const SearchResults = ({
               aria-label="Kanji results"
               selectionMode="single"
               onSelectionChange={noop}
-              onAction={(key) => onOpenKanji(String(key))}
+              onAction={(key) => {
+                // A kanji IS its own headword, so there is nothing to look up here.
+                const literal = String(key);
+                remember(literal);
+                onOpenKanji(literal);
+              }}
               items={kanji}
             >
               {(item) => (
@@ -234,7 +274,11 @@ export const SearchResults = ({
               aria-label="Name results"
               selectionMode="single"
               onSelectionChange={noop}
-              onAction={(key) => onOpenName(String(key))}
+              onAction={(key) => {
+                const id = String(key);
+                remember(nameResults.find((n) => n.id === id)?.headword);
+                onOpenName(id);
+              }}
               items={nameResults}
             >
               {(item) => (
@@ -284,9 +328,9 @@ const renderStatus = ({
   error: unknown;
   count: number | undefined;
 }): React.ReactElement | null => {
-  if (query.trim() === "") {
-    return <p className={styles.status}>Type to search the dictionary.</p>;
-  }
+  // The empty case is NOT handled here: it renders the recent-search history, which needs hooks,
+  // and this is a plain function. `SearchResults` renders <RecentSearches /> instead.
+  if (query.trim() === "") return null;
   if (isError) {
     const message = error instanceof Error ? error.message : "Search failed.";
     return <p className={styles.status}>{message}</p>;

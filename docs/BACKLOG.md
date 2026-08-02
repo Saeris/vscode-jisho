@@ -395,11 +395,20 @@ Shape: a curated grammar-notes dataset (our own writing, versioned in-repo — i
 
 Start small: the ~15 N5 particles and the auxiliary chain the conjugation table already generates. This is a writing task as much as a coding one — budget accordingly.
 
-### 35. Sort browseable lists by reading — gojūon order (fix — small) — ⚠️ groundwork only
+### 35. Sort browseable lists by reading — gojūon order (fix — small) — ⛔ BLOCKED on a consuming surface (#54)
 
-Codepoint order over kanji is meaningless; Japanese "alphabetical" order is 五十音順 applied to the READING — and we already store readings for everything, so proper Japanese collation is nearly free. Apply to any browseable list (kanji detail's word list, name results, radical-picker matches): normalize katakana → hiragana, fold small kana and voiced marks (JIS X 4061 is the reference standard for the comparison rules), sort. Most Western dictionary apps get this wrong; getting it right is cheap differentiation. Note: search RESULTS keep relevance order — this is for lists a user scans like an index.
+Codepoint order over kanji is meaningless; Japanese "alphabetical" order is 五十音順 applied to the READING — and we already store readings for everything, so proper Japanese collation is nearly free. Normalize katakana → hiragana, fold small kana and voiced marks (JIS X 4061 is the reference standard for the comparison rules), sort. Most Western dictionary apps get this wrong; getting it right is cheap differentiation.
 
-**Status, checked 2026-07-30:** the `kana.sort_key` column exists, is populated by the build (`sortKey` in `src/shared/kana.ts`) and has a `db.spec.ts` test — but NO query orders by it. The column is ready; the feature is not, and there is no browseable list consuming it yet. Easy to mistake for done, because the test asserts the ordering directly over raw SQL rather than through any product surface.
+**Status, re-checked 2026-08-02: do NOT "finish" this by adding `ORDER BY sort_key` to an existing list.** The collation is built and correct (`sortKey` in `src/shared/kana.ts`, `kana.sort_key` populated by the build, pinned by a `db.spec.ts` test). What is missing is not a query — it is a list worth sorting this way. Every list the original note named turns out to be RANKED, not scanned:
+
+| list                     | current order                           | why gojūon would be wrong                                                            |
+| ------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------ |
+| kanji detail's word list | `common DESC, freq_rank ASC` `LIMIT 10` | ranked _and_ truncated — alphabetising the top 10 buries 食べる under rarer 食-words |
+| radical-picker matches   | `frequency` `LIMIT 100`                 | a frequency-ranked shortlist                                                         |
+| name results             | relevance `score DESC`                  | search results, which this item explicitly excludes                                  |
+| a word's own readings    | `position`                              | JMdict's own order is meaningful (primary reading first)                             |
+
+Gojūon is for an INDEX the user scans, and the extension has none yet. The surface that needs it is **#54 (vocabulary lists / browse by category)** — a JLPT-level or tag-based list is exactly the thing a learner scans alphabetically. Land this alongside that, not before it.
 
 ### 36. Name-reading fallback in the hover (JMnedict) — gated against false positives (feature — medium) — ✅ shipped
 
@@ -562,8 +571,27 @@ Suspected cause, not yet confirmed: the "words that already carry ruby markup ar
 
 Related and already fixed: `removeFuriganaFromLine` used to be `stripRuby(line).text`, which meant the same emphasis-dropping DELETED the user's markdown when they ran "Remove furigana". It now uses `stripRubyText`, which touches only ruby.
 
+## Browsing
+
+### 54. Vocabulary lists — browse the dictionary by category, not only by search box (feature — large)
+
+A second way in. Everything today starts at the search box, which only helps someone who already knows what they are looking for; a learner also wants to _browse_ — "show me N5 vocabulary", "show me Kansai-ben". This is the surface that **#35** (gojūon ordering) has been waiting for: a category list is exactly the kind of index a reader scans alphabetically, unlike every ranked list we currently render.
+
+Interleaves with **#27** (tag search) — they are the same data reached two ways, so design them together. #27 is the query syntax (`#jlpt-n5` typed into the search box); this is the browsable presentation of the same categories. Build the shared classifier layer once.
+
+**First categories to build, in order:**
+
+- **JLPT level** (`#jlpt-n5` … `#jlpt-n1`). The data already ships — `words.jlpt` is populated (93.0% of the list matched at build time) and the badge already renders on the word page. This is the cheapest first vertical and the one learners ask for most.
+- **Slang and dialect**, with subcategories: "Children's language", "Kansai-ben", "Honorific (sonkeigo)", and so on. JMdict's misc/dialect tags (`col`, `ksb`, `hon`, `hum`, `chn`…) already carry this; we store them and render them as tags on the word page but offer no way to browse by them.
+
+**Reference:** [Jisho.org's search-operator docs](https://jisho.org/docs) for tag vocabulary and naming. Shirabe Jisho has a more thorough category/subcategory taxonomy worth mirroring — the author will supply it during design.
+
+**Open questions for the design pass:** where the entry point lives (a third top-level view alongside search and radicals?), whether lists are paginated or virtualised (N5 alone is ~700 words), and whether a browsed list is a distinct navigation view or reuses `SearchResults` with a synthetic query.
+
 ## Suggested sequencing
 
 **Superseded — every item this section ordered is shipped.** It read "1. #1 (relevance ranking) — highest leverage, do this first" long after #1 shipped in M2, which is exactly the trap the numbering warning at the top of this file exists to prevent. Kept as a record of the original M1-era plan; do not read it as a plan.
 
-For what to do next, use [ROADMAP.md](ROADMAP.md) (milestone view — M1–M7 shipped, M8 not started) together with the unmarked items above. As of the 2026-07-30 audit the nearest candidates are **#32** (word-detail redesign) with **#50** (POS pills) folded in, since they touch the same surface; **#17** (recent-search history) and **#48** (mouse-button navigation) as small independent wins; and **#35**, which needs only a consumer for a column that already exists.
+For what to do next, use [ROADMAP.md](ROADMAP.md) (milestone view — M1–M7 shipped, M8 not started) together with the unmarked items above. As of the 2026-08-02 pass the nearest candidates are **#32** (word-detail redesign) with **#50** (POS pills) folded in, since they touch the same surface and the palette they need now exists; and **#17** (recent-search history) and **#48** (mouse-button navigation) as small independent wins.
+
+**#35 is not a candidate** despite looking like one: its collation is built and correct, but every list we render is relevance-ranked, so there is nothing to sort. It unblocks with **#54** (vocabulary lists), not before.

@@ -390,6 +390,39 @@ export interface CopyTextRequest {
   text: string;
 }
 
+/** One remembered lookup, for the empty search view's history (#17). */
+export interface RecentSearchDto {
+  /** The text to re-run when tapped. */
+  query: string;
+  /** What the user opened — the label, when it differs from what they typed. */
+  headword: string;
+  /** Epoch millis; the list is already sorted most-recent-first. */
+  at: number;
+}
+
+/** Read the recent-search history. */
+export interface GetRecentSearchesRequest {
+  type: "getRecentSearches";
+  requestId: string;
+}
+
+/**
+ * Record a lookup. Sent when the user OPENS a result, not as they type — the query text changes on
+ * every keystroke, so recording that would remember every prefix of every search.
+ */
+export interface RecordRecentSearchRequest {
+  type: "recordRecentSearch";
+  requestId: string;
+  query: string;
+  headword: string;
+}
+
+/** Forget the history. */
+export interface ClearRecentSearchesRequest {
+  type: "clearRecentSearches";
+  requestId: string;
+}
+
 export type Request =
   | SearchRequest
   | GetWordRequest
@@ -402,7 +435,10 @@ export type Request =
   | SearchNamesRequest
   | GetNameRequest
   | OpenSettingsRequest
-  | CopyTextRequest;
+  | CopyTextRequest
+  | GetRecentSearchesRequest
+  | RecordRecentSearchRequest
+  | ClearRecentSearchesRequest;
 
 export interface SearchResponse {
   type: "search";
@@ -483,6 +519,27 @@ export interface CopyTextResponse {
   requestId: string;
 }
 
+/**
+ * The history, most-recent-first.
+ *
+ * One interface, three response types — the bridge correlates a reply by matching `type` against
+ * the REQUEST's type, so a shared `"recentSearches"` type would fail that check on every call.
+ * Every variant carries the full list, so a record or a clear updates the UI with no refetch.
+ */
+interface RecentSearchesPayload {
+  requestId: string;
+  recent: RecentSearchDto[];
+}
+export interface GetRecentSearchesResponse extends RecentSearchesPayload {
+  type: "getRecentSearches";
+}
+export interface RecordRecentSearchResponse extends RecentSearchesPayload {
+  type: "recordRecentSearch";
+}
+export interface ClearRecentSearchesResponse extends RecentSearchesPayload {
+  type: "clearRecentSearches";
+}
+
 export interface GetNameResponse {
   type: "getName";
   requestId: string;
@@ -549,4 +606,7 @@ export type Response =
   | GetNameResponse
   | OpenSettingsResponse
   | CopyTextResponse
+  | GetRecentSearchesResponse
+  | RecordRecentSearchResponse
+  | ClearRecentSearchesResponse
   | ErrorResponse;

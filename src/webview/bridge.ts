@@ -14,6 +14,9 @@ import type {
   HostPush,
   HostSettings,
   LookupRadicalsResponse,
+  ClearRecentSearchesResponse,
+  GetRecentSearchesResponse,
+  RecordRecentSearchResponse,
   Request,
   Response,
   SearchNamesResponse,
@@ -215,3 +218,20 @@ export const openSettings = async (): Promise<void> => {
 export const copyText = async (text: string): Promise<void> => {
   await send({ type: "copyText", requestId: nextRequestId(), text });
 };
+
+/**
+ * Recent-search history (#17). All three reply with the full list, so a record or a clear updates
+ * the cache directly and needs no follow-up fetch.
+ */
+export const getRecentSearches = async (): Promise<GetRecentSearchesResponse> =>
+  request("getRecentSearches", {});
+
+export const recordRecentSearch = async (
+  query: string,
+  headword: string
+): Promise<RecordRecentSearchResponse> =>
+  request("recordRecentSearch", { query, headword });
+
+export const clearRecentSearches =
+  async (): Promise<ClearRecentSearchesResponse> =>
+    request("clearRecentSearches", {});

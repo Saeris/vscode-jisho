@@ -73,6 +73,10 @@ type WordRequest = Exclude<
   | { type: "getStrokeSvg" }
   | { type: "openSettings" }
   | { type: "copyText" }
+  // Backed by globalState, not by a dictionary — served in webviewHost, which owns the context.
+  | { type: "getRecentSearches" }
+  | { type: "recordRecentSearch" }
+  | { type: "clearRecentSearches" }
 >;
 
 /** Dispatch a word/kanji request to the dictionary and build its response. */
