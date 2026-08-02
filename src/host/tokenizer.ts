@@ -20,23 +20,49 @@ import type { PartOfSpeech, SegmentDto } from "../shared/messages";
 /** A built tokenizer instance (the class is a value; this is its instance type). */
 type Tokenizer = InstanceType<typeof LinderaTokenizer>;
 
-/** Map IPADIC's Japanese part-of-speech tags to the small enum the UI colors. */
-const POS_MAP: Record<string, PartOfSpeech> = {
+/**
+ * Map IPADIC's Japanese part-of-speech tags to the enum the UI colours.
+ *
+ * Three tags are folded into the category they grammatically belong to rather than left
+ * uncoloured. An uncoloured word is not neutral, it is AMBIGUOUS: several palette colours
+ * desaturate toward grey under dichromacy, so "no category" becomes confusable with "some
+ * category" (docs/pos-palette-research.md §1.5). Only 記号 (punctuation) stays uncoloured — its
+ * glyph shape disambiguates it independently.
+ *
+ *   接頭詞 (お, 大, 新, 第) → noun. Bound morpheme; it never stands alone, so colouring it as its
+ *     host makes お話 read as one unit, which is what it grammatically is.
+ *   接続詞 (しかし, だから) → particle. Joins clauses — structural, exactly what particles do.
+ *   感動詞 / フィラー (もしもし, ああ, えと) → utterance. Verified over 25,000 sentences: these are
+ *     sentence-initial 38.0% of the time against particles' 0.0%, so they frame at a different
+ *     scale but belong to the same "divides and frames" cluster.
+ */
+const POS_MAP: Record<string, PartOfSpeech | undefined> = {
   名詞: "noun",
   動詞: "verb",
   形容詞: "adjective",
   副詞: "adverb",
   助詞: "particle",
   助動詞: "auxiliary",
-  連体詞: "adjective", // prenominal adjectivals — group with adjectives for coloring
-  接続詞: "other",
-  感動詞: "other",
-  記号: "other",
-  フィラー: "other",
-  接頭詞: "other"
+  連体詞: "adnominal",
+  感動詞: "utterance",
+  フィラー: "utterance",
+  接続詞: "particle",
+  接頭詞: "noun",
+  記号: "other"
 };
 
-const toPartOfSpeech = (tag: string): PartOfSpeech => POS_MAP[tag] ?? "other";
+/**
+ * IPADIC subcategories that are their own colour category. Pronouns are filed under 名詞 rather
+ * than given a top-level tag, so a map keyed only on the top-level tag structurally cannot express
+ * them — yet at 5.06% of tokens they are the 6th most common category overall.
+ */
+const SUBCATEGORY_POS: Record<string, PartOfSpeech | undefined> = {
+  "名詞:代名詞": "pronoun"
+};
+
+/** Subcategory wins where one is defined; otherwise the top-level tag; otherwise uncoloured. */
+const toPartOfSpeech = (tag: string, subcategory: string): PartOfSpeech =>
+  SUBCATEGORY_POS[`${tag}:${subcategory}`] ?? POS_MAP[tag] ?? "other";
 
 let cached: Promise<Tokenizer> | undefined;
 let dictPath: string | undefined;
@@ -141,9 +167,9 @@ export const segment = async (text: string): Promise<DetailedSegment[]> => {
   const segments: DetailedSegment[] = [];
   for (const token of tokens) {
     const { details, surface } = token;
-    const pos = toPartOfSpeech(feature(details, IPADIC_POS));
     const baseForm = feature(details, IPADIC_BASE_FORM);
     const subcategory1 = feature(details, IPADIC_SUBCATEGORY1);
+    const pos = toPartOfSpeech(feature(details, IPADIC_POS), subcategory1);
     const morpheme: MorphemeDto = {
       surface,
       lemma: baseForm === "" ? surface : baseForm,

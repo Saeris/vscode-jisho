@@ -8,13 +8,20 @@ interface SegmentBarProps {
   onSelectSegment: (lemma: string) => void;
 }
 
+/**
+ * Whether a segment is a searchable content word. Particles and auxiliaries are grammar, not
+ * vocabulary — searching them lands on a function-word entry nobody wanted — so they render as
+ * static text. They are still COLOURED (see the CSS): being uncoloured would make them ambiguous
+ * with categories that desaturate toward grey under dichromacy.
+ */
 const isContent = (pos: SegmentDto["pos"]): boolean =>
   pos !== "particle" && pos !== "auxiliary" && pos !== "other";
 
 /**
  * The morphological breakdown of a multi-word query (jisho.org-style): each content word is a
- * POS-colored chip that re-searches its dictionary form; particles/auxiliaries render dimmed and
- * inert. Colors derive from VSCode's chart palette so they track the active theme.
+ * POS-colored chip that re-searches its dictionary form; particles and auxiliaries render inert.
+ * Colours come from the part-of-speech palette (src/shared/posPalette.ts) and follow the user's
+ * chosen variant plus the editor's light/dark theme.
  */
 export const SegmentBar = ({
   segments,
@@ -33,7 +40,7 @@ export const SegmentBar = ({
           {seg.surface}
         </Button>
       ) : (
-        <span key={i} className={styles.particle}>
+        <span key={i} className={styles.particle} data-pos={seg.pos}>
           {seg.surface}
         </span>
       )

@@ -29,6 +29,11 @@ export const POS_CODE: Record<PartOfSpeech, string> = {
   adverb: "adv",
   particle: "p",
   auxiliary: "aux",
+  // Added with the nine-category palette. The pre-existing codes above keep their meaning, so
+  // markup already in the DB still parses to the same category; only newly built rows use these.
+  pronoun: "pn",
+  adnominal: "adn",
+  utterance: "utt",
   other: "o"
 };
 
@@ -39,6 +44,9 @@ const CODE_POS: Record<string, PartOfSpeech> = {
   adv: "adverb",
   p: "particle",
   aux: "auxiliary",
+  pn: "pronoun",
+  adn: "adnominal",
+  utt: "utterance",
   o: "other"
 };
 

@@ -89,15 +89,51 @@ export interface SenseDto {
   sentences: SentenceDto[];
 }
 
-/** Normalized part of speech, for coloring the query breakdown. */
+/**
+ * Normalized part of speech, for coloring the query breakdown and the editor.
+ *
+ * Nine colour-bearing categories, grouped into the four semantic clusters the palette encodes
+ * (docs/pos-palette-research.md). IPADIC can prove every one of them; `pronoun` is the single
+ * subcategory read (`名詞,代名詞`, 5.06% of tokens — the 6th most common category overall).
+ * `other` is punctuation, which stays uncoloured because its glyph shape already disambiguates it.
+ */
 export type PartOfSpeech =
+  // things — entities
+  | "pronoun"
   | "noun"
-  | "verb"
+  // modifiers
+  | "adnominal"
   | "adjective"
   | "adverb"
+  // structure — divides and frames the sentence
   | "particle"
+  | "utterance"
+  // actions
+  | "verb"
   | "auxiliary"
+  // punctuation and anything unclassified
   | "other";
+
+/** The semantic cluster a part of speech belongs to; hue is assigned per cluster. */
+export type PosCluster =
+  | "things"
+  | "modifier"
+  | "structure"
+  | "actions"
+  | "other";
+
+export const POS_CLUSTER: Record<PartOfSpeech, PosCluster> = {
+  pronoun: "things",
+  noun: "things",
+  adnominal: "modifier",
+  adjective: "modifier",
+  adverb: "modifier",
+  particle: "structure",
+  utterance: "structure",
+  verb: "actions",
+  auxiliary: "actions",
+  other: "other"
+};
 
 /** One segment of a tokenized query, for the multi-word breakdown bar. */
 export interface SegmentDto {
@@ -491,6 +527,12 @@ export interface HostSettings {
     textScale: number;
     /** Stroke-order guide arrows: clear of the stroke ("offset") or tracing it ("aligned"). */
     guideStyle: "offset" | "aligned";
+    /**
+     * Which part-of-speech palette to colour with. The three dichromacy palettes are built
+     * natively for that vision type rather than adapted from the standard one, so they are a
+     * genuine alternative rather than a degraded version (docs/pos-palette-research.md).
+     */
+    palette: "standard" | "protanopia" | "deuteranopia" | "tritanopia";
   };
 }
 

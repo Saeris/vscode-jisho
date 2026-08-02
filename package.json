@@ -31,6 +31,7 @@
     "build:data": "vp exec node scripts/build-data.ts",
     "build:strokes": "vp exec node scripts/build-strokes.ts",
     "build:tokenizer-dict": "vp exec node scripts/build-tokenizer-dict.ts",
+    "build:pos-css": "vp exec node scripts/gen-pos-css.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
     "build:data:names": "vp exec node scripts/build-data.ts --names",
     "bench": "vp test bench --run --project bench",
@@ -132,6 +133,23 @@
           "minimum": 0.8,
           "maximum": 2,
           "description": "Text size in the Jisho panel, as a multiplier over VS Code's font size. Kanji often need a little more room than Latin text."
+        },
+        "vscode-jisho.appearance.palette": {
+          "type": "string",
+          "default": "standard",
+          "enum": [
+            "standard",
+            "protanopia",
+            "deuteranopia",
+            "tritanopia"
+          ],
+          "enumDescriptions": [
+            "Nine distinct colors, one per part of speech.",
+            "Built for protanopia (reduced sensitivity to red).",
+            "Built for deuteranopia (reduced sensitivity to green) — the most common form.",
+            "Built for tritanopia (reduced sensitivity to blue) — rare."
+          ],
+          "markdownDescription": "Which color palette to use when coloring Japanese by part of speech, in the panel and in the editor.\n\nThe three color-vision palettes are not tinted versions of the standard one — each is built from scratch for how that type of vision actually perceives color, so words stay distinguishable rather than merely legible."
         },
         "vscode-jisho.strokeOrder.guideStyle": {
           "type": "string",

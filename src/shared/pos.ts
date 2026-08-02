@@ -49,8 +49,19 @@ export const posMatches = (coarse: PartOfSpeech, code: string): boolean => {
         code === "num" ||
         code === "ctr"
       );
+    case "pronoun":
+      // JMdict marks pronouns `pn`, but many are also (or only) tagged as plain nouns, so accept
+      // both: rejecting `n` here would make 彼 and それ fail to resolve.
+      return code === "pn" || code === "n";
+    case "adnominal":
+      // 連体詞 (この, その, 大きな). JMdict's closest tag is `adj-pn` (pre-noun adjectival).
+      return code === "adj-pn" || code.startsWith("adj");
     case "particle":
       return code === "prt";
+    case "utterance":
+      // 感動詞 / フィラー, plus the conjunctions folded in here for colouring. JMdict: `int`
+      // (interjection), `conj` (conjunction), `exp` (expression — many greetings are tagged this).
+      return code === "int" || code === "conj" || code === "exp";
     case "auxiliary":
       return code.startsWith("aux") || code === "cop";
     case "other":

@@ -28,23 +28,51 @@
   border-color: var(--pos-color, var(--jisho-focus));
 }
 
-.chip[data-pos="noun"] {
-  --pos-color: var(--vscode-charts-blue, #4fc1ff);
+/*
+ * Colour from the part-of-speech palette (src/shared/posPalette.ts, tokens in posPalette.css).
+ * These previously borrowed `--vscode-charts-*`, which offers only six hues for nine categories —
+ * pronoun, adnominal and utterance had no colour at all and fell through to the foreground.
+ */
+.chip[data-pos="pronoun"] {
+  --pos-color: var(--pos-pronoun);
 }
-.chip[data-pos="verb"] {
-  --pos-color: var(--vscode-charts-green, #73c991);
+.chip[data-pos="noun"] {
+  --pos-color: var(--pos-noun);
+}
+.chip[data-pos="adnominal"] {
+  --pos-color: var(--pos-adnominal);
 }
 .chip[data-pos="adjective"] {
-  --pos-color: var(--vscode-charts-orange, #d7a25f);
+  --pos-color: var(--pos-adjective);
 }
 .chip[data-pos="adverb"] {
-  --pos-color: var(--vscode-charts-purple, #b180d7);
+  --pos-color: var(--pos-adverb);
+}
+.chip[data-pos="verb"] {
+  --pos-color: var(--pos-verb);
+}
+.chip[data-pos="auxiliary"] {
+  --pos-color: var(--pos-auxiliary);
+}
+.chip[data-pos="utterance"] {
+  --pos-color: var(--pos-utterance);
 }
 
-/* Non-content segments (particles, auxiliaries): dimmed, not interactive. */
+/*
+ * Non-content segments (particles, auxiliaries): static text, not tappable — but no longer dimmed
+ * to grey. An uncoloured word is not neutral, it is ambiguous: several palette colours desaturate
+ * toward grey under dichromacy, so "no category" becomes confusable with "some category"
+ * (docs/pos-palette-research.md §1.5). Particles are 29% of all tokens and act as the word
+ * boundary, so they carry their own colour like everything else.
+ */
 .particle {
   font: inherit;
-  color: var(--jisho-muted);
+  color: var(--pos-color, var(--jisho-muted));
   padding: 1px 4px;
-  opacity: 0.6;
+}
+.particle[data-pos="particle"] {
+  --pos-color: var(--pos-particle);
+}
+.particle[data-pos="auxiliary"] {
+  --pos-color: var(--pos-auxiliary);
 }

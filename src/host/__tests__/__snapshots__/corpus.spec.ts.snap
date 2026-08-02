@@ -4,7 +4,7 @@ exports[`tokenizer over a real corpus — snapshots > segments: ある日の暮�
 [
   {
     "lemma": "ある",
-    "pos": "adjective",
+    "pos": "adnominal",
     "surface": "ある日",
   },
   {
@@ -124,7 +124,7 @@ exports[`tokenizer over a real corpus — snapshots > segments: 私は、この�
 [
   {
     "lemma": "私",
-    "pos": "noun",
+    "pos": "pronoun",
     "surface": "私",
   },
   {
@@ -139,7 +139,7 @@ exports[`tokenizer over a real corpus — snapshots > segments: 私は、この�
   },
   {
     "lemma": "この",
-    "pos": "adjective",
+    "pos": "adnominal",
     "surface": "この",
   },
   {

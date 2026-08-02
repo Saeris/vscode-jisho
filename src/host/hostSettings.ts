@@ -24,6 +24,7 @@ export const currentSettings = (): HostSettings["settings"] => {
   const config = vscode.workspace.getConfiguration("vscode-jisho");
   return {
     textScale: config.get("appearance.textScale", 1.08),
-    guideStyle: config.get("strokeOrder.guideStyle", "offset")
+    guideStyle: config.get("strokeOrder.guideStyle", "offset"),
+    palette: config.get("appearance.palette", "standard")
   };
 };

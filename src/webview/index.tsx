@@ -6,6 +6,7 @@ import { onHostSettings } from "./bridge";
 import { applySettings } from "./settings";
 import { isSpeechAvailable } from "./speech";
 import "./styles/theme.css";
+import "./styles/posPalette.css";
 
 // Pre-warm the TTS voice list: getVoices() populates asynchronously (up to ~1s), and paying that
 // wait at startup instead of on the first Play/Speak click removes OUR share of TTS latency (the

@@ -1,0 +1,184 @@
+/*
+ * Part-of-speech palette tokens.
+ *
+ * GENERATED from src/shared/posPalette.ts by scripts/gen-pos-css.ts — do not hand-edit.
+ *
+ * Never replace the `oklch()` values with hex: six of the standard palette's colours sit outside
+ * sRGB deliberately, and hex quantises to 8 bits per channel and clamps them
+ * (docs/pos-palette-research.md).
+ *
+ * The palette is selected by a `data-jisho-palette` attribute set from the user's setting.
+ * Light/dark follows VS Code's own body class, so it tracks theme changes with no JS.
+ */
+
+/* ── standard ─────────────────────────────────────────────── */
+body[data-jisho-palette="standard"] {
+  --pos-utterance: rgb(159 219 182);
+  --pos-utterance: oklch(0.84 0.08 157.5);
+  --pos-pronoun: rgb(137 218 225);
+  --pos-pronoun: oklch(0.84 0.08 202.5);
+  --pos-noun: rgb(164 211 255);
+  --pos-noun: oklch(0.85 0.08 247.5);
+  --pos-adnominal: rgb(203 202 255);
+  --pos-adnominal: oklch(0.86 0.08 285);
+  --pos-adjective: rgb(229 194 246);
+  --pos-adjective: oklch(0.86 0.08 315);
+  --pos-adverb: rgb(248 188 221);
+  --pos-adverb: oklch(0.86 0.08 345);
+  --pos-verb: rgb(255 189 185);
+  --pos-verb: oklch(0.86 0.08 22.5);
+  --pos-auxiliary: rgb(245 200 153);
+  --pos-auxiliary: oklch(0.86 0.08 67.5);
+  --pos-particle: rgb(206 212 151);
+  --pos-particle: oklch(0.85 0.08 112.5);
+}
+body.vscode-light[data-jisho-palette="standard"],
+body.vscode-high-contrast-light[data-jisho-palette="standard"] {
+  --pos-utterance: rgb(10 125 77);
+  --pos-utterance: oklch(0.52 0.12 157.5);
+  --pos-pronoun: rgb(0 122 132);
+  --pos-pronoun: oklch(0.52 0.12 202.5);
+  --pos-noun: rgb(41 115 176);
+  --pos-noun: oklch(0.54 0.12 247.5);
+  --pos-adnominal: rgb(107 102 180);
+  --pos-adnominal: oklch(0.55 0.12 285);
+  --pos-adjective: rgb(140 90 161);
+  --pos-adjective: oklch(0.55 0.12 315);
+  --pos-adverb: rgb(162 82 130);
+  --pos-adverb: oklch(0.55 0.12 345);
+  --pos-verb: rgb(173 82 80);
+  --pos-verb: oklch(0.55 0.12 22.5);
+  --pos-auxiliary: rgb(156 95 0);
+  --pos-auxiliary: oklch(0.54 0.12 67.5);
+  --pos-particle: rgb(110 114 0);
+  --pos-particle: oklch(0.53 0.12 112.5);
+}
+
+/* ── protanopia ─────────────────────────────────────────────── */
+body[data-jisho-palette="protanopia"] {
+  --pos-utterance: rgb(135 196 156);
+  --pos-utterance: oklch(76.7% 0.0850 155.0);
+  --pos-pronoun: rgb(244 220 157);
+  --pos-pronoun: oklch(89.9% 0.0850 90.0);
+  --pos-noun: rgb(209 186 123);
+  --pos-noun: oklch(79.4% 0.0850 90.0);
+  --pos-adnominal: rgb(105 184 208);
+  --pos-adnominal: oklch(74.1% 0.0850 220.0);
+  --pos-adjective: rgb(139 218 243);
+  --pos-adjective: oklch(84.6% 0.0850 220.0);
+  --pos-adverb: rgb(194 239 254);
+  --pos-adverb: oklch(92.6% 0.0506 220.0);
+  --pos-verb: rgb(190 189 250);
+  --pos-verb: oklch(82.0% 0.0850 285.0);
+  --pos-auxiliary: rgb(157 156 214);
+  --pos-auxiliary: oklch(71.4% 0.0850 285.0);
+  --pos-particle: rgb(168 230 189);
+  --pos-particle: oklch(87.3% 0.0850 155.0);
+}
+body.vscode-light[data-jisho-palette="protanopia"],
+body.vscode-high-contrast-light[data-jisho-palette="protanopia"] {
+  --pos-utterance: rgb(55 143 92);
+  --pos-utterance: oklch(58.2% 0.1150 155.0);
+  --pos-pronoun: rgb(97 76 7);
+  --pos-pronoun: oklch(42.8% 0.0839 90.0);
+  --pos-noun: rgb(138 110 15);
+  --pos-noun: oklch(55.1% 0.1081 90.0);
+  --pos-adnominal: rgb(16 117 141);
+  --pos-adnominal: oklch(52.0% 0.0909 220.0);
+  --pos-adjective: rgb(8 79 97);
+  --pos-adjective: oklch(39.7% 0.0694 220.0);
+  --pos-adverb: rgb(25 156 188);
+  --pos-adverb: oklch(64.3% 0.1124 220.0);
+  --pos-verb: rgb(125 121 198);
+  --pos-verb: oklch(61.2% 0.1150 285.0);
+  --pos-auxiliary: rgb(82 76 148);
+  --pos-auxiliary: oklch(45.8% 0.1150 285.0);
+  --pos-particle: rgb(17 115 66);
+  --pos-particle: oklch(48.9% 0.1150 155.0);
+}
+
+/* ── deuteranopia ─────────────────────────────────────────────── */
+body[data-jisho-palette="deuteranopia"] {
+  --pos-utterance: rgb(148 204 159);
+  --pos-utterance: oklch(79.4% 0.0850 150.0);
+  --pos-pronoun: rgb(235 211 148);
+  --pos-pronoun: oklch(87.3% 0.0850 90.0);
+  --pos-noun: rgb(200 177 115);
+  --pos-noun: oklch(76.7% 0.0850 90.0);
+  --pos-adnominal: rgb(135 220 235);
+  --pos-adnominal: oklch(84.6% 0.0850 210.0);
+  --pos-adjective: rgb(181 243 254);
+  --pos-adjective: oklch(92.6% 0.0637 210.0);
+  --pos-adverb: rgb(92 178 192);
+  --pos-adverb: oklch(71.4% 0.0850 210.0);
+  --pos-verb: rgb(175 194 252);
+  --pos-verb: oklch(82.0% 0.0850 270.0);
+  --pos-auxiliary: rgb(150 169 226);
+  --pos-auxiliary: oklch(74.1% 0.0850 270.0);
+  --pos-particle: rgb(182 238 192);
+  --pos-particle: oklch(89.9% 0.0850 150.0);
+}
+body.vscode-light[data-jisho-palette="deuteranopia"],
+body.vscode-high-contrast-light[data-jisho-palette="deuteranopia"] {
+  --pos-utterance: rgb(22 105 51);
+  --pos-utterance: oklch(45.8% 0.1150 150.0);
+  --pos-pronoun: rgb(117 93 11);
+  --pos-pronoun: oklch(48.9% 0.0960 90.0);
+  --pos-noun: rgb(159 128 31);
+  --pos-noun: oklch(61.2% 0.1150 90.0);
+  --pos-adnominal: rgb(25 158 177);
+  --pos-adnominal: oklch(64.3% 0.1068 210.0);
+  --pos-adjective: rgb(10 89 101);
+  --pos-adjective: oklch(42.8% 0.0710 210.0);
+  --pos-adverb: rgb(18 128 143);
+  --pos-adverb: oklch(55.1% 0.0915 210.0);
+  --pos-verb: rgb(48 64 132);
+  --pos-verb: oklch(39.7% 0.1150 270.0);
+  --pos-auxiliary: rgb(79 100 171);
+  --pos-auxiliary: oklch(52.0% 0.1150 270.0);
+  --pos-particle: rgb(65 142 85);
+  --pos-particle: oklch(58.2% 0.1150 150.0);
+}
+
+/* ── tritanopia ─────────────────────────────────────────────── */
+body[data-jisho-palette="tritanopia"] {
+  --pos-utterance: rgb(213 184 124);
+  --pos-utterance: oklch(79.4% 0.0850 85.0);
+  --pos-pronoun: rgb(253 183 188);
+  --pos-pronoun: oklch(84.6% 0.0814 15.0);
+  --pos-noun: rgb(219 149 154);
+  --pos-noun: oklch(74.1% 0.0850 15.0);
+  --pos-adnominal: rgb(119 179 140);
+  --pos-adnominal: oklch(71.4% 0.0850 155.0);
+  --pos-adjective: rgb(185 248 206);
+  --pos-adjective: oklch(92.6% 0.0850 155.0);
+  --pos-adverb: rgb(152 213 172);
+  --pos-adverb: oklch(82.0% 0.0850 155.0);
+  --pos-verb: rgb(154 225 253);
+  --pos-verb: oklch(87.3% 0.0807 225.0);
+  --pos-auxiliary: rgb(117 191 220);
+  --pos-auxiliary: oklch(76.7% 0.0850 225.0);
+  --pos-particle: rgb(248 218 157);
+  --pos-particle: oklch(89.9% 0.0850 85.0);
+}
+body.vscode-light[data-jisho-palette="tritanopia"],
+body.vscode-high-contrast-light[data-jisho-palette="tritanopia"] {
+  --pos-utterance: rgb(100 75 7);
+  --pos-utterance: oklch(42.8% 0.0841 85.0);
+  --pos-pronoun: rgb(180 92 101);
+  --pos-pronoun: oklch(58.2% 0.1150 15.0);
+  --pos-noun: rgb(140 56 67);
+  --pos-noun: oklch(45.8% 0.1150 15.0);
+  --pos-adnominal: rgb(65 152 101);
+  --pos-adnominal: oklch(61.2% 0.1150 155.0);
+  --pos-adjective: rgb(17 115 66);
+  --pos-adjective: oklch(48.9% 0.1150 155.0);
+  --pos-adverb: rgb(8 85 47);
+  --pos-adverb: oklch(39.7% 0.0942 155.0);
+  --pos-verb: rgb(18 125 158);
+  --pos-verb: oklch(55.1% 0.1002 225.0);
+  --pos-auxiliary: rgb(31 155 193);
+  --pos-auxiliary: oklch(64.3% 0.1150 225.0);
+  --pos-particle: rgb(132 99 13);
+  --pos-particle: oklch(52.0% 0.1023 85.0);
+}
