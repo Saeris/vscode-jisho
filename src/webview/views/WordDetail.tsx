@@ -14,6 +14,7 @@ import { conjugate } from "../conjugate";
 import { Badge } from "../components/Badge";
 import { CopyAsMenu } from "../components/CopyAsMenu";
 import { PitchAccent } from "../components/PitchAccent";
+import { TagPills } from "../components/TagPill";
 import { WaniKaniLink } from "../components/WaniKaniLink";
 import { DetailView } from "../components/DetailView";
 import { ExampleSentence } from "../components/ExampleSentence";
@@ -413,9 +414,15 @@ const Headword = ({ text }: { text: string }): React.ReactElement => {
   );
 };
 
-/** The muted grammar line above a run of senses: parts of speech plus usage tags, spelled out. */
+/**
+ * Identity of a sense's grammar row, for deciding when to repeat it.
+ *
+ * Codes rather than the rendered labels: two senses share a row when they carry the same TAGS, and
+ * comparing codes says that directly instead of inferring it from a string that shortening could
+ * make collide.
+ */
 const senseLabel = (sense: SenseDto): string =>
-  [...sense.partOfSpeech, ...sense.misc].map((t) => t.description).join(", ");
+  [...sense.partOfSpeech, ...sense.misc].map((t) => t.code).join(",");
 
 /** Ⓐ Ⓑ Ⓒ … — Shirabe's sense markers; they double as keys for per-sense example sections. */
 const senseMarker = (index: number): string =>
@@ -433,8 +440,8 @@ const SenseList = ({ word }: { word: WordDetailDto }): React.ReactElement => (
       const changed = i === 0 || label !== senseLabel(word.senses[i - 1]);
       return (
         <div key={i} className={styles.senseRun}>
-          {changed && label !== "" ? (
-            <p className={styles.posLine}>{label}</p>
+          {changed ? (
+            <TagPills pos={sense.partOfSpeech} usage={sense.misc} />
           ) : null}
           <Sense sense={sense} index={i} />
         </div>

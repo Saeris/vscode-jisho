@@ -45,13 +45,15 @@ test("tapping a result opens its word detail", async ({ vscode }) => {
   // getByText() also matches the now-hidden search results. Assert on visible elements only.
   // The Back control is the detail view's unambiguous marker.
   await expect(frame.getByRole("button", { name: /back/i })).toBeVisible();
-  // The detail shows the reading and a resolved part-of-speech tag ("Ichidan verb").
+  // The detail shows the reading and a resolved part-of-speech tag. The tag renders as a compact
+  // Japanese pill (一段動詞) with the JMdict description as its tooltip (#50) — asserting on the
+  // tooltip keeps this checking that the tag RESOLVED, without pinning the label the pill shows.
   await expect(
     frame.getByText("たべる").locator("visible=true").first()
   ).toBeVisible();
   await expect(
     frame
-      .getByText(/ichidan/i)
+      .getByTitle(/ichidan/i)
       .locator("visible=true")
       .first()
   ).toBeVisible();
