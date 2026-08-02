@@ -7,7 +7,7 @@ import { targetWord, transformEditorText } from "./host/editorCommands";
 import { addFurigana, removeFurigana } from "./host/furigana";
 import { VIEW_ID } from "./host/hostSettings";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
-import { provideSemanticTokens, SEMANTIC_LEGEND } from "./host/semanticTokens";
+import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
 import { configureTokenizer } from "./host/tokenizer";
 import { JishoViewProvider } from "./host/webviewHost";
@@ -23,8 +23,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   // Point the tokenizer at the compiled IPADIC dictionary bundled in the .vsix (loaded by path —
   // it isn't embedded in the native addon). Done eagerly at activation, NOT lazily on sidebar open:
-  // the hover and semantic-token providers tokenize on any markdown/plaintext file, which can happen
-  // before the sidebar is ever opened. Cheap (just stores the path); the tokenizer still builds lazily.
+  // the hover and the part-of-speech decorations tokenize on any markdown/plaintext file, which can
+  // happen before the sidebar is ever opened. Cheap (just stores the path); the tokenizer still
+  // builds lazily.
   configureTokenizer(
     vscode.Uri.joinPath(context.extensionUri, "assets", "lindera-ipadic").fsPath
   );
@@ -54,7 +55,11 @@ export function activate(context: vscode.ExtensionContext): void {
   }, 3000);
   housekeeping.unref();
   context.subscriptions.push({ dispose: () => clearTimeout(housekeeping) });
-  const semanticTokensChanged = new vscode.EventEmitter<void>();
+  // Part-of-speech colouring in the editor. Decorations rather than semantic tokens: only
+  // decorations can carry our nine-category palette (see host/posDecorations.ts).
+  const posDecorator = new PosDecorator();
+  context.subscriptions.push(posDecorator);
+  posDecorator.refreshAll();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
   // as written, since reading back a lemma would say a word the user didn't write.
   const pushWord = (action: HostPush["action"]) => async (): Promise<void> => {
@@ -118,23 +123,30 @@ export function activate(context: vscode.ExtensionContext): void {
       "vscode-jisho.checkForDictionaryUpdates",
       async () => checkForDictionaryUpdate(context, { manual: true })
     ),
-    // Live settings: re-push the snapshot whenever the user edits the Jisho section, and have
-    // open editors re-request semantic tokens (that's how the highlighting toggle applies live).
+    // Live settings: re-push the snapshot whenever the user edits the Jisho section, and repaint
+    // the editors (that's how the highlighting toggle and the palette choice apply live).
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("vscode-jisho")) {
         provider.pushSettings();
-        semanticTokensChanged.fire();
+        posDecorator.onConfigurationChanged();
       }
     }),
-    semanticTokensChanged,
-    vscode.languages.registerDocumentSemanticTokensProvider(
-      ["markdown", "plaintext"],
-      {
-        onDidChangeSemanticTokens: semanticTokensChanged.event,
-        provideDocumentSemanticTokens: provideSemanticTokens
-      },
-      SEMANTIC_LEGEND
-    ),
+    // Decorations are PUSHED, not requested, so we own invalidation. Four triggers cover it:
+    // the text changed, a different editor became visible, the user scrolled to text we had not
+    // painted yet, or a document was opened into an already-visible editor.
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      if (!DECORATED_LANGUAGES.includes(event.document.languageId)) return;
+      for (const editor of vscode.window.visibleTextEditors) {
+        if (editor.document === event.document)
+          void posDecorator.refresh(editor);
+      }
+    }),
+    vscode.window.onDidChangeVisibleTextEditors(() => {
+      posDecorator.refreshAll();
+    }),
+    vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
+      void posDecorator.refresh(event.textEditor);
+    }),
     vscode.languages.registerHoverProvider(["markdown", "plaintext"], {
       provideHover: async (document, position, token) =>
         provider.hover(document, position, token)

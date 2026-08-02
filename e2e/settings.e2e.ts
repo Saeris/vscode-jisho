@@ -94,27 +94,71 @@ test("highlighting.enabled colors Japanese by part of speech", async () => {
     .click({ position: { x: 200, y: 200 } });
   await win.keyboard.press("ControlOrMeta+n");
   await win.locator(".editor-group-container .monaco-editor").first().waitFor();
-  // noun + particle + conjugated verb: at least three token types land on one line.
-  await win.keyboard.type("写真を見せました");
-  const word = win
-    .locator(".view-line", { hasText: "写真を見せました" })
-    .first();
+  // The palette's reference sentence — the same one docs/pos-palettes.md renders. It exercises
+  // every colour-bearing category in one line:
+  //   もしもし utterance · 私 pronoun · は/で/を particle · 大きな adnominal · 声/お話 noun
+  //   · 面白い adjective · ゆっくり adverb · 読み verb · まし/た auxiliary
+  const SENTENCE = "もしもし、私は大きな声で面白いお話をゆっくり読みました。";
+  await win.keyboard.type(SENTENCE);
+  const word = win.locator(".view-line", { hasText: SENTENCE }).first();
   await word.waitFor();
-  // Semantic tokens apply asynchronously; poll until the line renders more than one color.
+  // Decorations apply asynchronously (the host tokenizes, then pushes ranges), so poll.
+  //
+  // Asserting many distinct colours, not merely "more than one": a single colour plus the
+  // caret-line/selection styling already clears >1, so that weaker check passed even when nothing
+  // was coloured.
+  // Read each span's colour and normalise it to sRGB channels IN THE BROWSER. `getComputedStyle`
+  // serialises our `oklch()` values as `oklch(...)` or `color(srgb ...)` — not `rgb(...)` — so
+  // parsing the string here would silently match nothing. Canvas does the conversion for us.
+  const colours = async (): Promise<Array<[number, number, number]>> =>
+    word.evaluate((el) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return [];
+      const seen = new Map<string, [number, number, number]>();
+      for (const span of el.querySelectorAll("span")) {
+        if (span.textContent.trim() === "") continue;
+        const css = getComputedStyle(span).color;
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = css;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        seen.set(`${r},${g},${b}`, [r, g, b]);
+      }
+      return [...seen.values()];
+    });
+  // Six or more: the sentence spans nine categories, but Monaco merges adjacent spans that share a
+  // colour, and particles repeat — so the rendered count is a floor, not the category count.
   await expect
-    .poll(
-      async () =>
-        word.evaluate(
-          (el) =>
-            new Set(
-              [...el.querySelectorAll("span")].map(
-                (s) => getComputedStyle(s).color
-              )
-            ).size
-        ),
-      { timeout: 15_000 }
-    )
-    .toBeGreaterThan(1);
+    .poll(async () => (await colours()).length, { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(6);
+
+  // And they must be OUR palette rather than the theme's own token colours. Each category sits at
+  // a known hue (noun 247.5° blue, particle 112.5° olive, verb 22.5° coral), so checking that the
+  // rendered colours span a wide hue range distinguishes the palette from any single-hue fallback
+  // — without pinning exact values, which would break the moment the palette is retuned.
+  const hues = (await colours())
+    .map(([r, g, b]) => {
+      const [rn, gn, bn] = [r, g, b].map((v) => v / 255);
+      const max = Math.max(rn, gn, bn);
+      const min = Math.min(rn, gn, bn);
+      if (max - min < 0.04) return null; // greyscale: the theme foreground, not a palette colour
+      const h =
+        max === rn
+          ? ((gn - bn) / (max - min) + 6) % 6
+          : max === gn
+            ? (bn - rn) / (max - min) + 2
+            : (rn - gn) / (max - min) + 4;
+      return h * 60;
+    })
+    .filter((h) => h !== null);
+  // Five or more genuinely different hues, bucketed at 30°. The standard palette spreads its nine
+  // categories around the whole wheel, so a single-hue fallback (or the theme's own foreground)
+  // could never produce this spread.
+  expect(
+    new Set(hues.map((h) => Math.round(h / 30))).size
+  ).toBeGreaterThanOrEqual(5);
+
   // Reference shot for the POS-coloring design iteration (BACKLOG #38).
   await win.screenshot({ path: "test-results/shots/03-pos-highlighting.png" });
 });
