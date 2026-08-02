@@ -31,7 +31,15 @@ const words: SearchResultDto[] = [
 // SearchResults imports the bridge directly for the settings gear; the real module calls
 // acquireVsCodeApi at load, which exists only inside a real VS Code webview.
 vi.mock("../../bridge", () => ({
-  openSettings: vi.fn<() => Promise<void>>(async () => undefined)
+  openSettings: vi.fn<() => Promise<void>>(async () => undefined),
+  // The recent-search history round-trips through the host; these stubs keep it inert so these
+  // tests stay about the results list.
+  recordRecentSearch: vi.fn<() => Promise<{ recent: [] }>>(async () => ({
+    recent: []
+  })),
+  clearRecentSearches: vi.fn<() => Promise<{ recent: [] }>>(async () => ({
+    recent: []
+  }))
 }));
 
 vi.mock("../../queries", () => ({
@@ -44,6 +52,11 @@ vi.mock("../../queries", () => ({
     queryKey: ["names", query],
     queryFn: () => [],
     enabled: query.trim().length > 0
+  }),
+  // Empty history, so the empty view falls back to its hint — these tests are about results.
+  recentSearchesQuery: () => ({
+    queryKey: ["recentSearches"],
+    queryFn: () => []
   })
 }));
 

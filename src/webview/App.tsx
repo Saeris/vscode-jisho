@@ -5,6 +5,7 @@ import { NavigationProvider } from "./navigation";
 import { speak } from "./speech";
 import {
   activeView,
+  canGoForward,
   canGoHome,
   navigationMachineFrom
 } from "./machines/navigation";
@@ -42,11 +43,35 @@ export const App = (): React.ReactElement => {
       }),
     [send]
   );
+
+  // Back/forward mouse buttons (X1/X2). Another external subscription, and the second legitimate
+  // useEffect: these are window-level events with no React element to attach to — the buttons
+  // should work anywhere in the panel, not only over some focused control.
+  //
+  // `auxclick` rather than `mouseup`: it is the event the platform defines for non-primary buttons,
+  // and it fires once per click rather than for every press and release. Verified in the Electron
+  // webview — the buttons arrive as `button` 3 and 4, so no host-side keybinding fallback is needed
+  // (which the backlog item flagged as a risk).
+  useEffect(() => {
+    const onAuxClick = (event: MouseEvent): void => {
+      if (event.button !== 3 && event.button !== 4) return;
+      // Chromium would otherwise ALSO traverse the webview document's own session history, which
+      // is not ours and would navigate the panel away from the app.
+      event.preventDefault();
+      send({ type: event.button === 3 ? "back" : "forward" });
+    };
+    window.addEventListener("auxclick", onAuxClick);
+    return (): void => window.removeEventListener("auxclick", onAuxClick);
+  }, [send]);
   return (
     // The Home escape hatch is only offered when it differs from Back (drilled >1 level deep); the
     // provider turns that into `home` being undefined, so headers omit the control rather than
     // rendering a second button that does what Back already does.
-    <NavigationProvider send={send} canGoHome={canGoHome(state.context)}>
+    <NavigationProvider
+      send={send}
+      canGoHome={canGoHome(state.context)}
+      canGoForward={canGoForward(state.context)}
+    >
       {/* The search view stays mounted inside an <Activity> instead of unmounting when a detail
           view is pushed on top: its scroll position, list state, and query subscriptions all
           survive Back natively. The navigation machine remains the source of truth for which

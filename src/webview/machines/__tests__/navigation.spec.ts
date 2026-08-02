@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeView,
   canGoBack,
+  canGoForward,
   canGoHome,
   hydrateContext,
   navigationMachine,
@@ -205,6 +206,79 @@ describe("navigationMachine", () => {
     expect(activeView(ctx)).toEqual({ name: "search" });
     expect(ctx.searchQuery).toBe("日本語");
   });
+
+  it("goes forward into the view back just left", () => {
+    // WHY: the mouse's forward button (X2) and the reason `forwardStack` exists at all — back
+    // without forward makes a mis-click destructive.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "1" });
+    actor.send({ type: "back" });
+    expect(canGoForward(actor.getSnapshot().context)).toBe(true);
+    actor.send({ type: "forward" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "wordDetail",
+      id: "1"
+    });
+    expect(canGoForward(actor.getSnapshot().context)).toBe(false);
+  });
+
+  it("discards forward history when the user navigates somewhere new", () => {
+    // WHY: browser behaviour. Going back and then following a DIFFERENT link abandons the branch
+    // you left — otherwise forward would re-enter a view the user has since navigated away from,
+    // which reads as the panel jumping somewhere unrelated.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "1" });
+    actor.send({ type: "back" });
+    actor.send({ type: "openKanji", literal: "水" });
+    expect(canGoForward(actor.getSnapshot().context)).toBe(false);
+    // Forward is now inert rather than resurrecting the abandoned word.
+    actor.send({ type: "forward" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "kanjiDetail",
+      literal: "水"
+    });
+  });
+
+  it("does not record forward history when back is a no-op at the floor", () => {
+    // WHY: `back` on the search view must not push `search` onto the forward stack — forward would
+    // then duplicate the base view onto the stack, which Home could no longer clear.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "back" });
+    expect(canGoForward(actor.getSnapshot().context)).toBe(false);
+    expect(actor.getSnapshot().context.stack).toHaveLength(1);
+  });
+
+  it("walks several steps back and forward again", () => {
+    // WHY: the forward stack has to be a stack, not a single slot — a user drilling three levels
+    // deep and backing out expects all three to be re-enterable in order.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "1" });
+    actor.send({ type: "openKanji", literal: "水" });
+    actor.send({ type: "openStrokeOrder", literal: "水" });
+    actor.send({ type: "back" });
+    actor.send({ type: "back" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "wordDetail",
+      id: "1"
+    });
+    actor.send({ type: "forward" });
+    actor.send({ type: "forward" });
+    expect(activeView(actor.getSnapshot().context)).toEqual({
+      name: "strokeOrder",
+      literal: "水"
+    });
+  });
+
+  it("clears forward history on home", () => {
+    // WHY: Home resets the stack to the base view, which makes any forward entry unreachable —
+    // leaving it would let Forward jump back into a view the user explicitly left.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "1" });
+    actor.send({ type: "openKanji", literal: "水" });
+    actor.send({ type: "back" });
+    actor.send({ type: "home" });
+    expect(canGoForward(actor.getSnapshot().context)).toBe(false);
+  });
 });
 
 describe("hydrateContext", () => {
@@ -258,6 +332,7 @@ describe("hydrateContext", () => {
     ]) {
       expect(hydrateContext(junk)).toEqual({
         stack: [{ name: "search" }],
+        forwardStack: [],
         searchQuery: ""
       });
     }

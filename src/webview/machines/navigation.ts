@@ -1,8 +1,26 @@
 /**
  * Navigation state as an explicit view stack (XState). The webview has no URL/history, so this
  * machine is the single source of navigation truth: `search` is the base view, opening a word
- * pushes a `wordDetail` view, and `back` pops. Designed to grow (a `kanjiDetail` view slots in as
- * another stack entry) without restructuring.
+ * pushes a `wordDetail` view, `back` pops, and `forward` re-enters what `back` left. Designed to
+ * grow (a `kanjiDetail` view slots in as another stack entry) without restructuring.
+ *
+ * WHY NOT THE NAVIGATION API (evaluated 2026-08-02, deliberately rejected)
+ *
+ * `window.navigation` and `history.pushState` both work inside the webview, and Chromium even
+ * traverses session history natively when the X1/X2 mouse buttons are pressed — so on the surface
+ * it looks like the platform could own all of this for free.
+ *
+ * It cannot, because session history is per-DOCUMENT. VS Code deallocates a `WebviewView`'s
+ * document whenever the user collapses the view or switches activity-bar containers, and recreates
+ * it on the way back; `retainContextWhenHidden` is a `WebviewPanel` option that views do not have
+ * (microsoft/vscode#152110). The documented alternative is `setState`/`getState`, which is what
+ * `persist` below uses — and that state survives, while `navigation.entries()` comes back empty.
+ *
+ * Adopting it would therefore mean two histories that disagree exactly when it matters: after a
+ * restore we would hold a populated stack and an empty session history, and would have to
+ * reconstruct one from the other on every restore. That is more code than the forward stack below,
+ * not less. The free native traversal is unreachable for the same reason — the browser can only
+ * traverse history it owns.
  */
 import { assign, setup } from "xstate";
 
@@ -23,6 +41,14 @@ export interface NavContext {
   /** The view stack; the last element is the active view. Never empty (search is the floor). */
   stack: View[];
   /**
+   * Views popped by `back`, newest first — what `forward` re-pushes.
+   *
+   * Kept separate from `stack` and CLEARED whenever the user navigates somewhere new, which is the
+   * behaviour every browser has: going back and then following a different link discards the
+   * forward history rather than leaving a branch the UI cannot express.
+   */
+  forwardStack: View[];
+  /**
    * The search view's query text. Held here (not in component state) so it survives the search
    * view unmounting while a detail view is on top — Back restores the query, and TanStack Query's
    * cache restores its results.
@@ -32,6 +58,7 @@ export interface NavContext {
 
 export const freshContext = (): NavContext => ({
   stack: [{ name: "search" }],
+  forwardStack: [],
   searchQuery: ""
 });
 
@@ -47,6 +74,8 @@ export type NavEvent =
   | { type: "openHandwriting" }
   | { type: "openAbout" }
   | { type: "back" }
+  /** Re-enter the view `back` just left — the forward mouse button, and the browser's ⟩. */
+  | { type: "forward" }
   | { type: "home" }
   | { type: "setSearchQuery"; query: string }
   /** Jump to the search view with a new query — the tap-through action for cross-references. */
@@ -167,8 +196,28 @@ const define = (initial: NavContext, persist: Persist) =>
       pop: assign({
         // Never pop past the base search view.
         stack: ({ context }) =>
-          context.stack.length > 1 ? context.stack.slice(0, -1) : context.stack
+          context.stack.length > 1 ? context.stack.slice(0, -1) : context.stack,
+        // The popped view becomes forward history. Guarded by the same length check, so a `back`
+        // at the floor is a no-op on both stacks rather than pushing `search` onto forward.
+        forwardStack: ({ context }) =>
+          context.stack.length > 1
+            ? [activeView(context), ...context.forwardStack]
+            : context.forwardStack
       }),
+      /** Re-enter the most recently popped view. */
+      unpop: assign({
+        stack: ({ context }) =>
+          context.forwardStack.length > 0
+            ? [...context.stack, context.forwardStack[0]]
+            : context.stack,
+        forwardStack: ({ context }) => context.forwardStack.slice(1)
+      }),
+      /**
+       * Discard forward history. Applied on every action that navigates somewhere NEW — the
+       * browser behaviour: going back and then following a different link abandons the branch you
+       * had gone back from, rather than leaving a fork the UI has no way to express.
+       */
+      clearForward: assign({ forwardStack: () => [] }),
       reset: assign({ stack: () => [{ name: "search" } satisfies View] }),
       setQuery: assign({
         searchQuery: ({ context, event }) =>
@@ -203,20 +252,33 @@ const define = (initial: NavContext, persist: Persist) =>
     id: "navigation",
     context: initial,
     on: {
-      openWord: { actions: ["pushWord", "persist"] },
-      openMoreExamples: { actions: ["pushMoreExamples", "persist"] },
-      openKanji: { actions: ["pushKanji", "persist"] },
-      openStrokeOrder: { actions: ["pushStrokeOrder", "persist"] },
-      openComponentTree: { actions: ["pushComponentTree", "persist"] },
-      openName: { actions: ["pushName", "persist"] },
-      openRadicals: { actions: ["pushRadicals", "persist"] },
-      openHandwriting: { actions: ["pushHandwriting", "persist"] },
-      openAbout: { actions: ["pushAbout", "persist"] },
+      // Every `open*` navigates somewhere NEW, so each discards forward history.
+      openWord: { actions: ["pushWord", "clearForward", "persist"] },
+      openMoreExamples: {
+        actions: ["pushMoreExamples", "clearForward", "persist"]
+      },
+      openKanji: { actions: ["pushKanji", "clearForward", "persist"] },
+      openStrokeOrder: {
+        actions: ["pushStrokeOrder", "clearForward", "persist"]
+      },
+      openComponentTree: {
+        actions: ["pushComponentTree", "clearForward", "persist"]
+      },
+      openName: { actions: ["pushName", "clearForward", "persist"] },
+      openRadicals: { actions: ["pushRadicals", "clearForward", "persist"] },
+      openHandwriting: {
+        actions: ["pushHandwriting", "clearForward", "persist"]
+      },
+      openAbout: { actions: ["pushAbout", "clearForward", "persist"] },
+      // Back and Forward move THROUGH history rather than creating it, so neither clears it.
       back: { actions: ["pop", "persist"] },
-      home: { actions: ["reset", "persist"] },
+      forward: { actions: ["unpop", "persist"] },
+      // Home and the two search actions all reset the stack to the base view, which makes any
+      // forward history unreachable — clear it rather than strand it.
+      home: { actions: ["reset", "clearForward", "persist"] },
       setSearchQuery: { actions: ["setQuery", "persist"] },
-      searchFor: { actions: ["searchFor", "persist"] },
-      appendToSearch: { actions: ["appendToSearch", "persist"] }
+      searchFor: { actions: ["searchFor", "clearForward", "persist"] },
+      appendToSearch: { actions: ["appendToSearch", "clearForward", "persist"] }
     }
   });
 
@@ -271,21 +333,30 @@ export const hydrateContext = (persisted: unknown): NavContext => {
     "handwriting",
     "about"
   ]);
-  const valid = stack.every(
-    (view: unknown) =>
-      typeof view === "object" &&
-      view !== null &&
-      "name" in view &&
-      typeof view.name === "string" &&
-      names.has(view.name)
-  );
-  if (!valid) return fresh;
+  const isView = (view: unknown): view is View =>
+    typeof view === "object" &&
+    view !== null &&
+    "name" in view &&
+    typeof view.name === "string" &&
+    names.has(view.name);
+
+  if (!stack.every(isView)) return fresh;
   // The base of the stack must be `search`, or Back/Home can strand the user above a view that
   // cannot be popped to.
   if (stack[0].name !== "search") return fresh;
 
+  // Forward history is optional: state written before this field existed simply has none, and an
+  // unrecognised entry drops the forward history rather than the whole session — losing a redo is
+  // a far smaller harm than sending the user back to an empty search.
+  const { forwardStack } = persisted as Partial<NavContext>;
+  const forward =
+    Array.isArray(forwardStack) && forwardStack.every(isView)
+      ? forwardStack
+      : [];
+
   return {
     stack,
+    forwardStack: forward,
     searchQuery: typeof searchQuery === "string" ? searchQuery : ""
   };
 };
@@ -297,6 +368,10 @@ export const activeView = (context: NavContext): View =>
 /** Whether a back action is possible (there is something above the base view). */
 export const canGoBack = (context: NavContext): boolean =>
   context.stack.length > 1;
+
+/** Whether a forward action is possible (something was popped and not yet superseded). */
+export const canGoForward = (context: NavContext): boolean =>
+  context.forwardStack.length > 0;
 
 /**
  * Whether "home" is meaningfully distinct from "back" — i.e. more than one view sits above search,

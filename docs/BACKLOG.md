@@ -509,9 +509,15 @@ The handwriting recognizer returns a ranked guess; stroke-edit distance models e
 
 ## Navigation & interaction UX (continued)
 
-### 48. Webview forward/back mouse-button navigation (fix — small)
+### 48. Webview forward/back mouse-button navigation (fix — small) — ✅ shipped 2026-08-02
 
-The webview navigation history (xref tap-through, kanji-tap, on-screen back) does not respond to the **forward/back mouse buttons** (X1/X2, buttons 3/4) — users expect these to move through history like a browser. Wire `auxclick`/`mouseup` with `event.button` 3/4 to the existing nav-machine back/forward transitions. Verify the Electron/Chromium webview actually receives these events (VS Code may swallow them); a host-side keybinding fallback may be needed if not.
+The webview navigation history (xref tap-through, kanji-tap, on-screen back) did not respond to the **forward/back mouse buttons** (X1/X2, buttons 3/4) — users expect these to move through history like a browser.
+
+**As built.** `auxclick` on `window` with `event.button` 3 → back, 4 → forward. The events DO reach the webview (verified in the Electron host: they arrive as `button` 3/4 on `pointerdown`/`mousedown`/`mouseup`/`auxclick`), so the host-side keybinding fallback this item feared was not needed. `preventDefault()` is required: Chromium would otherwise also traverse the webview document's own session history, navigating the panel out of the app.
+
+**Bigger than "small", because forward did not exist.** The nav machine modelled navigation as a stack where `back` popped and discarded, so there was nothing to go forward to. Added `forwardStack` (popped views, newest first) plus `forward`/`unpop`, and `clearForward` on every transition that navigates somewhere NEW — browser behaviour, so going back and following a different link abandons the branch rather than leaving a fork the UI cannot express. `canGoForward` mirrors `canGoHome`: undefined when unavailable, so a caller omits the affordance rather than offering a dead one.
+
+**The Navigation API was evaluated and rejected** (the rationale is in `machines/navigation.ts`, so it is not re-investigated). `window.navigation` and `history.pushState` both work in the webview, and Chromium even traverses session history natively on X1/X2 — but session history is per-DOCUMENT, and VS Code deallocates a `WebviewView`'s document whenever the sidebar is hidden (`retainContextWhenHidden` is a `WebviewPanel` option; microsoft/vscode#152110 is the open request for views). Our stack survives via `setState`; `navigation.entries()` would come back empty, leaving two histories to reconcile on every restore — more code, not less.
 
 ## Tooling & test infrastructure
 
@@ -592,6 +598,6 @@ Interleaves with **#27** (tag search) — they are the same data reached two way
 
 **Superseded — every item this section ordered is shipped.** It read "1. #1 (relevance ranking) — highest leverage, do this first" long after #1 shipped in M2, which is exactly the trap the numbering warning at the top of this file exists to prevent. Kept as a record of the original M1-era plan; do not read it as a plan.
 
-For what to do next, use [ROADMAP.md](ROADMAP.md) (milestone view — M1–M7 shipped, M8 not started) together with the unmarked items above. As of the 2026-08-02 pass the nearest candidates are **#32** (word-detail redesign) with **#50** (POS pills) folded in, since they touch the same surface and the palette they need now exists; and **#17** (recent-search history) and **#48** (mouse-button navigation) as small independent wins.
+For what to do next, use [ROADMAP.md](ROADMAP.md) (milestone view — M1–M7 shipped, M8 not started) together with the unmarked items above. As of the 2026-08-02 pass the nearest candidate is **#32** (word-detail redesign) with **#50** (POS pills) folded in — they touch the same surface, and the palette they need now exists. The two small independent wins that sat alongside it, **#17** (recent-search history) and **#48** (mouse-button navigation), both shipped that day.
 
 **#35 is not a candidate** despite looking like one: its collation is built and correct, but every list we render is relevance-ranked, so there is nothing to sort. It unblocks with **#54** (vocabulary lists), not before.

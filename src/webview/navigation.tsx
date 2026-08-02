@@ -26,6 +26,11 @@ export interface Navigation {
   openAbout: () => void;
   back: () => void;
   /**
+   * Re-enter the view Back just left. Undefined when there is no forward history — following the
+   * same convention as `home`, so a caller can omit the affordance rather than offer a dead one.
+   */
+  forward: (() => void) | undefined;
+  /**
    * Undefined when Home would just duplicate Back — i.e. only one view sits above search. Kept
    * optional rather than always-present so a header can omit the control instead of rendering a
    * second button that does the same thing.
@@ -45,7 +50,8 @@ const NavigationContext = createContext<Navigation | undefined>(undefined);
  */
 export const makeNavigation = (
   send: (event: NavEvent) => void,
-  canGoHome: boolean
+  canGoHome: boolean,
+  canGoForward = false
 ): Navigation => ({
   openWord: (id): void => send({ type: "openWord", id }),
   openMoreExamples: (id): void => send({ type: "openMoreExamples", id }),
@@ -59,6 +65,7 @@ export const makeNavigation = (
   openHandwriting: (): void => send({ type: "openHandwriting" }),
   openAbout: (): void => send({ type: "openAbout" }),
   back: (): void => send({ type: "back" }),
+  forward: canGoForward ? (): void => send({ type: "forward" }) : undefined,
   home: canGoHome ? (): void => send({ type: "home" }) : undefined,
   searchFor: (term): void => send({ type: "searchFor", term }),
   appendToSearch: (char): void => send({ type: "appendToSearch", char }),
@@ -68,17 +75,19 @@ export const makeNavigation = (
 export const NavigationProvider = ({
   send,
   canGoHome,
+  canGoForward = false,
   children
 }: {
   send: (event: NavEvent) => void;
   canGoHome: boolean;
+  canGoForward?: boolean;
   children: React.ReactNode;
 }): React.ReactElement => {
-  // Rebuilt only when `send` or the Home affordance changes, so a navigation does not hand every
-  // consumer a new set of function identities.
+  // Rebuilt only when `send` or one of the conditional affordances changes, so a navigation does
+  // not hand every consumer a new set of function identities.
   const value = useMemo(
-    () => makeNavigation(send, canGoHome),
-    [send, canGoHome]
+    () => makeNavigation(send, canGoHome, canGoForward),
+    [send, canGoHome, canGoForward]
   );
   return <NavigationContext value={value}>{children}</NavigationContext>;
 };
