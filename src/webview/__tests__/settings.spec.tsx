@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { applySettings } from "../settings";
+import type { HostSettings } from "../../shared/messages";
+
+/**
+ * Settings that are RENDERED rather than applied as CSS. `applySettings` deliberately ignores
+ * `tagLabels` — a component reads it through `useHostSettings` — so it is pinned here to keep these
+ * cases about the CSS half of the snapshot.
+ */
+const rendered = { tagLabels: "english" } satisfies Partial<
+  HostSettings["settings"]
+>;
 
 describe("applySettings", () => {
   it("lands every setting as a root CSS variable", () => {
@@ -8,7 +18,8 @@ describe("applySettings", () => {
     applySettings({
       textScale: 1.5,
       guideStyle: "aligned",
-      palette: "standard"
+      palette: "standard",
+      ...rendered
     });
     const root = document.documentElement.style;
     expect(root.getPropertyValue("--jisho-text-scale")).toBe("1.5");
@@ -17,7 +28,8 @@ describe("applySettings", () => {
     applySettings({
       textScale: 1.08,
       guideStyle: "offset",
-      palette: "standard"
+      palette: "standard",
+      ...rendered
     });
     expect(root.getPropertyValue("--guide-offset")).toBe("1");
   });
@@ -30,11 +42,17 @@ describe("applySettings", () => {
     applySettings({
       textScale: 1,
       guideStyle: "offset",
-      palette: "deuteranopia"
+      palette: "deuteranopia",
+      ...rendered
     });
     expect(document.body.dataset.jishoPalette).toBe("deuteranopia");
 
-    applySettings({ textScale: 1, guideStyle: "offset", palette: "standard" });
+    applySettings({
+      textScale: 1,
+      guideStyle: "offset",
+      palette: "standard",
+      ...rendered
+    });
     expect(document.body.dataset.jishoPalette).toBe("standard");
   });
 });

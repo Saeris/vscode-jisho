@@ -46,8 +46,9 @@ test("tapping a result opens its word detail", async ({ vscode }) => {
   // The Back control is the detail view's unambiguous marker.
   await expect(frame.getByRole("button", { name: /back/i })).toBeVisible();
   // The detail shows the reading and a resolved part-of-speech tag. The tag renders as a compact
-  // Japanese pill (一段動詞) with the JMdict description as its tooltip (#50) — asserting on the
-  // tooltip keeps this checking that the tag RESOLVED, without pinning the label the pill shows.
+  // pill with the JMdict description as its tooltip (#50) — asserting on the TOOLTIP keeps this
+  // checking that the tag RESOLVED, without pinning the label, which follows the `tagLabels`
+  // setting ("ichidan verb" by default, 一段動詞 in Japanese mode).
   await expect(
     frame.getByText("たべる").locator("visible=true").first()
   ).toBeVisible();

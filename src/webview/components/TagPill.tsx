@@ -1,5 +1,6 @@
 import type { TagDto } from "../../shared/messages";
-import { posCategory, posLabel, usageLabel } from "../../shared/posTags";
+import { posCategory, posPillLabel, usageLabel } from "../../shared/posTags";
+import { useHostSettings } from "../useHostSettings";
 import styles from "./TagPill.module.css";
 
 /**
@@ -26,11 +27,14 @@ export const TagPill = ({
   /** `pos` pills are coloured by the palette; everything else is neutral. */
   kind: "pos" | "usage";
 }): React.ReactElement => {
+  // English by default: 名詞 is only compact if you already read it. The Japanese terms are what a
+  // textbook uses and are shorter still, so they are one setting away.
+  const { tagLabels } = useHostSettings();
   const category = kind === "pos" ? posCategory(tag.code) : undefined;
   const label =
     kind === "pos"
-      ? (posLabel(tag.code) ?? tag.description)
-      : usageLabel(tag.code, tag.description);
+      ? posPillLabel(tag.code, tag.description, tagLabels)
+      : usageLabel(tag.code, tag.description, tagLabels);
   return (
     <span
       className={styles.pill}

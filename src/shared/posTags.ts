@@ -69,6 +69,83 @@ export const posLabel = (code: string): string | null => {
 };
 
 /**
+ * SHORT ENGLISH labels for POS codes, for readers who do not (yet) know the Japanese grammatical
+ * terms. This is the default, because 名詞 is only compact if you already read it.
+ *
+ * Curated rather than taken from JMdict's descriptions, which are annotated for a dictionary editor
+ * and do not fit a pill: `n` — the most common tag in the dictionary at 27,384 senses — is "noun
+ * (common) (futsuumeishi)", and `adj-no` is "nouns which may take the genitive case particle 'no'".
+ * The parenthetical romaji also just duplicates what the Japanese label already says.
+ *
+ * The full JMdict description is the tooltip in BOTH modes, so neither loses information.
+ */
+const POS_LABEL_EN: Record<string, string | undefined> = {
+  n: "noun",
+  "n-adv": "adverbial noun",
+  "n-t": "temporal noun",
+  "n-suf": "noun suffix",
+  "n-pref": "noun prefix",
+  pn: "pronoun",
+  adv: "adverb",
+  "adv-to": "と adverb",
+  vk: "irregular verb", // 来る
+  vn: "irregular verb", // 死ぬ-type ナ変
+  vr: "irregular verb",
+  vz: "ichidan verb", // ずる (一段-adjacent)
+  vi: "intransitive",
+  vt: "transitive",
+  aux: "auxiliary",
+  "aux-v": "auxiliary verb",
+  "aux-adj": "auxiliary adjective",
+  cop: "copula",
+  "cop-da": "copula",
+  prt: "particle",
+  conj: "conjunction",
+  int: "interjection",
+  exp: "expression",
+  pref: "prefix",
+  suf: "suffix",
+  ctr: "counter",
+  num: "numeric",
+  unc: "unclassified"
+};
+
+/** English counterpart to `posLabel`, with the same structural fallbacks for the verb families. */
+const posLabelEn = (code: string): string | null => {
+  const explicit = POS_LABEL_EN[code];
+  if (explicit !== undefined) return explicit;
+  if (code.startsWith("v5")) return "godan verb";
+  if (code.startsWith("v1")) return "ichidan verb";
+  if (code.startsWith("v4")) return "yodan verb"; // classical
+  if (code.startsWith("v2")) return "nidan verb"; // classical
+  if (code.startsWith("vs")) return "suru verb";
+  if (/^adj-i(x)?$/u.test(code)) return "い adjective";
+  if (code === "adj-na" || code === "adj-nari") return "な adjective";
+  if (code === "adj-no") return "の adjective";
+  if (code === "adj-pn") return "prenominal";
+  if (code.startsWith("adj-")) return "adjective";
+  return null;
+};
+
+/** Which label vocabulary a pill uses. */
+export type TagLabelStyle = "english" | "japanese";
+
+/**
+ * The label for a POS pill in the requested style.
+ *
+ * Falls back across styles rather than to the raw description: a code with no Japanese label but a
+ * known English one still reads better as "expression" than as JMdict's full sentence.
+ */
+export const posPillLabel = (
+  code: string,
+  description: string,
+  style: TagLabelStyle
+): string =>
+  (style === "japanese"
+    ? (posLabel(code) ?? posLabelEn(code))
+    : (posLabelEn(code) ?? posLabel(code))) ?? description;
+
+/**
  * Short labels for the few USAGE tags whose JMdict description is too long to be a pill.
  *
  * Deliberately a short list rather than a general rule. Measured over the shipped dictionary, the
@@ -79,24 +156,37 @@ export const posLabel = (code: string): string | null => {
  *
  * The full description always survives as the pill's tooltip, so nothing is lost by shortening.
  */
-const USAGE_LABEL: Record<string, string | undefined> = {
-  uk: "「kana」", // word usually written using kana alone
-  uK: "「kanji」", // word usually written using kanji alone
-  "on-mim": "擬音語", // onomatopoeic or mimetic word
-  hon: "尊敬語", // honorific or respectful (sonkeigo) language
-  hum: "謙譲語", // humble (kenjougo) language
-  pol: "丁寧語", // polite (teineigo) language
-  yoji: "四字熟語", // yojijukugo (four-character compound)
-  proverb: "諺", // proverb
-  quote: "引用", // quotation
-  "male-sl": "male slang",
-  "net-sl": "net slang",
-  chn: "children's"
+const USAGE_LABEL: Record<string, { en: string; ja: string } | undefined> = {
+  uk: { en: "kana", ja: "「kana」" }, // word usually written using kana alone
+  uK: { en: "kanji", ja: "「kanji」" }, // word usually written using kanji alone
+  "on-mim": { en: "mimetic", ja: "擬音語" }, // onomatopoeic or mimetic word
+  hon: { en: "honorific", ja: "尊敬語" }, // sonkeigo
+  hum: { en: "humble", ja: "謙譲語" }, // kenjougo
+  pol: { en: "polite", ja: "丁寧語" }, // teineigo
+  yoji: { en: "four-char", ja: "四字熟語" }, // yojijukugo
+  proverb: { en: "proverb", ja: "諺" },
+  quote: { en: "quotation", ja: "引用" },
+  "male-sl": { en: "male slang", ja: "男性語" },
+  "net-sl": { en: "net slang", ja: "ネット語" },
+  chn: { en: "children's", ja: "幼児語" }
 };
 
-/** The label to show on a pill: short form where one exists, else the JMdict description. */
-export const usageLabel = (code: string, description: string): string =>
-  USAGE_LABEL[code] ?? description;
+/**
+ * The label for a usage pill: the short form where one exists, else the JMdict description.
+ *
+ * Most usage tags need no mapping at all — "abbreviation", "colloquial", "archaic", "slang",
+ * "computing", "Kansai-ben" are already pill-sized in English, and in Japanese mode they simply
+ * stay English rather than inventing a translation the dictionary does not carry.
+ */
+export const usageLabel = (
+  code: string,
+  description: string,
+  style: TagLabelStyle = "english"
+): string => {
+  const entry = USAGE_LABEL[code];
+  if (entry === undefined) return description;
+  return style === "japanese" ? entry.ja : entry.en;
+};
 
 /**
  * Map a JMdict POS code onto the palette category that colours it.

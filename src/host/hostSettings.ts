@@ -25,6 +25,7 @@ export const currentSettings = (): HostSettings["settings"] => {
   return {
     textScale: config.get("appearance.textScale", 1.08),
     guideStyle: config.get("strokeOrder.guideStyle", "offset"),
-    palette: config.get("appearance.palette", "standard")
+    palette: config.get("appearance.palette", "standard"),
+    tagLabels: config.get("appearance.tagLabels", "english")
   };
 };

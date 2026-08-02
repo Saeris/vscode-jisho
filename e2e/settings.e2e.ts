@@ -4,8 +4,9 @@ import { jishoFrame, openJishoSidebar } from "./webview";
 
 /**
  * The settings pipeline end-to-end: a launch with every Jisho setting overridden in the seeded
- * profile proves each delivery path — webview CSS variables (textScale, guideStyle) and host-side
- * gates (hover.enabled) — without touching the Settings UI.
+ * profile proves each delivery path — webview CSS variables (textScale, guideStyle), settings a
+ * component RENDERS from (tagLabels), and host-side gates (hover.enabled, highlighting.enabled) —
+ * without touching the Settings UI.
  */
 test.describe.configure({ mode: "serial" });
 
@@ -20,7 +21,8 @@ test.beforeAll(async () => {
     "vscode-jisho.appearance.textScale": 1.5,
     "vscode-jisho.strokeOrder.guideStyle": "aligned",
     "vscode-jisho.hover.enabled": false,
-    "vscode-jisho.highlighting.enabled": true
+    "vscode-jisho.highlighting.enabled": true,
+    "vscode-jisho.appearance.tagLabels": "japanese"
   });
   await openJishoSidebar(app().window);
 });
@@ -65,6 +67,32 @@ test("guideStyle=aligned flips the stroke player's arrow variant", async () => {
       .evaluate((el) => getComputedStyle(el).opacity);
   expect(await opacity("svg.acjk .guides path.g1.aligned")).toBe("1");
   expect(await opacity("svg.acjk .guides path.g1.offset")).toBe("0");
+});
+
+test("tagLabels=japanese relabels the grammar pills", async () => {
+  const frame = await jishoFrame(app().window);
+  // These cases share one VS Code instance (serial mode), so the sidebar is still parked on the
+  // previous test's kanji detail. "Back to search" is the Home control's accessible name — it
+  // collapses the whole stack in one press, unlike Back.
+  await frame.getByRole("button", { name: "Back to search" }).click();
+  await frame.getByRole("searchbox").fill("食べる");
+  await frame.locator('[role="listbox"] [role="option"]').first().click();
+  await frame.getByRole("button", { name: "Back", exact: true }).waitFor();
+  // The DEFAULT would render "ichidan verb" here. Proving the Japanese term shows instead is what
+  // confirms the setting travelled the whole path — package.json → host snapshot → bridge →
+  // `useHostSettings` → pill — since none of the unit tests cross the host boundary.
+  const pill = frame
+    .getByTitle(/ichidan/i)
+    .locator("visible=true")
+    .first();
+  await expect(pill).toHaveText("一段動詞");
+  // The description survives as the tooltip: in this mode it is the ONLY place a learner who does
+  // not yet read 一段動詞 can find out what it means.
+  await expect(pill).toHaveAttribute("title", /ichidan/i);
+  // Reference shot for the word-detail design iteration (BACKLOG #32), Japanese-label variant.
+  await app().window.screenshot({
+    path: "test-results/shots/04-tag-labels-japanese.png"
+  });
 });
 
 test("hover.enabled=false suppresses the dictionary hover", async () => {

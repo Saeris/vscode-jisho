@@ -133,13 +133,13 @@ Play buttons on word/kanji detail pages speak readings via the Web Speech API, w
 
 ### 14. Preferences — native VS Code settings (decision changed 2026-07-18; groundwork SHIPPED)
 
-**User decision:** no custom settings view — settings live in VS Code's native Settings UI via `contributes.configuration`, and the sidebar's ⚙ (search toolbar) opens the Jisho section (`workbench.action.openSettings @ext:saeris.vscode-jisho`; also palette: "Jisho: Open Settings"). Groundwork shipped with three settings proving both delivery paths:
+**User decision:** no custom settings view — settings live in VS Code's native Settings UI via `contributes.configuration`, and the sidebar's ⚙ (search toolbar) opens the Jisho section (`workbench.action.openSettings @ext:saeris.vscode-jisho`; also palette: "Jisho: Open Settings"). There are three distinct delivery paths, and every contributed setting takes one of them:
 
-- `vscode-jisho.hover.enabled` — host-side gate, read per hover.
-- `vscode-jisho.appearance.textScale` — webview-side: settings snapshots push host → webview (`hostSettings` on `webviewReady` + on every `onDidChangeConfiguration`) and land as CSS variables (`--jisho-text-scale`), so components never read configuration directly and edits apply live without a reload.
-- `vscode-jisho.strokeOrder.guideStyle` — exposes the `--guide-offset` dial (aligned/offset arrows) that had been sitting unwired since the stroke player work.
+- **Host-side gate**, read per use so an edit applies to the next hover rather than requiring a reload — `hover.enabled`, `grammar.enabled`, `highlighting.enabled`, `dictionary.autoCheck`.
+- **CSS variable / attribute**, pushed host → webview (`hostSettings` on `webviewReady` + on every `onDidChangeConfiguration`) and landed on the root by `applySettings` — `appearance.textScale` (`--jisho-text-scale`), `strokeOrder.guideStyle` (the `--guide-offset` dial that had sat unwired since the stroke player work), `appearance.palette` (`data-jisho-palette` on `<body>`, which is where VS Code puts its own `vscode-light`/`vscode-dark` class). No component reads configuration directly, which is why the panel restyles with no re-render.
+- **Rendered by a component**, for the settings that change TEXT rather than style — `appearance.tagLabels` (#50). Same snapshot, but read through `useHostSettings` (a `useSyncExternalStore` over the bridge) because CSS cannot swap 名詞 for "noun".
 
-`e2e/settings.e2e.ts` launches with all three overridden in the seeded profile and verifies each path. Remaining candidates below — add each as a plain contributed setting; webview-affecting ones ride the same push:
+`e2e/settings.e2e.ts` launches with these overridden in the seeded profile and verifies each path. It pays its own VS Code boot rather than using the shared worker fixture — settings that must exist before activation cannot be applied to a running instance. Remaining candidates below — add each as a plain contributed setting; webview-affecting ones ride the same push:
 
 - **TTS voice picker** — let the user choose from the Japanese voices the OS actually exposes (`getVoices()` filtered to `ja`), overriding the name-preference default from #13. Persist the choice (see persistence note below).
 - **Furigana toggle** — the on/off switch for #15.
@@ -536,9 +536,15 @@ All four parts are done.
 
 ## Display consistency
 
-### 50. Unify POS/usage tags: pills on the word page, shared with the hover, color-differentiated (design — small/medium)
+### 50. Unify POS/usage tags: pills on the word page, shared with the hover, color-differentiated (design — small/medium) — ✅ shipped
 
 The word-detail page renders a sense's parts-of-speech + usage tags as a long comma-joined line of **verbose descriptions** (`senseLabel` in `WordDetail.tsx` → `t.description`, e.g. それぞれ: _"adverb (fukushi), noun (common) (futsuumeishi), nouns which may take the genitive case particle 'no', word usually written using kana alone"_), while the hover renders the same tags as compact **POS pills** (`<kbd>`, the short `code` like 名詞 — hoverProvider.ts). Bring the page in line with the hover so there's shared visual language for POS across surfaces, and — since the webview owns its stylesheet (unlike the hover, which VS Code restricts) — **differentiate the pills by COLOR, not just label** (ties into the #38 POS palette work: verbs/nouns/particles each get their palette hue). Open question the user flagged: some usage descriptors are long and have no obvious short pill form ("nouns which may take the genitive case particle 'no'", "word usually written using kana alone") — decide per-tag whether to (a) map to a curated short label, (b) keep as a tooltip on an abbreviated pill, or (c) leave the genuinely-long ones as a secondary line below the pills. Best folded into #32 (WordDetail redesign) and #38 (palette), since it touches both; do it as a screenshot-review pass.
+
+**Shipped.** The vocabulary moved to `src/shared/posTags.ts` so the hover and the page can never drift, and the pills carry the #38 palette hue via `data-pos` — the same hue that word wears in the breakdown bar and in the editor. それぞれ now reads _"の adjective · adverb · noun · kana"_.
+
+Resolution of the long-descriptor question: **(a) and (b) together, and the measurement is why**. Counted over the shipped dictionary, the misc vocabulary is already pill-sized nearly everywhere ("abbreviation", "colloquial", "archaic"), and field/dialect tags ("computing", "Kansai-ben") need nothing — so a general truncation rule would have solved a problem that mostly does not exist while mangling the tags that read fine. Only twelve are genuinely unwieldy and get curated short labels; `uk` alone accounts for 2,360 senses, which is what made this look general. Option (c) was dropped: a secondary line reintroduces the vertical space the pills were meant to reclaim. **The full JMdict description is always the `title`**, so shortening never loses information.
+
+Follow-on: `vscode-jisho.appearance.tagLabels` chooses the label vocabulary. **English is the default** — 名詞 is only compact if you already read it, and the extension is for learners who may not yet. Japanese terms (what a textbook uses, and shorter still) are one setting away, and the setting moves POS and usage tags together so a row never reads "noun 尊敬語". Both tables fall back through the code's STRUCTURE (`v5*` → godan, `v1*` → ichidan, `vs*` → suru) rather than listing codes one by one — the bug the Japanese table originally had with `v5r-i`.
 
 ## Search relevance & matching (continued)
 

@@ -1,11 +1,45 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import type { HostSettings } from "../../../shared/messages";
 import { TagPills } from "../TagPill";
 
 const tag = (code: string, description: string) => ({ code, description });
 
+/**
+ * Drive the label style the way the HOST does — by posting the settings snapshot the extension
+ * posts — rather than by mocking `useHostSettings`. That keeps these cases honest about the whole
+ * path (package.json setting → host snapshot → bridge → store → pill), which is where a regression
+ * would actually land; a mocked hook would still pass if the bridge stopped delivering settings.
+ */
+const setTagLabels = async (
+  tagLabels: HostSettings["settings"]["tagLabels"]
+): Promise<void> => {
+  window.postMessage(
+    {
+      type: "hostSettings",
+      settings: {
+        textScale: 1.08,
+        guideStyle: "offset",
+        palette: "standard",
+        tagLabels
+      }
+    } satisfies HostSettings,
+    "*"
+  );
+  // `postMessage` delivers on a macrotask, so the store has not updated yet when this returns.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+};
+
 describe("tagPills", () => {
-  it("shows the compact Japanese label, not the JMdict description", () => {
+  // The settings store is module scope — shared across cases in this file — so a case that
+  // switches to Japanese would leak into the next one.
+  afterEach(async () => {
+    await setTagLabels("english");
+  });
+
+  it("shows a compact label, not the JMdict description", () => {
     // WHY the feature exists (#50): それぞれ's grammar line read "adverb (fukushi), noun (common)
     // (futsuumeishi), nouns which may take the genitive case particle 'no', word usually written
     // using kana alone" — a paragraph of metadata above a one-line definition.
@@ -18,15 +52,40 @@ describe("tagPills", () => {
         usage={[]}
       />
     );
-    expect(screen.getByText("副詞")).toBeInTheDocument();
-    expect(screen.getByText("名詞")).toBeInTheDocument();
+    expect(screen.getByText("adverb")).toBeInTheDocument();
+    expect(screen.getByText("noun")).toBeInTheDocument();
     expect(screen.queryByText(/fukushi/)).not.toBeInTheDocument();
   });
 
-  it("keeps the full description as the tooltip", () => {
+  it("defaults to English and switches the whole vocabulary on the setting", async () => {
+    // WHY: English is the default because 名詞 is only compact if you ALREADY read it — the pill
+    // has to be legible to the learner the extension is for. The Japanese terms are what a textbook
+    // uses, so they are one setting away, and the setting has to move POS and usage tags together:
+    // a row reading "noun 尊敬語" would be worse than either mode.
+    const pos = [tag("n", "noun (common) (futsuumeishi)")];
+    const usage = [tag("hon", "honorific or respectful (sonkeigo) language")];
+    const { rerender } = render(<TagPills pos={pos} usage={usage} />);
+    expect(screen.getByText("noun")).toBeInTheDocument();
+    expect(screen.getByText("honorific")).toBeInTheDocument();
+
+    await setTagLabels("japanese");
+    rerender(<TagPills pos={pos} usage={usage} />);
+    expect(screen.getByText("名詞")).toBeInTheDocument();
+    expect(screen.getByText("尊敬語")).toBeInTheDocument();
+  });
+
+  it("keeps the full description as the tooltip in both modes", async () => {
     // WHY: shortening a label must never LOSE the information — the description is how a learner
-    // finds out what 尊敬語 means.
-    render(<TagPills pos={[tag("adv", "adverb (fukushi)")]} usage={[]} />);
+    // finds out what 尊敬語 means, and it is the ONLY place that meaning survives in Japanese mode.
+    const pos = [tag("adv", "adverb (fukushi)")];
+    const { rerender } = render(<TagPills pos={pos} usage={[]} />);
+    expect(screen.getByText("adverb")).toHaveAttribute(
+      "title",
+      "adverb (fukushi)"
+    );
+
+    await setTagLabels("japanese");
+    rerender(<TagPills pos={pos} usage={[]} />);
     expect(screen.getByText("副詞")).toHaveAttribute(
       "title",
       "adverb (fukushi)"
@@ -43,8 +102,11 @@ describe("tagPills", () => {
         usage={[tag("uk", "word usually written using kana alone")]}
       />
     );
-    expect(screen.getByText("一段動詞")).toHaveAttribute("data-pos", "verb");
-    expect(screen.getByText("「kana」")).not.toHaveAttribute("data-pos");
+    expect(screen.getByText("ichidan verb")).toHaveAttribute(
+      "data-pos",
+      "verb"
+    );
+    expect(screen.getByText("kana")).not.toHaveAttribute("data-pos");
   });
 
   it("shortens only the usage tags that need it", () => {
@@ -60,7 +122,7 @@ describe("tagPills", () => {
         ]}
       />
     );
-    expect(screen.getByText("「kana」")).toBeInTheDocument();
+    expect(screen.getByText("kana")).toBeInTheDocument();
     expect(screen.getByText("colloquial")).toBeInTheDocument();
   });
 

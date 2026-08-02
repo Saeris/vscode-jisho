@@ -590,6 +590,12 @@ export interface HostSettings {
      * genuine alternative rather than a degraded version (docs/pos-palette-research.md).
      */
     palette: "standard" | "protanopia" | "deuteranopia" | "tritanopia";
+    /**
+     * Grammar-tag pills: short English terms, or the Japanese grammatical terms. English is the
+     * default because 名詞 is only compact if you already read it; the full JMdict description is
+     * the tooltip either way.
+     */
+    tagLabels: "english" | "japanese";
   };
 }
 
