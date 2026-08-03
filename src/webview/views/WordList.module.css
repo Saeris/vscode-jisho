@@ -1,0 +1,137 @@
+/* One classifier's words (#54): a scrolling list with an optional kana jump rail beside it. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: var(--jisho-gap) var(--jisho-gap) 0;
+}
+
+.title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.total {
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.orderRow {
+  display: flex;
+  gap: 4px;
+  padding: 8px var(--jisho-gap);
+}
+
+.orderButton {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--jisho-border);
+  background: transparent;
+  color: var(--jisho-muted);
+  cursor: pointer;
+}
+
+.orderButton[data-selected] {
+  color: var(--jisho-fg);
+  border-color: var(--jisho-focus);
+  background: var(--jisho-input-bg);
+}
+
+/* The list and its rail sit side by side; only the LIST scrolls, so the rail stays reachable at
+   any scroll position — a jump control that scrolls away with the content is useless. */
+.listWrap {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--jisho-gap) var(--jisho-gap);
+}
+
+.empty {
+  color: var(--jisho-muted);
+  padding-top: 8px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--jisho-border);
+  cursor: pointer;
+}
+
+.item[data-focused],
+.item[data-hovered] {
+  background: var(--jisho-input-bg);
+}
+
+.itemTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.headword {
+  font-size: 1.05em;
+}
+
+.reading {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.gloss {
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The gojūon rail: ten row tabs, the way a paper dictionary is thumb-indexed. Narrow by design —
+   it borrows width from a sidebar that has little to spare, so it carries rows (あかさたな…) rather
+   than all 46 kana. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: 2px;
+  border-right: 1px solid var(--jisho-border);
+}
+
+.railKey {
+  font: inherit;
+  font-size: 0.8em;
+  line-height: 1.4;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: var(--jisho-link);
+  cursor: pointer;
+}
+
+/* A row with no words in this list. Kept in place rather than removed so the rail's shape is the
+   same in every category — a control that reflows per list is harder to aim at than one that
+   doesn't. */
+.railKey:disabled {
+  color: var(--jisho-muted);
+  opacity: 0.4;
+  cursor: default;
+}

@@ -170,3 +170,30 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The browse entry point on the empty search view (#54) — same affordance as the word page's
+   "more examples" link, since both are "open a bigger list of this". */
+.browseLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 2 * var(--jisho-gap));
+  margin: 8px var(--jisho-gap) 0;
+  padding: 8px 10px;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  background: var(--jisho-input-bg);
+  color: var(--jisho-link);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.browseLink:hover {
+  border-color: var(--jisho-focus);
+}
+
+.browseChevron {
+  margin-left: auto;
+  color: var(--jisho-muted);
+}

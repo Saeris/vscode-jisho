@@ -17,6 +17,8 @@ import type {
   WordDetailDto
 } from "../shared/messages";
 import {
+  browse,
+  browseCounts,
   getAbout,
   getKanji,
   getMoreExamples,
@@ -152,6 +154,52 @@ export const moreExamplesQuery = (
   queryOptions({
     queryKey: ["moreExamples", id],
     queryFn: async () => (await getMoreExamples(id)).examples
+  });
+
+/**
+ * One classifier's words (#54).
+ *
+ * Keyed on the order as well as the id, so switching between frequency and gojūon is a cache hit
+ * on the way back rather than a refetch — the two orderings of a 2,000-row list are worth holding
+ * both of.
+ */
+export const browseQuery = (
+  id: string,
+  order: "frequency" | "gojuon"
+): ReturnType<
+  typeof queryOptions<
+    { results: SearchResultDto[]; total: number },
+    Error,
+    { results: SearchResultDto[]; total: number },
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["browse", id, order],
+    queryFn: async () => {
+      const response = await browse(id, order);
+      return { results: response.results, total: response.total };
+    }
+  });
+
+/**
+ * Word counts for the whole classifier tree.
+ *
+ * `staleTime: Infinity` — these change only when the dictionary itself is replaced, so refetching
+ * them on every visit to the tree would be ~90 COUNT queries for an answer that cannot have moved.
+ */
+export const browseCountsQuery = (): ReturnType<
+  typeof queryOptions<
+    Record<string, number>,
+    Error,
+    Record<string, number>,
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["browseCounts"],
+    queryFn: async () => (await browseCounts()).counts,
+    staleTime: Infinity
   });
 
 export const radicalQuery = (

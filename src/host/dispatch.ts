@@ -9,6 +9,7 @@
 import * as vscode from "vscode";
 import type { Dictionary } from "./db";
 import { hasKanji } from "../shared/japanese";
+import { CLASSIFIER_BY_ID } from "../shared/classifiers";
 import { timed } from "./log";
 import type { NamesDictionary } from "./names";
 import { contentSegmentCount, segment } from "./tokenizer";
@@ -113,6 +114,34 @@ export const respond = async (
         requestId: request.requestId,
         examples: await dict.getMoreExamples(request.id)
       };
+    case "browse": {
+      // An unknown id is a bad request, not a missing category — but it must not throw across the
+      // bridge, so it answers with the same empty shape a genuinely empty category gives.
+      const classifier = CLASSIFIER_BY_ID.get(request.id);
+      if (classifier === undefined) {
+        return {
+          type: "browse",
+          requestId: request.requestId,
+          results: [],
+          total: 0
+        };
+      }
+      return {
+        type: "browse",
+        requestId: request.requestId,
+        results: await dict.browse(classifier, request.order),
+        total: await dict.browseCount(classifier)
+      };
+    }
+    case "browseCounts": {
+      // Counted here in ONE pass rather than per category: the tree shows ~90 counts at once, and
+      // a round trip each would be visibly slow on open.
+      const counts: Record<string, number> = {};
+      for (const classifier of CLASSIFIER_BY_ID.values()) {
+        counts[classifier.id] = await dict.browseCount(classifier);
+      }
+      return { type: "browseCounts", requestId: request.requestId, counts };
+    }
     case "getKanji":
       return {
         type: "getKanji",

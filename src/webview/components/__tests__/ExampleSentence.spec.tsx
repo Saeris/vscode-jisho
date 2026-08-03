@@ -56,8 +56,11 @@ describe("example sentence", () => {
     );
     // `Ruby` wraps its content in its own span, so getByText returns the INNER element — walk up to
     // the one carrying the attribute.
-    const carrier = (text: string): HTMLElement =>
-      screen.getByText(text).closest("[data-pos]") as HTMLElement;
+    const carrier = (text: string): Element => {
+      const el = screen.getByText(text).closest("[data-pos]");
+      if (el === null) throw new Error(`no [data-pos] ancestor for ${text}`);
+      return el;
+    };
     const wa = carrier("は");
     expect(wa).toHaveAttribute("data-pos", "particle");
     expect(wa.tagName).toBe("SPAN"); // not a BUTTON: coloured, but nothing to open

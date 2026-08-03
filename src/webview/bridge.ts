@@ -5,6 +5,8 @@
  */
 import type {
   GetAboutResponse,
+  BrowseResponse,
+  BrowseCountsResponse,
   GetKanjiResponse,
   GetMoreExamplesResponse,
   GetNameResponse,
@@ -179,6 +181,14 @@ export const getWord = async (id: string): Promise<GetWordResponse> =>
 export const getMoreExamples = async (
   id: string
 ): Promise<GetMoreExamplesResponse> => request("getMoreExamples", { id });
+
+export const browse = async (
+  id: string,
+  order: "frequency" | "gojuon"
+): Promise<BrowseResponse> => request("browse", { id, order });
+
+export const browseCounts = async (): Promise<BrowseCountsResponse> =>
+  request("browseCounts", {});
 
 export const getKanji = async (literal: string): Promise<GetKanjiResponse> =>
   request("getKanji", { literal });

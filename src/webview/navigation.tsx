@@ -21,6 +21,10 @@ export interface Navigation {
   openStrokeOrder: (literal: string) => void;
   openComponentTree: (literal: string) => void;
   openName: (id: string) => void;
+  /** The classifier tree; `group` drills straight into one group (#54). */
+  openBrowse: (group?: string) => void;
+  /** One classifier's word list, by `Classifier.id`. */
+  openWordList: (id: string) => void;
   openRadicals: (preselect?: string[]) => void;
   openHandwriting: () => void;
   openAbout: () => void;
@@ -61,6 +65,8 @@ export const makeNavigation = (
   openComponentTree: (literal): void =>
     send({ type: "openComponentTree", literal }),
   openName: (id): void => send({ type: "openName", id }),
+  openBrowse: (group): void => send({ type: "openBrowse", group }),
+  openWordList: (id): void => send({ type: "openWordList", id }),
   openRadicals: (preselect): void => send({ type: "openRadicals", preselect }),
   openHandwriting: (): void => send({ type: "openHandwriting" }),
   openAbout: (): void => send({ type: "openAbout" }),

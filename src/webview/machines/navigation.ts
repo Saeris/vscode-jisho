@@ -32,6 +32,10 @@ export type View =
   | { name: "strokeOrder"; literal: string }
   | { name: "componentTree"; literal: string }
   | { name: "nameDetail"; id: string }
+  /** The classifier tree (#54). `group` drills into one group; absent shows the top level. */
+  | { name: "browse"; group?: string }
+  /** One classifier's words. `id` is a `Classifier.id`, the same token `#tag` search accepts. */
+  | { name: "wordList"; id: string }
   /** `preselect` seeds the picker's selection — used when tapping a kanji's component. */
   | { name: "radicals"; preselect?: string[] }
   | { name: "handwriting" }
@@ -69,6 +73,10 @@ export type NavEvent =
   | { type: "openStrokeOrder"; literal: string }
   | { type: "openComponentTree"; literal: string }
   | { type: "openName"; id: string }
+  /** Open the classifier tree; `group` drills straight into one group (#54). */
+  | { type: "openBrowse"; group?: string }
+  /** Open one classifier's word list — from the tree, or from a `#tag` the user typed. */
+  | { type: "openWordList"; id: string }
   /** Open the radical picker; `preselect` seeds its selection (tapping a component part). */
   | { type: "openRadicals"; preselect?: string[] }
   | { type: "openHandwriting" }
@@ -171,6 +179,24 @@ const define = (initial: NavContext, persist: Persist) =>
               ]
             : context.stack
       }),
+      pushBrowse: assign({
+        stack: ({ context, event }) => [
+          ...context.stack,
+          {
+            name: "browse",
+            group: event.type === "openBrowse" ? event.group : undefined
+          } satisfies View
+        ]
+      }),
+      pushWordList: assign({
+        stack: ({ context, event }) =>
+          event.type === "openWordList"
+            ? [
+                ...context.stack,
+                { name: "wordList", id: event.id } satisfies View
+              ]
+            : context.stack
+      }),
       pushRadicals: assign({
         stack: ({ context, event }) => [
           ...context.stack,
@@ -265,6 +291,8 @@ const define = (initial: NavContext, persist: Persist) =>
         actions: ["pushComponentTree", "clearForward", "persist"]
       },
       openName: { actions: ["pushName", "clearForward", "persist"] },
+      openBrowse: { actions: ["pushBrowse", "clearForward", "persist"] },
+      openWordList: { actions: ["pushWordList", "clearForward", "persist"] },
       openRadicals: { actions: ["pushRadicals", "clearForward", "persist"] },
       openHandwriting: {
         actions: ["pushHandwriting", "clearForward", "persist"]

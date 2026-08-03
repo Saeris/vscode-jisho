@@ -1,0 +1,75 @@
+/* The classifier tree (#54): two shallow levels of tappable rows, matching the detail views'
+   header-plus-scrolling-body shape. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+/* The JLPT caveat. Quiet, but present: the levels are a community estimate, and a list that looks
+   authoritative without saying so would be the dishonest version. */
+.note {
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  margin: -6px 0 12px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--jisho-border);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled) {
+  background: var(--jisho-input-bg);
+}
+
+/* A category with no words in this build: still listed (it exists in JMdict) but not worth a tap.
+   Dimmed rather than hidden, so the absence is legible as "nothing here" rather than as a gap. */
+.row:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.rowLabel {
+  flex: 1;
+}
+
+.rowCount {
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  /* Digits line up column-wise down the list rather than jittering per row. */
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  color: var(--jisho-muted);
+}

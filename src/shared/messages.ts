@@ -334,6 +334,26 @@ export interface GetMoreExamplesRequest {
   id: string;
 }
 
+/** One classifier's words, for the browse list (#54) and `#tag` search (#27). */
+export interface BrowseRequest {
+  type: "browse";
+  requestId: string;
+  /** A `Classifier.id` — the same token the `#tag` syntax accepts. */
+  id: string;
+  order: "frequency" | "gojuon";
+}
+
+/**
+ * Word counts for every classifier, so the browse tree can show how big each category is.
+ *
+ * One request for all of them rather than one per category: the tree renders ~90 counts at once,
+ * and 90 round trips over the webview bridge to fill in numbers would be visibly slow.
+ */
+export interface BrowseCountsRequest {
+  type: "browseCounts";
+  requestId: string;
+}
+
 export interface GetKanjiRequest {
   type: "getKanji";
   requestId: string;
@@ -436,6 +456,8 @@ export type Request =
   | SearchRequest
   | GetWordRequest
   | GetMoreExamplesRequest
+  | BrowseRequest
+  | BrowseCountsRequest
   | GetKanjiRequest
   | GetStrokeSvgRequest
   | GetComponentTreeRequest
@@ -475,6 +497,22 @@ export interface GetMoreExamplesResponse {
   requestId: string;
   /** `null` when the word has no pooled examples. */
   examples: MoreExamplesDto | null;
+}
+
+export interface BrowseResponse {
+  type: "browse";
+  requestId: string;
+  /** Empty when the classifier has no words in this build — a truthful answer, not an error. */
+  results: SearchResultDto[];
+  /** The whole category's size, which `results` may be capped below. */
+  total: number;
+}
+
+export interface BrowseCountsResponse {
+  type: "browseCounts";
+  requestId: string;
+  /** `Classifier.id` → word count. Absent ids have no words. */
+  counts: Record<string, number>;
 }
 
 export interface GetKanjiResponse {
@@ -627,6 +665,8 @@ export type Response =
   | SearchResponse
   | GetWordResponse
   | GetMoreExamplesResponse
+  | BrowseResponse
+  | BrowseCountsResponse
   | GetKanjiResponse
   | GetStrokeSvgResponse
   | GetComponentTreeResponse

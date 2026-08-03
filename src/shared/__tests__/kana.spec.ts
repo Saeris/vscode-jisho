@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchFold, sortKey } from "../kana";
+import { GOJUON_ROWS, gojuonRow, searchFold, sortKey } from "../kana";
 
 describe("searchFold", () => {
   it("collapses the distinctions a learner plausibly gets wrong", () => {
@@ -60,5 +60,38 @@ describe("sortKey", () => {
       sortKey(a).localeCompare(sortKey(b))
     );
     expect(ordered).toEqual(["あめ", "コーヒー", "ラーメン"]);
+  });
+});
+
+describe("gojuonRow", () => {
+  it("files a reading under its gojuon row, folding first", () => {
+    // WHY (#54): the jump rail is a thumb index, and a reader does not think of dakuten or
+    // katakana as changing which tab a word lives behind. Folding first is what puts だいがく
+    // under た and ラーメン under ら.
+    expect(gojuonRow("あめ")).toBe("あ");
+    expect(gojuonRow("だいがく")).toBe("た");
+    expect(gojuonRow("ラーメン")).toBe("ら");
+    expect(gojuonRow("ぴあの")).toBe("は");
+    expect(gojuonRow("きゃく")).toBe("か");
+  });
+
+  it("files ん under the wa row, where a paper dictionary puts it", () => {
+    // WHY: ん sorts at the end of the syllabary and heads no row of its own, so it needs a home
+    // rather than falling off the rail.
+    expect(gojuonRow("んー")).toBe("わ");
+    expect(gojuonRow("を")).toBe("わ");
+  });
+
+  it("returns undefined for anything that is not kana", () => {
+    // WHY: the rail only offers a tab when rows sit behind it. A romaji or kanji-only reading has
+    // no gojuon row, and inventing one would scroll the list somewhere arbitrary.
+    expect(gojuonRow("")).toBeUndefined();
+    expect(gojuonRow("hello")).toBeUndefined();
+  });
+
+  it("covers every row the rail offers", () => {
+    // WHY: the rail renders GOJUON_ROWS, so a row with no mapping would render a tab that can
+    // never activate. Each row's own leading kana must map back to it.
+    for (const row of GOJUON_ROWS) expect(gojuonRow(row)).toBe(row);
   });
 });

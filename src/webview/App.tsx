@@ -10,6 +10,8 @@ import {
   navigationMachineFrom
 } from "./machines/navigation";
 import { About } from "./views/About";
+import { Browse } from "./views/Browse";
+import { WordList } from "./views/WordList";
 import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
 import { MoreExamples } from "./views/MoreExamples";
@@ -101,6 +103,14 @@ export const App = (): React.ReactElement => {
         />
       ) : null}
       {view.name === "nameDetail" ? <NameDetail id={view.id} /> : null}
+      {/* Keyed on the group so drilling from the tree to a group remounts rather than reusing the
+          previous level's scroll position. */}
+      {view.name === "browse" ? (
+        <Browse key={view.group ?? ""} group={view.group} />
+      ) : null}
+      {view.name === "wordList" ? (
+        <WordList key={view.id} id={view.id} />
+      ) : null}
       {view.name === "radicals" ? (
         <RadicalPicker
           // Remount when the preselection changes: the picker seeds its local selection from this

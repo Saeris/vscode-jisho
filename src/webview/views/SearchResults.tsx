@@ -37,6 +37,7 @@ export const SearchResults = ({
     openKanji: onOpenKanji,
     openName: onOpenName,
     openRadicals,
+    openBrowse,
     openHandwriting,
     openAbout
   } = useNavigate();
@@ -183,7 +184,23 @@ export const SearchResults = ({
       ) : null}
 
       {query.trim() === "" ? (
-        <RecentSearches onSelect={onQueryChange} />
+        <>
+          {/* The browse entry point (#54). On the empty view rather than in the toolbar: it and
+              the recent list answer the same question — "I have nothing typed yet" — and the
+              toolbar's four icons are already at the width this sidebar can spare. */}
+          <Button
+            className={styles.browseLink}
+            onPress={() => openBrowse()}
+            aria-label="Browse words by category"
+          >
+            <span aria-hidden="true">📚</span>
+            Browse by category
+            <span className={styles.browseChevron} aria-hidden="true">
+              ›
+            </span>
+          </Button>
+          <RecentSearches onSelect={onQueryChange} />
+        </>
       ) : (
         renderStatus({
           query: deferredQuery,
