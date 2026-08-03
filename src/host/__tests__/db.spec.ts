@@ -792,6 +792,174 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
   });
 });
 
+const describeIfDbForLinks = existsSync(DB_PATH) ? describe : describe.skip;
+
+/**
+ * Accuracy guard for the example-sentence annotation (#38).
+ *
+ * This markup is DERIVED at build time — Tatoeba ships neither the part-of-speech tags nor the
+ * entry links, we compute both from the tokenizer plus a JMdict resolver. That makes it the kind of
+ * data that can silently degrade: a tokenizer upgrade, a JMdict release, or a resolver tweak could
+ * start pointing 彼 at the wrong entry and nothing else in the suite would notice. These run
+ * against the built DB so the check repeats on every build, which is the point.
+ *
+ * They assert PROPERTIES rather than exact ids: entry ids are stable but the corpus is not, so
+ * pinning specific sentences would break on a data refresh for no good reason.
+ */
+describeIfDbForLinks("example annotation accuracy", () => {
+  const TOKEN = /\[([^\]]+)\]\(([a-z]+):(\d*)\)/gu;
+  const stripRuby = (s: string): string =>
+    s.replace(/\{([^|{}]+)\|[^{}]+\}/gu, "$1");
+
+  /** Every annotated token in the corpus: surface, POS code, and entry id (empty when unlinked). */
+  const tokens = async (): Promise<
+    { surface: string; code: string; id: string }[]
+  > => {
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const rows = (await (
+        await raw.prepare("SELECT ja_furigana FROM sentences")
+      ).all()) as { ja_furigana: string }[];
+      const out: { surface: string; code: string; id: string }[] = [];
+      for (const r of rows) {
+        for (const m of r.ja_furigana.matchAll(TOKEN)) {
+          out.push({ surface: stripRuby(m[1]), code: m[2], id: m[3] });
+        }
+      }
+      return out;
+    } finally {
+      await raw.close();
+    }
+  };
+
+  test("links pronouns, and every link points at a pronoun entry", async () => {
+    // WHY (user request): 彼/私/あなた are real dictionary words a reader may want to look up, so
+    // they earn links — but only if the link is RIGHT. The resolver's take-the-first rule sent 彼
+    // to the あれ "that" entry and 君 to the honorific suffix "Mr", which is why linking them
+    // required POS-confirmed resolution first. A wrong link is worse than no link: it silently
+    // teaches the wrong word.
+    const pn = (await tokens()).filter((t) => t.code === "pn");
+    expect(pn.length).toBeGreaterThan(0);
+    const linked = pn.filter((t) => t.id !== "");
+    // Measured at 93.6%. A floor, not a target: the unlinked remainder is mostly segments where the
+    // tokenizer merged in trailing material, which `INVARIANT_POS` deliberately refuses to link.
+    // Dropping much below this would mean resolution broke; rising toward 100% would mean the
+    // exactness check stopped firing.
+    expect(linked.length / pn.length).toBeGreaterThan(0.9);
+
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const stmt = await raw.prepare(
+        `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+          WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'pn' LIMIT 1`
+      );
+      // Check every DISTINCT target rather than every occurrence — same coverage, far fewer queries.
+      for (const id of new Set(linked.map((t) => t.id))) {
+        await expect(stmt.get(id)).resolves.toBeDefined();
+      }
+    } finally {
+      await raw.close();
+    }
+  });
+
+  test("links adnominals only to entries tagged adj-pn", async () => {
+    // WHY: adnominals (この, その, 大きな) are the category the author flagged as most likely to
+    // mismatch — 大きな and ある have common non-adnominal homographs. `POS_CONFIRM` requires the
+    // `adj-pn` tag, so a surface whose entries are all some other part of speech stays UNLINKED
+    // (still coloured) rather than linking somewhere plausible-looking and wrong.
+    const adn = (await tokens()).filter((t) => t.code === "adn");
+    expect(adn.length).toBeGreaterThan(0);
+
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const stmt = await raw.prepare(
+        `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+          WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'adj-pn' LIMIT 1`
+      );
+      for (const id of new Set(
+        adn.filter((t) => t.id !== "").map((t) => t.id)
+      )) {
+        await expect(stmt.get(id)).resolves.toBeDefined();
+      }
+    } finally {
+      await raw.close();
+    }
+  });
+
+  test("a closed-class link's surface IS the word, not a longer segment", async () => {
+    // WHY: pronouns and adnominals never inflect, so a linked span longer than every form of its
+    // target means the tokenizer merged in trailing material and the link points somewhere the
+    // reader did not tap — measured at 8.9% of adnominal and 5.7% of pronoun links before the
+    // `INVARIANT_POS` check (そのこと → その, この時 → この, あの方たち → あの).
+    //
+    // This must NOT be generalised to verbs or adjectives: 食べました legitimately links to 食べる,
+    // and that longer span is precisely what the word-boundary work is for.
+    const closed = (await tokens()).filter(
+      (t) => (t.code === "pn" || t.code === "adn") && t.id !== ""
+    );
+    expect(closed.length).toBeGreaterThan(0);
+
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const stmt = await raw.prepare(
+        `SELECT text FROM kanji WHERE word_id = ?1
+          UNION SELECT text FROM kana WHERE word_id = ?1`
+      );
+      const formsOf = new Map<string, Set<string>>();
+      const mismatched: string[] = [];
+      for (const t of closed) {
+        let forms = formsOf.get(t.id);
+        if (forms === undefined) {
+          forms = new Set(
+            ((await stmt.all(t.id)) as { text: string }[]).map((r) => r.text)
+          );
+          formsOf.set(t.id, forms);
+        }
+        if (!forms.has(t.surface)) mismatched.push(t.surface);
+      }
+      expect(mismatched).toEqual([]);
+    } finally {
+      await raw.close();
+    }
+  });
+
+  test("never links particles or auxiliaries", async () => {
+    // WHY: the colour/link split. Particles are 29% of all tokens — linking them would bury the
+    // links that are actually useful, and a JMdict entry for は teaches nothing. They must carry a
+    // POS (so they colour) and never an id.
+    const closed = (await tokens()).filter(
+      (t) => t.code === "p" || t.code === "aux"
+    );
+    expect(closed.length).toBeGreaterThan(0);
+    expect(closed.filter((t) => t.id !== "")).toEqual([]);
+  });
+
+  test("annotates the great majority of each sentence", async () => {
+    // WHY: this is the coverage the whole change bought — 68.7% of characters before, since only
+    // the four linkable content categories carried a POS. A regression here means the palette has
+    // quietly stopped describing the sentence, which is hard to see in a screenshot but obvious in
+    // a number.
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const rows = (await (
+        await raw.prepare("SELECT ja_furigana FROM sentences LIMIT 20000")
+      ).all()) as { ja_furigana: string }[];
+      let annotated = 0;
+      let total = 0;
+      for (const r of rows) {
+        total += stripRuby(r.ja_furigana.replace(TOKEN, "$1")).length;
+        for (const m of r.ja_furigana.matchAll(TOKEN)) {
+          annotated += stripRuby(m[1]).length;
+        }
+      }
+      // Measured at 93.4%; the remainder is punctuation and `other`, which carry no claim.
+      expect(annotated / total).toBeGreaterThan(0.9);
+    } finally {
+      await raw.close();
+    }
+  });
+});
+
 const describeIfDbForVersion = existsSync(DB_PATH) ? describe : describe.skip;
 
 describeIfDbForVersion("schema version guard", () => {

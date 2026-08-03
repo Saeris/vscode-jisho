@@ -499,25 +499,44 @@ const fetchTatoeba = async (): Promise<{
 
 const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
 
-/** Resolve a segment's dictionary form to a JMdict entry id (words.id), or undefined if unknown. */
-type WordResolver = (lemma: string, reading: string) => string | undefined;
+/**
+ * Resolve a segment's dictionary form to a JMdict entry id (words.id), or undefined if unknown.
+ *
+ * `pos` is the tokenizer's category, used to disambiguate between the several entries a surface can
+ * belong to. Optional because the Tatoeba pool's B-line join has no tokenizer output to offer — it
+ * resolves by headword alone, exactly as before.
+ */
+type WordResolver = (
+  lemma: string,
+  reading: string,
+  pos?: PartOfSpeech,
+  surface?: string
+) => string | undefined;
 
 /**
- * Content parts of speech worth LINKING to a dictionary entry.
+ * Parts of speech worth LINKING to a dictionary entry.
  *
  * This is the link policy only. It used to double as the colour policy — a word outside this set
  * was emitted as bare text, so it carried no part of speech and could not be coloured — which is
  * why examples expressed 4 of the 9 palette categories where the editor expressed all nine (#38).
- * Everything else now gets `posToken` instead: typed, coloured, not tappable.
+ * Everything else gets `posToken` instead: typed, coloured, not tappable.
  *
- * Particles and auxiliaries stay out deliberately. Opening a JMdict entry for は teaches nothing,
- * and making every particle tappable would make the genuinely useful links harder to pick out.
+ * PRONOUNS and ADNOMINALS are here because they are real dictionary words a reader may well want to
+ * look up (彼, 私, あなた; この, 大きな) — and because both are small CLOSED classes, 79 and 47
+ * distinct surfaces across the corpus, so their resolution is verifiable rather than open-ended.
+ * They are only safe to link alongside `POS_CONFIRM`, which requires a candidate entry to actually
+ * carry `pn`/`adj-pn`; without it, 彼 links to "that" and 君 to the suffix "Mr".
+ *
+ * PARTICLES and AUXILIARIES stay out deliberately. Opening a JMdict entry for は teaches nothing,
+ * and particles are 29% of all tokens — making them tappable would bury the useful links.
  */
 const LINKABLE_POS = new Set<PartOfSpeech>([
   "noun",
   "verb",
   "adjective",
-  "adverb"
+  "adverb",
+  "pronoun",
+  "adnominal"
 ]);
 
 /**
@@ -543,7 +562,7 @@ const annotateExample = async (
         : seg.surface;
 
     const id = LINKABLE_POS.has(seg.pos)
-      ? resolve(seg.lemma, toHiragana(seg.reading))
+      ? resolve(seg.lemma, toHiragana(seg.reading), seg.pos, seg.surface)
       : undefined;
     if (id !== undefined) {
       out += linkToken(text, seg.pos, id);
@@ -1541,6 +1560,21 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
 interface WordRef {
   id: string;
   senseCount: number;
+  /**
+   * Every JMdict POS code across all of this entry's senses, for POS-aware resolution.
+   *
+   * A surface routinely belongs to several entries, and taking the first blindly picks the wrong
+   * one often enough to matter: 彼's first candidate glosses "that" (あれ) rather than "he", and
+   * 君's second is the suffix "Mr" — not a pronoun at all. Matching the tokenizer's category
+   * against these codes is what makes a link trustworthy.
+   */
+  pos: Set<string>;
+  /**
+   * Every written form of this entry (kanji writings + kana readings), for the `INVARIANT_POS`
+   * exactness check — "is this segment really just this word, or did the tokenizer merge in
+   * something that follows it?".
+   */
+  forms: Set<string>;
 }
 
 /**
@@ -1572,7 +1606,15 @@ const buildWordIndex = (
     else map.set(key, [ref]);
   };
   for (const word of dict.words) {
-    const ref: WordRef = { id: word.id, senseCount: word.sense.length };
+    const ref: WordRef = {
+      id: word.id,
+      senseCount: word.sense.length,
+      pos: new Set(word.sense.flatMap((s) => s.partOfSpeech)),
+      forms: new Set([
+        ...word.kanji.map((k) => k.text),
+        ...word.kana.map((k) => k.text)
+      ])
+    };
     const readings = word.kana.map((k) => k.text);
     for (const reading of readings) push(byReading, reading, ref);
     for (const k of word.kanji) {
@@ -1588,22 +1630,70 @@ const buildWordIndex = (
 type WordIndex = ReturnType<typeof buildWordIndex>;
 
 /**
- * A resolver from a tokenized example word to its entry id, for the linkified annotation. Prefers an
- * exact (dictionary-form, reading) match, then the dictionary form as a kanji writing, then as a kana
- * reading — the same most-specific-first order as the pool's B-line join. Returns the FIRST candidate
- * id (a surface can belong to several entries; the example link opens the most-common/first, which is
- * also how search would rank it).
+ * JMdict POS codes that confirm an entry really is the category the tokenizer said.
+ *
+ * Only the categories that need confirming are listed. Nouns and verbs are left unconstrained
+ * because their surfaces are overwhelmingly unambiguous and JMdict's noun tagging is broad enough
+ * (`n`, `n-adv`, `n-t`, `vs`…) that a strict list would reject good matches — the closed-class
+ * words below are the ones where a wrong first candidate is both likely and obvious to a reader.
+ */
+const POS_CONFIRM: Partial<Record<PartOfSpeech, readonly string[]>> = {
+  pronoun: ["pn"],
+  adnominal: ["adj-pn"],
+  adjective: ["adj-i", "adj-na", "adj-no", "adj-t", "adj-f", "adj-ix"],
+  adverb: ["adv", "adv-to"]
+};
+
+/**
+ * Categories that NEVER inflect, so the linked surface must equal a dictionary form exactly.
+ *
+ * Verbs and adjectives conjugate — 食べました legitimately links to 食べる, and that longer span is
+ * the whole point of the word-boundary work — so an exactness rule would be wrong for them. But a
+ * pronoun or adnominal is invariant: if the segment is longer than every form the entry has, the
+ * tokenizer merged in trailing material, and linking it points the reader at a word they did not
+ * tap. Measured before this check: そのこと → その, この時 → この, あの方たち → あの — 8.9% of
+ * adnominal links and 5.7% of pronoun links.
+ */
+const INVARIANT_POS = new Set<PartOfSpeech>(["pronoun", "adnominal"]);
+
+/**
+ * A resolver from a tokenized example word to its entry id, for the linkified annotation.
+ *
+ * Prefers an exact (dictionary-form, reading) match, then the dictionary form as a kanji writing,
+ * then as a kana reading — the same most-specific-first order as the pool's B-line join.
+ *
+ * Among the candidates for a surface it prefers one whose JMdict POS tags AGREE with the category
+ * the tokenizer assigned. A surface routinely belongs to several entries, and the old
+ * take-the-first rule picked wrongly in exactly the cases a reader would notice: 彼 resolved to the
+ * あれ "that" entry rather than "he", and 君 to the honorific suffix "Mr". For categories in
+ * `POS_CONFIRM` the agreement is REQUIRED — if no candidate carries the tag, the word stays
+ * unlinked (still coloured) rather than linking somewhere wrong, because for a closed class a
+ * missing link is much cheaper than a misleading one.
  */
 const makeResolver =
   (index: WordIndex): WordResolver =>
-  (lemma, reading) => {
+  (lemma, reading, pos, surface) => {
     const exact =
       reading !== ""
         ? index.byKanjiReading.get(`${lemma}\t${reading}`)
         : undefined;
     const refs =
       exact ?? index.byKanji.get(lemma) ?? index.byReading.get(lemma);
-    return refs?.[0]?.id;
+    if (refs === undefined || refs.length === 0) return undefined;
+
+    const confirm = pos === undefined ? undefined : POS_CONFIRM[pos];
+    if (confirm === undefined) return refs[0].id;
+
+    const agreed = refs.filter((r) => confirm.some((code) => r.pos.has(code)));
+    // No agreement means this surface's entries are all some OTHER part of speech, so linking any
+    // of them would send the reader to a word they did not tap.
+    if (agreed.length === 0) return undefined;
+
+    // For a class that never inflects, the segment must BE the word — see `INVARIANT_POS`.
+    if (pos !== undefined && INVARIANT_POS.has(pos) && surface !== undefined) {
+      return agreed.find((r) => r.forms.has(surface))?.id;
+    }
+    return agreed[0].id;
   };
 
 interface PoolStmts {
