@@ -2,8 +2,10 @@
  * Host settings that components RENDER from, as opposed to the ones that land as CSS variables.
  *
  * Most settings never reach React: `applySettings` writes them to the root as custom properties and
- * the stylesheet does the rest, which is why the panel restyles with no re-render. `tagLabels` is
- * different — it changes rendered TEXT (名詞 versus "noun"), so a component has to read it.
+ * the stylesheet does the rest, which is why the panel restyles with no re-render. A few are
+ * different because they change what is RENDERED, not how it looks: `tagLabels` swaps 名詞 for
+ * "noun", and `colorExamples` decides whether a word carries a `data-pos` attribute at all. Neither
+ * is expressible in CSS, so a component has to read them.
  *
  * `useSyncExternalStore` rather than `useState` + `useEffect`: the settings snapshot is an external
  * store that can change between render and subscribe, and this is the hook React provides for
@@ -23,7 +25,8 @@ const DEFAULTS: Settings = {
   textScale: 1.08,
   guideStyle: "offset",
   palette: "standard",
-  tagLabels: "english"
+  tagLabels: "english",
+  colorExamples: true
 };
 
 let current: Settings = DEFAULTS;

@@ -7,6 +7,8 @@ import { applySettings } from "./settings";
 import { isSpeechAvailable } from "./speech";
 import "./styles/theme.css";
 import "./styles/posPalette.css";
+// After posPalette.css: that file defines the `--pos-*` values this one reads.
+import "./styles/posCategory.css";
 
 // Pre-warm the TTS voice list: getVoices() populates asynchronously (up to ~1s), and paying that
 // wait at startup instead of on the first Play/Speak click removes OUR share of TTS latency (the

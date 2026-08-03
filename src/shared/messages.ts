@@ -575,7 +575,12 @@ export interface WebviewReady {
 
 /**
  * Settings snapshot pushed host → webview: once on `webviewReady`, again whenever the user edits
- * the extension's section in VS Code's Settings UI. The webview applies these as CSS variables.
+ * the extension's section in VS Code's Settings UI.
+ *
+ * Most land as CSS variables or root attributes via `applySettings`, so the panel restyles with no
+ * re-render. The ones that change rendered CONTENT rather than style (`tagLabels`, `colorExamples`)
+ * are read by components through `useHostSettings` instead — CSS cannot swap 名詞 for "noun", nor
+ * omit an attribute.
  */
 export interface HostSettings {
   type: "hostSettings";
@@ -596,6 +601,16 @@ export interface HostSettings {
      * the tooltip either way.
      */
     tagLabels: "english" | "japanese";
+    /**
+     * Whether words in example sentences carry their part-of-speech colour.
+     *
+     * Separate from `highlighting.enabled`, which gates the decorations in the user's OWN Markdown
+     * and plain-text files: that is a change to documents they are editing, so it is opt-in and
+     * defaults off. Colour inside the panel is the extension's own surface — the breakdown bar and
+     * the tag pills are already coloured unconditionally — so this defaults ON, and exists to turn
+     * the examples back OFF for anyone who finds a fully-coloured sentence busy to read.
+     */
+    colorExamples: boolean;
   };
 }
 

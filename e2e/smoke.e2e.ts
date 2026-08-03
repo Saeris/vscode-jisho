@@ -75,11 +75,17 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
     .click();
   await frame.getByRole("button", { name: "More examples" }).click();
   await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
+  // Linked words carry their part-of-speech colour by default (#38, `appearance.colorExamples`).
+  // Asserting on the ATTRIBUTE rather than the computed colour: the palette values are `oklch()`,
+  // which Chromium does not serialise as `rgb()`, and pinning a hue would break the moment the
+  // palette is retuned. `settings.e2e.ts` covers the off case.
+  const linked = frame.locator('[lang="ja"] button').first();
+  await expect(linked).toHaveAttribute("data-pos", /^[a-z]+$/u);
   // Tap the first linked word in the pool (any example word is a button). It opens a word detail,
   // so the examples heading is gone and a word page's markers (the reading, the "More examples" link)
   // appear. (Both "Back" and "Home" now show — we're 3 deep: search → word → examples → word — so
   // match Back exactly rather than /back/i, which also hits "Back to search".)
-  await frame.locator('[lang="ja"] button').first().click();
+  await linked.click();
   await expect(
     frame.getByRole("heading", { name: /Examples for/ })
   ).toBeHidden();

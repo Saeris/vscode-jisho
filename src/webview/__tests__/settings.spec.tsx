@@ -4,12 +4,13 @@ import type { HostSettings } from "../../shared/messages";
 
 /**
  * Settings that are RENDERED rather than applied as CSS. `applySettings` deliberately ignores
- * `tagLabels` — a component reads it through `useHostSettings` — so it is pinned here to keep these
+ * these — components read them through `useHostSettings` — so they are pinned here to keep these
  * cases about the CSS half of the snapshot.
  */
-const rendered = { tagLabels: "english" } satisfies Partial<
-  HostSettings["settings"]
->;
+const rendered = {
+  tagLabels: "english",
+  colorExamples: true
+} satisfies Partial<HostSettings["settings"]>;
 
 describe("applySettings", () => {
   it("lands every setting as a root CSS variable", () => {

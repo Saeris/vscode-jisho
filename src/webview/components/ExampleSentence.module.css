@@ -1,6 +1,6 @@
 /* A tappable word inside an example sentence: no persistent link chrome (too noisy when most content
-   words are links), just a hover/focus affordance — color + underline — matching the headword
-   tap-through on the word page. Inline so the <ruby> inside keeps the sentence's normal flow. */
+   words are links), just a hover/focus affordance — underline — matching the headword tap-through on
+   the word page. Inline so the <ruby> inside keeps the sentence's normal flow. */
 .word {
   display: inline;
   background: transparent;
@@ -8,13 +8,23 @@
   padding: 0;
   margin: 0;
   font: inherit;
-  color: inherit;
   cursor: pointer;
+  /*
+   * The word's part-of-speech colour (#38), resolved from `data-pos` in styles/posCategory.css.
+   * Falls back to the inherited foreground, which covers both the uncategorised `other` words and
+   * the whole sentence when `appearance.colorExamples` is off — that setting works by omitting the
+   * attribute, so no separate "off" rule is needed here.
+   */
+  color: var(--pos-color, inherit);
 }
 
 .word:hover,
 .word:focus-visible {
-  color: var(--jisho-link);
+  /*
+   * Underline only — the colour stays the word's own. Swapping to `--jisho-link` on hover would
+   * discard the part of speech at the exact moment the reader is attending to that word, and with
+   * every content word a link, the underline alone is already an unambiguous affordance.
+   */
   text-decoration: underline;
   /* Underline the base text, not the furigana above it. */
   text-underline-position: under;

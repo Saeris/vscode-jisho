@@ -1,3 +1,12 @@
+/*
+ * The search breakdown bar. Both chips and particles colour by part of speech: `data-pos` resolves
+ * to `--pos-color` in styles/posCategory.css, and the palette values behind it (light/dark, CVD
+ * variants) live in the generated posPalette.css. This file only decides how the colour is USED.
+ *
+ * These previously borrowed `--vscode-charts-*`, which offers only six hues for nine categories —
+ * pronoun, adnominal and utterance had no colour at all and fell through to the foreground.
+ */
+
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -29,36 +38,6 @@
 }
 
 /*
- * Colour from the part-of-speech palette (src/shared/posPalette.ts, tokens in posPalette.css).
- * These previously borrowed `--vscode-charts-*`, which offers only six hues for nine categories —
- * pronoun, adnominal and utterance had no colour at all and fell through to the foreground.
- */
-.chip[data-pos="pronoun"] {
-  --pos-color: var(--pos-pronoun);
-}
-.chip[data-pos="noun"] {
-  --pos-color: var(--pos-noun);
-}
-.chip[data-pos="adnominal"] {
-  --pos-color: var(--pos-adnominal);
-}
-.chip[data-pos="adjective"] {
-  --pos-color: var(--pos-adjective);
-}
-.chip[data-pos="adverb"] {
-  --pos-color: var(--pos-adverb);
-}
-.chip[data-pos="verb"] {
-  --pos-color: var(--pos-verb);
-}
-.chip[data-pos="auxiliary"] {
-  --pos-color: var(--pos-auxiliary);
-}
-.chip[data-pos="utterance"] {
-  --pos-color: var(--pos-utterance);
-}
-
-/*
  * Non-content segments (particles, auxiliaries): static text, not tappable — but no longer dimmed
  * to grey. An uncoloured word is not neutral, it is ambiguous: several palette colours desaturate
  * toward grey under dichromacy, so "no category" becomes confusable with "some category"
@@ -69,10 +48,4 @@
   font: inherit;
   color: var(--pos-color, var(--jisho-muted));
   padding: 1px 4px;
-}
-.particle[data-pos="particle"] {
-  --pos-color: var(--pos-particle);
-}
-.particle[data-pos="auxiliary"] {
-  --pos-color: var(--pos-auxiliary);
 }

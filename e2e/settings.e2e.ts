@@ -22,7 +22,8 @@ test.beforeAll(async () => {
     "vscode-jisho.strokeOrder.guideStyle": "aligned",
     "vscode-jisho.hover.enabled": false,
     "vscode-jisho.highlighting.enabled": true,
-    "vscode-jisho.appearance.tagLabels": "japanese"
+    "vscode-jisho.appearance.tagLabels": "japanese",
+    "vscode-jisho.appearance.colorExamples": false
   });
   await openJishoSidebar(app().window);
 });
@@ -93,6 +94,20 @@ test("tagLabels=japanese relabels the grammar pills", async () => {
   await app().window.screenshot({
     path: "test-results/shots/04-tag-labels-japanese.png"
   });
+});
+
+test("colorExamples=false leaves example words uncoloured but still tappable", async () => {
+  const frame = await jishoFrame(app().window);
+  // Still on 食べる's page from the previous case; its examples are the surface under test. The
+  // linked words are the `[lang="ja"]` buttons — the same selector the smoke suite taps.
+  const words = frame.locator('[lang="ja"] button').first();
+  await words.waitFor();
+  // The attribute is OMITTED when the setting is off, which is what makes the words fall back to
+  // the foreground colour with no "off" CSS rule of their own.
+  await expect(words).not.toHaveAttribute("data-pos");
+  // The setting is about COLOUR, not linkification — the word must still open its entry, or this
+  // would be silently disabling the F1-links feature instead.
+  await expect(words).toBeEnabled();
 });
 
 test("hover.enabled=false suppresses the dictionary hover", async () => {

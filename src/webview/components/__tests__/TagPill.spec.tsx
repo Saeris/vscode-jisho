@@ -1,42 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { HostSettings } from "../../../shared/messages";
+import { setHostSettings } from "../../__tests__/hostSettingsHarness";
 import { TagPills } from "../TagPill";
 
 const tag = (code: string, description: string) => ({ code, description });
 
-/**
- * Drive the label style the way the HOST does — by posting the settings snapshot the extension
- * posts — rather than by mocking `useHostSettings`. That keeps these cases honest about the whole
- * path (package.json setting → host snapshot → bridge → store → pill), which is where a regression
- * would actually land; a mocked hook would still pass if the bridge stopped delivering settings.
- */
-const setTagLabels = async (
-  tagLabels: HostSettings["settings"]["tagLabels"]
-): Promise<void> => {
-  window.postMessage(
-    {
-      type: "hostSettings",
-      settings: {
-        textScale: 1.08,
-        guideStyle: "offset",
-        palette: "standard",
-        tagLabels
-      }
-    } satisfies HostSettings,
-    "*"
-  );
-  // `postMessage` delivers on a macrotask, so the store has not updated yet when this returns.
-  await new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-};
+const setTagLabels = async (tagLabels: "english" | "japanese"): Promise<void> =>
+  setHostSettings({ tagLabels });
 
 describe("tagPills", () => {
   // The settings store is module scope — shared across cases in this file — so a case that
   // switches to Japanese would leak into the next one.
   afterEach(async () => {
-    await setTagLabels("english");
+    await setHostSettings();
   });
 
   it("shows a compact label, not the JMdict description", () => {

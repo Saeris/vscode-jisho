@@ -1,0 +1,47 @@
+/*
+ * `data-pos="<category>"` → `--pos-color`, for every surface that colours by part of speech.
+ *
+ * Hand-authored, unlike the sibling posPalette.css, which is generated: that file owns the palette
+ * VALUES (and their light/dark and CVD variants), this one owns the single mapping from a category
+ * name to whichever of them applies. Global rather than a CSS module because CSS Modules scope
+ * class names but NOT attribute selectors — so `[data-pos]` is already the same selector in every
+ * module, and writing it once is the honest expression of that.
+ *
+ * It previously lived, verbatim, in both SegmentBar.module.css and TagPill.module.css; the example
+ * sentences (#38) would have been a third copy of nine identical rules. What genuinely differs per
+ * surface is how each USES `--pos-color` — text colour for a chip, tint plus border for a pill, an
+ * underline for a word in a sentence — and that stays with its component.
+ *
+ * `--pos-color` is deliberately left unset for anything outside the nine categories (`other`, and
+ * usage/field/dialect tags, which are not parts of speech at all). Consumers pair it with a
+ * fallback — `var(--pos-color, var(--jisho-fg))` — so an uncategorised element renders neutral
+ * rather than inheriting a hue that would imply a grammatical claim.
+ */
+
+[data-pos="utterance"] {
+  --pos-color: var(--pos-utterance);
+}
+[data-pos="pronoun"] {
+  --pos-color: var(--pos-pronoun);
+}
+[data-pos="noun"] {
+  --pos-color: var(--pos-noun);
+}
+[data-pos="adnominal"] {
+  --pos-color: var(--pos-adnominal);
+}
+[data-pos="adjective"] {
+  --pos-color: var(--pos-adjective);
+}
+[data-pos="adverb"] {
+  --pos-color: var(--pos-adverb);
+}
+[data-pos="verb"] {
+  --pos-color: var(--pos-verb);
+}
+[data-pos="auxiliary"] {
+  --pos-color: var(--pos-auxiliary);
+}
+[data-pos="particle"] {
+  --pos-color: var(--pos-particle);
+}

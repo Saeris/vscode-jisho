@@ -115,7 +115,7 @@
         "vscode-jisho.highlighting.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Color Japanese text by part of speech in Markdown and plain-text files — a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get a theme color), making word boundaries visible."
+          "markdownDescription": "Color Japanese text by part of speech in your Markdown and plain-text files — a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get their own color), making word boundaries visible.\n\nThis covers your own files only. For example sentences inside the Jisho panel, see `#vscode-jisho.appearance.colorExamples#`."
         },
         "vscode-jisho.hover.enabled": {
           "type": "boolean",
@@ -146,6 +146,11 @@
             "Japanese grammatical terms: 名詞, 他動詞, 五段動詞."
           ],
           "markdownDescription": "How to label the grammar tags on a word's page.\n\nJapanese terms are what a textbook or a Japanese dictionary uses, and they are shorter — but only if you already read them. Either way, hovering a tag shows its full description."
+        },
+        "vscode-jisho.appearance.colorExamples": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Color the words in example sentences by part of speech, using the same palette as the grammar tags and the search breakdown.\n\nThis covers the Jisho panel only. To color Japanese in your own Markdown and plain-text files, see `#vscode-jisho.highlighting.enabled#`."
         },
         "vscode-jisho.appearance.palette": {
           "type": "string",
