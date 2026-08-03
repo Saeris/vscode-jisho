@@ -49,7 +49,7 @@ test("capture: more examples page in light theme (F1)", async ({
     .getByRole("option", { name: /食べる/ })
     .first()
     .click();
-  await jisho.getByRole("button", { name: "More examples" }).click();
+  await jisho.getByRole("button", { name: /more examples/i }).click();
   await jisho.getByRole("heading", { name: /Examples for/ }).waitFor();
   await screenshotSidebar(
     vscode.window,

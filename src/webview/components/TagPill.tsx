@@ -71,3 +71,25 @@ export const TagPills = ({
     </p>
   );
 };
+
+/**
+ * The word-level "common" marker, as a pill rather than the filled accent Badge it used to be.
+ *
+ * It sat directly above the grammar pills wearing a completely different treatment — a filled
+ * accent background against their outlined tint — so it read as a stray element rather than as one
+ * of the word's tags. It stays emphasised relative to them (this is the one marker a learner scans
+ * for) but through the accent's own hue, in the shared pill shape.
+ *
+ * Deliberately not part of `TagPills`: that renders per RUN OF SENSES and repeats whenever the
+ * grammar changes, while "common" is a word-level fact that must appear exactly once.
+ */
+export const CommonPill = (): React.ReactElement => (
+  <p className={styles.row}>
+    <span
+      className={`${styles.pill} ${styles.common}`}
+      title="One of the more frequently used words in the language (JMdict common ranking)"
+    >
+      common
+    </span>
+  </p>
+);

@@ -5,7 +5,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 0 0 4px;
+  /* 8px below, not 4: the row sits directly above the definition it annotates, and at 4px the
+     pills crowded that first line — the gap between the row and its definition read as tighter
+     than the gap between the pills themselves. */
+  margin: 0 0 8px;
 }
 
 .pill {
@@ -34,4 +37,19 @@
   --pill-color: var(--pos-color);
   --pill-tint: color-mix(in oklch, var(--pos-color) 45%, transparent);
   background: color-mix(in oklch, var(--pos-color) 10%, transparent);
+}
+
+/*
+ * The word-level "common" marker. Same shape and weight as every other pill — it used to be a
+ * filled accent Badge, which made it read as a different KIND of thing sitting above the tags
+ * rather than as one of them.
+ *
+ * It keeps the accent hue, applied through the same tint-and-border recipe the parts of speech
+ * use, so it stays the most noticeable pill in the row without leaving the family. `cursor: help`
+ * comes from `.pill`; the title explains what "common" is sourced from.
+ */
+.common {
+  --pill-color: var(--jisho-badge-bg);
+  --pill-tint: color-mix(in oklch, var(--jisho-badge-bg) 55%, transparent);
+  background: color-mix(in oklch, var(--jisho-badge-bg) 14%, transparent);
 }

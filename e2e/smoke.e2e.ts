@@ -73,7 +73,7 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
     .getByRole("option", { name: /食べる/ })
     .first()
     .click();
-  await frame.getByRole("button", { name: "More examples" }).click();
+  await frame.getByRole("button", { name: /more examples/i }).click();
   await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
   // Linked words carry their part-of-speech colour by default (#38, `appearance.colorExamples`).
   // Asserting on the ATTRIBUTE rather than the computed colour: the palette values are `oklch()`,
@@ -82,7 +82,7 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
   const linked = frame.locator('[lang="ja"] button').first();
   await expect(linked).toHaveAttribute("data-pos", /^[a-z]+$/u);
   // Tap the first linked word in the pool (any example word is a button). It opens a word detail,
-  // so the examples heading is gone and a word page's markers (the reading, the "More examples" link)
+  // so the examples heading is gone and a word page's markers (the reading, the examples link)
   // appear. (Both "Back" and "Home" now show — we're 3 deep: search → word → examples → word — so
   // match Back exactly rather than /back/i, which also hits "Back to search".)
   await linked.click();
@@ -92,9 +92,11 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
   await expect(
     frame.getByRole("button", { name: "Back", exact: true })
   ).toBeVisible();
-  // A word detail (not another examples page): its own "More examples" link is present.
+  // A word detail, not another examples page. Asserted via the Info section, which every word page
+  // has — NOT via the examples link, which is now conditional: the tapped word here is 京, whose
+  // Tatoeba pool is empty, so offering that link would be the bug rather than the expectation.
   await expect(
-    frame.getByRole("button", { name: "More examples" })
+    frame.getByRole("heading", { name: "Info" }).locator("visible=true")
   ).toBeVisible();
 });
 

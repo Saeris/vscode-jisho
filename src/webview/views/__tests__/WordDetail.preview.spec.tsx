@@ -11,6 +11,8 @@ const word: WordDetailDto = {
   id: "1",
   common: true,
   jlpt: 5,
+  // Above MIN_POOL_TO_OFFER, so the preview keeps rendering the "more examples" link.
+  poolExamples: 20,
   kanji: [
     { text: "食べる", common: true, tags: [] },
     { text: "喰べる", common: false, tags: ["sK"] }

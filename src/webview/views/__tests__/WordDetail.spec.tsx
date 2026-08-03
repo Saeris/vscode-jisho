@@ -28,11 +28,14 @@ const sense = (
 const word = (
   headword: string,
   posCodes: string[],
-  sentences: { jaFurigana: string; en: string }[] = []
+  sentences: { jaFurigana: string; en: string }[] = [],
+  /** Sentences on the "more examples" page; the default is enough for the link to be offered. */
+  poolExamples = 20
 ): WordDetailDto => ({
   id: "1",
   common: true,
   jlpt: null,
+  poolExamples,
   kanji: [{ text: headword, common: true, tags: [] }],
   kana: [
     {
@@ -177,5 +180,49 @@ describe("word detail examples", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show all (3)" }));
     screen.getByText("三");
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("offers the more-examples page only when the pool is worth a page", async () => {
+    // WHY (user report, confirmed by measurement): the link used to render unconditionally on the
+    // assumption that "the pool exists for the vast majority of words". Against the shipped
+    // dictionary that is false — 47.8% of words have an EMPTY pool — so nearly half of all taps
+    // landed on a blank page. A pool of one or two is just as bad: the page is nominally non-empty
+    // but says less than the inline examples already on this page.
+    renderView(word("食べる", ["v1"], sentences, 0));
+    await screen.findByText("一");
+    expect(screen.queryByRole("button", { name: /more examples/i })).toBeNull();
+
+    renderView(word("食べる", ["v1"], sentences, 2));
+    await screen.findByText("一");
+    expect(screen.queryByRole("button", { name: /more examples/i })).toBeNull();
+  });
+
+  it("puts the pool size in the link, so the tap is an informed one", async () => {
+    // WHY: "More examples" promised an unknown quantity — the reason a one-sentence page felt
+    // broken rather than merely small. The count sets the expectation before navigating.
+    renderView(word("食べる", ["v1"], sentences, 20));
+    await screen.findByText("一");
+    expect(
+      screen.getByRole("button", { name: /20 more examples/i })
+    ).toBeInTheDocument();
+  });
+});
+
+describe("word detail common marker", () => {
+  it("renders 'common' as a pill alongside the grammar tags", async () => {
+    // WHY (user feedback): it was a filled accent Badge sitting directly above the outlined
+    // grammar pills, so it read as a stray element rather than as one of the word's tags. It stays
+    // the most prominent marker in the row — just in the same family.
+    renderView(word("食べる", ["v1"]));
+    const common = await screen.findByText("common");
+    const pos = screen.getByText("ichidan verb");
+    // Same element shape as a grammar pill — a <span>, not the old Badge's own markup — which is
+    // what makes the two read as the same kind of thing.
+    expect(common.tagName).toBe(pos.tagName);
+    // But NOT inside the per-sense row: that repeats whenever the grammar changes, and "common" is
+    // a word-level fact that must appear exactly once.
+    expect(common.parentElement).not.toBe(pos.parentElement);
+    // It explains itself on hover, like every other pill.
+    expect(common).toHaveAttribute("title", expect.stringContaining("common"));
   });
 });

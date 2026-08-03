@@ -31,7 +31,7 @@ test("capture: more examples page (Tatoeba pool + furigana, F1)", async ({
   jisho
 }) => {
   await openWord(jisho, "食べる");
-  await jisho.getByRole("button", { name: "More examples" }).click();
+  await jisho.getByRole("button", { name: /more examples/i }).click();
   await jisho.getByRole("heading", { name: /Examples for/ }).waitFor();
   await screenshotSidebar(
     vscode.window,

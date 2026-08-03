@@ -568,6 +568,45 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     for (const g of more!.senses) expect(g.gloss.length).toBeGreaterThan(0);
   });
 
+  test("getWord's poolExamples matches what the pool page would show", async () => {
+    // WHY: the word page hides the "more examples" link when this count is too low, so if it ever
+    // disagreed with getMoreExamples the link would either hide a real page or offer a blank one —
+    // which is the bug that shipped (the link rendered unconditionally, and 47.8% of words in the
+    // shipped dictionary have no pool at all). Tying the two together here is what keeps the
+    // decision honest, since they are separate queries against the same table.
+    for (const term of ["食べる", "見る"]) {
+      const [top] = await dict.search(term);
+      const word = await dict.getWord(top.id);
+      const more = await dict.getMoreExamples(top.id);
+      const shown =
+        (more?.senses.flatMap((g) => g.sentences).length ?? 0) +
+        (more?.wordLevel.length ?? 0);
+      expect(word!.poolExamples).toBe(shown);
+    }
+  });
+
+  test("poolExamples is 0 for a word with no pool, so the link can hide", async () => {
+    // WHY: the empty case is the one the user actually hit, and it is not rare — nearly half the
+    // dictionary. A word whose pool is empty must report 0 rather than, say, falling back to the
+    // inline count, or the link would still render and still lead nowhere.
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const [row] = (await (
+        await raw.prepare(
+          `SELECT w.id FROM words w
+            WHERE NOT EXISTS (
+              SELECT 1 FROM sentences WHERE word_id = w.id AND source = 'tatoeba')
+            LIMIT 1`
+        )
+      ).all()) as { id: string }[];
+      const word = await dict.getWord(row.id);
+      expect(word!.poolExamples).toBe(0);
+      await expect(dict.getMoreExamples(row.id)).resolves.toBeNull();
+    } finally {
+      await raw.close();
+    }
+  });
+
   test("getMoreExamples excludes the inline Tanaka sentences (F1)", async () => {
     // WHY: the page is the POOL — the inline per-sense examples already show on the word page, so a
     // sentence stored as source='tanaka' must never appear here (that's what getWord shows). Compare

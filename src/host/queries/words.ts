@@ -155,10 +155,19 @@ export const getWord = async (
     });
   }
 
+  // How many sentences the "more examples" page would show, so the word page can decide whether
+  // offering it is worth a tap. COUNT rather than the rows themselves — the page fetches those
+  // separately, and this only needs to answer "how many".
+  const pool = await store.get<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM sentences WHERE word_id = ? AND source = 'tatoeba'",
+    id
+  );
+
   return {
     id: word.id,
     common: word.is_common === 1,
     jlpt: word.jlpt,
+    poolExamples: pool?.n ?? 0,
     kanji,
     kana,
     senses

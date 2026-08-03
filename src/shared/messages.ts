@@ -166,6 +166,15 @@ export interface WordDetailDto {
   common: boolean;
   /** Word-level JLPT (5=N5 … 1=N1), or null. Unofficial community estimate (Waller/tanos). */
   jlpt: number | null;
+  /**
+   * How many sentences the "more examples" page holds for this word (the Tatoeba pool, which is
+   * disjoint from the per-sense `sentences` above).
+   *
+   * Carried on the word so the page can decide whether to OFFER that link at all. Measured on the
+   * shipped dictionary: 47.8% of words have an empty pool, so showing the link unconditionally sent
+   * nearly half of all taps to a blank page.
+   */
+  poolExamples: number;
   kanji: KanjiDto[];
   kana: KanaDto[];
   senses: SenseDto[];
