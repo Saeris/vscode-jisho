@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar } from "./webview";
+import {
+  fillSearch,
+  jishoFrame,
+  openJishoSidebar,
+  searchText
+} from "./webview";
 
 /** Recent-search history (#17): recorded on OPEN, rendered on the empty view, re-run on tap. */
 test.describe.configure({ mode: "serial" });
@@ -23,7 +28,7 @@ test("records a lookup and re-runs it from the empty view", async () => {
   await expect(frame.getByText("Type to search the dictionary.")).toBeVisible();
 
   // Search, then OPEN a result — the commit signal.
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()
@@ -31,7 +36,7 @@ test("records a lookup and re-runs it from the empty view", async () => {
   await frame.getByRole("button", { name: /back/i }).click();
 
   // Clearing the box reveals the history rather than the hint.
-  await frame.getByRole("searchbox").fill("");
+  await fillSearch(frame, "");
   const recent = frame.getByRole("listbox", { name: "Recent searches" });
   await expect(recent).toBeVisible();
   await expect(recent.getByRole("option").first()).toContainText("食べる");
@@ -41,5 +46,6 @@ test("records a lookup and re-runs it from the empty view", async () => {
 
   // Tapping re-runs the query.
   await recent.getByRole("option").first().click();
-  await expect(frame.getByRole("searchbox")).toHaveValue("食べる");
+  // `searchText`, not `toHaveValue`: the box is a contenteditable TokenField (#27).
+  await expect.poll(async () => searchText(frame)).toBe("食べる");
 });

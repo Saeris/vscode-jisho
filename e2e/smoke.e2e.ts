@@ -1,10 +1,12 @@
 import { expect, type Page } from "@playwright/test";
 import { test } from "./fixtures";
 import {
+  fillSearch,
   hoverEditorWord,
   jishoFrame,
   openJishoSidebar,
-  returnToSearch
+  returnToSearch,
+  searchText
 } from "./webview";
 
 // The foundational end-to-end path: real VS Code launches, our extension activates, the sidebar
@@ -27,7 +29,7 @@ test("opens the Jisho sidebar and renders the search UI", async ({
 
 test("searching a word returns real dictionary results", async ({ vscode }) => {
   const frame = await jishoFrame(vscode.window);
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   // Results are DB-backed; 食べる must appear as an option in the list.
   await expect(frame.getByText("食べる").first()).toBeVisible();
   await expect(frame.getByText("to eat").first()).toBeVisible();
@@ -35,7 +37,7 @@ test("searching a word returns real dictionary results", async ({ vscode }) => {
 
 test("tapping a result opens its word detail", async ({ vscode }) => {
   const frame = await jishoFrame(vscode.window);
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()
@@ -68,7 +70,7 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
   await openJishoSidebar(vscode.window);
   const frame = await jishoFrame(vscode.window);
   await returnToSearch(frame);
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()
@@ -139,7 +141,9 @@ test("editor command: Look Up Selection drives the sidebar search", async ({
   // The command reveals the sidebar and pushes the query through: the search box carries the
   // selection and deinflected results (食べました → 食べる) arrive from the real DB.
   const frame = await jishoFrame(win);
-  await expect(frame.getByRole("searchbox")).toHaveValue("食べました");
+  // `searchText`, not `toHaveValue`: the box is a contenteditable TokenField (#27), so its content
+  // is text rather than a `value`. Polled because the query arrives via a host message.
+  await expect.poll(async () => searchText(frame)).toBe("食べました");
   await expect(frame.getByText("to eat").first()).toBeVisible();
 });
 
@@ -353,7 +357,7 @@ test("copy as: furigana markdown reaches the system clipboard", async ({
   const frame = await jishoFrame(win);
   // Reset to search, then open a word with kanji so the ruby variants are offered.
   await returnToSearch(frame);
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()

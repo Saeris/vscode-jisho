@@ -1,5 +1,5 @@
 import { test } from "../fixtures";
-import { screenshotSidebar } from "../webview";
+import { fillSearch, screenshotSidebar } from "../webview";
 
 /**
  * The tag pills (#50). それぞれ is the word the backlog cites: its POS+usage line used to read
@@ -14,7 +14,7 @@ test("capture: tag pills on a heavily-tagged word", async ({
   vscode,
   jisho
 }) => {
-  await jisho.getByRole("searchbox").fill("それぞれ");
+  await fillSearch(jisho, "それぞれ");
   await jisho
     .getByRole("option", { name: /それぞれ/ })
     .first()

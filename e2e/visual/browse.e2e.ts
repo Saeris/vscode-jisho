@@ -61,3 +61,26 @@ test("capture: a word list, by frequency then gojuon", async ({
     "test-results/shots/33-word-list-gojuon.png"
   );
 });
+
+test("capture: #tag autocomplete and a tag token", async ({
+  vscode,
+  jisho
+}) => {
+  // Typing `#` is the discovery path — it offers the vocabulary to someone who does not know it.
+  await jisho.getByRole("searchbox").click();
+  await jisho.getByRole("searchbox").pressSequentially("#jlpt");
+  await expect(
+    jisho.getByRole("listbox", { name: "Matching tags" })
+  ).toBeVisible();
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/34-tag-autocomplete.png"
+  );
+
+  // Completing one turns it into a token — atomic, and carrying the resolved classifier. The token
+  // renders the classifier's LABEL ("N5"), not the raw id it was typed as, so the committed filter
+  // reads the same way the browse tree names it.
+  await jisho.getByRole("option", { name: "N5" }).first().click();
+  await expect(jisho.getByRole("searchbox")).toContainText("N5");
+  await screenshotSidebar(vscode.window, "test-results/shots/35-tag-token.png");
+});

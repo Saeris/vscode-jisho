@@ -1,15 +1,11 @@
-import { useDeferredValue, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Input,
-  ListBox,
-  ListBoxItem,
-  SearchField
-} from "react-aria-components";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, ListBox, ListBoxItem } from "react-aria-components";
 import type { Selection } from "react-aria-components";
-import { namesQuery, searchQuery } from "../queries";
+import type { Classifier } from "../../shared/classifiers";
+import { browseQuery, namesQuery, searchQuery } from "../queries";
 import { Badge } from "../components/Badge";
+import { TagSearchField } from "../components/TagSearchField";
 import { JlptBadge } from "../components/JlptBadge";
 import { RecentSearches } from "../components/RecentSearches";
 import { SegmentBar } from "../components/SegmentBar";
@@ -38,9 +34,19 @@ export const SearchResults = ({
     openName: onOpenName,
     openRadicals,
     openBrowse,
+    openWordList,
     openHandwriting,
     openAbout
   } = useNavigate();
+  /**
+   * Tag filters currently in the box (#27).
+   *
+   * Component state rather than the navigation machine's, unlike `query`: a tag is only meaningful
+   * while the search view is showing, and the field that owns the tokens unmounts with it. `query`
+   * is persisted because Back must restore what you typed; a filter you cannot see has nothing to
+   * restore to.
+   */
+  const [tags, setTags] = useState<Classifier[]>([]);
   // Defer the query feeding TanStack Query so keystrokes stay responsive while results catch up;
   // simpler than a form library for a single field (RHF+Valibot is reserved for real forms).
   const deferredQuery = useDeferredValue(query);
@@ -90,7 +96,32 @@ export const SearchResults = ({
     ...namesQuery(deferredQuery),
     enabled: deferredQuery.trim().length > 0 && !isPendingWords
   });
-  const words = data?.words ?? [];
+  /**
+   * Word results, narrowed to the tag filters.
+   *
+   * Intersected CLIENT-SIDE against each tag's member set rather than pushed into the search SQL.
+   * The search query is a tuned relevance ranking over ~3M term rows; adding a join per tag would
+   * mean re-tuning it for a case that only applies when a tag is present. Each tag's word set is
+   * already fetched and cached for the browse list, so the intersection is a Set lookup over the
+   * ~50 rows a search returns.
+   */
+  const tagSets = useQueries({
+    queries: tags.map((t) => browseQuery(t.id, "frequency"))
+  });
+  const tagFiltered = useMemo(() => {
+    // `flatMap` over the loaded ones: a tag whose set is still in flight must not narrow anything
+    // yet, or results would flicker down and back up as each query lands.
+    const sets = tagSets.flatMap((q) =>
+      q.data === undefined ? [] : [new Set(q.data.results.map((r) => r.id))]
+    );
+    return sets.length === 0 ? undefined : sets;
+  }, [tagSets]);
+
+  const allWords = data?.words ?? [];
+  const words =
+    tagFiltered === undefined
+      ? allWords
+      : allWords.filter((w) => tagFiltered.every((set) => set.has(w.id)));
   const kanji = data?.kanji ?? [];
   const nameResults = names ?? [];
   const segments = data?.segments ?? [];
@@ -101,7 +132,7 @@ export const SearchResults = ({
 
   // Keyboard hand-off between the search input and the results list (BACKLOG #12): ↓ from the
   // input focuses the first result option; ↑ at the top of the list or Esc returns to the input.
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const focusFirstResult = (): void => {
@@ -136,19 +167,19 @@ export const SearchResults = ({
   return (
     <div className={styles.container}>
       <div className={styles.searchBar}>
-        <SearchField
-          aria-label="Search the dictionary"
-          value={query}
-          onChange={onQueryChange}
-          autoFocus
-        >
-          <Input
-            ref={inputRef}
-            className={styles.input}
-            placeholder="Search 日本語 or English…"
-            onKeyDown={onInputKeyDown}
-          />
-        </SearchField>
+        {/* Tags and free text come out separately (#27). A lone tag with no text OPENS that
+            category's list rather than searching for it — typing `#jlpt-n5` is the shortcut for the
+            four taps the browse tree would take, which is the reason to type it at all. */}
+        <TagSearchField
+          text={query}
+          inputRef={inputRef}
+          onKeyDown={onInputKeyDown}
+          onOpenTag={openWordList}
+          onChange={(text, tags) => {
+            setTags(tags);
+            onQueryChange(text);
+          }}
+        />
         <Button
           className={styles.iconButton}
           onPress={() => openRadicals()}

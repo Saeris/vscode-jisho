@@ -1,0 +1,95 @@
+/* The search box with inline `#tag` tokens (#27). Sized and coloured to match the plain input it
+   replaces, so the field reads the same until a tag is actually present. */
+
+.wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  display: block;
+}
+
+/* The editable area. Matches the previous `.input` metrics — a token field is still a text field
+   until you put a token in it, and it should not announce itself before then. */
+.input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  background: var(--jisho-input-bg);
+  color: var(--jisho-fg);
+  font: inherit;
+  min-height: 1.9em;
+  cursor: text;
+}
+
+.input[data-focused] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+/* A committed tag. Deliberately pill-shaped like the grammar tags on a word page: both mean "this
+   is a category", and using one visual language for that is the whole point of the shared
+   classifier table. */
+.token {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--jisho-link) 45%, transparent);
+  background: color-mix(in oklch, var(--jisho-link) 12%, transparent);
+  color: var(--jisho-link);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.token[data-selected] {
+  border-color: var(--jisho-focus);
+  background: color-mix(in oklch, var(--jisho-link) 25%, transparent);
+}
+
+/* The autocomplete. Anchored under the field rather than floating: the sidebar is narrow, and a
+   menu that can escape its column is harder to aim at than one that cannot. */
+.popover {
+  width: var(--trigger-width);
+}
+
+.suggestions {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  background: var(--vscode-dropdown-background, var(--jisho-input-bg));
+  padding: 2px;
+}
+
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: var(--jisho-radius);
+  cursor: pointer;
+}
+
+.suggestion[data-focused],
+.suggestion[data-hovered] {
+  background: var(--jisho-input-bg);
+}
+
+.suggestionLabel {
+  flex: 1;
+}
+
+/* The tag itself, shown beside its label so the user learns the vocabulary they could type next
+   time rather than only ever picking from the menu. */
+.suggestionTag {
+  color: var(--jisho-muted);
+  font-size: 0.8em;
+}

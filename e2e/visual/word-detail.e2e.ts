@@ -1,13 +1,13 @@
 import type { FrameLocator } from "@playwright/test";
 import { test } from "../fixtures";
-import { screenshotSidebar } from "../webview";
+import { fillSearch, screenshotSidebar } from "../webview";
 
 /** The word page and everything reachable from it: examples, conjugations, the copy-as menu. */
 test.describe.configure({ mode: "serial" });
 
 /** Search a term and open its first word result — the entry point for every capture here. */
 const openWord = async (frame: FrameLocator, term: string): Promise<void> => {
-  await frame.getByRole("searchbox").fill(term);
+  await fillSearch(frame, term);
   await frame
     .getByRole("option", { name: new RegExp(term) })
     .first()

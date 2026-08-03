@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar } from "./webview";
+import { fillSearch, jishoFrame, openJishoSidebar } from "./webview";
 
 /**
  * Back/forward mouse buttons (BACKLOG #48).
@@ -41,7 +41,7 @@ test("X1 goes back and X2 goes forward", async () => {
   };
 
   // Drill into a word so there is history to traverse.
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()

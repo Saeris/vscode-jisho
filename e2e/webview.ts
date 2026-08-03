@@ -124,6 +124,33 @@ export const openJishoSidebar = async (window: Page): Promise<void> => {
  * Names are matched exactly rather than with a loose /back/i, which matches BOTH buttons and trips
  * Playwright's strict mode.
  */
+/**
+ * Type a query into the search box, replacing whatever is there.
+ *
+ * `.fill()` does NOT work on it: the box is a `TokenField` (#27), a contenteditable rather than an
+ * `<input>`, so Playwright reports "Not an input element". Select-all then type is the equivalent
+ * that works on both, and it exercises the same path a user does — which matters here, because
+ * tokenising a `#tag` happens as text is EDITED, and a value set wholesale would skip it.
+ */
+export const fillSearch = async (
+  frame: FrameLocator,
+  query: string
+): Promise<void> => {
+  const box = frame.getByRole("searchbox");
+  await box.click();
+  // Select-all then overwrite, so this REPLACES rather than appends — the semantics `.fill()` had.
+  await box.press("ControlOrMeta+a");
+  if (query === "") {
+    await box.press("Delete");
+    return;
+  }
+  await box.pressSequentially(query);
+};
+
+/** The search box's current text — `textContent`, since it is not an input with a `value`. */
+export const searchText = async (frame: FrameLocator): Promise<string> =>
+  (await frame.getByRole("searchbox").textContent())?.trim() ?? "";
+
 export const returnToSearch = async (frame: FrameLocator): Promise<void> => {
   const searchbox = frame.getByRole("searchbox");
   const home = frame.getByRole("button", { name: "Back to search" });
@@ -181,7 +208,7 @@ export const openKanjiResult = async (
   frame: FrameLocator,
   literal: string
 ): Promise<void> => {
-  await frame.getByRole("searchbox").fill(literal);
+  await fillSearch(frame, literal);
   await frame
     .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
     .first()

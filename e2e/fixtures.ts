@@ -1,7 +1,12 @@
 import { test as base } from "@playwright/test";
 import type { FrameLocator } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
+import {
+  fillSearch,
+  jishoFrame,
+  openJishoSidebar,
+  returnToSearch
+} from "./webview";
 
 /**
  * One VS Code, shared by every spec that wants a default launch.
@@ -53,7 +58,7 @@ export const test = base.extend<{ jisho: FrameLocator }, { vscode: Launched }>({
     await openJishoSidebar(vscode.window);
     const frame = await jishoFrame(vscode.window);
     await returnToSearch(frame);
-    await frame.getByRole("searchbox").fill("");
+    await fillSearch(frame, "");
     await use(frame);
   }
 });

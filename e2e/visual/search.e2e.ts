@@ -1,5 +1,5 @@
 import { test } from "../fixtures";
-import { screenshotSidebar } from "../webview";
+import { fillSearch, screenshotSidebar } from "../webview";
 
 /** The search view: its empty state, and a query with both result sections populated. */
 test.describe.configure({ mode: "serial" });
@@ -15,7 +15,7 @@ test("capture: search results (words + kanji sections)", async ({
   vscode,
   jisho
 }) => {
-  await jisho.getByRole("searchbox").fill("食べる");
+  await fillSearch(jisho, "食べる");
   await jisho.getByRole("option").first().waitFor();
   await screenshotSidebar(vscode.window, "test-results/shots/11-results.png");
 });
@@ -28,7 +28,7 @@ test("capture: sentence breakdown bar (POS-coloured chips)", async ({
   // The chips colour by part of speech from the shared `[data-pos]` mapping in posCategory.css —
   // the one the tag pills and example sentences also read, so a break here would be a break in all
   // three at once. No other capture exercises this surface.
-  await jisho.getByRole("searchbox").fill("私は毎日日本語を勉強します");
+  await fillSearch(jisho, "私は毎日日本語を勉強します");
   const chip = jisho.locator("[data-pos]").first();
   await chip.waitFor();
   // Prove a palette colour actually RESOLVES, not merely that the attribute is present: the unit

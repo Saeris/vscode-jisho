@@ -53,6 +53,12 @@ vi.mock("../../queries", () => ({
     queryFn: () => [],
     enabled: query.trim().length > 0
   }),
+  // Tag-filter sets (#27). Never consulted here — these tests type plain text, so no tag token
+  // exists and `useQueries` is called with an empty list — but the module must still export it.
+  browseQuery: (id: string) => ({
+    queryKey: ["browse", id],
+    queryFn: () => ({ results: [], total: 0 })
+  }),
   // Empty history, so the empty view falls back to its hint — these tests are about results.
   recentSearchesQuery: () => ({
     queryKey: ["recentSearches"],

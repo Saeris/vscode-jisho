@@ -1,5 +1,5 @@
 import { test } from "../fixtures";
-import { openKanjiResult, screenshotSidebar } from "../webview";
+import { fillSearch, openKanjiResult, screenshotSidebar } from "../webview";
 
 /**
  * Light-theme contrast audit.
@@ -28,7 +28,7 @@ test("capture: word detail in light theme (contrast audit)", async ({
   vscode,
   jisho
 }) => {
-  await jisho.getByRole("searchbox").fill("食べる");
+  await fillSearch(jisho, "食べる");
   await jisho
     .getByRole("option", { name: /食べる/ })
     .first()
@@ -44,7 +44,7 @@ test("capture: more examples page in light theme (F1)", async ({
   vscode,
   jisho
 }) => {
-  await jisho.getByRole("searchbox").fill("食べる");
+  await fillSearch(jisho, "食べる");
   await jisho
     .getByRole("option", { name: /食べる/ })
     .first()

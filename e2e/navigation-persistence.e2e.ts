@@ -1,6 +1,12 @@
 import { expect, type Page } from "@playwright/test";
 import { test } from "./fixtures";
-import { jishoFrame, openJishoSidebar, returnToSearch } from "./webview";
+import {
+  fillSearch,
+  jishoFrame,
+  openJishoSidebar,
+  returnToSearch,
+  searchText
+} from "./webview";
 
 /**
  * Does navigation survive the sidebar being hidden?
@@ -41,7 +47,7 @@ test("keeps the open word on the stack when the sidebar is hidden and reopened",
   const frame = await jishoFrame(vscode.window);
   await returnToSearch(frame);
 
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame
     .getByRole("option", { name: /食べる/ })
     .first()
@@ -65,13 +71,16 @@ test("keeps the search query when the sidebar is hidden and reopened", async ({
 }) => {
   const frame = await jishoFrame(vscode.window);
   await returnToSearch(frame);
-  await frame.getByRole("searchbox").fill("water");
+  await fillSearch(frame, "water");
   await expect(frame.getByRole("option").first()).toBeVisible();
 
   await switchAwayAndBack(vscode.window);
 
   const reopened = await jishoFrame(vscode.window);
-  await expect(reopened.getByRole("searchbox")).toHaveValue("water", {
-    timeout: 15_000
-  });
+  // `searchText`, not `toHaveValue`: the box is a contenteditable TokenField (#27), so its content
+  // is text rather than a `value`. The long timeout stands — this waits on the webview document
+  // being recreated and its persisted state restored.
+  await expect
+    .poll(async () => searchText(reopened), { timeout: 15_000 })
+    .toBe("water");
 });

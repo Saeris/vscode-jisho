@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { jishoFrame, openJishoSidebar } from "./webview";
+import { fillSearch, jishoFrame, openJishoSidebar } from "./webview";
 
 /**
  * The settings pipeline end-to-end: a launch with every Jisho setting overridden in the seeded
@@ -52,7 +52,7 @@ test("textScale reaches the webview as a font-size multiplier", async () => {
 
 test("guideStyle=aligned flips the stroke player's arrow variant", async () => {
   const frame = await jishoFrame(app().window);
-  await frame.getByRole("searchbox").fill("近");
+  await fillSearch(frame, "近");
   await frame
     .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
     .first()
@@ -76,7 +76,7 @@ test("tagLabels=japanese relabels the grammar pills", async () => {
   // previous test's kanji detail. "Back to search" is the Home control's accessible name — it
   // collapses the whole stack in one press, unlike Back.
   await frame.getByRole("button", { name: "Back to search" }).click();
-  await frame.getByRole("searchbox").fill("食べる");
+  await fillSearch(frame, "食べる");
   await frame.locator('[role="listbox"] [role="option"]').first().click();
   await frame.getByRole("button", { name: "Back", exact: true }).waitFor();
   // The DEFAULT would render "ichidan verb" here. Proving the Japanese term shows instead is what
