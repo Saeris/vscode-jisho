@@ -18,6 +18,14 @@
   color: var(--pos-color, inherit);
 }
 
+/* A word with a part of speech but no entry to open: particles, auxiliaries, and content words the
+   build could not resolve. Coloured exactly like a linked word — the palette hue says the same
+   thing about は here as it does in the breakdown bar — but with no pointer, no hover affordance
+   and no tab stop, because there is nothing to open. */
+.span {
+  color: var(--pos-color, inherit);
+}
+
 .word:hover,
 .word:focus-visible {
   /*

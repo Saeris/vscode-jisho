@@ -40,6 +40,33 @@ describe("example sentence", () => {
     expect(onOpenWord).toHaveBeenCalledWith("1358280");
   });
 
+  it("colours particles without making them tappable", () => {
+    // WHY (#38, user report): example colouring used to ride the LINK data alone, so it could only
+    // express 4 of the 9 palette categories — particles, auxiliaries, pronouns, adnominals and
+    // utterances rendered as plain foreground. That left the uncoloured grammatical connectives as
+    // the brightest text in the sentence, inverting the emphasis the palette exists to give.
+    //
+    // But は must NOT become a tap target: opening a JMdict entry for a particle helps nobody, and
+    // making every particle tappable would bury the links that are genuinely useful.
+    render(
+      <ExampleSentence
+        markup="[{私|わたし}](pn:1311110)[は](p:)[{本|ほん}](n:1522150)[を](p:)[{読|よ}む](v:1535390)"
+        onOpenWord={vi.fn<(id: string) => void>()}
+      />
+    );
+    // `Ruby` wraps its content in its own span, so getByText returns the INNER element — walk up to
+    // the one carrying the attribute.
+    const carrier = (text: string): HTMLElement =>
+      screen.getByText(text).closest("[data-pos]") as HTMLElement;
+    const wa = carrier("は");
+    expect(wa).toHaveAttribute("data-pos", "particle");
+    expect(wa.tagName).toBe("SPAN"); // not a BUTTON: coloured, but nothing to open
+    // Three linked words; the two particles are not among them.
+    expect(screen.getAllByRole("button")).toHaveLength(3);
+    // And the categories the old link-only markup could never express now appear.
+    expect(carrier("私")).toHaveAttribute("data-pos", "pronoun");
+  });
+
   it("colours each linked word by its part of speech", () => {
     // WHY: an example sentence should read as STRUCTURE, not just as a string — the same hue that
     // word wears in the breakdown bar, the grammar pills and the editor. The POS is already in the
@@ -64,13 +91,17 @@ describe("example sentence", () => {
     await setHostSettings({ colorExamples: false });
     render(
       <ExampleSentence
-        markup="[{食|た}べる](v:1358280)のが[{好|す}き](adj:1277440)です"
+        markup="[{食|た}べる](v:1358280)[のが](p:)[{好|す}き](adj:1277440)です"
         onOpenWord={vi.fn<(id: string) => void>()}
       />
     );
     for (const word of screen.getAllByRole("button")) {
       expect(word).not.toHaveAttribute("data-pos");
     }
+    // Spans too — the setting governs the whole sentence, not just the tappable half. Asserted via
+    // `closest`, so this fails if the span merely nests differently rather than losing its colour;
+    // a bare getByText would pass on the inner Ruby element either way.
+    expect(screen.getByText("のが").closest("[data-pos]")).toBeNull();
     // The words stay tappable — this setting is about colour, not about linkification.
     expect(screen.getAllByRole("button")).toHaveLength(2);
   });

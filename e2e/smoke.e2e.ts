@@ -75,12 +75,22 @@ test("tapping a word in an example opens that word's detail (F1-links)", async (
     .click();
   await frame.getByRole("button", { name: /more examples/i }).click();
   await frame.getByRole("heading", { name: /Examples for/ }).waitFor();
-  // Linked words carry their part-of-speech colour by default (#38, `appearance.colorExamples`).
+  // Words carry their part-of-speech colour by default (#38, `appearance.colorExamples`).
   // Asserting on the ATTRIBUTE rather than the computed colour: the palette values are `oklch()`,
   // which Chromium does not serialise as `rgb()`, and pinning a hue would break the moment the
   // palette is retuned. `settings.e2e.ts` covers the off case.
   const linked = frame.locator('[lang="ja"] button').first();
   await expect(linked).toHaveAttribute("data-pos", /^[a-z]+$/u);
+
+  // The colour/tap boundary, in a real browser. Particles are coloured but NOT tappable — they are
+  // 29% of tokens, so if spans ever became buttons the useful links would drown in them. A <span>
+  // carrying `data-pos` must exist, and no particle may be a button.
+  // Scoped to the sentence LIST, not `[lang="ja"]` — the page heading carries that too.
+  const sentences = frame.locator("li");
+  await expect(
+    sentences.locator('span[data-pos="particle"]').first()
+  ).toBeVisible();
+  await expect(sentences.locator('button[data-pos="particle"]')).toHaveCount(0);
   // Tap the first linked word in the pool (any example word is a button). It opens a word detail,
   // so the examples heading is gone and a word page's markers (the reading, the examples link)
   // appear. (Both "Back" and "Home" now show — we're 3 deep: search → word → examples → word — so

@@ -52,7 +52,7 @@ import {
 // rewriting, so extensionless specifiers fail to resolve here (unlike inside the bundled extension).
 import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
-import { linkToken } from "../src/shared/exampleLinks.ts";
+import { linkToken, posToken } from "../src/shared/exampleLinks.ts";
 import { searchFold, sortKey } from "../src/shared/kana.ts";
 import { fetchAcjkMap, voteRadicalPositions } from "./acjk.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
@@ -502,7 +502,17 @@ const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
 /** Resolve a segment's dictionary form to a JMdict entry id (words.id), or undefined if unknown. */
 type WordResolver = (lemma: string, reading: string) => string | undefined;
 
-/** Content parts of speech worth linking to a dictionary entry (particles/aux/other are skipped). */
+/**
+ * Content parts of speech worth LINKING to a dictionary entry.
+ *
+ * This is the link policy only. It used to double as the colour policy — a word outside this set
+ * was emitted as bare text, so it carried no part of speech and could not be coloured — which is
+ * why examples expressed 4 of the 9 palette categories where the editor expressed all nine (#38).
+ * Everything else now gets `posToken` instead: typed, coloured, not tappable.
+ *
+ * Particles and auxiliaries stay out deliberately. Opening a JMdict entry for は teaches nothing,
+ * and making every particle tappable would make the genuinely useful links harder to pick out.
+ */
 const LINKABLE_POS = new Set<PartOfSpeech>([
   "noun",
   "verb",
@@ -535,7 +545,17 @@ const annotateExample = async (
     const id = LINKABLE_POS.has(seg.pos)
       ? resolve(seg.lemma, toHiragana(seg.reading))
       : undefined;
-    out += id !== undefined ? linkToken(text, seg.pos, id) : text;
+    if (id !== undefined) {
+      out += linkToken(text, seg.pos, id);
+    } else if (seg.pos === "other") {
+      // Punctuation, whitespace, Latin — no grammatical claim to make, so no annotation. Wrapping
+      // these would grow the stored markup for nothing and imply a category they do not have.
+      out += text;
+    } else {
+      // Typed but unlinked: a particle, an auxiliary, or a content word that did not resolve. The
+      // tokenizer already classified it — this stops the build from throwing that away.
+      out += posToken(text, seg.pos);
+    }
   }
   return out;
 };

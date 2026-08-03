@@ -2,17 +2,25 @@
  * The markup format for linkified example sentences (F1-links) — the single source of truth shared
  * by the build (which EMITS it) and the webview (which PARSES it), so the two can never drift.
  *
- * A sentence is a sequence of plain runs and linked words. A linked word is markdown-link syntax:
+ * A sentence is a sequence of plain runs and annotated words, in markdown-link syntax:
  *
- *     [<link text>](<pos>:<entseq>)
+ *     [<link text>](<pos>:<entseq>)   — a word with an entry: coloured AND tappable
+ *     [<link text>](<pos>:)           — a word without one:  coloured, not tappable
  *
- * where the link TEXT is the full word — okurigana and conjugation included — with its furigana
- * nested inside as mirrordown ruby (`{漢字|かんじ}`), so the link SPAN is the correct word boundary
- * and tap target. The target is a short part-of-speech code plus the word's JMdict `ent_seq`
- * (= `words.id`), so a tap opens that entry directly. Only content words that resolved to an entry
- * are linked; particles, punctuation, and unresolved runs stay as plain text (with any furigana).
+ * where the TEXT is the full word — okurigana and conjugation included — with its furigana nested
+ * inside as mirrordown ruby (`{漢字|かんじ}`), so the span is the correct word boundary and tap
+ * target. The target is a short part-of-speech code plus the word's JMdict `ent_seq` (= `words.id`)
+ * when there is one.
  *
- * Example:  `お[{茶|ちゃ}](n:1000710)を[{飲|の}みませんか](v:1168720)`
+ * The empty-id form exists because colouring and linking are different questions (#38). Linking は
+ * to a dictionary entry helps nobody, so only content words get an id — but は still has a part of
+ * speech, and particles are 29% of all tokens and the visible word boundary. When the second form
+ * did not exist, examples could colour only 4 of the 9 palette categories (68.7% of characters),
+ * which is why they looked unlike the editor's highlighting of the same sentence.
+ *
+ * Only punctuation, whitespace and `other`-classed runs remain unannotated plain text.
+ *
+ * Example:  `お[{茶|ちゃ}](n:1000710)[を](p:)[{飲|の}みませんか](v:1168720)`
  */
 import type { PartOfSpeech } from "./messages";
 import { stripRubyText } from "./ruby.ts";
@@ -57,20 +65,47 @@ export const linkToken = (
   entseq: string
 ): string => `[${text}](${POS_CODE[pos]}:${entseq})`;
 
-/** One piece of a parsed sentence: a linked word, or a plain run. Both may carry ruby markup. */
-export type ExamplePart =
-  | { kind: "link"; markup: string; pos: PartOfSpeech; id: string }
-  | { kind: "text"; markup: string };
-
-// A markdown link whose target is `<code>:<entseq>`. The link text is non-greedy and forbids a
-// literal `]` (Japanese sentences never contain one), so nested ruby braces don't confuse it.
-const LINK = /\[([^\]]+)\]\(([a-z]+):(\d+)\)/gu;
+/**
+ * Build a TYPED-BUT-UNLINKED token: `[text](code:)`, an empty id.
+ *
+ * For words that have a part of speech worth showing but no dictionary entry worth opening —
+ * particles, auxiliaries, and any content word the build could not resolve. Colouring and linking
+ * are genuinely different questions: linking は to a JMdict entry helps nobody, but は is exactly
+ * what a learner needs to see delimited, and it is 29% of all tokens.
+ *
+ * Same shape as `linkToken` on purpose, so one grammar covers both and `exampleText` keeps
+ * stripping them with the same pass.
+ */
+export const posToken = (text: string, pos: PartOfSpeech): string =>
+  `[${text}](${POS_CODE[pos]}:)`;
 
 /**
- * Split linkified example markup into render parts, in order. Text between links (and any text that
- * isn't a link) becomes `text` parts; a matched `[…](code:id)` becomes a `link` part carrying the
- * inner markup (still possibly ruby) plus the resolved POS and id. The webview renders each part —
- * ruby via the shared renderer, links as tappable spans.
+ * One piece of a parsed sentence. All three may carry ruby markup.
+ *
+ * `link` and `span` differ only in whether there is an entry to open — both carry a part of speech,
+ * so both colour. `text` is what carries no grammatical claim at all: punctuation, whitespace, and
+ * anything the tokenizer classed as `other`.
+ */
+export type ExamplePart =
+  | { kind: "link"; markup: string; pos: PartOfSpeech; id: string }
+  | { kind: "span"; markup: string; pos: PartOfSpeech }
+  | { kind: "text"; markup: string };
+
+// A markdown link whose target is `<code>:<entseq>`, where the entseq may be EMPTY (`\d*`, not
+// `\d+`) — that is the typed-but-unlinked form. The link text is non-greedy and forbids a literal
+// `]` (Japanese sentences never contain one), so nested ruby braces don't confuse it.
+//
+// One pattern for both forms is the point: `exampleText` strips markup with a single
+// `replace(LINK, "$1")`, and a second grammar would be a second thing every consumer has to know
+// about — exactly how `[もっと](adv:1012620)` once leaked into the word page.
+const LINK = /\[([^\]]+)\]\(([a-z]+):(\d*)\)/gu;
+
+/**
+ * Split linkified example markup into render parts, in order.
+ *
+ * A `[…](code:id)` becomes a `link` part; the same with an empty id becomes a `span` part; anything
+ * between them becomes `text`. Each carries its inner markup (still possibly ruby), which the
+ * webview renders through the shared ruby renderer.
  */
 export const parseExampleMarkup = (markup: string): ExamplePart[] => {
   const parts: ExamplePart[] = [];
@@ -81,12 +116,12 @@ export const parseExampleMarkup = (markup: string): ExamplePart[] => {
     if (start > lastIndex) {
       parts.push({ kind: "text", markup: markup.slice(lastIndex, start) });
     }
-    parts.push({
-      kind: "link",
-      markup: text,
-      pos: CODE_POS[code] ?? "other",
-      id
-    });
+    const pos = CODE_POS[code] ?? "other";
+    parts.push(
+      id === ""
+        ? { kind: "span", markup: text, pos }
+        : { kind: "link", markup: text, pos, id }
+    );
     lastIndex = start + whole.length;
   }
   if (lastIndex < markup.length) {

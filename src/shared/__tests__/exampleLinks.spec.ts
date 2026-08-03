@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { linkToken, parseExampleMarkup } from "../exampleLinks";
+import {
+  exampleText,
+  linkToken,
+  parseExampleMarkup,
+  posToken
+} from "../exampleLinks";
 
 describe("example link markup", () => {
   it("builds a link token with the pos code and entry id", () => {
@@ -9,18 +14,39 @@ describe("example link markup", () => {
     );
   });
 
-  it("parses a sentence into ordered link and text parts", () => {
-    // WHY: the webview renders these parts in order — a link becomes a tappable span (open by id),
-    // a text run renders (with any ruby). Boundaries and order must be exact.
+  it("builds a typed-but-unlinked token with an empty id", () => {
+    // WHY (#38): colouring and linking are different questions. A particle has a part of speech
+    // worth showing but no entry worth opening, so it needs a token that carries the one without
+    // implying the other.
+    expect(posToken("を", "particle")).toBe("[を](p:)");
+  });
+
+  it("parses a sentence into ordered link, span and text parts", () => {
+    // WHY: the webview renders these in order — a link is tappable (open by id), a span is coloured
+    // but inert, a text run is neither. Boundaries, order and KIND must all be exact, since kind is
+    // what decides whether the reader gets a tap target.
     const parts = parseExampleMarkup(
-      "お[{茶|ちゃ}](n:1000710)を[{飲|の}みませんか](v:1168720)"
+      "お[{茶|ちゃ}](n:1000710)[を](p:)[{飲|の}みませんか](v:1168720)。"
     );
     expect(parts).toEqual([
       { kind: "text", markup: "お" },
       { kind: "link", markup: "{茶|ちゃ}", pos: "noun", id: "1000710" },
-      { kind: "text", markup: "を" },
-      { kind: "link", markup: "{飲|の}みませんか", pos: "verb", id: "1168720" }
+      { kind: "span", markup: "を", pos: "particle" },
+      { kind: "link", markup: "{飲|の}みませんか", pos: "verb", id: "1168720" },
+      { kind: "text", markup: "。" }
     ]);
+  });
+
+  it("strips both token forms to plain text in one pass", () => {
+    // WHY: `exampleText` feeds the editor hover, whose markdown VS Code sanitizes to a fixed subset
+    // — it must emit NO markup at all. Adding a second token form is exactly when a stripper starts
+    // half-working, which is how `[もっと](adv:1012620)` once reached the word page. One regex
+    // covers both forms precisely so this cannot drift.
+    expect(
+      exampleText(
+        "お[{茶|ちゃ}](n:1000710)[を](p:)[{飲|の}みませんか](v:1168720)"
+      )
+    ).toBe("お茶を飲みませんか");
   });
 
   it("round-trips a built token back through the parser", () => {

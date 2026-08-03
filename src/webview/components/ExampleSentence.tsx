@@ -1,4 +1,5 @@
 import { Button } from "react-aria-components";
+import type { PartOfSpeech } from "../../shared/messages";
 import { parseExampleMarkup } from "../../shared/exampleLinks";
 import { useHostSettings } from "../useHostSettings";
 import { Ruby } from "./Ruby";
@@ -19,42 +20,52 @@ interface ExampleSentenceProps {
  * boundaries come from the build-time tokenizer, so the tap targets are whole words (食べました, not
  * a furigana fragment).
  *
- * Linked words also carry their PART-OF-SPEECH colour (#38), the same hue that word wears in the
- * breakdown bar, in the grammar pills and in the editor — so an example sentence is readable as
- * structure, not just as a string. The POS is already in the markup's link target, so this costs no
+ * Words also carry their PART-OF-SPEECH colour (#38), the same hue that word wears in the breakdown
+ * bar, in the grammar pills and in the editor — so an example sentence is readable as structure, not
+ * just as a string. The POS is in the markup, computed by the build's tokenizer, so this costs no
  * extra data and no tokenization at render time.
  *
- * Only linked words can be coloured: plain runs are exactly the text the build could NOT resolve to
- * an entry, so they have no part of speech to show. Particles are the visible consequence — は and
- * を stay in the foreground colour here, where the breakdown bar does colour them, because the
- * breakdown bar tokenizes at runtime and knows their category.
+ * TAPPABILITY AND COLOUR ARE SEPARATE. A `link` part has a dictionary entry and is both; a `span`
+ * part — particles, auxiliaries, unresolved words — is coloured but inert, because opening an entry
+ * for は helps nobody while seeing は delimited helps a great deal. Only punctuation and `other`
+ * runs are plain `text`.
  */
 export const ExampleSentence = ({
   markup,
   onOpenWord
 }: ExampleSentenceProps): React.ReactElement => {
   const { colorExamples } = useHostSettings();
+  // Omitted entirely when the setting is off, rather than switched to an "off" value: every
+  // consumer of `--pos-color` already pairs it with a neutral fallback for the uncategorised case,
+  // so the disabled state needs no styling of its own.
+  const posOf = (pos: PartOfSpeech): PartOfSpeech | undefined =>
+    colorExamples ? pos : undefined;
   return (
     <>
-      {parseExampleMarkup(markup).map((part, index) =>
-        part.kind === "link" ? (
-          <Button
-            // eslint-disable-next-line react/no-array-index-key -- parts are positional within a sentence
-            key={index}
-            className={styles.word}
-            // Omitted entirely when the setting is off, rather than switched to an "off" value:
-            // every consumer of `--pos-color` already pairs it with a neutral fallback for the
-            // uncategorised case, so the disabled state needs no styling of its own.
-            data-pos={colorExamples ? part.pos : undefined}
-            onPress={() => onOpenWord(part.id)}
-          >
-            <Ruby markup={part.markup} />
-          </Button>
-        ) : (
-          // eslint-disable-next-line react/no-array-index-key -- parts are positional within a sentence
-          <Ruby key={index} markup={part.markup} />
-        )
-      )}
+      {parseExampleMarkup(markup).map((part, index) => {
+        // eslint-disable-next-line react/no-array-index-key -- parts are positional within a sentence
+        const key = index;
+        if (part.kind === "link") {
+          return (
+            <Button
+              key={key}
+              className={styles.word}
+              data-pos={posOf(part.pos)}
+              onPress={() => onOpenWord(part.id)}
+            >
+              <Ruby markup={part.markup} />
+            </Button>
+          );
+        }
+        if (part.kind === "span") {
+          return (
+            <span key={key} className={styles.span} data-pos={posOf(part.pos)}>
+              <Ruby markup={part.markup} />
+            </span>
+          );
+        }
+        return <Ruby key={key} markup={part.markup} />;
+      })}
     </>
   );
 };
