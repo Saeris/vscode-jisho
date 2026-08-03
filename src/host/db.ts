@@ -8,6 +8,8 @@ import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
 import { getMoreExamples, getWord } from "./queries/words";
 import { resolveByLemma, search, searchKanji } from "./queries/search";
+import { browse, browseCount, type BrowseOrder } from "./queries/browse";
+import type { Classifier } from "../shared/classifiers";
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../shared/schema";
 import type {
   ComponentTreeDto,
@@ -124,6 +126,23 @@ export class Dictionary {
 
   async searchKanji(rawQuery: string, limit = 8): Promise<KanjiResultDto[]> {
     return searchKanji(this.#store, rawQuery, limit);
+  }
+
+  /**
+   * Browse a classifier's words (#54). A separate path from `search` — see queries/browse.ts for
+   * why filtering and ranking are not the same query.
+   */
+  async browse(
+    classifier: Classifier,
+    order: BrowseOrder = "frequency",
+    limit = 2000
+  ): Promise<SearchResultDto[]> {
+    return browse(this.#store, classifier, order, limit);
+  }
+
+  /** How many words a classifier holds — the browse tree's counts. */
+  async browseCount(classifier: Classifier): Promise<number> {
+    return browseCount(this.#store, classifier);
   }
 
   async getWord(id: string): Promise<WordDetailDto | null> {
