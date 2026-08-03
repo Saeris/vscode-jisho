@@ -13,11 +13,17 @@
 
 /* The editable area. Matches the previous `.input` metrics — a token field is still a text field
    until you put a token in it, and it should not announce itself before then. */
+/*
+ * The editable area.
+ *
+ * `display: block`, NOT flex. React Aria sets `white-space: pre-wrap` inline on this element (the
+ * contenteditable needs it to preserve typed spaces), and under `display: flex` the trailing
+ * newline every contenteditable carries becomes its own line box — which showed as an empty second
+ * row of space below the caret whenever the field was empty. Block layout collapses it, and the
+ * tokens are inline-flex so they still sit on the text baseline.
+ */
 .input {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px;
+  display: block;
   width: 100%;
   padding: 3px 6px;
   border: 1px solid var(--jisho-border);
@@ -25,7 +31,8 @@
   background: var(--jisho-input-bg);
   color: var(--jisho-fg);
   font: inherit;
-  min-height: 1.9em;
+  line-height: 1.5;
+  min-height: 1.5em;
   cursor: text;
 }
 

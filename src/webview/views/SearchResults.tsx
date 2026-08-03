@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ListBox, ListBoxItem } from "react-aria-components";
 import type { Selection } from "react-aria-components";
@@ -97,31 +97,46 @@ export const SearchResults = ({
     enabled: deferredQuery.trim().length > 0 && !isPendingWords
   });
   /**
-   * Word results, narrowed to the tag filters.
+   * Word results, narrowed by the tag filters.
    *
-   * Intersected CLIENT-SIDE against each tag's member set rather than pushed into the search SQL.
+   * Intersected CLIENT-SIDE against each tag's member list rather than pushed into the search SQL.
    * The search query is a tuned relevance ranking over ~3M term rows; adding a join per tag would
-   * mean re-tuning it for a case that only applies when a tag is present. Each tag's word set is
-   * already fetched and cached for the browse list, so the intersection is a Set lookup over the
-   * ~50 rows a search returns.
+   * mean re-tuning it for a case that only applies when a tag is present. Each tag's list is
+   * already fetched and cached for the browse view, so this reuses it.
+   *
+   * TWO MODES, because a text search and a tag filter are different questions:
+   *   - with text: narrow the ranked results to words carrying every tag.
+   *   - tags ONLY: the tags ARE the query. The text search never runs on an empty string, so
+   *     filtering its (empty) output would show nothing — which is exactly what `#jlpt-n5
+   *     #verb-godan` used to do. Intersecting the tag lists directly is the answer to what was
+   *     actually asked.
    */
   const tagSets = useQueries({
     queries: tags.map((t) => browseQuery(t.id, "frequency"))
   });
-  const tagFiltered = useMemo(() => {
-    // `flatMap` over the loaded ones: a tag whose set is still in flight must not narrow anything
-    // yet, or results would flicker down and back up as each query lands.
-    const sets = tagSets.flatMap((q) =>
-      q.data === undefined ? [] : [new Set(q.data.results.map((r) => r.id))]
-    );
-    return sets.length === 0 ? undefined : sets;
-  }, [tagSets]);
-
+  // Whichever tag lists have arrived. Narrowing by a SUBSET is the honest intermediate: with two
+  // tags the second lands a beat after the first, and it only ever shows too many results, never
+  // the wrong ones. Waiting for all of them blanks the list for that beat, which reads as "no
+  // matches" — which is exactly how this looked broken.
+  const loaded = tagSets.flatMap((q) => (q.data === undefined ? [] : [q.data]));
   const allWords = data?.words ?? [];
-  const words =
-    tagFiltered === undefined
-      ? allWords
-      : allWords.filter((w) => tagFiltered.every((set) => set.has(w.id)));
+
+  let words = allWords;
+  if (tags.length > 0) {
+    const sets = loaded.map((d) => new Set(d.results.map((r) => r.id)));
+    if (query.trim() !== "") {
+      // With text: narrow the ranked results.
+      words = allWords.filter((w) => sets.every((set) => set.has(w.id)));
+    } else if (loaded.length > 0) {
+      // Tags alone: the first list, narrowed by the rest. Already frequency-ordered, so the most
+      // useful words lead.
+      words = loaded[0].results.filter((r) =>
+        sets.slice(1).every((set) => set.has(r.id))
+      );
+    } else {
+      words = [];
+    }
+  }
   const kanji = data?.kanji ?? [];
   const nameResults = names ?? [];
   const segments = data?.segments ?? [];
@@ -214,7 +229,9 @@ export const SearchResults = ({
         <SegmentBar segments={segments} onSelectSegment={onQueryChange} />
       ) : null}
 
-      {query.trim() === "" ? (
+      {/* Tags count as a query even with no text — they ARE the filter — so the empty view only
+          shows when neither is present. */}
+      {query.trim() === "" && tags.length === 0 ? (
         <>
           {/* The browse entry point (#54). On the empty view rather than in the toolbar: it and
               the recent list answer the same question — "I have nothing typed yet" — and the

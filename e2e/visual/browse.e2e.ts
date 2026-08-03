@@ -84,3 +84,21 @@ test("capture: #tag autocomplete and a tag token", async ({
   await expect(jisho.getByRole("searchbox")).toContainText("N5");
   await screenshotSidebar(vscode.window, "test-results/shots/35-tag-token.png");
 });
+
+test("two tags narrow together", async ({ jisho }) => {
+  // WHY (user report): tags are FILTERS. `#jlpt-n5` alone returns N5 words; adding `#verb-godan`
+  // must intersect, not replace. 76 words carry both in the shipped dictionary, so the narrowed
+  // list is non-empty but strictly smaller — which is what makes this a real check rather than a
+  // "still shows something" one.
+  await jisho.getByRole("searchbox").click();
+  await jisho.getByRole("searchbox").pressSequentially("#jlpt-n5 ");
+  const n5Only = await jisho.getByRole("option").count();
+  expect(n5Only).toBeGreaterThan(0);
+
+  await jisho.getByRole("searchbox").pressSequentially("#verb-godan ");
+  await expect
+    .poll(async () => jisho.getByRole("option").count())
+    .toBeLessThan(n5Only);
+  // And still non-empty: an intersection that emptied would mean the filters are not composing.
+  expect(await jisho.getByRole("option").count()).toBeGreaterThan(0);
+});
