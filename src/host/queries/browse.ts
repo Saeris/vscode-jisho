@@ -8,7 +8,7 @@
  * They share `searchResult`, so the ROWS cannot drift even though the queries differ.
  */
 import type { SqliteStore } from "../store";
-import type { Classifier } from "../../shared/classifiers";
+import { CLASSIFIER_BY_ID, type Classifier } from "../../shared/classifiers";
 import type { SearchResultDto } from "../../shared/messages";
 import { searchResult } from "./search";
 
@@ -102,6 +102,92 @@ export const browse = async (
     if (result !== null) out.push(result);
   }
   return out;
+};
+
+/**
+ * For each classifier, how many words would REMAIN if it were added to the tags already applied.
+ *
+ * One grouped query rather than a count per candidate: the autocomplete offers ~90 tags and needs
+ * every number at once to hide the ones that would narrow to zero. Counting them individually
+ * would be 90 round trips per keystroke.
+ *
+ * With no tags applied this is just each classifier's own size, which is what the browse tree
+ * shows — so `browseCounts` and this share a single code path rather than drifting.
+ */
+export const refineCounts = async (
+  store: SqliteStore,
+  applied: Classifier[]
+): Promise<Record<string, number>> => {
+  // The candidate pool: the words the applied tags leave. Empty `applied` means the whole
+  // dictionary, and the SQL below then degenerates to a plain group-by over every word.
+  const pool =
+    applied.length === 0
+      ? null
+      : await (async (): Promise<Set<string>> => {
+          const lists = await Promise.all(
+            applied.map(async (c) => idsFor(store, c, "frequency", 100_000))
+          );
+          const [first, ...rest] = lists;
+          const others = rest.map((l) => new Set(l.map((r) => r.id)));
+          return new Set(
+            first
+              .filter((r) => others.every((s) => s.has(r.id)))
+              .map((r) => r.id)
+          );
+        })();
+
+  const counts: Record<string, number> = {};
+  // Tag classifiers indexed by the (kind, code) they match, so one pass over `sense_tags` can
+  // attribute each row without rescanning per classifier. Prefix families are kept separate
+  // because they match by range rather than equality.
+  const exact = new Map<string, Classifier[]>();
+  const prefixes: Array<Extract<Classifier, { kind: "tag" }>> = [];
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind !== "tag") continue;
+    if (c.prefix) prefixes.push(c);
+    else {
+      const key = `${c.tagKind}\t${c.code}`;
+      exact.set(key, [...(exact.get(key) ?? []), c]);
+    }
+  }
+
+  // One scan, counting DISTINCT words per classifier — a word with three `v5*` senses is one godan
+  // verb, not three.
+  const seen = new Map<string, Set<string>>();
+  const rows = await store.all<{ kind: string; code: string; word_id: string }>(
+    `SELECT t.kind AS kind, t.code AS code, s.word_id AS word_id
+       FROM sense_tags t JOIN senses s ON s.id = t.sense_id`
+  );
+  for (const r of rows) {
+    if (pool !== null && !pool.has(r.word_id)) continue;
+    const hit = [
+      ...(exact.get(`${r.kind}\t${r.code}`) ?? []),
+      ...prefixes.filter(
+        (c) => c.tagKind === r.kind && r.code.startsWith(c.code)
+      )
+    ];
+    for (const c of hit) {
+      const set = seen.get(c.id) ?? new Set<string>();
+      set.add(r.word_id);
+      seen.set(c.id, set);
+    }
+  }
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind === "tag") counts[c.id] = seen.get(c.id)?.size ?? 0;
+  }
+
+  // JLPT and frequency live on `words`, so they are counted from their own lists.
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind === "tag") continue;
+    if (pool === null) {
+      counts[c.id] = await browseCount(store, c);
+    } else {
+      const ids = await idsFor(store, c, "frequency", 100_000);
+      counts[c.id] = ids.filter((r) => pool.has(r.id)).length;
+    }
+  }
+
+  return counts;
 };
 
 /**

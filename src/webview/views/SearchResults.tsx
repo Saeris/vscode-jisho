@@ -1,9 +1,14 @@
-import { useDeferredValue, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ListBox, ListBoxItem } from "react-aria-components";
 import type { Selection } from "react-aria-components";
 import type { Classifier } from "../../shared/classifiers";
-import { browseQuery, namesQuery, searchQuery } from "../queries";
+import {
+  browseCountsQuery,
+  browseQuery,
+  namesQuery,
+  searchQuery
+} from "../queries";
 import { Badge } from "../components/Badge";
 import { TagSearchField } from "../components/TagSearchField";
 import { JlptBadge } from "../components/JlptBadge";
@@ -114,6 +119,25 @@ export const SearchResults = ({
   const tagSets = useQueries({
     queries: tags.map((t) => browseQuery(t.id, "frequency"))
   });
+
+  /**
+   * How many results each candidate tag would leave, given the ones already applied — so the
+   * autocomplete can show counts and drop combinations that narrow to zero.
+   *
+   * Keyed on the APPLIED tags, not on what is being typed: a full pass costs ~250ms, and running
+   * it per keystroke would make the menu lag behind the text. Cached with `staleTime: Infinity`,
+   * so it recomputes only when a tag is added or removed.
+   */
+  const { data: refineCountsRecord } = useQuery(
+    browseCountsQuery(tags.map((t) => t.id))
+  );
+  const refineCounts = useMemo(
+    () =>
+      refineCountsRecord === undefined
+        ? undefined
+        : new Map(Object.entries(refineCountsRecord)),
+    [refineCountsRecord]
+  );
   // Whichever tag lists have arrived. Narrowing by a SUBSET is the honest intermediate: with two
   // tags the second lands a beat after the first, and it only ever shows too many results, never
   // the wrong ones. Waiting for all of them blanks the list for that beat, which reads as "no
@@ -187,6 +211,7 @@ export const SearchResults = ({
             four taps the browse tree would take, which is the reason to type it at all. */}
         <TagSearchField
           text={query}
+          refineCounts={refineCounts}
           inputRef={inputRef}
           onKeyDown={onInputKeyDown}
           onOpenTag={openWordList}

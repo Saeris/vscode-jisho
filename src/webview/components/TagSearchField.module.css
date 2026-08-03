@@ -68,12 +68,17 @@
 }
 
 .suggestions {
-  max-height: 240px;
+  /* ~9 rows, then scroll. The list is capped at 30 candidates, and without a scroller everything
+     past the visible few was unreachable except by typing more characters — which defeats the
+     point of offering the vocabulary to someone who does not know it. */
+  max-height: 260px;
   overflow-y: auto;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
   background: var(--vscode-dropdown-background, var(--jisho-input-bg));
   padding: 2px;
+  margin: 0;
+  list-style: none;
 }
 
 .suggestion {
@@ -85,9 +90,27 @@
   cursor: pointer;
 }
 
+/*
+ * The keyboard highlight.
+ *
+ * `[data-focused]` is what React Aria's `Menu` sets as the keyboard moves through it — the caret
+ * stays in the text field, so this is the ONLY signal of where the user is. An earlier hand-rolled
+ * list set `aria-selected` while the CSS still targeted RAC attributes, so ArrowDown moved a
+ * selection with nothing to show for it: the state was right and invisible.
+ *
+ * Styled as a selected row rather than a focus ring, since focus is genuinely still in the field.
+ */
 .suggestion[data-focused],
 .suggestion[data-hovered] {
-  background: var(--jisho-input-bg);
+  background: var(--vscode-list-activeSelectionBackground, var(--jisho-focus));
+  color: var(--vscode-list-activeSelectionForeground, var(--jisho-fg));
+}
+
+.suggestion[data-focused] .suggestionTag,
+.suggestion[data-hovered] .suggestionTag {
+  /* Keep the tag readable against the selection fill, which is darker than the list ground. */
+  color: inherit;
+  opacity: 0.75;
 }
 
 .suggestionLabel {

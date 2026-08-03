@@ -352,6 +352,12 @@ export interface BrowseRequest {
 export interface BrowseCountsRequest {
   type: "browseCounts";
   requestId: string;
+  /**
+   * Classifier ids already applied. Counts are then how many words would REMAIN if each candidate
+   * were added — which is what lets the tag autocomplete hide combinations that narrow to zero.
+   * Omitted (or empty) gives each category's own size, which is what the browse tree shows.
+   */
+  applied?: string[];
 }
 
 export interface GetKanjiRequest {

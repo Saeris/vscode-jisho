@@ -31,7 +31,7 @@ describe("tag search field", () => {
     const box = screen.getByRole("searchbox");
     await userEvent.click(box);
     await userEvent.keyboard("#jlpt");
-    const options = await screen.findAllByRole("option");
+    const options = await screen.findAllByRole("menuitem");
     expect(options.length).toBeGreaterThan(1);
     expect(options.map((o) => o.textContent)).toContain("N5#jlpt-n5");
   });
@@ -48,9 +48,8 @@ describe("tag search field", () => {
 
     const selected = (): string | null =>
       screen
-        .getAllByRole("option")
-        .find((o) => o.getAttribute("aria-selected") === "true")?.textContent ??
-      null;
+        .getAllByRole("menuitem")
+        .find((o) => o.hasAttribute("data-focused"))?.textContent ?? null;
 
     expect(selected()).toBe("N5#jlpt-n5");
     await userEvent.keyboard("{ArrowDown}");
@@ -102,7 +101,7 @@ describe("tag search field", () => {
     const box = screen.getByRole("searchbox");
     await userEvent.click(box);
     await userEvent.keyboard("#jlpt-n5");
-    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
     await userEvent.keyboard("{Enter}");
     expect(opened).toEqual(["jlpt-n5"]);
   });
@@ -115,7 +114,7 @@ describe("tag search field", () => {
     const box = screen.getByRole("searchbox");
     await userEvent.click(box);
     await userEvent.keyboard("#jlpt-n");
-    expect(screen.queryAllByRole("option").length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole("menuitem").length).toBeGreaterThan(0);
     await userEvent.keyboard("{Enter}");
     expect(opened).toEqual([]);
     expect(changes.at(-1)?.tags).toEqual(["jlpt-n5"]);

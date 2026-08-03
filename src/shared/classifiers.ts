@@ -263,12 +263,21 @@ export const findClassifier = (raw: string): Classifier | undefined =>
  * Matches on BOTH so `#n5` finds "N5" by label and `#jlpt` finds it by id — a learner reaching for
  * a JLPT level does not know which of the two we chose as canonical.
  */
-export const matchClassifiers = (query: string, limit = 20): Classifier[] => {
+export const matchClassifiers = (
+  query: string,
+  limit = 20,
+  /** Ids already applied — never suggest a filter that is already in the box. */
+  exclude: ReadonlySet<string> = new Set()
+): Classifier[] => {
   const needle = query.replace(/^#/u, "").toLowerCase();
-  if (needle === "") return [...CLASSIFIER_BY_ID.values()].slice(0, limit);
   const out: Classifier[] = [];
   for (const c of CLASSIFIER_BY_ID.values()) {
-    if (c.id.includes(needle) || c.label.toLowerCase().includes(needle)) {
+    if (exclude.has(c.id)) continue;
+    if (
+      needle === "" ||
+      c.id.includes(needle) ||
+      c.label.toLowerCase().includes(needle)
+    ) {
       out.push(c);
       if (out.length === limit) break;
     }

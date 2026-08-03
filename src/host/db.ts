@@ -8,7 +8,12 @@ import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
 import { getMoreExamples, getWord } from "./queries/words";
 import { resolveByLemma, search, searchKanji } from "./queries/search";
-import { browse, browseCount, type BrowseOrder } from "./queries/browse";
+import {
+  browse,
+  browseCount,
+  refineCounts,
+  type BrowseOrder
+} from "./queries/browse";
 import type { Classifier } from "../shared/classifiers";
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../shared/schema";
 import type {
@@ -143,6 +148,14 @@ export class Dictionary {
   /** How many words a classifier holds — the browse tree's counts. */
   async browseCount(classifier: Classifier): Promise<number> {
     return browseCount(this.#store, classifier);
+  }
+
+  /**
+   * For every classifier, how many words would remain if it were added to `applied` (#27). Drives
+   * the tag autocomplete's counts, and lets it hide combinations that would narrow to zero.
+   */
+  async refineCounts(applied: Classifier[]): Promise<Record<string, number>> {
+    return refineCounts(this.#store, applied);
   }
 
   async getWord(id: string): Promise<WordDetailDto | null> {

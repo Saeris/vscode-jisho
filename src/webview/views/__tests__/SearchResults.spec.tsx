@@ -59,6 +59,12 @@ vi.mock("../../queries", () => ({
     queryKey: ["browse", id],
     queryFn: () => ({ results: [], total: 0 })
   }),
+  // Refining counts for the tag autocomplete. Empty here — these tests type plain text, so no
+  // suggestion menu opens — but the module must still export it.
+  browseCountsQuery: (applied: string[] = []) => ({
+    queryKey: ["browseCounts", applied.join(",")],
+    queryFn: () => ({})
+  }),
   // Empty history, so the empty view falls back to its hint — these tests are about results.
   recentSearchesQuery: () => ({
     queryKey: ["recentSearches"],

@@ -187,8 +187,9 @@ export const browse = async (
   order: "frequency" | "gojuon"
 ): Promise<BrowseResponse> => request("browse", { id, order });
 
-export const browseCounts = async (): Promise<BrowseCountsResponse> =>
-  request("browseCounts", {});
+export const browseCounts = async (
+  applied: string[] = []
+): Promise<BrowseCountsResponse> => request("browseCounts", { applied });
 
 export const getKanji = async (literal: string): Promise<GetKanjiResponse> =>
   request("getKanji", { literal });

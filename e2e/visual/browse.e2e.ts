@@ -46,7 +46,8 @@ test("capture: a word list, by frequency then gojuon", async ({
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
   await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
   await jisho.getByRole("heading", { name: "N5" }).waitFor();
-  // Frequency order is the default: the words a learner meets first lead the list.
+  // Frequency order is the default: the words a learner meets first lead the list. `option`, not
+  // `menuitem` — the WORD list is a ListBox; only the tag autocomplete is a Menu.
   await expect(jisho.getByRole("option").first()).toBeVisible();
   await screenshotSidebar(vscode.window, "test-results/shots/32-word-list.png");
 
@@ -69,9 +70,7 @@ test("capture: #tag autocomplete and a tag token", async ({
   // Typing `#` is the discovery path — it offers the vocabulary to someone who does not know it.
   await jisho.getByRole("searchbox").click();
   await jisho.getByRole("searchbox").pressSequentially("#jlpt");
-  await expect(
-    jisho.getByRole("listbox", { name: "Matching tags" })
-  ).toBeVisible();
+  await expect(jisho.getByRole("menu").first()).toBeVisible();
   await screenshotSidebar(
     vscode.window,
     "test-results/shots/34-tag-autocomplete.png"
@@ -80,7 +79,7 @@ test("capture: #tag autocomplete and a tag token", async ({
   // Completing one turns it into a token — atomic, and carrying the resolved classifier. The token
   // renders the classifier's LABEL ("N5"), not the raw id it was typed as, so the committed filter
   // reads the same way the browse tree names it.
-  await jisho.getByRole("option", { name: "N5" }).first().click();
+  await jisho.getByRole("menuitem", { name: /N5/ }).first().click();
   await expect(jisho.getByRole("searchbox")).toContainText("N5");
   await screenshotSidebar(vscode.window, "test-results/shots/35-tag-token.png");
 });
@@ -101,4 +100,30 @@ test("two tags narrow together", async ({ jisho }) => {
     .toBeLessThan(n5Only);
   // And still non-empty: an intersection that emptied would mean the filters are not composing.
   expect(await jisho.getByRole("option").count()).toBeGreaterThan(0);
+});
+
+test("arrow keys drive the tag suggestions", async ({ jisho }) => {
+  // WHY (user report, twice): typing `#` must open the list AND ↓ must move through it, with Enter
+  // committing the highlighted one. The component tests passed while this was broken in the real
+  // webview, so the check belongs here — in a real browser, against the real event sequence.
+  const box = jisho.getByRole("searchbox");
+  await box.click();
+  await box.pressSequentially("#");
+  await expect(jisho.getByRole("menuitem").first()).toBeVisible();
+
+  const selected = async (): Promise<string | null> =>
+    jisho.locator('[role="menuitem"][data-focused]').first().textContent();
+
+  // Nothing is highlighted until the keyboard enters the list — the combobox contract, and what
+  // makes the first ↓ meaningful rather than a no-op that skips an entry.
+  await box.press("ArrowDown");
+  await expect.poll(selected).toContain("N5");
+  await box.press("ArrowDown");
+  await expect.poll(selected).toContain("N4");
+  await box.press("ArrowUp");
+  await expect.poll(selected).toContain("N5");
+
+  // Enter commits whatever is highlighted — N5 after the ↓↓↑ above, not the first item blindly.
+  await box.press("Enter");
+  await expect(box).toContainText("N5");
 });

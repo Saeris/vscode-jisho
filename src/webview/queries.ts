@@ -188,7 +188,14 @@ export const browseQuery = (
  * `staleTime: Infinity` — these change only when the dictionary itself is replaced, so refetching
  * them on every visit to the tree would be ~90 COUNT queries for an answer that cannot have moved.
  */
-export const browseCountsQuery = (): ReturnType<
+export const browseCountsQuery = (
+  /**
+   * Classifier ids already applied. With none, these are each category's own size (the browse
+   * tree). With some, they are REFINING counts — how many words would remain if each candidate
+   * were added — which is what the tag autocomplete needs to hide dead-end combinations.
+   */
+  applied: string[] = []
+): ReturnType<
   typeof queryOptions<
     Record<string, number>,
     Error,
@@ -197,8 +204,11 @@ export const browseCountsQuery = (): ReturnType<
   >
 > =>
   queryOptions({
-    queryKey: ["browseCounts"],
-    queryFn: async () => (await browseCounts()).counts,
+    // Keyed on the applied set, sorted so `#a #b` and `#b #a` are one cache entry. A full pass
+    // costs ~250ms, so the cache is what keeps this off the keystroke path: it only re-runs when
+    // the applied TAGS change, never as the fragment being typed narrows.
+    queryKey: ["browseCounts", [...applied].sort().join(",")],
+    queryFn: async () => (await browseCounts(applied)).counts,
     staleTime: Infinity
   });
 

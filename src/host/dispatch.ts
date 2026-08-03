@@ -134,13 +134,18 @@ export const respond = async (
       };
     }
     case "browseCounts": {
-      // Counted here in ONE pass rather than per category: the tree shows ~90 counts at once, and
-      // a round trip each would be visibly slow on open.
-      const counts: Record<string, number> = {};
-      for (const classifier of CLASSIFIER_BY_ID.values()) {
-        counts[classifier.id] = await dict.browseCount(classifier);
-      }
-      return { type: "browseCounts", requestId: request.requestId, counts };
+      // ONE pass for every category rather than a round trip each: the tree shows ~90 counts at
+      // once, and the tag autocomplete needs all of them to hide the combinations that would
+      // narrow to zero. `applied` makes them REFINING counts — how many would remain.
+      const applied = (request.applied ?? []).flatMap((id) => {
+        const c = CLASSIFIER_BY_ID.get(id);
+        return c === undefined ? [] : [c];
+      });
+      return {
+        type: "browseCounts",
+        requestId: request.requestId,
+        counts: await dict.refineCounts(applied)
+      };
     }
     case "getKanji":
       return {

@@ -7,9 +7,17 @@
 .searchBar {
   display: flex;
   align-items: center;
+  /* 6px between the icons themselves; the field gets more room below. */
   gap: 6px;
   padding: var(--jisho-gap);
   border-bottom: 1px solid var(--jisho-border);
+}
+
+/* The search field's focus outline sat right against the radicals button at the shared 6px gap —
+   close enough to read as overlapping. Roughly an icon's width of separation puts the boundary
+   between "the query" and "the tools that act on it" where the eye expects it. */
+.searchBar > :first-child {
+  margin-right: 16px;
 }
 
 .searchBar > :first-child {
