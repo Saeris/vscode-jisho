@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { GOJUON_ROWS, gojuonRow, searchFold, sortKey } from "../kana";
+import {
+  GOJUON_HEADS,
+  GOJUON_ROWS,
+  gojuonHead,
+  gojuonRow,
+  searchFold,
+  sortKey
+} from "../kana";
 
 describe("searchFold", () => {
   it("collapses the distinctions a learner plausibly gets wrong", () => {
@@ -96,5 +103,30 @@ describe("gojuonRow", () => {
     // WHY: the rail renders GOJUON_ROWS, so a row with no mapping would render a tab that can
     // never activate. Each row's own leading kana must map back to it.
     for (const row of GOJUON_ROWS) expect(gojuonRow(row)).toBe(row);
+  });
+});
+
+describe("gojuonHead", () => {
+  it("maps every kana to the row-head it files under", () => {
+    // WHY (#54): a short panel falls back to the ten row-heads, and tapping one must reach the
+    // whole row — ゆ lives behind や, げ behind か. Derived from position in GOJUON_ROWS rather
+    // than a second table, so the compact and full rails cannot disagree.
+    expect(gojuonHead("ゆ")).toBe("や");
+    expect(gojuonHead("こ")).toBe("か");
+    expect(gojuonHead("ん")).toBe("わ");
+    expect(gojuonHead("あ")).toBe("あ");
+  });
+
+  it("leaves a row-head as itself", () => {
+    // WHY: the compact rail renders these directly, so a head that mapped elsewhere would send a
+    // tap to the wrong section.
+    for (const head of GOJUON_HEADS) expect(gojuonHead(head)).toBe(head);
+  });
+
+  it("covers every kana on the full rail", () => {
+    // WHY: an unmapped kana would fall back to itself and, on the compact rail, be unreachable.
+    for (const kana of GOJUON_ROWS) {
+      expect(GOJUON_HEADS).toContain(gojuonHead(kana));
+    }
   });
 });

@@ -13,15 +13,18 @@
   border-bottom: 1px solid var(--jisho-border);
 }
 
-/* The search field's focus outline sat right against the radicals button at the shared 6px gap —
-   close enough to read as overlapping. Roughly an icon's width of separation puts the boundary
-   between "the query" and "the tools that act on it" where the eye expects it. */
-.searchBar > :first-child {
-  margin-right: 16px;
-}
-
+/* The field takes the remaining width; the icons keep their intrinsic size. */
 .searchBar > :first-child {
   flex: 1;
+  min-width: 0;
+}
+
+/* The field's focus outline sat right against the radicals button at the shared 6px gap — close
+   enough to read as overlapping. The separation goes on the FIRST ICON rather than as a margin on
+   the field: the field is `flex: 1`, so margin there is space the field then grows back into,
+   which left a gap on the far side of the clear button instead of before the icons. */
+.searchBar > :first-child + * {
+  margin-left: 10px;
 }
 
 .iconButton {

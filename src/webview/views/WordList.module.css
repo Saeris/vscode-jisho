@@ -111,10 +111,17 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 2px 4px;
-  background: var(--vscode-sideBarSectionHeader-background, var(--jisho-bg));
+  padding: 3px 8px;
+  /* A filled band rather than a rule: the header has to read as a DIVIDER between groups, not as
+     another (short) entry. Falls back to a tint of the editor foreground on themes that do not
+     define the list-header colour, so the distinction survives everywhere. */
+  background: var(
+    --vscode-sideBarSectionHeader-background,
+    color-mix(in oklch, var(--jisho-fg) 12%, transparent)
+  );
+  border-top: 1px solid var(--jisho-border);
   border-bottom: 1px solid var(--jisho-border);
-  color: var(--jisho-muted);
+  color: var(--jisho-fg);
   font-size: 0.85em;
   font-weight: 600;
 }
@@ -129,9 +136,33 @@
   align-items: center;
   padding: 2px;
   border-right: 1px solid var(--jisho-border);
-  /* 46 targets in a sidebar's height: tight leading, and the rail scrolls if it still overflows
-     rather than pushing the list out of view. */
+  /*
+   * 46 targets have to fit whatever height the panel has. `overflow-y: auto` is the safety valve
+   * for a very short window, but the scrollbar itself is hidden: a rail you must scroll to reach
+   * the letter you want defeats the point of a thumb index, and the horizontal bar it drew was
+   * pure noise. `overflow-x: clip` kills that one outright.
+   */
   overflow-y: auto;
+  overflow-x: clip;
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * Below ~560px of panel height the full syllabary cannot fit legibly, so the rail falls back to the
+ * ten row-heads — あ-か-さ-た-な-は-ま-や-ら-わ, the way a paper index is tabbed.
+ *
+ * Nothing becomes unreachable: a row-head jumps to the first section IN its row, so tapping や
+ * still lands on ゆ when や itself has no words. The full rail is the better affordance when there
+ * is room for it; this is the same index at lower resolution.
+ */
+@media (max-height: 560px) {
+  .railKey:not([data-head]) {
+    display: none;
+  }
 }
 
 .railKey {

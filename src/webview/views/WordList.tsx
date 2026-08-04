@@ -9,7 +9,12 @@ import {
 } from "react-aria-components";
 import type { SearchResultDto } from "../../shared/messages";
 import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
-import { gojuonRow, GOJUON_ROWS } from "../../shared/kana";
+import {
+  gojuonHead,
+  gojuonRow,
+  GOJUON_HEADS,
+  GOJUON_ROWS
+} from "../../shared/kana";
 import { useNavigate } from "../navigation";
 import { browseQuery } from "../queries";
 import { Badge } from "../components/Badge";
@@ -62,10 +67,19 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
     [sections]
   );
 
-  /** Scroll a kana section to the TOP of the list viewport, the way a thumb index behaves. */
+  /**
+   * Scroll a kana section to the TOP of the list viewport, the way a thumb index behaves.
+   *
+   * Falls forward to the next section that EXISTS when the tapped one does not. That is what keeps
+   * the compact rail (row-heads only, on a short panel) honest: tapping や lands on ゆ when や
+   * itself has no words, rather than doing nothing.
+   */
   const jumpTo = (row: string): void => {
     const list = listRef.current;
-    const heading = list?.querySelector<HTMLElement>(`[data-row="${row}"]`);
+    const from = GOJUON_ROWS.indexOf(row);
+    const target =
+      sections.find((s) => GOJUON_ROWS.indexOf(s.row) >= from)?.row ?? row;
+    const heading = list?.querySelector<HTMLElement>(`[data-row="${target}"]`);
     if (!list || !heading) return;
     // `scrollTop` arithmetic rather than `scrollIntoView`: the latter aligns to the nearest edge
     // or scrolls ancestors, and what is wanted here is specifically "this heading, at the top of
@@ -107,17 +121,27 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
             to aim at than one that does not. */}
         {order === "gojuon" && results.length > 0 ? (
           <nav className={styles.rail} aria-label="Jump to kana">
-            {GOJUON_ROWS.map((row) => (
-              <button
-                key={row}
-                type="button"
-                className={styles.railKey}
-                disabled={!present.has(row)}
-                onClick={() => jumpTo(row)}
-              >
-                {row}
-              </button>
-            ))}
+            {GOJUON_ROWS.map((row) => {
+              const isHead = GOJUON_HEADS.includes(row);
+              // A row-head stays enabled whenever ANY section in its row has words, because the
+              // compact rail falls forward — tapping や with only ゆ present must still work.
+              const reachable = isHead
+                ? sections.some((s) => gojuonHead(s.row) === row)
+                : present.has(row);
+              return (
+                <button
+                  key={row}
+                  type="button"
+                  className={styles.railKey}
+                  // Marks the ten row-heads: the compact rail (short panel) hides everything else.
+                  data-head={isHead ? "" : undefined}
+                  disabled={!reachable}
+                  onClick={() => jumpTo(row)}
+                >
+                  {row}
+                </button>
+              );
+            })}
           </nav>
         ) : null}
 
