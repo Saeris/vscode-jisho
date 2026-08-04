@@ -105,33 +105,55 @@
   white-space: nowrap;
 }
 
-/* The gojūon rail: ten row tabs, the way a paper dictionary is thumb-indexed. Narrow by design —
-   it borrows width from a sidebar that has little to spare, so it carries rows (あかさたな…) rather
-   than all 46 kana. */
+/* A kana section heading. Sticky, so the heading of whatever you are scrolling through stays
+   visible — the same affordance a contacts list or a Japanese dictionary's running head gives. */
+.sectionHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 4px;
+  background: var(--vscode-sideBarSectionHeader-background, var(--jisho-bg));
+  border-bottom: 1px solid var(--jisho-border);
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+/* The gojūon rail: the full syllabary, the way a paper dictionary is thumb-indexed. Every heading
+   is present so the rail's shape never changes between categories — a control that reflows per
+   list is harder to aim at than one that does not. */
 .rail {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-left: 2px;
+  align-items: center;
+  padding: 2px;
   border-right: 1px solid var(--jisho-border);
+  /* 46 targets in a sidebar's height: tight leading, and the rail scrolls if it still overflows
+     rather than pushing the list out of view. */
+  overflow-y: auto;
 }
 
 .railKey {
   font: inherit;
-  font-size: 0.8em;
-  line-height: 1.4;
-  padding: 0 4px;
+  /* Small enough for 46 rows, large enough to hit. */
+  font-size: 0.72em;
+  line-height: 1.15;
+  padding: 0 3px;
   background: transparent;
   border: none;
   color: var(--jisho-link);
   cursor: pointer;
 }
 
-/* A row with no words in this list. Kept in place rather than removed so the rail's shape is the
-   same in every category — a control that reflows per list is harder to aim at than one that
-   doesn't. */
+.railKey:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground, var(--jisho-input-bg));
+  border-radius: 2px;
+}
+
+/* A heading with no words in this list. Kept in place rather than removed — see `.rail`. */
 .railKey:disabled {
   color: var(--jisho-muted);
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
 }

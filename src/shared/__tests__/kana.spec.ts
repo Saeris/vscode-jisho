@@ -64,22 +64,25 @@ describe("sortKey", () => {
 });
 
 describe("gojuonRow", () => {
-  it("files a reading under its gojuon row, folding first", () => {
-    // WHY (#54): the jump rail is a thumb index, and a reader does not think of dakuten or
-    // katakana as changing which tab a word lives behind. Folding first is what puts だいがく
-    // under た and ラーメン under ら.
+  it("files a reading under its own kana, folding first", () => {
+    // WHY (#54): the jump rail carries the full syllabary, not the ten row-heads — jumping to あ
+    // when you want ゆ means scrolling most of the や row by hand. A reader also does not think of
+    // dakuten or katakana as changing where a word is indexed, so folding first is what puts
+    // だいがく under た and ラーメン under ら.
     expect(gojuonRow("あめ")).toBe("あ");
+    expect(gojuonRow("いぬ")).toBe("い");
     expect(gojuonRow("だいがく")).toBe("た");
     expect(gojuonRow("ラーメン")).toBe("ら");
-    expect(gojuonRow("ぴあの")).toBe("は");
-    expect(gojuonRow("きゃく")).toBe("か");
+    expect(gojuonRow("ぴあの")).toBe("ひ");
+    expect(gojuonRow("きゃく")).toBe("き");
+    expect(gojuonRow("ゆき")).toBe("ゆ");
   });
 
-  it("files ん under the wa row, where a paper dictionary puts it", () => {
-    // WHY: ん sorts at the end of the syllabary and heads no row of its own, so it needs a home
-    // rather than falling off the rail.
-    expect(gojuonRow("んー")).toBe("わ");
-    expect(gojuonRow("を")).toBe("わ");
+  it("files を and ん under themselves", () => {
+    // WHY: both are real headings in a Japanese index. ん heads almost nothing but is kept so the
+    // rail's shape never changes between categories.
+    expect(gojuonRow("を")).toBe("を");
+    expect(gojuonRow("んー")).toBe("ん");
   });
 
   it("returns undefined for anything that is not kana", () => {

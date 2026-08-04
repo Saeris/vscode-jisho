@@ -1,6 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, ListBox, ListBoxItem } from "react-aria-components";
+import {
+  Button,
+  ListBox,
+  ListBoxItem,
+  ListBoxSection,
+  Header
+} from "react-aria-components";
 import type { SearchResultDto } from "../../shared/messages";
 import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
 import { gojuonRow, GOJUON_ROWS } from "../../shared/kana";
@@ -14,31 +20,59 @@ import styles from "./WordList.module.css";
 /**
  * One classifier's words (#54) — the list a browse tap or a `#tag` opens.
  *
- * Ordered by frequency by default, because the first thing a learner wants from "N5 vocabulary" is
- * the words they will actually meet first. Gojūon is the alternative for when the list is being
- * used as an INDEX rather than a study order — that is the mode the kana rail serves, so switching
- * to it is what reveals the rail.
+ * Ordered by GOJŪON by default. This list is an index: a reader arriving at "N5 vocabulary" is
+ * usually looking for a particular word, and kana order plus the jump rail is how a Japanese
+ * dictionary is navigated. Frequency is the alternative, for reading the list as a study order
+ * rather than searching it.
  */
 export const WordList = ({ id }: { id: string }): React.ReactElement => {
-  const [order, setOrder] = useState<"frequency" | "gojuon">("frequency");
+  const [order, setOrder] = useState<"gojuon" | "frequency">("gojuon");
   const { back, openWord } = useNavigate();
   const classifier = CLASSIFIER_BY_ID.get(id);
   const { data, isPending } = useQuery(browseQuery(id, order));
   const listRef = useRef<HTMLDivElement>(null);
 
   const results = data?.results ?? [];
-  // Where each kana row starts, for the jump rail. Computed from the SORTED list, so it is only
-  // meaningful in gojūon order — in frequency order the readings are in no particular sequence and
-  // a rail would scroll to arbitrary places.
-  const anchors = useMemo(() => {
-    if (order !== "gojuon") return new Map<string, number>();
-    const out = new Map<string, number>();
-    results.forEach((r, i) => {
+
+  /**
+   * The list grouped under kana headings, in syllabary order.
+   *
+   * Only meaningful in gojūon order — in frequency order the readings are in no particular
+   * sequence, so headings would carve the list at arbitrary points and the rail would scroll
+   * somewhere unrelated to its label.
+   */
+  const sections = useMemo(() => {
+    if (order !== "gojuon") return [];
+    const byRow = new Map<string, SearchResultDto[]>();
+    for (const r of results) {
       const row = gojuonRow(r.reading === "" ? r.headword : r.reading);
-      if (row !== undefined && !out.has(row)) out.set(row, i);
+      if (row === undefined) continue;
+      byRow.set(row, [...(byRow.get(row) ?? []), r]);
+    }
+    // Driven by GOJUON_ROWS rather than by insertion order, so the sections come out in syllabary
+    // order regardless of how the rows happened to arrive.
+    return GOJUON_ROWS.flatMap((row) => {
+      const items = byRow.get(row);
+      return items === undefined ? [] : [{ row, items }];
     });
-    return out;
   }, [results, order]);
+
+  const present = useMemo(
+    () => new Set(sections.map((s) => s.row)),
+    [sections]
+  );
+
+  /** Scroll a kana section to the TOP of the list viewport, the way a thumb index behaves. */
+  const jumpTo = (row: string): void => {
+    const list = listRef.current;
+    const heading = list?.querySelector<HTMLElement>(`[data-row="${row}"]`);
+    if (!list || !heading) return;
+    // `scrollTop` arithmetic rather than `scrollIntoView`: the latter aligns to the nearest edge
+    // or scrolls ancestors, and what is wanted here is specifically "this heading, at the top of
+    // the list area".
+    list.scrollTop +=
+      heading.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  };
 
   return (
     <div className={styles.container}>
@@ -53,41 +87,33 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
       <div className={styles.orderRow} role="group" aria-label="Sort order">
         <Button
           className={styles.orderButton}
-          data-selected={order === "frequency" || undefined}
-          onPress={() => setOrder("frequency")}
-        >
-          By frequency
-        </Button>
-        <Button
-          className={styles.orderButton}
           data-selected={order === "gojuon" || undefined}
           onPress={() => setOrder("gojuon")}
         >
           あ–ん
         </Button>
+        <Button
+          className={styles.orderButton}
+          data-selected={order === "frequency" || undefined}
+          onPress={() => setOrder("frequency")}
+        >
+          By frequency
+        </Button>
       </div>
 
       <div className={styles.listWrap}>
-        {/* The kana jump rail, only in gojūon order — see `anchors`. Rows with no words are shown
-            but inert, so the rail keeps a stable shape rather than reflowing per category. Placed
-            BEFORE the list so it sits on the leading edge, where a thumb index belongs. */}
+        {/* The kana rail, only in gojūon order. Every heading is shown even when empty, so the
+            rail's shape is the same in every category — a control that reflows per list is harder
+            to aim at than one that does not. */}
         {order === "gojuon" && results.length > 0 ? (
-          <nav className={styles.rail} aria-label="Jump to kana row">
+          <nav className={styles.rail} aria-label="Jump to kana">
             {GOJUON_ROWS.map((row) => (
               <button
                 key={row}
                 type="button"
                 className={styles.railKey}
-                disabled={!anchors.has(row)}
-                onClick={() => {
-                  const index = anchors.get(row);
-                  if (index === undefined) return;
-                  // Scroll the row's first item into view. Querying the rendered item by index is
-                  // what keeps this correct regardless of row height, which varies with the gloss.
-                  listRef.current
-                    ?.querySelectorAll("[role='option']")
-                    [index]?.scrollIntoView({ block: "start" });
-                }}
+                disabled={!present.has(row)}
+                onClick={() => jumpTo(row)}
               >
                 {row}
               </button>
@@ -111,25 +137,26 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
               onAction={(key) => {
                 openWord(String(key));
               }}
-              items={results}
             >
-              {(item: SearchResultDto) => (
-                <ListBoxItem
-                  id={item.id}
-                  textValue={item.headword}
-                  className={styles.item}
-                >
-                  <span className={styles.itemTop}>
-                    <span className={styles.headword}>{item.headword}</span>
-                    {item.reading ? (
-                      <span className={styles.reading}>{item.reading}</span>
-                    ) : null}
-                    {item.common ? <Badge kind="common">common</Badge> : null}
-                    <JlptBadge level={item.jlpt} />
-                  </span>
-                  <span className={styles.gloss}>{item.glossPreview}</span>
-                </ListBoxItem>
-              )}
+              {order === "gojuon"
+                ? sections.map((section) => (
+                    <ListBoxSection
+                      key={section.row}
+                      id={section.row}
+                      className={styles.section}
+                    >
+                      <Header
+                        className={styles.sectionHeader}
+                        data-row={section.row}
+                      >
+                        {section.row}
+                      </Header>
+                      {section.items.map((item) => (
+                        <WordRow key={item.id} item={item} />
+                      ))}
+                    </ListBoxSection>
+                  ))
+                : results.map((item) => <WordRow key={item.id} item={item} />)}
             </ListBox>
           )}
         </div>
@@ -137,3 +164,17 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
     </div>
   );
 };
+
+const WordRow = ({ item }: { item: SearchResultDto }): React.ReactElement => (
+  <ListBoxItem id={item.id} textValue={item.headword} className={styles.item}>
+    <span className={styles.itemTop}>
+      <span className={styles.headword}>{item.headword}</span>
+      {item.reading ? (
+        <span className={styles.reading}>{item.reading}</span>
+      ) : null}
+      {item.common ? <Badge kind="common">common</Badge> : null}
+      <JlptBadge level={item.jlpt} />
+    </span>
+    <span className={styles.gloss}>{item.glossPreview}</span>
+  </ListBoxItem>
+);

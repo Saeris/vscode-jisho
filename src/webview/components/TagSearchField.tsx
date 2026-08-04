@@ -11,6 +11,7 @@ import {
   TokenFieldValue
 } from "react-aria-components";
 import { tokenFieldPositionToDOMRange } from "react-aria-components/TokenField";
+import type { TokenFieldSegment } from "react-aria-components/TokenField";
 import {
   findClassifier,
   matchClassifiers,
@@ -155,6 +156,32 @@ export const TagSearchField = ({
     return matches.filter((c) => (refineCounts.get(c.id) ?? 1) > 0);
   }, [fragment, applied, refineCounts]);
 
+  /**
+   * Remove a token by clicking it.
+   *
+   * Located by IDENTITY in `value.segments` rather than by matching its text: the same tag can only
+   * appear once (already-applied tags are excluded from suggestions), but identity is exact and
+   * survives a future where that stops being true.
+   *
+   * Deletes the token AND a single following space, which is what `complete` inserted — otherwise
+   * removing two tags in a row leaves a run of orphaned spaces behind.
+   */
+  const removeToken = (segment: TokenFieldSegment<Classifier>): void => {
+    const index = value.segments.indexOf(segment);
+    if (index < 0) return;
+    const after = value.segments.at(index + 1);
+    const trailing = after?.type === "text" && after.text.startsWith(" ");
+    apply(
+      value.replaceRange(
+        { index, offset: 0 },
+        trailing
+          ? { index: index + 1, offset: 1 }
+          : { index, offset: segment.text.length },
+        ""
+      )
+    );
+  };
+
   /** Replace the fragment under the caret with a chosen tag, as a token plus a trailing space. */
   const complete = (classifier: Classifier): void => {
     if (anchor === null) return;
@@ -204,17 +231,51 @@ export const TagSearchField = ({
         >
           <TokenInput ref={boxRef} className={styles.input}>
             {(segment) => (
-              <Token className={styles.token}>
+              <Token
+                className={styles.token}
+                // Click to remove. `onPointerDown` rather than click so the field does not first
+                // move the caret into the token being deleted, and `preventDefault` keeps focus in
+                // the input — removing a filter is mid-query, not the end of one.
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  removeToken(segment);
+                }}
+              >
                 {/* The token renders the classifier's LABEL ("N5"), not the raw id, so a committed
                     filter reads the way the browse tree names it. `value` is absent for a token
                     restored from text, so resolve by id as a fallback. */}
                 {segment.value?.label ??
                   findClassifier(segment.text)?.label ??
                   segment.text}
+                <span
+                  className={styles.tokenRemove}
+                  title={`Remove ${segment.value?.label ?? segment.text}`}
+                  aria-hidden="true"
+                >
+                  ×
+                </span>
               </Token>
             )}
           </TokenInput>
         </TokenField>
+        {/* Clears the whole query — text and every tag — in one action. Inside the field's box
+            rather than beside it, so it reads as part of the input the way a search field's clear
+            affordance always does. Hidden when there is nothing to clear. */}
+        {value.segments.length > 0 && value.toString() !== "" ? (
+          <button
+            type="button"
+            className={styles.clear}
+            aria-label="Clear search"
+            // Same reasoning as the token's: keep focus in the field so the user can keep typing.
+            onPointerDown={(e) => {
+              e.preventDefault();
+              apply(new TagSearchValue([]));
+              boxRef.current?.focus();
+            }}
+          >
+            ×
+          </button>
+        ) : null}
       </div>
 
       <Popover

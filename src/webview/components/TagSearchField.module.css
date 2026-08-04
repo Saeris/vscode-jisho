@@ -7,6 +7,34 @@
   min-width: 0;
 }
 
+/* The clear-all control, sitting inside the field's box on the trailing edge. Absolute so it does
+   not participate in the contenteditable's text flow — a button in that flow would be selectable,
+   caret-navigable, and would wrap with the tokens. */
+.clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--jisho-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--jisho-input-bg));
+  color: var(--jisho-fg);
+}
+
 .field {
   display: block;
 }
@@ -25,7 +53,8 @@
 .input {
   display: block;
   width: 100%;
-  padding: 3px 6px;
+  /* Trailing room for the clear button, which is absolutely positioned over this edge. */
+  padding: 3px 24px 3px 6px;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
   background: var(--jisho-input-bg);
@@ -47,18 +76,46 @@
 .token {
   display: inline-flex;
   align-items: center;
-  padding: 0 6px;
+  gap: 3px;
+  padding: 0 5px;
   border-radius: 999px;
   border: 1px solid color-mix(in oklch, var(--jisho-link) 45%, transparent);
   background: color-mix(in oklch, var(--jisho-link) 12%, transparent);
   color: var(--jisho-link);
   font-size: 0.85em;
   white-space: nowrap;
+  /* Clicking a token DELETES it, so the label must not behave like text: a drag that selects
+     characters instead of removing the filter reads as the click having failed. */
+  user-select: none;
+  cursor: pointer;
+}
+
+/* The whole pill is the delete target, so the hover state says "this will go" rather than merely
+   "this is interactive" — the × brightens and the fill warms toward the theme's error colour. */
+.token:hover {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jisho-link));
+  background: color-mix(
+    in oklch,
+    var(--vscode-inputValidation-errorBorder, var(--jisho-link)) 18%,
+    transparent
+  );
 }
 
 .token[data-selected] {
   border-color: var(--jisho-focus);
   background: color-mix(in oklch, var(--jisho-link) 25%, transparent);
+}
+
+/* The × affordance. Dim until the pill is hovered, so a row of tags reads as labels first and
+   delete buttons second. */
+.tokenRemove {
+  opacity: 0.5;
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.token:hover .tokenRemove {
+  opacity: 1;
 }
 
 /* The autocomplete. Anchored under the field rather than floating: the sidebar is narrow, and a

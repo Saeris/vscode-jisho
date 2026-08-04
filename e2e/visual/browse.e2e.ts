@@ -36,7 +36,7 @@ test("capture: a group's categories, with counts", async ({
   );
 });
 
-test("capture: a word list, by frequency then gojuon", async ({
+test("capture: a word list, gojuon then by frequency", async ({
   vscode,
   jisho
 }) => {
@@ -46,20 +46,24 @@ test("capture: a word list, by frequency then gojuon", async ({
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
   await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
   await jisho.getByRole("heading", { name: "N5" }).waitFor();
-  // Frequency order is the default: the words a learner meets first lead the list. `option`, not
-  // `menuitem` — the WORD list is a ListBox; only the tag autocomplete is a Menu.
+  // Gojūon is the DEFAULT: the list is an index, and kana order plus the rail is how a Japanese
+  // dictionary is navigated. `option`, not `menuitem` — the word list is a ListBox; only the tag
+  // autocomplete is a Menu.
   await expect(jisho.getByRole("option").first()).toBeVisible();
-  await screenshotSidebar(vscode.window, "test-results/shots/32-word-list.png");
-
-  // Gojūon order reveals the kana jump rail — the rail is only meaningful once the list is sorted
-  // by reading, so the two are deliberately one control.
-  await jisho.getByRole("button", { name: "あ–ん" }).click();
   await expect(
     jisho.getByRole("navigation", { name: /jump to kana/i })
   ).toBeVisible();
+  await screenshotSidebar(vscode.window, "test-results/shots/32-word-list.png");
+
+  // Frequency is the alternative, for reading the list as a study order. It drops the rail, which
+  // would otherwise scroll to arbitrary places — the readings are in no particular sequence.
+  await jisho.getByRole("button", { name: "By frequency" }).click();
+  await expect(
+    jisho.getByRole("navigation", { name: /jump to kana/i })
+  ).toBeHidden();
   await screenshotSidebar(
     vscode.window,
-    "test-results/shots/33-word-list-gojuon.png"
+    "test-results/shots/33-word-list-frequency.png"
   );
 });
 
@@ -126,4 +130,35 @@ test("arrow keys drive the tag suggestions", async ({ jisho }) => {
   // Enter commits whatever is highlighted — N5 after the ↓↓↑ above, not the first item blindly.
   await box.press("Enter");
   await expect(box).toContainText("N5");
+});
+
+test("kana rail scrolls its section to the top of the list", async ({
+  vscode,
+  jisho
+}) => {
+  // WHY (user request): a thumb index should land the section heading at the TOP of the visible
+  // list, not merely somewhere on screen — `scrollIntoView` aligns to the nearest edge, which
+  // leaves the heading at the bottom when scrolling downward.
+  await jisho
+    .getByRole("button", { name: /browse words by category/i })
+    .click();
+  await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
+  await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
+  await jisho.getByRole("heading", { name: "N5" }).waitFor();
+
+  // Gojūon is the default, so the rail is present without switching order first.
+  const rail = jisho.getByRole("navigation", { name: /jump to kana/i });
+  await expect(rail).toBeVisible();
+  await rail.getByRole("button", { name: "か", exact: true }).click();
+
+  // The か heading sits within a few pixels of the list's own top edge.
+  const offset = await jisho.locator('[data-row="か"]').evaluate((heading) => {
+    const list = heading.closest("[class*='list']");
+    if (!list) return 999;
+    return Math.abs(
+      heading.getBoundingClientRect().top - list.getBoundingClientRect().top
+    );
+  });
+  expect(offset).toBeLessThan(8);
+  await screenshotSidebar(vscode.window, "test-results/shots/36-kana-jump.png");
 });
