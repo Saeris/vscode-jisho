@@ -1,5 +1,7 @@
 import type { TagDto } from "../../shared/messages";
 import { posCategory, posPillLabel, usageLabel } from "../../shared/posTags";
+import { classifierForTag } from "../../shared/classifiers";
+import { useNavigate } from "../navigation";
 import { useHostSettings } from "../useHostSettings";
 import styles from "./TagPill.module.css";
 
@@ -30,24 +32,60 @@ export const TagPill = ({
   // English by default: 名詞 is only compact if you already read it. The Japanese terms are what a
   // textbook uses and are shorter still, so they are one setting away.
   const { tagLabels } = useHostSettings();
+  const { openWordList } = useNavigate();
   const category = kind === "pos" ? posCategory(tag.code) : undefined;
   const label =
     kind === "pos"
       ? posPillLabel(tag.code, tag.description, tagLabels)
       : usageLabel(tag.code, tag.description, tagLabels);
+
+  /**
+   * The category this tag browses, when the tree offers one.
+   *
+   * `usage` pills carry misc, field AND dialect codes in one bucket, so each is tried — the code
+   * spaces do not overlap, and asking the classifier table is cheaper than threading the real kind
+   * down from the DTO.
+   */
+  const classifier =
+    kind === "pos"
+      ? classifierForTag("pos", tag.code)
+      : (classifierForTag("misc", tag.code) ??
+        classifierForTag("field", tag.code) ??
+        classifierForTag("dialect", tag.code));
+
+  // Shared between both renderings so the linked and unlinked pills are visually identical — the
+  // affordance is the cursor and hover, not a different shape.
+  const shared = {
+    className: styles.pill,
+    // Drives the palette colour in CSS; absent for usage tags and for POS codes outside the
+    // nine categories, which then render neutral.
+    "data-pos": category,
+    // The label is often Japanese (名詞, 尊敬語) while the tooltip is English; marking the pill
+    // itself avoids a screen reader reading the kanji as if it were prose.
+    lang: /[぀-ヿ㐀-鿿]/u.test(label) ? "ja" : undefined
+  };
+
+  // A tag the browse tree does not surface stays inert rather than opening a list the tree itself
+  // would not offer — see `classifierForTag`.
+  if (classifier === undefined) {
+    return (
+      <span {...shared} title={tag.description}>
+        {label}
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={styles.pill}
-      // Drives the palette colour in CSS; absent for usage tags and for POS codes outside the
-      // nine categories, which then render neutral.
-      data-pos={category}
-      title={tag.description}
-      // The label is often Japanese (名詞, 尊敬語) while the tooltip is English; marking the pill
-      // itself avoids a screen reader reading the kanji as if it were prose.
-      lang={/[぀-ヿ㐀-鿿]/u.test(label) ? "ja" : undefined}
+    <button
+      {...shared}
+      type="button"
+      // The tooltip says what the tag MEANS and what tapping does — the description alone would
+      // leave the new affordance undiscoverable.
+      title={`${tag.description} — browse all`}
+      onClick={() => openWordList(classifier.id)}
     >
       {label}
-    </span>
+    </button>
   );
 };
 

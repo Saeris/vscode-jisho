@@ -280,6 +280,31 @@ export const CLASSIFIER_BY_ID = new Map<string, Classifier>(
 );
 
 /**
+ * The classifier that browses a given JMdict tag, if one exists.
+ *
+ * Lets the grammar pills on a word page link into a filtered search — tapping "godan verb" on 食べる
+ * asks "what else is a godan verb?", which is the question a reader has at that moment.
+ *
+ * Returns `undefined` for the many codes the browse tree deliberately does not surface: JMdict has
+ * 52 POS codes and 81 field codes, and a list of every classical `v2g-s` variant is reference
+ * trivia rather than a study list. Those pills stay unlinked rather than opening something the
+ * tree itself would not offer.
+ *
+ * Prefix families are matched by prefix, so `v5r` finds "Godan verbs" — the same asymmetry the
+ * query layer handles, since JMdict has no umbrella code for them.
+ */
+export const classifierForTag = (
+  tagKind: "pos" | "misc" | "field" | "dialect",
+  code: string
+): Classifier | undefined => {
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind !== "tag" || c.tagKind !== tagKind) continue;
+    if (c.prefix ? code.startsWith(c.code) : c.code === code) return c;
+  }
+  return undefined;
+};
+
+/**
  * Resolve a user-typed tag to a classifier. Accepts a leading `#` and any case, since a token
  * arriving from the autocomplete and one typed by hand must mean the same thing.
  */

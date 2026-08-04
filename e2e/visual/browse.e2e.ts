@@ -217,3 +217,25 @@ test("capture: #kanji opens a kanji list", async ({ vscode, jisho }) => {
     "test-results/shots/38-kanji-list.png"
   );
 });
+
+test("a word page's grammar tag browses its category", async ({ jisho }) => {
+  // WHY (#27): tapping "ichidan verb" on 食べる asks "what else is an ichidan verb?" — the question
+  // a reader has at that moment, and previously only answerable by typing the tag by hand.
+  await jisho.getByRole("searchbox").click();
+  await jisho.getByRole("searchbox").pressSequentially("食べる");
+  await jisho
+    .getByRole("option", { name: /食べる/ })
+    .first()
+    .click();
+  await jisho.getByRole("heading", { name: "Info" }).waitFor();
+
+  await jisho
+    .getByRole("button", { name: /ichidan verb/i })
+    .first()
+    .click();
+  // Lands on that category's list, with its own heading and rows.
+  await expect(
+    jisho.getByRole("heading", { name: "Ichidan verbs" })
+  ).toBeVisible();
+  await expect(jisho.getByRole("option").first()).toBeVisible();
+});

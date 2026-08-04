@@ -22,6 +22,33 @@
   color: var(--pill-color, var(--jisho-muted));
   white-space: nowrap;
   cursor: help;
+  /* A linked pill renders as a <button>, which brings its own font and background — reset both so
+     the two renderings are pixel-identical and only the affordance differs. */
+  font-family: inherit;
+  background: transparent;
+}
+
+/*
+ * A pill that browses its category (#27). Only the tags the browse tree actually surfaces become
+ * buttons; the rest stay inert `<span>`s, so the affordance is honest about which ones lead
+ * somewhere.
+ *
+ * The hover state is the whole signal — the pill looks identical until pointed at, because a row
+ * of eight tags with permanent link chrome would read as noise above a one-line definition.
+ */
+button.pill {
+  cursor: pointer;
+}
+
+button.pill:hover,
+button.pill:focus-visible {
+  border-color: var(--pill-color, var(--jisho-focus));
+  background: color-mix(
+    in oklch,
+    var(--pill-color, var(--jisho-fg)) 18%,
+    transparent
+  );
+  outline: none;
 }
 
 /*

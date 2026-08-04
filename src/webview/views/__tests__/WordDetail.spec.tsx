@@ -216,9 +216,11 @@ describe("word detail common marker", () => {
     renderView(word("食べる", ["v1"]));
     const common = await screen.findByText("common");
     const pos = screen.getByText("ichidan verb");
-    // Same element shape as a grammar pill — a <span>, not the old Badge's own markup — which is
-    // what makes the two read as the same kind of thing.
-    expect(common.tagName).toBe(pos.tagName);
+    // Same pill CLASS as a grammar tag, which is what makes the two read as one family. Not the
+    // same element: a grammar tag whose category the browse tree offers is a <button> that opens
+    // that list (#27), while "common" is a marker with nowhere to go.
+    expect(common.className).toContain("pill");
+    expect(pos.className).toContain("pill");
     // But NOT inside the per-sense row: that repeats whenever the grammar changes, and "common" is
     // a word-level fact that must appear exactly once.
     expect(common.parentElement).not.toBe(pos.parentElement);
