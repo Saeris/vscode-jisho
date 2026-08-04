@@ -90,7 +90,9 @@ type WordRequest = Exclude<
 export const respond = async (
   dict: Dictionary,
   request: WordRequest,
-  namesAvailable = false
+  namesAvailable = false,
+  /** `Classifier.id` → count, for the name types this dictionary cannot count. */
+  nameCounts: Record<string, number> = {}
 ): Promise<Response> => {
   switch (request.type) {
     case "search": {
@@ -131,6 +133,7 @@ export const respond = async (
           requestId: request.requestId,
           results: [],
           kanji: [],
+          names: [],
           total: 0
         };
       }
@@ -141,6 +144,8 @@ export const respond = async (
         // Only `#kanji` fills this; every other classifier returns an empty array, so the view can
         // branch on which one is populated rather than on the classifier's kind.
         kanji: await dict.browseKanji(classifier),
+        // Name types are routed to the names dictionary in webviewHost, so they never reach here.
+        names: [],
         total: await dict.browseCount(classifier)
       };
     }
@@ -152,10 +157,21 @@ export const respond = async (
         const c = CLASSIFIER_BY_ID.get(id);
         return c === undefined ? [] : [c];
       });
+      const counts = await dict.refineCounts(applied);
+      // Name types are counted by the NAMES dictionary, which this one is not — `refineCounts`
+      // reports 0 for them, and the autocomplete hides anything that would narrow to zero, so
+      // leaving it would hide two tags that work. `nameCounts` is supplied by the caller, which
+      // owns both handles; absent (names not provisioned) the zeros stand and the tags stay hidden,
+      // which is the right answer then.
+      for (const [id, n] of Object.entries(nameCounts)) {
+        // Still zero when a word filter is applied: a name is not a word, so the combination is as
+        // dead as `#kanji #verb-godan`.
+        if (counts[id] === 0 && applied.length === 0) counts[id] = n;
+      }
       return {
         type: "browseCounts",
         requestId: request.requestId,
-        counts: await dict.refineCounts(applied),
+        counts,
         namesAvailable
       };
     }

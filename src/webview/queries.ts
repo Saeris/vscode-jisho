@@ -176,6 +176,7 @@ export const browseQuery = (
       return {
         results: response.results,
         kanji: response.kanji,
+        names: response.names,
         total: response.total
       };
     }
@@ -185,6 +186,7 @@ export const browseQuery = (
 interface BrowseResult {
   results: SearchResultDto[];
   kanji: KanjiResultDto[];
+  names: NameResultDto[];
   total: number;
 }
 

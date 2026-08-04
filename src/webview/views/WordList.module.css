@@ -258,3 +258,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The name-type annotation (place name, surname…) on a browsed name row. Quiet: it is metadata
+   beside the headword, not a second heading. */
+.nameType {
+  font-size: 0.8em;
+  color: var(--jisho-muted);
+  font-style: italic;
+}

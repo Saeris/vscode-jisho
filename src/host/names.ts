@@ -117,6 +117,57 @@ export class NamesDictionary {
     };
   }
 
+  /**
+   * Browse names by type (`#name` / `#place`, #27).
+   *
+   * `place` is the largest category in JMnedict by a wide margin — 227,434 of 743,456 entries —
+   * and `#name` deliberately EXCLUDES it: a reader asking for names wants people and organisations,
+   * and letting places dominate that list would make the tag useless for its own purpose. The two
+   * tags partition the dictionary rather than nesting.
+   *
+   * Ordered by id, which is JMnedict's own sequence — there is no frequency ranking for names, and
+   * a reading-ordered list would need the same `sort_key` column the word DB has and this one does
+   * not. Stable and arbitrary beats unstable.
+   */
+  async browseNames(
+    kind: "name" | "place",
+    limit = 2000
+  ): Promise<NameResultDto[]> {
+    // `types_json` is a JSON array, matched with LIKE rather than parsed: 744k rows is too many to
+    // pull into JS, and the alternative — a normalised type table — is a schema change for one
+    // query. The pattern cannot false-positive, since no other type code contains "place".
+    const match =
+      kind === "place"
+        ? "t.types_json LIKE '%\"place\"%'"
+        : "t.types_json NOT LIKE '%\"place\"%'";
+    const rows = await this.#all<{ word_id: string }>(
+      `SELECT DISTINCT t.word_id AS word_id
+         FROM name_translations t
+        WHERE ${match}
+        ORDER BY t.word_id
+        LIMIT ?`,
+      limit
+    );
+    const out: NameResultDto[] = [];
+    for (const { word_id } of rows) {
+      const result = await this.#nameResult(word_id);
+      if (result) out.push(result);
+    }
+    return out;
+  }
+
+  /** How many names a type holds, for the browse tree's counts. */
+  async browseNamesCount(kind: "name" | "place"): Promise<number> {
+    const match =
+      kind === "place"
+        ? "types_json LIKE '%\"place\"%'"
+        : "types_json NOT LIKE '%\"place\"%'";
+    const row = await this.#get<{ n: number }>(
+      `SELECT COUNT(DISTINCT word_id) AS n FROM name_translations WHERE ${match}`
+    );
+    return row?.n ?? 0;
+  }
+
   /** Full detail for one name, or `null` if the id is unknown. */
   async getName(id: string): Promise<NameDetailDto | null> {
     const name = await this.#get<{ id: string }>(

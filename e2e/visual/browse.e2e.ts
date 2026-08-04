@@ -239,3 +239,19 @@ test("a word page's grammar tag browses its category", async ({ jisho }) => {
   ).toBeVisible();
   await expect(jisho.getByRole("option").first()).toBeVisible();
 });
+
+test("capture: #place opens a name list", async ({ vscode, jisho }) => {
+  // WHY (#27): the last result type that promised more than it delivered. `#name`/`#place` read the
+  // separate names DB, which `browse()` does not touch — they suggested and opened nothing.
+  await jisho
+    .getByRole("button", { name: /browse words by category/i })
+    .click();
+  await jisho.getByRole("button", { name: /Browse Result type/i }).click();
+  await jisho.getByRole("button", { name: /Places, [\d,]+ words/ }).click();
+  await jisho.getByRole("heading", { name: "Places" }).waitFor();
+  await expect(jisho.getByRole("option").first()).toBeVisible();
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/39-place-list.png"
+  );
+});

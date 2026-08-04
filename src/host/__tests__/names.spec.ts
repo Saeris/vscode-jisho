@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { connect } from "@tursodatabase/database";
 import { NamesDictionary } from "../names";
 
 // Runs against the JMnedict database from `vp run build:data:names`. That build is large and
@@ -63,5 +64,64 @@ describeIfDb("NamesDictionary (against built jisho-names.db)", () => {
 
   test("returns null for an unknown id", async () => {
     await expect(dict.getName("no-such-id")).resolves.toBeNull();
+  });
+});
+
+describeIfDb("browsing names by type (#27)", () => {
+  let dict: NamesDictionary;
+  beforeAll(async () => {
+    dict = await NamesDictionary.open(DB_PATH);
+  });
+  afterAll(async () => {
+    await dict?.close();
+  });
+
+  test("#place and #name divide the dictionary between them", async () => {
+    // WHY: `place` is the LARGEST category in JMnedict — 227k of 743k entries — so letting it fall
+    // into `#name` would make that tag mostly places and useless for its own purpose. The two are
+    // complements, and together they must cover everything.
+    const places = await dict.browseNamesCount("place");
+    const names = await dict.browseNamesCount("name");
+    expect(places).toBeGreaterThan(100_000);
+    expect(names).toBeGreaterThan(100_000);
+
+    const raw = await connect(DB_PATH, { readonly: true });
+    try {
+      const total = (await (
+        await raw.prepare(
+          "SELECT COUNT(DISTINCT word_id) AS n FROM name_translations"
+        )
+      ).get()) as { n: number };
+      // Coverage, not a partition: the two overlap slightly because a handful of entries are BOTH
+      // (亜細亜 is a place and a given name, 愛輝 likewise — 234 of them). Those genuinely belong
+      // in each list, so the sum EXCEEDS the total rather than equalling it. What matters is that
+      // nothing falls between the two.
+      expect(places + names).toBeGreaterThanOrEqual(total.n);
+      expect(places + names).toBeLessThan(total.n * 1.01);
+    } finally {
+      await raw.close();
+    }
+  });
+
+  test("returns hydrated rows, the same shape a name search gives", async () => {
+    // WHY: browse and search render through the same row component, so sharing `#nameResult` is
+    // what keeps a browsed name and a searched one identical.
+    const rows = await dict.browseNames("place", 10);
+    expect(rows).toHaveLength(10);
+    for (const r of rows) {
+      expect(r.id).not.toBe("");
+      expect(r.headword).not.toBe("");
+      // Every row in a `#place` list must actually BE a place — the LIKE match is the only thing
+      // separating the two categories, so a leak here would put people in the places list.
+      expect(r.types.join(",")).toContain("place");
+    }
+  });
+
+  test("#name excludes places", async () => {
+    // WHY: the complement is only correct if it genuinely holds no places. A NOT LIKE that matched
+    // the wrong substring would silently let them through.
+    const rows = await dict.browseNames("name", 50);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.types.join(",")).not.toContain("place");
   });
 });

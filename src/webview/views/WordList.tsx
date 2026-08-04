@@ -7,7 +7,11 @@ import {
   ListBoxSection,
   Header
 } from "react-aria-components";
-import type { KanjiResultDto, SearchResultDto } from "../../shared/messages";
+import type {
+  KanjiResultDto,
+  NameResultDto,
+  SearchResultDto
+} from "../../shared/messages";
 import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
 import {
   gojuonHead,
@@ -32,7 +36,7 @@ import styles from "./WordList.module.css";
  */
 export const WordList = ({ id }: { id: string }): React.ReactElement => {
   const [order, setOrder] = useState<"gojuon" | "frequency">("gojuon");
-  const { back, openWord, openKanji } = useNavigate();
+  const { back, openWord, openKanji, openName } = useNavigate();
   const classifier = CLASSIFIER_BY_ID.get(id);
   const { data, isPending } = useQuery(browseQuery(id, order));
   const listRef = useRef<HTMLDivElement>(null);
@@ -44,7 +48,11 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
    * state, the header and the ordering controls shared between both.
    */
   const kanji = data?.kanji ?? [];
+  const names = data?.names ?? [];
   const isKanjiList = kanji.length > 0;
+  const isNameList = names.length > 0;
+  /** Neither kanji nor names sort by reading or frequency, so the ordering controls do not apply. */
+  const isWordList = !isKanjiList && !isNameList;
 
   /**
    * The list grouped under kana headings, in syllabary order.
@@ -103,14 +111,14 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
         <span className={styles.total}>
           {data === undefined
             ? ""
-            : `${data.total.toLocaleString()} ${isKanjiList ? "kanji" : "words"}`}
+            : `${data.total.toLocaleString()} ${isKanjiList ? "kanji" : isNameList ? "names" : "words"}`}
         </span>
       </div>
 
       {/* Ordering controls are for WORD lists only. A kanji has no reading to sort gojūon by, so
           offering あ–ん there would be a control that cannot do anything — the list is ordered by
           newspaper frequency then stroke count, which is what a character list wants. */}
-      {isKanjiList ? null : (
+      {isWordList ? (
         <div className={styles.orderRow} role="group" aria-label="Sort order">
           <Button
             className={styles.orderButton}
@@ -127,7 +135,7 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
             By frequency
           </Button>
         </div>
-      )}
+      ) : null}
 
       <div className={styles.listWrap}>
         {/* The kana rail, only in gojūon order. Every heading is shown even when empty, so the
@@ -172,6 +180,18 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
             >
               {kanji.map((item) => (
                 <KanjiRow key={item.literal} item={item} />
+              ))}
+            </ListBox>
+          ) : isNameList ? (
+            <ListBox
+              aria-label={`${classifier?.label ?? id} names`}
+              selectionMode="single"
+              onAction={(key) => {
+                openName(String(key));
+              }}
+            >
+              {names.map((item) => (
+                <NameRow key={item.id} item={item} />
               ))}
             </ListBox>
           ) : results.length === 0 ? (
@@ -237,6 +257,32 @@ const KanjiRow = ({ item }: { item: KanjiResultDto }): React.ReactElement => (
         {[item.onPreview, item.kunPreview].filter(Boolean).join("　")}
       </span>
     </span>
+  </ListBoxItem>
+);
+
+/**
+ * One name in a browsed name list (`#name`/`#place`).
+ *
+ * Mirrors the search view's name row — headword, reading, type, then translation — for the same
+ * reason `KanjiRow` mirrors its kanji row: a browsed result and a searched one are the same thing
+ * arrived at two ways.
+ */
+const NameRow = ({ item }: { item: NameResultDto }): React.ReactElement => (
+  <ListBoxItem id={item.id} textValue={item.headword} className={styles.item}>
+    <span className={styles.itemTop}>
+      <span className={styles.headword} lang="ja">
+        {item.headword}
+      </span>
+      {item.reading ? (
+        <span className={styles.reading} lang="ja">
+          {item.reading}
+        </span>
+      ) : null}
+      {item.types.length > 0 ? (
+        <span className={styles.nameType}>{item.types.join(", ")}</span>
+      ) : null}
+    </span>
+    <span className={styles.gloss}>{item.translationPreview}</span>
   </ListBoxItem>
 );
 

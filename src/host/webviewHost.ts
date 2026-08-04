@@ -20,7 +20,9 @@ import { mark, timed } from "./log";
 import { NamesDictionary } from "./names";
 import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
+import { CLASSIFIER_BY_ID } from "../shared/classifiers";
 import type {
+  BrowseRequest,
   ClearRecentSearchesRequest,
   GetRecentSearchesRequest,
   GetStrokeSvgRequest,
@@ -43,6 +45,21 @@ const isRecentRequest = (request: Request): request is RecentRequest =>
   request.type === "getRecentSearches" ||
   request.type === "recordRecentSearch" ||
   request.type === "clearRecentSearches";
+
+/**
+ * A browse request for a NAME type, which the separate names dictionary serves.
+ *
+ * Every other classifier is answered from the word DB, so this is the one branch of `browse` that
+ * needs a different backend — routed here rather than in `dispatch.ts`, which has no names handle.
+ */
+const isNameBrowse = (request: Request): request is BrowseRequest => {
+  if (request.type !== "browse") return false;
+  const classifier = CLASSIFIER_BY_ID.get(request.id);
+  return (
+    classifier?.kind === "result" &&
+    (classifier.result === "name" || classifier.result === "place")
+  );
+};
 
 /**
  * Serves the React webview into the sidebar and bridges its messages to the dictionary. The DB is
@@ -265,6 +282,48 @@ export class JishoViewProvider
     }
   }
 
+  /**
+   * Browse a name type (`#name`/`#place`).
+   *
+   * Served here rather than in `dispatch.ts` because it needs the NAMES dictionary, which is a
+   * separate opt-in download — the same reason `searchNames` is routed here. Opening one of these
+   * lists provisions it, exactly as the first name search does; the tags are hidden until it is
+   * present, so reaching this at all means the user has already accepted that download.
+   */
+  async #browseNames(request: BrowseRequest): Promise<Response> {
+    const classifier = CLASSIFIER_BY_ID.get(request.id);
+    const kind =
+      classifier?.kind === "result" && classifier.result === "place"
+        ? "place"
+        : "name";
+    const names = await this.#namesDict();
+    return {
+      type: "browse",
+      requestId: request.requestId,
+      results: [],
+      kanji: [],
+      names: await names.browseNames(kind),
+      total: await names.browseNamesCount(kind)
+    };
+  }
+
+  /**
+   * Counts for the name types, which the WORD dictionary cannot produce.
+   *
+   * Only for `browseCounts`, and only when the names DB is ALREADY present: opening it provisions
+   * a ~400MB download, and a count is not worth that. When it is absent the counts stay 0 and the
+   * tags stay hidden, which is the correct answer then.
+   */
+  async #nameCounts(request: Request): Promise<Record<string, number>> {
+    if (request.type !== "browseCounts") return {};
+    if (!(await namesDatabaseExists(this.#context))) return {};
+    const names = await this.#namesDict();
+    return {
+      name: await names.browseNamesCount("name"),
+      place: await names.browseNamesCount("place")
+    };
+  }
+
   /** Route a request to whichever backend serves it. */
   async #dispatch(request: Request): Promise<Response> {
     return request.type === "openSettings"
@@ -277,14 +336,17 @@ export class JishoViewProvider
             ? this.#recentSearches(request)
             : request.type === "searchNames" || request.type === "getName"
               ? respondNames(await this.#namesDict(), request)
-              : respond(
-                  await this.#dict(),
-                  request,
-                  // Checked per request rather than cached: the names DB can arrive mid-session
-                  // (the first name search provisions it), and a cached `false` would keep the
-                  // `#name`/`#place` tags hidden until reload. It is two `stat` calls.
-                  await namesDatabaseExists(this.#context)
-                );
+              : isNameBrowse(request)
+                ? this.#browseNames(request)
+                : respond(
+                    await this.#dict(),
+                    request,
+                    // Checked per request rather than cached: the names DB can arrive mid-session
+                    // (the first name search provisions it), and a cached `false` would keep the
+                    // `#name`/`#place` tags hidden until reload. It is two `stat` calls.
+                    await namesDatabaseExists(this.#context),
+                    await this.#nameCounts(request)
+                  );
   }
 
   /**
