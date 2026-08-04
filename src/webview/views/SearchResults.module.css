@@ -19,14 +19,8 @@
   min-width: 0;
 }
 
-/* The field's focus outline sat right against the radicals button at the shared 6px gap — close
-   enough to read as overlapping. The separation goes on the FIRST ICON rather than as a margin on
-   the field: the field is `flex: 1`, so margin there is space the field then grows back into,
-   which left a gap on the far side of the clear button instead of before the icons. */
-.searchBar > :first-child + * {
-  margin-left: 10px;
-}
-
+/* A square, evenly-sized toolbar button. The glyphs differ wildly in width (部 vs ⚙ vs ⓘ), so
+   without a fixed box and centred content they sat at uneven spacings and the row read as ragged. */
 .iconButton {
   background: transparent;
   border: none;
@@ -34,6 +28,11 @@
   cursor: pointer;
   font: inherit;
   padding: 2px 4px;
+  aspect-ratio: 1 / 1;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .iconButton:hover {
