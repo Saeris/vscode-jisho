@@ -36,6 +36,21 @@ const idsFor = async (
       ? `(SELECT sort_key FROM kana WHERE word_id = w.id ORDER BY position LIMIT 1)`
       : `w.freq_rank IS NULL, w.freq_rank`;
 
+  // A result-type filter selects WHICH KIND of thing comes back, not which words. `#word` is the
+  // whole word set (it only narrows in combination with a non-word type, where the intersection is
+  // empty by definition); every other type is answered elsewhere, by a query that returns kanji or
+  // names rather than words.
+  if (classifier.kind === "result") {
+    if (classifier.result !== "word") return [];
+    return store.all<{ id: string; common: number }>(
+      `SELECT w.id AS id, w.is_common AS common
+         FROM words w
+        ORDER BY ${orderBy}
+        LIMIT ?`,
+      limit
+    );
+  }
+
   if (classifier.kind === "jlpt") {
     return store.all<{ id: string; common: number }>(
       `SELECT w.id AS id, w.is_common AS common
@@ -118,14 +133,16 @@ export const refineCounts = async (
   store: SqliteStore,
   applied: Classifier[]
 ): Promise<Record<string, number>> => {
-  // The candidate pool: the words the applied tags leave. Empty `applied` means the whole
-  // dictionary, and the SQL below then degenerates to a plain group-by over every word.
+  // The candidate pool: the words the applied WORD filters leave. Result-type filters are excluded
+  // — they select a kind of result rather than narrowing words, and `idsFor` returns nothing for
+  // the non-word ones, which would empty the pool and zero every count.
+  const wordFilters = applied.filter((c) => c.kind !== "result");
   const pool =
-    applied.length === 0
+    wordFilters.length === 0
       ? null
       : await (async (): Promise<Set<string>> => {
           const lists = await Promise.all(
-            applied.map(async (c) => idsFor(store, c, "frequency", 100_000))
+            wordFilters.map(async (c) => idsFor(store, c, "frequency", 100_000))
           );
           const [first, ...rest] = lists;
           const others = rest.map((l) => new Set(l.map((r) => r.id)));
@@ -187,6 +204,36 @@ export const refineCounts = async (
     }
   }
 
+  /*
+   * Result types, resolved against what is already applied.
+   *
+   * This is what makes nonsense combinations disappear on their own rather than needing a rule
+   * per pair. Two kinds of conflict:
+   *   - two result types at once (`#kanji #name`) — a result is one thing or the other.
+   *   - a non-word type plus a WORD filter (`#kanji #verb-godan`) — godan is a property of words,
+   *     and no kanji has it.
+   * Both report 0, and the autocomplete already drops anything that would narrow to zero.
+   */
+  const appliedTypes = applied.filter((c) => c.kind === "result");
+  const appliedWordFilters = applied.some((c) => c.kind !== "result");
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind !== "result") continue;
+    const clashesWithType = appliedTypes.some((t) => t.id !== c.id);
+    const clashesWithFilter = c.result !== "word" && appliedWordFilters;
+    counts[c.id] =
+      clashesWithType || clashesWithFilter ? 0 : await browseCount(store, c);
+  }
+
+  // The same conflict in the OTHER direction: with a non-word type applied, every WORD filter is
+  // meaningless — `#kanji #verb-godan` asks for a kanji that is a godan verb, and none is. Zeroing
+  // here is what actually removes them from the suggestions; the loop above only handled the case
+  // where the word filter came first.
+  if (appliedTypes.some((t) => t.result !== "word")) {
+    for (const c of CLASSIFIER_BY_ID.values()) {
+      if (c.kind !== "result") counts[c.id] = 0;
+    }
+  }
+
   return counts;
 };
 
@@ -201,6 +248,23 @@ export const browseCount = async (
   store: SqliteStore,
   classifier: Classifier
 ): Promise<number> => {
+  if (classifier.kind === "result") {
+    if (classifier.result === "kanji") {
+      const row = await store.get<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM kanji_characters"
+      );
+      return row?.n ?? 0;
+    }
+    if (classifier.result === "word") {
+      const row = await store.get<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM words"
+      );
+      return row?.n ?? 0;
+    }
+    // Names and places live in the separate names dictionary, which this store is not. The counts
+    // response reports availability instead, and the field hides them when it is absent.
+    return 0;
+  }
   if (classifier.kind === "jlpt") {
     const row = await store.get<{ n: number }>(
       "SELECT COUNT(*) AS n FROM words WHERE jlpt = ?",

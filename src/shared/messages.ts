@@ -519,6 +519,15 @@ export interface BrowseCountsResponse {
   requestId: string;
   /** `Classifier.id` → word count. Absent ids have no words. */
   counts: Record<string, number>;
+  /**
+   * Whether the names dictionary is provisioned.
+   *
+   * `#name`/`#place` are hidden when it is not: they are backed by a separate ~400MB opt-in
+   * download, and a suggestion that cannot return anything is worse than one that is absent.
+   * Reported here rather than in the settings snapshot because it changes when a DOWNLOAD
+   * completes, not when configuration does.
+   */
+  namesAvailable: boolean;
 }
 
 export interface GetKanjiResponse {

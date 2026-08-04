@@ -112,24 +112,29 @@ test("arrow keys drive the tag suggestions", async ({ jisho }) => {
   // webview, so the check belongs here — in a real browser, against the real event sequence.
   const box = jisho.getByRole("searchbox");
   await box.click();
-  await box.pressSequentially("#");
+  // `#jlpt` rather than a bare `#`, so this test is about the KEYS rather than about which category
+  // happens to sort first — adding the result-type group changed that once already.
+  await box.pressSequentially("#jlpt");
   await expect(jisho.getByRole("menuitem").first()).toBeVisible();
 
-  const selected = async (): Promise<string | null> =>
-    jisho.locator('[role="menuitem"][data-focused]').first().textContent();
+  // The highlighted item, as a locator rather than a polled read: `expect.poll` re-invokes its
+  // callback until the assertion passes, which against a value the NEXT keypress changes made this
+  // race its own steps.
+  const highlighted = jisho.locator('[role="menuitem"][data-focused]');
 
-  // Nothing is highlighted until the keyboard enters the list — the combobox contract, and what
-  // makes the first ↓ meaningful rather than a no-op that skips an entry.
+  // Typing a fragment pre-highlights the best match, so Enter commits it without ever touching the
+  // arrows — the fast path. The arrows then move from there.
+  await expect(highlighted).toContainText("N5");
   await box.press("ArrowDown");
-  await expect.poll(selected).toContain("N5");
+  await expect(highlighted).toContainText("N4");
   await box.press("ArrowDown");
-  await expect.poll(selected).toContain("N4");
+  await expect(highlighted).toContainText("N3");
   await box.press("ArrowUp");
-  await expect.poll(selected).toContain("N5");
+  await expect(highlighted).toContainText("N4");
 
-  // Enter commits whatever is highlighted — N5 after the ↓↓↑ above, not the first item blindly.
+  // Enter commits whatever is highlighted — N4 after the ↓↓↑ above, not the first item blindly.
   await box.press("Enter");
-  await expect(box).toContainText("N5");
+  await expect(box).toContainText("N4");
 });
 
 test("kana rail scrolls its section to the top of the list", async ({
@@ -161,4 +166,33 @@ test("kana rail scrolls its section to the top of the list", async ({
   });
   expect(offset).toBeLessThan(8);
   await screenshotSidebar(vscode.window, "test-results/shots/36-kana-jump.png");
+});
+
+test("result-type tags appear, and dead combinations do not", async ({
+  vscode,
+  jisho
+}) => {
+  // WHY (#27): `#kanji` selects a KIND of result, which is a different question from the word
+  // filters — a learner may want the character rather than a word containing it.
+  const box = jisho.getByRole("searchbox");
+  await box.click();
+  // `#kanj`, not `#kanji`: a fully-typed tag tokenises itself immediately (that is what the value's
+  // tokenizer does), so the menu would already be closed by the time this looked at it.
+  await box.pressSequentially("#kanj");
+  await expect(jisho.getByRole("menuitem", { name: /Kanji/ })).toBeVisible();
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/37-result-tags.png"
+  );
+
+  // Commit it by CLICKING the suggestion, not with Enter: a lone committed tag makes Enter mean
+  // "open that category's list", which navigates away from the search view entirely.
+  await jisho.getByRole("menuitem", { name: /Kanji/ }).first().click();
+  await expect(box).toContainText("Kanji");
+
+  // Now a WORD filter must no longer offer itself: godan is a property of words, so
+  // `#kanji #verb-godan` can never match. The host reports 0 and the menu drops it — no
+  // hand-written rule per pair.
+  await box.pressSequentially("#verb");
+  await expect(jisho.getByRole("menuitem", { name: /Godan/ })).toHaveCount(0);
 });

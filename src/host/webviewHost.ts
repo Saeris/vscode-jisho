@@ -10,7 +10,11 @@ import * as vscode from "vscode";
 import { Dictionary } from "./db";
 import { webviewHtml } from "./webviewHtml";
 import { copyText, openSettings, respond, respondNames } from "./dispatch";
-import { ensureDatabase, ensureNamesDatabase } from "./ensureDatabase";
+import {
+  ensureDatabase,
+  ensureNamesDatabase,
+  namesDatabaseExists
+} from "./ensureDatabase";
 import { provideHover } from "./hoverProvider";
 import { mark, timed } from "./log";
 import { NamesDictionary } from "./names";
@@ -273,7 +277,14 @@ export class JishoViewProvider
             ? this.#recentSearches(request)
             : request.type === "searchNames" || request.type === "getName"
               ? respondNames(await this.#namesDict(), request)
-              : respond(await this.#dict(), request);
+              : respond(
+                  await this.#dict(),
+                  request,
+                  // Checked per request rather than cached: the names DB can arrive mid-session
+                  // (the first name search provisions it), and a cached `false` would keep the
+                  // `#name`/`#place` tags hidden until reload. It is two `stat` calls.
+                  await namesDatabaseExists(this.#context)
+                );
   }
 
   /**

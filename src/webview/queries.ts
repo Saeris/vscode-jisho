@@ -197,9 +197,9 @@ export const browseCountsQuery = (
   applied: string[] = []
 ): ReturnType<
   typeof queryOptions<
-    Record<string, number>,
+    { counts: Record<string, number>; namesAvailable: boolean },
     Error,
-    Record<string, number>,
+    { counts: Record<string, number>; namesAvailable: boolean },
     string[]
   >
 > =>
@@ -208,8 +208,19 @@ export const browseCountsQuery = (
     // costs ~250ms, so the cache is what keeps this off the keystroke path: it only re-runs when
     // the applied TAGS change, never as the fragment being typed narrows.
     queryKey: ["browseCounts", [...applied].sort().join(",")],
-    queryFn: async () => (await browseCounts(applied)).counts,
-    staleTime: Infinity
+    queryFn: async () => {
+      const response = await browseCounts(applied);
+      return {
+        counts: response.counts,
+        namesAvailable: response.namesAvailable
+      };
+    },
+    staleTime: Infinity,
+    // Keep the PREVIOUS counts while a new applied-set is in flight. Without this the data drops to
+    // `undefined` between keys, and the field reads that as "no counts known" — which un-hides the
+    // dead combinations for the ~250ms the recount takes, exactly when the user is typing the next
+    // tag. Slightly stale counts are strictly better than momentarily absent ones.
+    placeholderData: (previous) => previous
   });
 
 export const radicalQuery = (

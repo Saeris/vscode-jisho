@@ -41,7 +41,20 @@ interface ClassifierBase {
  * type-check — the query would then silently bind `undefined` and match nothing. Narrowing on
  * `kind` makes the parameters non-optional exactly where they are used.
  */
+/**
+ * Which KIND of result a classifier selects.
+ *
+ * Distinct from the filters below, which all narrow a set of words. A learner may be looking for a
+ * kanji with a given meaning rather than a word containing it, and until now the only way to
+ * express that was to read past the word results. `#kanji`, `#name` and `#place` say "I want this
+ * type of thing" — so they compose with word filters only where the combination is meaningful, and
+ * the refine counts make the dead ones disappear on their own.
+ */
+export type ResultKind = "word" | "kanji" | "name" | "place";
+
 export type Classifier =
+  /** Selects a result TYPE rather than narrowing words — see `ResultKind`. */
+  | (ClassifierBase & { kind: "result"; result: ResultKind })
   /** A `sense_tags` row: pos / misc / field / dialect all share one shape. */
   | (ClassifierBase & {
       kind: "tag";
@@ -72,6 +85,7 @@ export type ClassifierKind = Classifier["kind"];
  * study list. Dialect is last because it is the smallest and the most specialised.
  */
 export const CLASSIFIER_GROUPS = [
+  { id: "type", label: "Result type" },
   { id: "jlpt", label: "JLPT level" },
   { id: "frequency", label: "Common words" },
   { id: "grammar", label: "Language parts" },
@@ -89,6 +103,20 @@ export type ClassifierGroupId = (typeof CLASSIFIER_GROUPS)[number]["id"];
  * The data is an unofficial community estimate (Waller/tanos, via stephenmk/yomitan-jlpt-vocab);
  * official vocabulary lists have not been published since 2010, which is why the UI says so.
  */
+/**
+ * Result-type filters.
+ *
+ * `#name` and `#place` read the NAMES dictionary, a separate ~400MB opt-in download. They are
+ * hidden entirely when it is not provisioned — see `namesAvailable` in the browse-counts response —
+ * because a suggestion that cannot return anything is worse than one that is absent.
+ */
+const RESULT_TYPES: Classifier[] = [
+  { id: "kanji", label: "Kanji", kind: "result", result: "kanji" },
+  { id: "word", label: "Words", kind: "result", result: "word" },
+  { id: "name", label: "Names", kind: "result", result: "name" },
+  { id: "place", label: "Places", kind: "result", result: "place" }
+];
+
 const JLPT: Classifier[] = [5, 4, 3, 2, 1].map((level) => ({
   id: `jlpt-n${String(level)}`,
   label: `N${String(level)}`,
@@ -235,6 +263,7 @@ const DIALECT: Classifier[] = [
 
 /** Every classifier, by group, in browse order. */
 export const CLASSIFIERS: Record<ClassifierGroupId, Classifier[]> = {
+  type: RESULT_TYPES,
   jlpt: JLPT,
   frequency: FREQUENCY,
   grammar: GRAMMAR,

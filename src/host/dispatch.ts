@@ -80,10 +80,17 @@ type WordRequest = Exclude<
   | { type: "clearRecentSearches" }
 >;
 
-/** Dispatch a word/kanji request to the dictionary and build its response. */
+/**
+ * Dispatch a word/kanji request to the dictionary and build its response.
+ *
+ * `namesAvailable` is passed IN rather than checked here: this module has no extension context by
+ * design (only `openSettings`/`copyText` touch the vscode API), and the check must not provision —
+ * see `namesDatabaseExists`.
+ */
 export const respond = async (
   dict: Dictionary,
-  request: WordRequest
+  request: WordRequest,
+  namesAvailable = false
 ): Promise<Response> => {
   switch (request.type) {
     case "search": {
@@ -144,7 +151,8 @@ export const respond = async (
       return {
         type: "browseCounts",
         requestId: request.requestId,
-        counts: await dict.refineCounts(applied)
+        counts: await dict.refineCounts(applied),
+        namesAvailable
       };
     }
     case "getKanji":

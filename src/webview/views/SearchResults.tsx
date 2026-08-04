@@ -128,15 +128,15 @@ export const SearchResults = ({
    * it per keystroke would make the menu lag behind the text. Cached with `staleTime: Infinity`,
    * so it recomputes only when a tag is added or removed.
    */
-  const { data: refineCountsRecord } = useQuery(
+  const { data: countsData } = useQuery(
     browseCountsQuery(tags.map((t) => t.id))
   );
   const refineCounts = useMemo(
     () =>
-      refineCountsRecord === undefined
+      countsData === undefined
         ? undefined
-        : new Map(Object.entries(refineCountsRecord)),
-    [refineCountsRecord]
+        : new Map(Object.entries(countsData.counts)),
+    [countsData]
   );
   // Whichever tag lists have arrived. Narrowing by a SUBSET is the honest intermediate: with two
   // tags the second lands a beat after the first, and it only ever shows too many results, never
@@ -212,6 +212,9 @@ export const SearchResults = ({
         <TagSearchField
           text={query}
           refineCounts={refineCounts}
+          // Hides `#name`/`#place` until the names dictionary is provisioned. Defaults to hidden
+          // while the answer is in flight, so the tags never flash in and out on load.
+          namesAvailable={countsData?.namesAvailable ?? false}
           inputRef={inputRef}
           onKeyDown={onInputKeyDown}
           onOpenTag={openWordList}

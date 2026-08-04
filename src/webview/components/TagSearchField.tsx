@@ -39,6 +39,12 @@ interface TagSearchFieldProps {
    * that would narrow to zero are dropped — see `suggestions` below.
    */
   refineCounts?: ReadonlyMap<string, number>;
+  /**
+   * Whether the names dictionary is provisioned. `#name`/`#place` are dropped from the suggestions
+   * when it is not — they are backed by a separate ~400MB opt-in download, and a filter that can
+   * only ever return nothing is worse than one that is absent.
+   */
+  namesAvailable?: boolean;
   inputRef?: React.RefObject<HTMLDivElement | null>;
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }
@@ -74,6 +80,7 @@ export const TagSearchField = ({
   onChange,
   onOpenTag,
   refineCounts,
+  namesAvailable = false,
   inputRef,
   onKeyDown
 }: TagSearchFieldProps): React.ReactElement => {
@@ -151,10 +158,20 @@ export const TagSearchField = ({
    */
   const suggestions = useMemo(() => {
     if (fragment === null) return [];
-    const matches = matchClassifiers(fragment, 30, applied);
-    if (refineCounts === undefined) return matches;
-    return matches.filter((c) => (refineCounts.get(c.id) ?? 1) > 0);
-  }, [fragment, applied, refineCounts]);
+    return matchClassifiers(fragment, 30, applied).filter((c) => {
+      // Names and places need a dictionary that may not be downloaded.
+      if (
+        !namesAvailable &&
+        c.kind === "result" &&
+        (c.result === "name" || c.result === "place")
+      ) {
+        return false;
+      }
+      // Anything that would narrow the results to zero — including nonsense type combinations
+      // like `#kanji #verb-godan`, which the host reports as 0 rather than needing a rule here.
+      return refineCounts === undefined || (refineCounts.get(c.id) ?? 1) > 0;
+    });
+  }, [fragment, applied, refineCounts, namesAvailable]);
 
   /**
    * Remove a token by clicking it.
@@ -185,22 +202,24 @@ export const TagSearchField = ({
   /** Replace the fragment under the caret with a chosen tag, as a token plus a trailing space. */
   const complete = (classifier: Classifier): void => {
     if (anchor === null) return;
-    setValue((current) => {
-      // `replaceRangeWithSegments` inserts the token AND the space that follows it in one edit, so
-      // the caret ends up after both. Writing text and letting it re-tokenise left the caret on the
-      // far side of the new pill — the "cursor lands before the tag" bug.
-      const next = current.replaceRangeWithSegments(
+    // Computed from the current `value` and applied through `apply`, NOT inside a `setValue`
+    // updater: React may invoke an updater more than once for a single event, and `onChange` is a
+    // side effect that must fire exactly once per commit.
+    //
+    // `replaceRangeWithSegments` inserts the token AND the space that follows it in one edit, so
+    // the caret ends up after both. Writing text and letting it re-tokenise left the caret on the
+    // far side of the new pill — the "cursor lands before the tag" bug.
+    apply(
+      value.replaceRangeWithSegments(
         anchor,
-        current.caretPosition,
+        value.caretPosition,
         [
           { type: "token", text: `#${classifier.id}`, value: classifier },
           { type: "text", text: " " }
         ],
         false
-      );
-      onChange(textOf(next), tokensOf(next));
-      return next;
-    });
+      )
+    );
   };
 
   return (

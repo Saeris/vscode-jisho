@@ -36,7 +36,8 @@ export const Browse = ({ group }: { group?: string }): React.ReactElement => {
         <CategoryList
           group={active.id}
           label={active.label}
-          counts={counts ?? {}}
+          counts={counts?.counts ?? {}}
+          namesAvailable={counts?.namesAvailable ?? false}
         />
       )}
     </div>
@@ -76,11 +77,14 @@ const GroupList = (): React.ReactElement => {
 const CategoryList = ({
   group,
   label,
-  counts
+  counts,
+  namesAvailable
 }: {
   group: ClassifierGroupId;
   label: string;
   counts: Record<string, number>;
+  /** Hides #name/#place until the names dictionary is provisioned — see TagSearchField. */
+  namesAvailable: boolean;
 }): React.ReactElement => {
   const { openWordList } = useNavigate();
   return (
@@ -93,14 +97,23 @@ const CategoryList = ({
         </p>
       ) : null}
       <ul className={styles.list}>
-        {CLASSIFIERS[group].map((c) => (
-          <CategoryRow
-            key={c.id}
-            classifier={c}
-            count={counts[c.id]}
-            onOpen={() => openWordList(c.id)}
-          />
-        ))}
+        {CLASSIFIERS[group]
+          // Names and places need a dictionary that may not be downloaded — the same rule the tag
+          // autocomplete applies, so the two surfaces offer the same vocabulary.
+          .filter(
+            (c) =>
+              namesAvailable ||
+              c.kind !== "result" ||
+              (c.result !== "name" && c.result !== "place")
+          )
+          .map((c) => (
+            <CategoryRow
+              key={c.id}
+              classifier={c}
+              count={counts[c.id]}
+              onOpen={() => openWordList(c.id)}
+            />
+          ))}
       </ul>
     </div>
   );

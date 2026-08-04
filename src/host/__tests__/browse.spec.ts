@@ -135,6 +135,54 @@ describeIfDb("browse by classifier", () => {
     expect(count).toBeGreaterThan(100);
   });
 
+  test("result types report their own population", async () => {
+    // WHY (#27): `#kanji` selects a KIND of result rather than narrowing words, so its count comes
+    // from a different table entirely. A zero here would hide the tag from the autocomplete, which
+    // filters out anything that would narrow to nothing.
+    const counts = await dict.refineCounts([]);
+    expect(counts.kanji).toBeGreaterThan(1000);
+    expect(counts.word).toBeGreaterThan(1000);
+  });
+
+  test("a result type and a word filter cancel each other out", async () => {
+    // WHY: `#kanji #verb-godan` is nonsense — godan is a property of words, and no kanji has it.
+    // Reporting 0 is what makes the combination DISAPPEAR from the suggestions rather than needing
+    // a hand-written rule per pair.
+    const godan = CLASSIFIER_BY_ID.get("verb-godan")!;
+    const counts = await dict.refineCounts([godan]);
+    expect(counts.kanji).toBe(0);
+    // …and the word type survives, since every godan verb is still a word.
+    expect(counts.word).toBeGreaterThan(0);
+  });
+
+  test("two result types cancel each other out", async () => {
+    // WHY: a result is one thing or the other, so `#kanji #word` can never match.
+    const kanji = CLASSIFIER_BY_ID.get("kanji")!;
+    const counts = await dict.refineCounts([kanji]);
+    expect(counts.word).toBe(0);
+    // The applied type still reports its own size — it is not competing with itself.
+    expect(counts.kanji).toBeGreaterThan(1000);
+  });
+
+  test("a non-word type zeroes the word filters too", async () => {
+    // WHY: the conflict has to hold in BOTH directions. Zeroing kanji when godan is applied is not
+    // enough — a user who types the type FIRST would still be offered word filters that can never
+    // match it, which is the order this shipped broken in.
+    const kanji = CLASSIFIER_BY_ID.get("kanji")!;
+    const counts = await dict.refineCounts([kanji]);
+    expect(counts["verb-godan"]).toBe(0);
+    expect(counts["noun"]).toBe(0);
+    expect(counts["jlpt-n5"]).toBe(0);
+  });
+
+  test("a word filter still narrows normally alongside a word type", async () => {
+    // WHY: `#word` is the identity filter over words, so it must not zero the word tags the way a
+    // non-word type does — otherwise adding it would empty the suggestion list.
+    const word = CLASSIFIER_BY_ID.get("word")!;
+    const counts = await dict.refineCounts([word]);
+    expect(counts["verb-godan"]).toBeGreaterThan(0);
+  });
+
   test("an empty category returns an empty list rather than failing", async () => {
     // WHY: Ryuukyuu-ben has a valid JMdict code (`rkb`) and ZERO words in a `common` build —
     // dialect words are mostly not common. That is a truthful answer about the shipped data, so it

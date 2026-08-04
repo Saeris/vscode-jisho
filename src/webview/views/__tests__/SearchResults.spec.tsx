@@ -63,7 +63,7 @@ vi.mock("../../queries", () => ({
   // suggestion menu opens — but the module must still export it.
   browseCountsQuery: (applied: string[] = []) => ({
     queryKey: ["browseCounts", applied.join(",")],
-    queryFn: () => ({})
+    queryFn: () => ({ counts: {}, namesAvailable: false })
   }),
   // Empty history, so the empty view falls back to its hint — these tests are about results.
   recentSearchesQuery: () => ({

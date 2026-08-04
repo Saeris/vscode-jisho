@@ -81,6 +81,30 @@ export const ensureDatabase = async (
 const NAMES_DB_NAME = "jisho-names.db";
 
 /**
+ * Whether the names dictionary is already on disk — WITHOUT provisioning it.
+ *
+ * `ensureNamesDatabase` downloads a ~400MB artifact when it is absent, so anything that merely
+ * wants to know "can we answer name queries?" must not call it. The `#name`/`#place` search tags
+ * are the case: they are hidden when names are unavailable, and a suggestion list that triggered a
+ * large download just by being computed would be indefensible.
+ *
+ * Deliberately the same two branches `ensureNamesDatabase` checks before it downloads, so the two
+ * cannot disagree about what "present" means.
+ */
+export const namesDatabaseExists = async (
+  context: vscode.ExtensionContext
+): Promise<boolean> => {
+  const bundled = vscode.Uri.joinPath(
+    context.extensionUri,
+    "assets",
+    NAMES_DB_NAME
+  );
+  if (await exists(bundled)) return true;
+  const target = vscode.Uri.joinPath(context.globalStorageUri, NAMES_DB_NAME);
+  return exists(target);
+};
+
+/**
  * Provision the optional JMnedict names database (`jisho-names.db`), returning its on-disk path.
  * Unlike the word DB this has **no bundled dev copy** — it is download-only (JMnedict would roughly
  * double the bundled data). If a locally-built `assets/jisho-names.db` exists (from
