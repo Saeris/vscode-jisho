@@ -54,6 +54,9 @@
   flex: 1;
   display: flex;
   min-height: 0;
+  /* Named container so the rail can size itself against the space it ACTUALLY has, rather than
+     against the viewport — see the `@container` rule below. */
+  container: wordList / size;
 }
 
 .list {
@@ -112,18 +115,33 @@
   top: 0;
   z-index: 1;
   padding: 3px 8px;
-  /* A filled band rather than a rule: the header has to read as a DIVIDER between groups, not as
-     another (short) entry. Falls back to a tint of the editor foreground on themes that do not
-     define the list-header colour, so the distinction survives everywhere. */
-  background: var(
-    --vscode-sideBarSectionHeader-background,
-    color-mix(in oklch, var(--jisho-fg) 12%, transparent)
-  );
+  /*
+   * A filled band, derived from the panel's own background rather than tinted with the foreground.
+   *
+   * `oklch(from … )` relative syntax lets the L channel move in the direction that actually reads
+   * as "raised" for the theme in hand: a dark panel wants a LIGHTER band, a light panel a darker
+   * one, and `color-mix` toward the foreground could only ever do one of those. Working in OKLCH
+   * means the step is perceptually even rather than swinging harder on some hues than others.
+   *
+   * NOT `light-dark()`: that keys off `color-scheme`, which nothing in this webview declares —
+   * VS Code signals its theme with a `vscode-light`/`vscode-dark` class on <body>, which is what
+   * the palette CSS already keys on. `light-dark()` would silently resolve to its light branch in
+   * every theme.
+   */
+  background: oklch(from var(--jisho-bg) calc(l + 0.06) c h);
   border-top: 1px solid var(--jisho-border);
   border-bottom: 1px solid var(--jisho-border);
   color: var(--jisho-fg);
   font-size: 0.85em;
   font-weight: 600;
+}
+
+/* On a light theme the band goes DARKER — the same perceptual step, in the direction that reads as
+   raised against a pale ground. `:global` because the class is VS Code's, on <body>, and CSS
+   Modules would otherwise scope it to this stylesheet. */
+:global(body.vscode-light) .sectionHeader,
+:global(body.vscode-high-contrast-light) .sectionHeader {
+  background: oklch(from var(--jisho-bg) calc(l - 0.05) c h);
 }
 
 /* The gojūon rail: the full syllabary, the way a paper dictionary is thumb-indexed. Every heading
@@ -159,7 +177,18 @@
  * still lands on ゆ when や itself has no words. The full rail is the better affordance when there
  * is room for it; this is the same index at lower resolution.
  */
-@media (max-height: 560px) {
+/*
+ * The threshold is the rail's own height requirement: 46 keys × 0.72em × 1.15 line-height = 38.09em,
+ * plus its 4px padding ≈ 38.4em — about 540px at the default text size. Keep it in step with
+ * `.railKey`'s font-size and line-height below; those three numbers are one measurement.
+ *
+ * A CONTAINER query, not a media query, and expressed in `em` rather than pixels. Both matter:
+ * `--jisho-text-scale` is user-configurable from 0.8 to 2.0, which moves the requirement from
+ * ~500px to ~750px, and the rail sits below a header, title and order row whose combined height a
+ * viewport query would have to guess at. Querying the container measures the space the rail
+ * actually has, in units that track the font it is actually rendered in.
+ */
+@container wordList (height < 38.4em) {
   .railKey:not([data-head]) {
     display: none;
   }

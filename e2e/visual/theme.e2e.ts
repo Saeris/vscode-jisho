@@ -1,4 +1,4 @@
-import { test } from "../fixtures";
+import { expect, test } from "../fixtures";
 import { fillSearch, openKanjiResult, screenshotSidebar } from "../webview";
 
 /**
@@ -79,5 +79,34 @@ test("capture: stroke order in light theme", async ({ vscode, jisho }) => {
   await screenshotSidebar(
     vscode.window,
     "test-results/shots/16b-stroke-order-light.png"
+  );
+});
+
+test("capture: word-list kana headers in light theme", async ({
+  vscode,
+  jisho
+}) => {
+  // WHY: the section band is derived with `oklch(from … calc(l ± …))`, and the two directions are
+  // separate rules — dark lightens, light darkens. A single-theme check would pass while the light
+  // variant did nothing, which is exactly what `light-dark()` would have done here (nothing in the
+  // webview declares `color-scheme`, so it would resolve to its light branch in every theme).
+  await jisho
+    .getByRole("button", { name: /browse words by category/i })
+    .click();
+  await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
+  await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
+  await jisho.getByRole("heading", { name: "N5" }).waitFor();
+
+  // The band must differ from the rows it separates — that is the whole point of it being a band.
+  const distinct = await jisho.locator('[data-row="あ"]').evaluate((header) => {
+    const paint = (el: Element): string => getComputedStyle(el).backgroundColor;
+    const list = header.closest("[class*='list']");
+    return list === null ? false : paint(header) !== paint(list);
+  });
+  expect(distinct).toBe(true);
+
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/16e-word-list-light.png"
   );
 });
