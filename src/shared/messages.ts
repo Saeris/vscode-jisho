@@ -510,6 +510,12 @@ export interface BrowseResponse {
   requestId: string;
   /** Empty when the classifier has no words in this build — a truthful answer, not an error. */
   results: SearchResultDto[];
+  /**
+   * Kanji rows, for `#kanji`. A result-type classifier selects a KIND of result, so its list is
+   * characters rather than words — the two are separate arrays rather than a union because the
+   * view renders them with different components, and every other classifier fills only `results`.
+   */
+  kanji: KanjiResultDto[];
   /** The whole category's size, which `results` may be capped below. */
   total: number;
 }

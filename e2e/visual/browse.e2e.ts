@@ -196,3 +196,24 @@ test("result-type tags appear, and dead combinations do not", async ({
   await box.pressSequentially("#verb");
   await expect(jisho.getByRole("menuitem", { name: /Godan/ })).toHaveCount(0);
 });
+
+test("capture: #kanji opens a kanji list", async ({ vscode, jisho }) => {
+  // WHY (#27): the result-type tag has to RETURN its type. It suggested and filtered correctly for
+  // a while before opening anything — the list was empty because `browse()` only knew about words.
+  await jisho
+    .getByRole("button", { name: /browse words by category/i })
+    .click();
+  await jisho.getByRole("button", { name: /Browse Result type/i }).click();
+  await jisho.getByRole("button", { name: /Kanji, [\d,]+ words/ }).click();
+  await jisho.getByRole("heading", { name: "Kanji" }).waitFor();
+  await expect(jisho.getByRole("option").first()).toBeVisible();
+
+  // The ordering controls are absent: a kanji has no reading to sort gojūon by, so offering あ–ん
+  // would be a control that cannot do anything.
+  await expect(jisho.getByRole("group", { name: "Sort order" })).toHaveCount(0);
+
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/38-kanji-list.png"
+  );
+});

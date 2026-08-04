@@ -412,6 +412,20 @@ export const searchKanji = async (
     }
   }
 
+  return kanjiResults(store, literals);
+};
+
+/**
+ * Hydrate kanji literals into result rows.
+ *
+ * Exported because the browse path (`#kanji`, #27) renders the same row shape from a different
+ * selection — sharing the hydrator is what keeps a searched kanji and a browsed one identical,
+ * exactly as `searchResult` does for words.
+ */
+export const kanjiResults = async (
+  store: SqliteStore,
+  literals: string[]
+): Promise<KanjiResultDto[]> => {
   const out: KanjiResultDto[] = [];
   for (const literal of literals) {
     const row = await store.get<{

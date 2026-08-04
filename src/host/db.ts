@@ -11,6 +11,7 @@ import { resolveByLemma, search, searchKanji } from "./queries/search";
 import {
   browse,
   browseCount,
+  browseKanji,
   refineCounts,
   type BrowseOrder
 } from "./queries/browse";
@@ -143,6 +144,14 @@ export class Dictionary {
     limit = 2000
   ): Promise<SearchResultDto[]> {
     return browse(this.#store, classifier, order, limit);
+  }
+
+  /** The kanji in a result-type classifier (`#kanji`), ordered by frequency then stroke count. */
+  async browseKanji(
+    classifier: Classifier,
+    limit = 2000
+  ): Promise<KanjiResultDto[]> {
+    return browseKanji(this.#store, classifier, limit);
   }
 
   /** How many words a classifier holds — the browse tree's counts. */

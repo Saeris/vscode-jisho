@@ -167,20 +167,26 @@ export const browseQuery = (
   id: string,
   order: "frequency" | "gojuon"
 ): ReturnType<
-  typeof queryOptions<
-    { results: SearchResultDto[]; total: number },
-    Error,
-    { results: SearchResultDto[]; total: number },
-    string[]
-  >
+  typeof queryOptions<BrowseResult, Error, BrowseResult, string[]>
 > =>
   queryOptions({
     queryKey: ["browse", id, order],
     queryFn: async () => {
       const response = await browse(id, order);
-      return { results: response.results, total: response.total };
+      return {
+        results: response.results,
+        kanji: response.kanji,
+        total: response.total
+      };
     }
   });
+
+/** A browsed list: words for most classifiers, kanji for `#kanji`. Only one is ever populated. */
+interface BrowseResult {
+  results: SearchResultDto[];
+  kanji: KanjiResultDto[];
+  total: number;
+}
 
 /**
  * Word counts for the whole classifier tree.

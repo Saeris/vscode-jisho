@@ -183,6 +183,35 @@ describeIfDb("browse by classifier", () => {
     expect(counts["verb-godan"]).toBeGreaterThan(0);
   });
 
+  test("#kanji returns kanji rows, ordered for browsing", async () => {
+    // WHY (#27): a result-type tag has to actually RETURN its type. Until this existed the tag
+    // suggested, filtered and counted correctly while opening an empty list — promising more than
+    // it delivered.
+    const kanji = CLASSIFIER_BY_ID.get("kanji")!;
+    const rows = await dict.browseKanji(kanji, 20);
+    expect(rows).toHaveLength(20);
+    for (const r of rows) expect(r.literal).not.toBe("");
+    // Ordered by newspaper frequency, so the characters a reader meets first lead. 日 and 一 are
+    // among the very most frequent kanji in Japanese, so one of them heads any frequency-ordered
+    // list — asserting on the SET rather than an exact position keeps this stable if the corpus
+    // shifts by a rank or two.
+    expect(
+      rows
+        .slice(0, 5)
+        .map((r) => r.literal)
+        .join("")
+    ).toMatch(/[日一人大年]/u);
+  });
+
+  test("a word classifier returns no kanji, and vice versa", async () => {
+    // WHY: the response carries both arrays and the view branches on which is populated, so a
+    // classifier filling BOTH would render a list of the wrong kind — or of two kinds at once.
+    const n5 = CLASSIFIER_BY_ID.get("jlpt-n5")!;
+    await expect(dict.browseKanji(n5, 20)).resolves.toEqual([]);
+    const kanji = CLASSIFIER_BY_ID.get("kanji")!;
+    await expect(dict.browse(kanji, "frequency", 20)).resolves.toEqual([]);
+  });
+
   test("an empty category returns an empty list rather than failing", async () => {
     // WHY: Ryuukyuu-ben has a valid JMdict code (`rkb`) and ZERO words in a `common` build —
     // dialect words are mostly not common. That is a truthful answer about the shipped data, so it

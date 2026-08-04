@@ -7,7 +7,7 @@ import {
   ListBoxSection,
   Header
 } from "react-aria-components";
-import type { SearchResultDto } from "../../shared/messages";
+import type { KanjiResultDto, SearchResultDto } from "../../shared/messages";
 import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
 import {
   gojuonHead,
@@ -32,12 +32,19 @@ import styles from "./WordList.module.css";
  */
 export const WordList = ({ id }: { id: string }): React.ReactElement => {
   const [order, setOrder] = useState<"gojuon" | "frequency">("gojuon");
-  const { back, openWord } = useNavigate();
+  const { back, openWord, openKanji } = useNavigate();
   const classifier = CLASSIFIER_BY_ID.get(id);
   const { data, isPending } = useQuery(browseQuery(id, order));
   const listRef = useRef<HTMLDivElement>(null);
 
   const results = data?.results ?? [];
+  /**
+   * Kanji rows, for `#kanji`. Only one of the two arrays is ever populated, so branching on which
+   * one has content is simpler than branching on the classifier's kind — and it keeps the empty
+   * state, the header and the ordering controls shared between both.
+   */
+  const kanji = data?.kanji ?? [];
+  const isKanjiList = kanji.length > 0;
 
   /**
    * The list grouped under kana headings, in syllabary order.
@@ -94,26 +101,33 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
       <div className={styles.head}>
         <h1 className={styles.title}>{classifier?.label ?? id}</h1>
         <span className={styles.total}>
-          {data === undefined ? "" : `${data.total.toLocaleString()} words`}
+          {data === undefined
+            ? ""
+            : `${data.total.toLocaleString()} ${isKanjiList ? "kanji" : "words"}`}
         </span>
       </div>
 
-      <div className={styles.orderRow} role="group" aria-label="Sort order">
-        <Button
-          className={styles.orderButton}
-          data-selected={order === "gojuon" || undefined}
-          onPress={() => setOrder("gojuon")}
-        >
-          あ–ん
-        </Button>
-        <Button
-          className={styles.orderButton}
-          data-selected={order === "frequency" || undefined}
-          onPress={() => setOrder("frequency")}
-        >
-          By frequency
-        </Button>
-      </div>
+      {/* Ordering controls are for WORD lists only. A kanji has no reading to sort gojūon by, so
+          offering あ–ん there would be a control that cannot do anything — the list is ordered by
+          newspaper frequency then stroke count, which is what a character list wants. */}
+      {isKanjiList ? null : (
+        <div className={styles.orderRow} role="group" aria-label="Sort order">
+          <Button
+            className={styles.orderButton}
+            data-selected={order === "gojuon" || undefined}
+            onPress={() => setOrder("gojuon")}
+          >
+            あ–ん
+          </Button>
+          <Button
+            className={styles.orderButton}
+            data-selected={order === "frequency" || undefined}
+            onPress={() => setOrder("frequency")}
+          >
+            By frequency
+          </Button>
+        </div>
+      )}
 
       <div className={styles.listWrap}>
         {/* The kana rail, only in gojūon order. Every heading is shown even when empty, so the
@@ -148,6 +162,18 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
         <div className={styles.list} ref={listRef}>
           {isPending ? (
             <p className={styles.empty}>Loading…</p>
+          ) : isKanjiList ? (
+            <ListBox
+              aria-label={`${classifier?.label ?? id} kanji`}
+              selectionMode="single"
+              onAction={(key) => {
+                openKanji(String(key));
+              }}
+            >
+              {kanji.map((item) => (
+                <KanjiRow key={item.literal} item={item} />
+              ))}
+            </ListBox>
           ) : results.length === 0 ? (
             // An empty category is a truthful answer about the shipped dictionary, not an error —
             // most dialects have no COMMON words, and this build ships the common subset.
@@ -188,6 +214,31 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
     </div>
   );
 };
+
+/**
+ * One kanji in a browsed character list.
+ *
+ * Mirrors the search view's kanji row — same literal-then-meaning-then-readings shape — because a
+ * browsed kanji and a searched one are the same thing arrived at two ways, and a reader should not
+ * have to re-learn the layout.
+ */
+const KanjiRow = ({ item }: { item: KanjiResultDto }): React.ReactElement => (
+  <ListBoxItem
+    id={item.literal}
+    textValue={item.literal}
+    className={styles.kanjiItem}
+  >
+    <span className={styles.kanjiLiteral} lang="ja">
+      {item.literal}
+    </span>
+    <span className={styles.kanjiInfo}>
+      <span className={styles.kanjiMeaning}>{item.meaningPreview}</span>
+      <span className={styles.kanjiReadings} lang="ja">
+        {[item.onPreview, item.kunPreview].filter(Boolean).join("　")}
+      </span>
+    </span>
+  </ListBoxItem>
+);
 
 const WordRow = ({ item }: { item: SearchResultDto }): React.ReactElement => (
   <ListBoxItem id={item.id} textValue={item.headword} className={styles.item}>

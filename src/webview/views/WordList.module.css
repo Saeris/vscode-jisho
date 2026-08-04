@@ -170,14 +170,11 @@
 }
 
 /*
- * Below ~560px of panel height the full syllabary cannot fit legibly, so the rail falls back to the
- * ten row-heads — あ-か-さ-た-な-は-ま-や-ら-わ, the way a paper index is tabbed.
+ * Below the threshold the full syllabary cannot fit legibly, so the rail falls back to the ten
+ * row-heads — あ-か-さ-た-な-は-ま-や-ら-わ, the way a paper index is tabbed. Nothing becomes
+ * unreachable: a row-head jumps to the first section IN its row, so tapping や still lands on ゆ
+ * when や itself has no words.
  *
- * Nothing becomes unreachable: a row-head jumps to the first section IN its row, so tapping や
- * still lands on ゆ when や itself has no words. The full rail is the better affordance when there
- * is room for it; this is the same index at lower resolution.
- */
-/*
  * The threshold is the rail's own height requirement: 46 keys × 0.72em × 1.15 line-height = 38.09em,
  * plus its 4px padding ≈ 38.4em — about 540px at the default text size. Keep it in step with
  * `.railKey`'s font-size and line-height below; those three numbers are one measurement.
@@ -216,4 +213,48 @@
   color: var(--jisho-muted);
   opacity: 0.35;
   cursor: default;
+}
+
+/* A kanji row in a browsed character list (`#kanji`, #27). Deliberately the same literal-then-
+   meaning-then-readings shape as the search view's kanji rows: a browsed kanji and a searched one
+   are the same thing arrived at two ways, and a reader should not have to re-learn the layout. */
+.kanjiItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--jisho-border);
+  cursor: pointer;
+}
+
+.kanjiItem[data-focused],
+.kanjiItem[data-hovered] {
+  background: var(--jisho-input-bg);
+}
+
+.kanjiLiteral {
+  font-size: 1.8em;
+  line-height: 1;
+}
+
+.kanjiInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kanjiMeaning {
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanjiReadings {
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -130,6 +130,7 @@ export const respond = async (
           type: "browse",
           requestId: request.requestId,
           results: [],
+          kanji: [],
           total: 0
         };
       }
@@ -137,6 +138,9 @@ export const respond = async (
         type: "browse",
         requestId: request.requestId,
         results: await dict.browse(classifier, request.order),
+        // Only `#kanji` fills this; every other classifier returns an empty array, so the view can
+        // branch on which one is populated rather than on the classifier's kind.
+        kanji: await dict.browseKanji(classifier),
         total: await dict.browseCount(classifier)
       };
     }

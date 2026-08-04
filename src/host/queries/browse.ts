@@ -9,8 +9,8 @@
  */
 import type { SqliteStore } from "../store";
 import { CLASSIFIER_BY_ID, type Classifier } from "../../shared/classifiers";
-import type { SearchResultDto } from "../../shared/messages";
-import { searchResult } from "./search";
+import type { KanjiResultDto, SearchResultDto } from "../../shared/messages";
+import { kanjiResults, searchResult } from "./search";
 
 /** How a browsed list is ordered. */
 export type BrowseOrder = "frequency" | "gojuon";
@@ -117,6 +117,32 @@ export const browse = async (
     if (result !== null) out.push(result);
   }
   return out;
+};
+
+/**
+ * The kanji in a result-type classifier (`#kanji`), ordered for browsing.
+ *
+ * Ordered by newspaper `frequency` then stroke count, NOT by the word orderings above: a kanji has
+ * no reading to sort gojūon by, and the two useful axes for a character list are "how often will I
+ * meet this" and "how complex is it". Kanji with no frequency rank sort last rather than being
+ * dropped — an unranked character is still a character.
+ */
+export const browseKanji = async (
+  store: SqliteStore,
+  classifier: Classifier,
+  limit = 2000
+): Promise<KanjiResultDto[]> => {
+  if (classifier.kind !== "result" || classifier.result !== "kanji") return [];
+  const rows = await store.all<{ literal: string }>(
+    `SELECT literal FROM kanji_characters
+      ORDER BY frequency IS NULL, frequency, stroke_count
+      LIMIT ?`,
+    limit
+  );
+  return kanjiResults(
+    store,
+    rows.map((r) => r.literal)
+  );
 };
 
 /**
