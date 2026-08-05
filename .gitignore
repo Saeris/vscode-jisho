@@ -69,6 +69,9 @@ jspm_packages/
 # Hand-kept local fixtures — e.g. a `common` build set aside while `assets/jisho.db` holds the full
 # one. Regenerable (`vp run build:data`), personal to a checkout, never shipped.
 /assets/*-backup.db
+# Experimental Lindera FTS5 tokenizer extension (`vp run build:fts-extension`, Windows-only for
+# now). A provisioned ~18MB build artifact, not source — see scripts/build-fts-extension.ts.
+/assets/lindera-fts5/
 
 # Typescript
 *.tsbuildinfo
