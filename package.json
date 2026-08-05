@@ -263,6 +263,7 @@
     "wanakana": "^5.3.1"
   },
   "resolutions": {
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.9.tsgo.7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
