@@ -19,6 +19,7 @@ import {
   createWriteStream,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -27,7 +28,7 @@ import { finished, pipeline } from "node:stream/promises";
 import { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { connect } from "@tursodatabase/database";
+import { DatabaseSync } from "node:sqlite";
 import { toHiragana, toRomaji } from "wanakana";
 import bz2 from "unbzip2-stream";
 import type {
@@ -53,6 +54,7 @@ import {
 import { segment } from "../src/host/tokenizer.ts";
 import { toRubyMarkdown } from "../src/shared/ruby.ts";
 import { linkToken, posToken } from "../src/shared/exampleLinks.ts";
+import { CLASSIFIER_BY_ID } from "../src/shared/classifiers.ts";
 import { searchFold, sortKey } from "../src/shared/kana.ts";
 import { fetchAcjkMap, voteRadicalPositions } from "./acjk.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
@@ -74,6 +76,66 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DB = join(root, "assets", "jisho.db");
 const SCHEMA = join(root, "src", "data", "schema.sql");
 const NAMES_DB = join(root, "assets", "jisho-names.db");
+/**
+ * Where a build WRITES, before it is promoted over the real path.
+ *
+ * The build takes ~10 minutes and used to write the destination directly, which fails outright on
+ * Windows when anything holds the old DB open — a Wallaby worker running the DB-backed specs, or an
+ * Extension Development Host, both of which are normal to have running while rebuilding. SQLite
+ * readers keep the file (and its `-shm`) open, and Windows refuses to unlink an open file, so the
+ * build died on its first line having done no work.
+ *
+ * Staging also means a reader never observes a half-built database: the swap is a single rename at
+ * the end rather than ten minutes of visible partial state.
+ */
+const staged = (path: string): string => `${path}.building`;
+
+/**
+ * The build finished but the swap could not happen — the destination is still open.
+ *
+ * Distinct from every other build failure because the artifact is COMPLETE and valid: discarding it
+ * would throw away the ten minutes that produced it over a file lock that costs seconds to clear.
+ * The top-level handler keeps the staging file when it sees this.
+ */
+class PromoteBlocked extends Error {
+  override name = "PromoteBlocked";
+}
+
+/**
+ * Move a finished staging database over the path it ships at.
+ *
+ * `renameSync` onto an existing file is atomic on POSIX but fails on Windows if the destination is
+ * open, so the destination is unlinked first — and if THAT fails the swap stops before anything has
+ * been dismantled, leaving the finished build intact to promote later. The window between unlink and
+ * rename is the only moment a reader can miss the file, versus the ten minutes of partial state that
+ * writing in place exposed.
+ */
+const promote = (path: string): void => {
+  const from = staged(path);
+  // Remove the DESTINATION's files first, and treat any failure as "still locked" before touching
+  // anything else. Deleting the staging sidecars up front would mean a lock left the build with
+  // both a half-dismantled destination and a mutilated staging copy — the one outcome worse than
+  // simply not promoting, since the finished database is the expensive thing here.
+  for (const suffix of ["-wal", "-shm", ""]) {
+    try {
+      rmSync(`${path}${suffix}`, { force: true });
+    } catch (error) {
+      throw new PromoteBlocked(
+        `built ${from} but could not replace ${path}${suffix} — something still has the ` +
+          `database open (a Wallaby worker running the DB-backed specs, or an Extension ` +
+          `Development Host). The finished build is KEPT at ${from}: close the holder and ` +
+          `rename it over ${path}, or re-run the build.`,
+        { cause: error }
+      );
+    }
+  }
+  // Only now that the destination is gone: the staging sidecars are stale by construction (the
+  // build checkpoints its WAL before closing) and must not travel with the renamed file.
+  for (const suffix of ["-wal", "-shm"]) {
+    rmSync(`${from}${suffix}`, { force: true });
+  }
+  renameSync(from, path);
+};
 const NAMES_SCHEMA = join(root, "src", "data", "names-schema.sql");
 /**
  * Which jmdict-simplified release to build from.
@@ -497,6 +559,98 @@ const fetchTatoeba = async (): Promise<{
   };
 };
 
+/**
+ * Precompute how many words each browse classifier holds (#27/#54).
+ *
+ * The browse tree shows ~90 counts at once and the tag autocomplete needs every one of them to hide
+ * combinations that would narrow to zero — so this is asked constantly, and it cannot change until
+ * the next dictionary build. Deriving it at runtime meant scanning all 406,028 `sense_tags` rows,
+ * measured at ~2s on the full dictionary.
+ *
+ * ONE grouped pass over `sense_tags` rather than a count per classifier: 90 separate COUNT queries
+ * would each re-walk the index. JLPT and frequency live on `words`, so they are counted separately.
+ *
+ * Writes what the CODE currently defines. An id the code later drops is simply ignored at read
+ * time, and an id it gains before the next rebuild falls back to a live count — which is what keeps
+ * adding a category a code-only change rather than one that needs new data.
+ */
+const writeClassifierCounts = (db: DatabaseSync): number => {
+  const insert = db.prepare(
+    "INSERT INTO classifier_counts(classifier_id, n) VALUES (?, ?)"
+  );
+
+  // Turso returns `any`; these two confine that boundary to one place rather than asserting at
+  // each of the six call sites below.
+  const countOf = (sql: string, ...params: Array<string | number>): number => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const row = db.prepare(sql).get(...params) as { n: number } | undefined;
+    return row?.n ?? 0;
+  };
+
+  // Tag-backed classifiers, attributed in a single scan. Prefix families (v5*, v1*, vs*) match by
+  // range, so they are checked separately from the exact codes.
+  const exact = new Map<string, string[]>();
+  const prefixes: Array<{ id: string; tagKind: string; code: string }> = [];
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind !== "tag") continue;
+    if (c.prefix) prefixes.push({ id: c.id, tagKind: c.tagKind, code: c.code });
+    else {
+      const key = `${c.tagKind}\t${c.code}`;
+      exact.set(key, [...(exact.get(key) ?? []), c.id]);
+    }
+  }
+
+  const seen = new Map<string, Set<string>>();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const rows = db
+    .prepare(
+      `SELECT t.kind AS kind, t.code AS code, s.word_id AS word_id
+         FROM sense_tags t JOIN senses s ON s.id = t.sense_id`
+    )
+    .all() as Array<{ kind: string; code: string; word_id: string }>;
+  for (const r of rows) {
+    // DISTINCT words, not rows: a word with three `v5*` senses is one godan verb, not three.
+    const hits = [
+      ...(exact.get(`${r.kind}\t${r.code}`) ?? []),
+      ...prefixes
+        .filter((p) => p.tagKind === r.kind && r.code.startsWith(p.code))
+        .map((p) => p.id)
+    ];
+    for (const id of hits) {
+      const set = seen.get(id) ?? new Set<string>();
+      set.add(r.word_id);
+      seen.set(id, set);
+    }
+  }
+
+  let written = 0;
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    let n: number;
+    if (c.kind === "tag") {
+      n = seen.get(c.id)?.size ?? 0;
+    } else if (c.kind === "jlpt") {
+      n = countOf("SELECT COUNT(*) AS n FROM words WHERE jlpt = ?", c.level);
+    } else if (c.kind === "freq") {
+      n = countOf(
+        "SELECT COUNT(*) AS n FROM words WHERE freq_rank BETWEEN ? AND ?",
+        c.from,
+        c.to
+      );
+    } else if (c.result === "kanji") {
+      n = countOf("SELECT COUNT(*) AS n FROM kanji_characters");
+    } else if (c.result === "word") {
+      n = countOf("SELECT COUNT(*) AS n FROM words");
+    } else {
+      // Names and places are counted from the SEPARATE names dictionary, which this build is not
+      // writing — the host supplies those at request time.
+      continue;
+    }
+    insert.run(c.id, n);
+    written++;
+  }
+  return written;
+};
+
 const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
 
 /**
@@ -816,78 +970,79 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     yencken
   } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
-  rmSync(OUT_DB, { force: true });
-  rmSync(`${OUT_DB}-wal`, { force: true });
-  rmSync(`${OUT_DB}-shm`, { force: true });
+  // Clear only the STAGING path here. The destination is left alone until the promote at the end,
+  // so a reader holding the old DB open cannot fail the build before it starts (see `staged`).
+  const buildDb = staged(OUT_DB);
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${buildDb}${suffix}`, { force: true });
+  }
 
-  const db = await connect(OUT_DB);
-  await db.exec(readFileSync(SCHEMA, "utf8"));
+  const db = new DatabaseSync(buildDb);
+  db.exec(readFileSync(SCHEMA, "utf8"));
 
   // Bulk-import fast path: one transaction + relaxed durability. This is a build artifact we
   // can regenerate at will, so trading crash-safety for ~30× throughput is the right call.
   // (Without a wrapping transaction, every INSERT commits+fsyncs individually.)
-  await db.exec("PRAGMA synchronous=OFF");
-  await db.exec("BEGIN");
+  db.exec("PRAGMA synchronous=OFF");
+  db.exec("BEGIN");
 
   // Tag dictionary.
-  const insTag = await db.prepare(
-    "INSERT INTO tags(tag, description) VALUES (?, ?)"
-  );
+  const insTag = db.prepare("INSERT INTO tags(tag, description) VALUES (?, ?)");
   for (const [tag, description] of Object.entries(dict.tags)) {
-    await insTag.run(tag, description);
+    insTag.run(tag, description);
   }
 
-  const insWord = await db.prepare(
-    "INSERT INTO words(id, is_common, freq_rank, is_uk) VALUES (?, ?, ?, ?)"
+  const insWord = db.prepare(
+    "INSERT INTO words(id, is_common, freq_rank, is_uk, sort_key) VALUES (?, ?, ?, ?, ?)"
   );
-  const insKanji = await db.prepare(
+  const insKanji = db.prepare(
     "INSERT INTO kanji(word_id, position, text, is_common, tags_json) VALUES (?, ?, ?, ?, ?)"
   );
-  const insKana = await db.prepare(
+  const insKana = db.prepare(
     "INSERT INTO kana(word_id, position, text, is_common, tags_json, applies_to_kanji_json, sort_key) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
-  const insSense = await db.prepare(
+  const insSense = db.prepare(
     `INSERT INTO senses(word_id, position, info_json,
        applies_to_kanji_json, applies_to_kana_json, related_json, antonym_json)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
-  const insGloss = await db.prepare(
+  const insGloss = db.prepare(
     "INSERT INTO glosses(sense_id, position, text) VALUES (?, ?, ?)"
   );
-  const insSenseTag = await db.prepare(
+  const insSenseTag = db.prepare(
     "INSERT INTO sense_tags(sense_id, kind, code) VALUES (?, ?, ?)"
   );
-  const insWordTag = await db.prepare(
+  const insWordTag = db.prepare(
     "INSERT INTO word_tags(word_id, code) VALUES (?, ?)"
   );
-  const insSentence = await db.prepare(
+  const insSentence = db.prepare(
     `INSERT INTO sentences(word_id, sense_position, position, ja_furigana, en, tatoeba_id, source)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
-  const insTerm = await db.prepare(
+  const insTerm = db.prepare(
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth, term_norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  const insKanjiChar = await db.prepare(
+  const insKanjiChar = db.prepare(
     `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt,
        on_json, kun_json, meanings_json, nanori_json)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  const insComponent = await db.prepare(
+  const insComponent = db.prepare(
     "INSERT INTO kanji_components(literal, component) VALUES (?, ?)"
   );
-  const insTreeEdge = await db.prepare(
+  const insTreeEdge = db.prepare(
     "INSERT INTO component_tree(literal, child, position) VALUES (?, ?, ?)"
   );
-  const insSimilar = await db.prepare(
+  const insSimilar = db.prepare(
     "INSERT INTO similar_kanji(literal, similar, position) VALUES (?, ?, ?)"
   );
-  const insRadical = await db.prepare(
+  const insRadical = db.prepare(
     "INSERT INTO radicals(radical, stroke_count, kanji_json, position) VALUES (?, ?, ?, ?)"
   );
-  const insKanjiTerm = await db.prepare(
+  const insKanjiTerm = db.prepare(
     "INSERT INTO search_terms(kanji, kind, term, term_lower, is_common, is_primary) VALUES (?, ?, ?, ?, ?, ?)"
   );
-  const insPitch = await db.prepare(
+  const insPitch = db.prepare(
     "INSERT INTO pitch_accents(word_id, reading, accents_json) VALUES (?, ?, ?)"
   );
 
@@ -915,18 +1070,18 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       resolve
     });
     done++;
-    await checkpointEvery(db, done);
+    checkpointEvery(db, done);
     if (done % BATCH === 0) console.log(`  …${done}/${total} entries`);
   }
 
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
 
   // ── Pitch accent pass (Kanjium) ───────────────────────────────────────────
   // Join per word: for each reading, look for a pitch pattern keyed by (a writing, reading) — or
   // (reading, reading) for kana-only words / when no kanji writing matches. The map's key was
   // built the same way (`surface\treading`, surface being a writing or the reading itself). One
   // row per (word, reading) that hit; readings with no accent data are simply omitted.
-  await db.exec("BEGIN");
+  db.exec("BEGIN");
   let pitchRows = 0;
   let pdone = 0;
   for (const word of dict.words) {
@@ -942,31 +1097,31 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       }
       positions ??= pitch.get(`${reading}\t${reading}`);
       if (positions) {
-        await insPitch.run(word.id, reading, JSON.stringify(positions));
+        insPitch.run(word.id, reading, JSON.stringify(positions));
         pitchRows++;
       }
     }
-    await checkpointEvery(db, ++pdone);
+    checkpointEvery(db, ++pdone);
   }
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
   console.log(`  pitch: ${pitchRows} (word, reading) accent rows`);
 
   // ── Kanji pass ────────────────────────────────────────────────────────────
   // Import characters first (search_terms.kanji FK-references kanji_characters), then their
   // Kradfile components, then Radkfile radicals. Same batched-checkpoint discipline.
-  await db.exec("BEGIN");
+  db.exec("BEGIN");
   const kanjiSet = new Set<string>();
   let kdone = 0;
   for (const char of kanjidic.characters) {
-    await importKanji(char, { insKanjiChar, insKanjiTerm });
+    importKanji(char, { insKanjiChar, insKanjiTerm });
     kanjiSet.add(char.literal);
-    await checkpointEvery(db, ++kdone);
+    checkpointEvery(db, ++kdone);
   }
   // Kradfile components — only for kanji we have a character row for (FK).
   for (const [literal, components] of Object.entries(kradfile.kanji)) {
     if (!kanjiSet.has(literal)) continue;
     for (const component of components) {
-      await insComponent.run(literal, component);
+      insComponent.run(literal, component);
     }
   }
 
@@ -1005,7 +1160,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     }
     let position = 0;
     for (const child of children) {
-      await insTreeEdge.run(literal, child, position);
+      insTreeEdge.run(literal, child, position);
       position++;
     }
   }
@@ -1016,7 +1171,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const acjkMap = await fetchAcjkMap();
   const positions = voteRadicalPositions(radkfile.radicals, acjkMap);
   for (const [radical, info] of Object.entries(radkfile.radicals)) {
-    await insRadical.run(
+    insRadical.run(
       radical,
       info.strokeCount,
       JSON.stringify(info.kanji),
@@ -1065,12 +1220,12 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     if (fromYencken) yenckenCovered++;
     let position = 0;
     for (const s of list) {
-      await insSimilar.run(literal, s, position);
+      insSimilar.run(literal, s, position);
       position++;
       similarRows++;
     }
   }
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
   console.log(`  kanji: ${kanjiSet.size} characters`);
   console.log(
     `  similar: ${similarRows} rows (${yenckenCovered} kanji from Yencken, rest from the component heuristic)`
@@ -1080,16 +1235,16 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // Join word-level JLPT by JMdict id (exact PK). Only ids present in this variant's JMdict get
   // updated, so the common-only build naturally covers fewer list rows than the full build. Record
   // the match rate so a poor join (a sign the source drifted from JMdict) is visible in `meta`.
-  await db.exec("BEGIN");
-  const updJlpt = await db.prepare("UPDATE words SET jlpt = ? WHERE id = ?");
+  db.exec("BEGIN");
+  const updJlpt = db.prepare("UPDATE words SET jlpt = ? WHERE id = ?");
   let jlptMatched = 0;
   let jdone = 0;
   for (const [id, level] of jlpt) {
-    const { changes } = await updJlpt.run(level, id);
+    const { changes } = updJlpt.run(level, id);
     if (changes > 0) jlptMatched++;
-    await checkpointEvery(db, ++jdone);
+    checkpointEvery(db, ++jdone);
   }
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
   const jlptRate =
     jlpt.size > 0 ? ((jlptMatched / jlpt.size) * 100).toFixed(1) : "0";
   console.log(
@@ -1109,10 +1264,11 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   });
   console.log(`  tatoeba: ${tatoebaRows} pool sentence rows`);
 
+  const classifierRows = writeClassifierCounts(db);
+  console.log(`  classifiers: ${classifierRows} precomputed counts`);
+
   // Attribution / provenance.
-  const insMeta = await db.prepare(
-    "INSERT INTO meta(key, value) VALUES (?, ?)"
-  );
+  const insMeta = db.prepare("INSERT INTO meta(key, value) VALUES (?, ?)");
   // The schema version the host verifies on open (see src/shared/schema.ts). Stamped first so it is
   // present even if a later meta insert fails.
   // Provenance and attribution as DATA, not 32 imperative writes. CONVENTIONS.md requires every new
@@ -1187,7 +1343,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     ["tatoebaJpnDate", tatoeba.dates.jpn],
     ["tatoebaEngDate", tatoeba.dates.eng]
   ];
-  for (const [key, value] of metaRows) await insMeta.run(key, value);
+  for (const [key, value] of metaRows) insMeta.run(key, value);
 
   console.log(
     `  sentences: ${sentenceRows} inline + ${tatoebaRows} pool example rows`
@@ -1202,9 +1358,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   atLeast("inline sentences", sentenceRows, FLOORS.inlineSentences);
   atLeast("pool sentences", tatoebaRows, FLOORS.poolSentences);
   // Not tracked in a local (it is written per sense inside importWord), so read it back.
-  const tagRow: unknown = await (
-    await db.prepare("SELECT COUNT(*) AS n FROM sense_tags")
-  ).get();
+  const tagRow: unknown = db
+    .prepare("SELECT COUNT(*) AS n FROM sense_tags")
+    .get();
   const senseTagCount =
     typeof tagRow === "object" && tagRow !== null && "n" in tagRow
       ? Number(tagRow.n)
@@ -1220,12 +1376,13 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
 
   // builtAt last, so it reflects the moment the build actually completed its gate.
   const builtAt = new Date().toISOString();
-  await insMeta.run("builtAt", builtAt);
+  insMeta.run("builtAt", builtAt);
 
   // Fold the WAL back into the main file so `jisho.db` is a self-contained, shippable artifact
   // (we deliver only the single .db; a leftover -wal would be required at read time otherwise).
-  await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  await db.close();
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.close();
+  promote(OUT_DB);
 
   // Emit a tiny version sidecar so `ensureDatabase` can detect a newer build (or a variant
   // switch) and refresh the copy it caches in globalStorage — without having to open (and lock)
@@ -1248,9 +1405,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
 };
 
 // A prepared statement, as returned by the (async) `prepare` once awaited.
-type Statement = Awaited<
-  ReturnType<Awaited<ReturnType<typeof connect>>["prepare"]>
->;
+type Statement = ReturnType<DatabaseSync["prepare"]>;
 
 interface Stmts {
   insWord: Statement;
@@ -1345,14 +1500,11 @@ const BATCH = 5000;
  * Callers still own the surrounding BEGIN and the final COMMIT + checkpoint before close(), because
  * those bracket a whole pass rather than pacing one.
  */
-const checkpointEvery = async (
-  db: Awaited<ReturnType<typeof connect>>,
-  done: number
-): Promise<void> => {
+const checkpointEvery = (db: DatabaseSync, done: number): void => {
   if (done % BATCH !== 0) return;
-  await db.exec("COMMIT");
-  await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  await db.exec("BEGIN");
+  db.exec("COMMIT");
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.exec("BEGIN");
 };
 
 /** Imports one word; returns the number of example sentences inserted for it. */
@@ -1365,22 +1517,27 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   // `uk` ("usually written using kana alone") is asked of the WORD by every query that wants it, so
   // it is resolved once here instead of re-scanning misc_json per sense at query time.
   const isUk = word.sense.some((sense) => sense.misc.includes("uk")) ? 1 : 0;
-  await s.insWord.run(word.id, wordCommon, pri?.freqRank ?? null, isUk);
+  // The word's own gojūon key, denormalized from its FIRST kana reading (the same value that row
+  // stores). Computed here rather than reached through a correlated subquery at query time, which
+  // is what made browsing a broad category cost ~2s on the full dictionary — see `words.sort_key`
+  // in schema.sql. Empty when a word has no kana at all, so it sorts last.
+  const wordSortKey = word.kana.length > 0 ? sortKey(word.kana[0].text) : "";
+  s.insWord.run(word.id, wordCommon, pri?.freqRank ?? null, isUk, wordSortKey);
   for (const code of new Set(pri?.tags ?? [])) {
-    await s.insWordTag.run(word.id, code);
+    s.insWordTag.run(word.id, code);
   }
   let sentenceCount = 0;
 
   for (let i = 0; i < word.kanji.length; i++) {
     const k = word.kanji[i];
-    await s.insKanji.run(
+    s.insKanji.run(
       word.id,
       i,
       k.text,
       k.common ? 1 : 0,
       JSON.stringify(k.tags)
     );
-    await s.insTerm.run(
+    s.insTerm.run(
       word.id,
       "kanji",
       k.text,
@@ -1394,7 +1551,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
     // full-dictionary scale, so containment is precomputed here instead.
     for (const char of new Set(k.text)) {
       if (/[㐀-鿿豈-﫿]/.test(char)) {
-        await s.insTerm.run(
+        s.insTerm.run(
           word.id,
           "char",
           char,
@@ -1409,7 +1566,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   }
   for (let i = 0; i < word.kana.length; i++) {
     const k = word.kana[i];
-    await s.insKana.run(
+    s.insKana.run(
       word.id,
       i,
       k.text,
@@ -1418,7 +1575,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       JSON.stringify(k.appliesToKanji),
       sortKey(k.text)
     );
-    await s.insTerm.run(
+    s.insTerm.run(
       word.id,
       "kana",
       k.text,
@@ -1434,7 +1591,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
     // Romaji is latin, so it matches via the query layer's case-insensitive `term_lower` path.
     const romaji = toRomaji(k.text);
     if (romaji !== "" && romaji !== k.text) {
-      await s.insTerm.run(
+      s.insTerm.run(
         word.id,
         "romaji",
         romaji,
@@ -1448,7 +1605,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
   }
   for (let i = 0; i < word.sense.length; i++) {
     const sense = word.sense[i];
-    const { lastInsertRowid: senseId } = await s.insSense.run(
+    const { lastInsertRowid: senseId } = s.insSense.run(
       word.id,
       i,
       JSON.stringify(sense.info),
@@ -1466,7 +1623,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       ["dialect", sense.dialect]
     ] as const) {
       for (const code of new Set(codes)) {
-        await s.insSenseTag.run(senseId, kind, code);
+        s.insSenseTag.run(senseId, kind, code);
       }
     }
     // How many glosses this sense carries — a specificity signal for ranking. "to eat" alone
@@ -1476,8 +1633,8 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
     for (let g = 0; g < sense.gloss.length; g++) {
       const gloss = sense.gloss[g];
       const isPrimary = i === 0 && g === 0 ? 1 : 0;
-      await s.insGloss.run(senseId, g, gloss.text);
-      await s.insTerm.run(
+      s.insGloss.run(senseId, g, gloss.text);
+      s.insTerm.run(
         word.id,
         "gloss",
         gloss.text,
@@ -1495,7 +1652,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
         .replace(/\s+/g, " ")
         .trim();
       if (stripped !== "" && stripped !== gloss.text) {
-        await s.insTerm.run(
+        s.insTerm.run(
           word.id,
           "gloss",
           stripped,
@@ -1515,7 +1672,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
           .filter((w) => w.length > 1)
       );
       for (const w of words) {
-        await s.insTerm.run(
+        s.insTerm.run(
           word.id,
           "word",
           w,
@@ -1540,7 +1697,7 @@ const importWord = async (word: JMdictWord, s: Stmts): Promise<number> => {
       const en = ex.sentences.find((se) => se.lang === "eng")?.text;
       if (ja === undefined || en === undefined) continue;
       const tatoebaId = Number(ex.source.value);
-      await s.insSentence.run(
+      s.insSentence.run(
         word.id,
         i,
         kept,
@@ -1707,7 +1864,7 @@ interface PoolStmts {
  * Each stored sentence is furigana-annotated at build time. Returns the number of pool rows inserted.
  */
 const importTatoebaPool = async (
-  db: Awaited<ReturnType<typeof connect>>,
+  db: DatabaseSync,
   dict: JMdict,
   examples: TatoebaExample[],
   s: PoolStmts
@@ -1781,7 +1938,7 @@ const importTatoebaPool = async (
   }
 
   // Which inline (Tanaka) Tatoeba ids are already stored per word, so the pool doesn't repeat them.
-  const inlineIds = await db.prepare(
+  const inlineIds = db.prepare(
     "SELECT tatoeba_id FROM sentences WHERE word_id = ? AND source = 'tanaka' AND tatoeba_id IS NOT NULL"
   );
   // The native binding types query rows as `any`; read the one column back through Number() rather
@@ -1792,9 +1949,9 @@ const importTatoebaPool = async (
     }
     return NaN;
   };
-  const inlineIdsFor = async (wordId: string): Promise<Set<number>> => {
+  const inlineIdsFor = (wordId: string): Set<number> => {
     const out = new Set<number>();
-    const result: unknown = await inlineIds.all(wordId);
+    const result: unknown = inlineIds.all(wordId);
     if (Array.isArray(result)) {
       for (const row of result as unknown[]) {
         const id = readTatoebaId(row);
@@ -1804,11 +1961,11 @@ const importTatoebaPool = async (
     return out;
   };
 
-  await db.exec("BEGIN");
+  db.exec("BEGIN");
   let rows = 0;
   let done = 0;
   for (const [wordId, list] of pending) {
-    const already = await inlineIdsFor(wordId);
+    const already = inlineIdsFor(wordId);
     // Stable position per (word, sense_position) group; the reader orders by it. Pool rows on a REAL
     // sense start at POOL_POSITION_BASE so they never reuse an inline Tanaka row's position (shared
     // PK, no `source` column in it); the word-level bucket (-1) has no inline rows to avoid.
@@ -1819,7 +1976,7 @@ const importTatoebaPool = async (
         p.sensePosition === WORD_LEVEL_SENSE ? 0 : POOL_POSITION_BASE;
       const nth = positionBySense.get(p.sensePosition) ?? 0;
       positionBySense.set(p.sensePosition, nth + 1);
-      await s.insSentence.run(
+      s.insSentence.run(
         wordId,
         p.sensePosition,
         base + nth,
@@ -1830,9 +1987,9 @@ const importTatoebaPool = async (
       );
       rows++;
     }
-    await checkpointEvery(db, ++done);
+    checkpointEvery(db, ++done);
   }
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
   return rows;
 };
 
@@ -1841,10 +1998,7 @@ interface KanjiStmts {
   insKanjiTerm: Statement;
 }
 
-const importKanji = async (
-  char: Kanjidic2Character,
-  s: KanjiStmts
-): Promise<void> => {
+const importKanji = (char: Kanjidic2Character, s: KanjiStmts): void => {
   const groups = char.readingMeaning?.groups ?? [];
   const on: string[] = [];
   const kun: string[] = [];
@@ -1861,7 +2015,7 @@ const importKanji = async (
   const nanori = char.readingMeaning?.nanori ?? [];
   const isCommon = char.misc.frequency !== null ? 1 : 0;
 
-  await s.insKanjiChar.run(
+  s.insKanjiChar.run(
     char.literal,
     char.misc.grade,
     char.misc.strokeCounts[0] ?? null,
@@ -1874,7 +2028,7 @@ const importKanji = async (
   );
 
   // The literal itself, matched exactly for a single-character CJK query.
-  await s.insKanjiTerm.run(
+  s.insKanjiTerm.run(
     char.literal,
     "kanji_literal",
     char.literal,
@@ -1892,7 +2046,7 @@ const importKanji = async (
       .filter((w) => w.length > 1)
   );
   for (const w of words) {
-    await s.insKanjiTerm.run(char.literal, "kanji_meaning", w, w, isCommon, 0);
+    s.insKanjiTerm.run(char.literal, "kanji_meaning", w, w, isCommon, 0);
   }
 };
 
@@ -2075,66 +2229,69 @@ const buildNamesDatabase = async (): Promise<void> => {
   const dict = await fetchAssetJson<JMnedict>(release, NAMES_ASSET_PATTERN);
 
   mkdirSync(dirname(NAMES_DB), { recursive: true });
-  // The .version sidecar goes too: it is written only on success, so a surviving one would describe
-  // a database that no longer exists.
-  for (const suffix of ["", "-wal", "-shm", ".version"]) {
-    rmSync(`${NAMES_DB}${suffix}`, { force: true });
+  // Staging path only (see `staged`); the live DB is replaced by `promote` once the build succeeds.
+  // The .version sidecar is the exception — it describes the DB about to be replaced, and is
+  // rewritten on success, so clearing it now keeps a failed build from leaving a version that
+  // claims more than the file behind it delivers.
+  const buildDb = staged(NAMES_DB);
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${buildDb}${suffix}`, { force: true });
   }
+  rmSync(`${NAMES_DB}.version`, { force: true });
 
-  const db = await connect(NAMES_DB);
-  await db.exec(readFileSync(NAMES_SCHEMA, "utf8"));
-  await db.exec("PRAGMA synchronous=OFF");
-  await db.exec("BEGIN");
+  const db = new DatabaseSync(buildDb);
+  db.exec(readFileSync(NAMES_SCHEMA, "utf8"));
+  db.exec("PRAGMA synchronous=OFF");
+  db.exec("BEGIN");
 
-  const insTag = await db.prepare(
+  const insTag = db.prepare(
     "INSERT INTO name_tags(tag, description) VALUES (?, ?)"
   );
   for (const [tag, description] of Object.entries(dict.tags)) {
-    await insTag.run(tag, description);
+    insTag.run(tag, description);
   }
 
-  const insWord = await db.prepare("INSERT INTO name_words(id) VALUES (?)");
-  const insKanji = await db.prepare(
+  const insWord = db.prepare("INSERT INTO name_words(id) VALUES (?)");
+  const insKanji = db.prepare(
     "INSERT INTO name_kanji(word_id, position, text) VALUES (?, ?, ?)"
   );
-  const insKana = await db.prepare(
+  const insKana = db.prepare(
     "INSERT INTO name_kana(word_id, position, text, applies_to_kanji_json) VALUES (?, ?, ?, ?)"
   );
-  const insTrans = await db.prepare(
+  const insTrans = db.prepare(
     "INSERT INTO name_translations(word_id, position, types_json, translations_json) VALUES (?, ?, ?, ?)"
   );
-  const insTerm = await db.prepare(
+  const insTerm = db.prepare(
     "INSERT INTO name_search_terms(word_id, kind, term, term_lower, is_primary) VALUES (?, ?, ?, ?, ?)"
   );
 
   const total = dict.words.length;
   let done = 0;
   for (const name of dict.words) {
-    await importName(name, { insWord, insKanji, insKana, insTrans, insTerm });
-    await checkpointEvery(db, ++done);
+    importName(name, { insWord, insKanji, insKana, insTrans, insTerm });
+    checkpointEvery(db, ++done);
     if (done % BATCH === 0) console.log(`  …${done}/${total} names`);
   }
-  await db.exec("COMMIT");
+  db.exec("COMMIT");
 
-  const insMeta = await db.prepare(
-    "INSERT INTO meta(key, value) VALUES (?, ?)"
-  );
-  await insMeta.run("source", "JMnedict (jmdict-simplified, jmnedict-all)");
-  await insMeta.run("dictDate", dict.dictDate);
-  await insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
-  await insMeta.run(
+  const insMeta = db.prepare("INSERT INTO meta(key, value) VALUES (?, ?)");
+  insMeta.run("source", "JMnedict (jmdict-simplified, jmnedict-all)");
+  insMeta.run("dictDate", dict.dictDate);
+  insMeta.run("dictRevisions", dict.dictRevisions.join(", "));
+  insMeta.run(
     "license",
     "EDRDG License (https://www.edrdg.org/edrdg/licence.html)"
   );
   const builtAt = new Date().toISOString();
   atLeast("names", total, FLOORS.names);
 
-  await insMeta.run("variant", "names");
-  await insMeta.run("nameCount", String(total));
-  await insMeta.run("builtAt", builtAt);
+  insMeta.run("variant", "names");
+  insMeta.run("nameCount", String(total));
+  insMeta.run("builtAt", builtAt);
 
-  await db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  await db.close();
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.close();
+  promote(NAMES_DB);
 
   const version = `names ${dict.dictDate} ${builtAt}`;
   writeFileSync(`${NAMES_DB}.version`, version, "utf8");
@@ -2160,13 +2317,13 @@ interface NameStmts {
   insTerm: Statement;
 }
 
-const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
-  await s.insWord.run(name.id);
+const importName = (name: JMnedictWord, s: NameStmts): void => {
+  s.insWord.run(name.id);
 
   for (let i = 0; i < name.kanji.length; i++) {
     const k = name.kanji[i];
-    await s.insKanji.run(name.id, i, k.text);
-    await s.insTerm.run(
+    s.insKanji.run(name.id, i, k.text);
+    s.insTerm.run(
       name.id,
       "kanji",
       k.text,
@@ -2176,8 +2333,8 @@ const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
   }
   for (let i = 0; i < name.kana.length; i++) {
     const k = name.kana[i];
-    await s.insKana.run(name.id, i, k.text, JSON.stringify(k.appliesToKanji));
-    await s.insTerm.run(
+    s.insKana.run(name.id, i, k.text, JSON.stringify(k.appliesToKanji));
+    s.insTerm.run(
       name.id,
       "kana",
       k.text,
@@ -2186,18 +2343,13 @@ const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
     );
     const romaji = toRomaji(k.text);
     if (romaji !== "" && romaji !== k.text) {
-      await s.insTerm.run(name.id, "romaji", romaji, romaji.toLowerCase(), 0);
+      s.insTerm.run(name.id, "romaji", romaji, romaji.toLowerCase(), 0);
     }
   }
   for (let i = 0; i < name.translation.length; i++) {
     const t = name.translation[i];
     const texts = t.translation.map((tt) => tt.text);
-    await s.insTrans.run(
-      name.id,
-      i,
-      JSON.stringify(t.type),
-      JSON.stringify(texts)
-    );
+    s.insTrans.run(name.id, i, JSON.stringify(t.type), JSON.stringify(texts));
     // Index each word of each translation so an English query ("Tanaka") finds the name.
     const words = new Set(
       texts
@@ -2207,7 +2359,7 @@ const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
         .filter((w) => w.length > 1)
     );
     for (const w of words) {
-      await s.insTerm.run(name.id, "trans", w, w, 0);
+      s.insTerm.run(name.id, "trans", w, w, 0);
     }
   }
 };
@@ -2220,10 +2372,21 @@ const importName = async (name: JMnedictWord, s: NameStmts): Promise<void> => {
  * the file answers, carries the right schema version and has non-empty tables, none of which a
  * half-built database fails. In development the workspace copy is read directly, so the next F5 run
  * would have queried it.
+ *
+ * Since builds now write to a STAGING path (see `staged`), this removes that rather than the live
+ * database — a failed build leaves the last good DB in place instead of destroying it.
  */
 const discardPartial = (path: string): void => {
   for (const suffix of ["", "-wal", "-shm"]) {
-    rmSync(`${path}${suffix}`, { force: true });
+    // Never throw: this runs INSIDE the failure handler, so an exception here replaces the error
+    // that actually killed the build with a cleanup error, and the real cause is lost. `force`
+    // covers a missing file but not EPERM — on Windows the file stays locked while the extension
+    // host or a test worker has it open, which is exactly when you most need the original message.
+    try {
+      rmSync(`${path}${suffix}`, { force: true });
+    } catch (error) {
+      console.error(`could not remove ${path}${suffix}:`, error);
+    }
   }
 };
 
@@ -2236,9 +2399,17 @@ try {
     await buildDatabase(sources);
   }
 } catch (error) {
-  discardPartial(NAMES ? NAMES_DB : OUT_DB);
+  // A blocked promote is the one failure that must NOT discard its output: the database is finished
+  // and correct, only the swap is waiting on a file lock. Deleting it would cost another full
+  // rebuild to recover something already sitting on disk.
+  if (error instanceof PromoteBlocked) {
+    console.error(`\n${error.message}`);
+    throw error;
+  }
+  const partial = staged(NAMES ? NAMES_DB : OUT_DB);
+  discardPartial(partial);
   console.error(
-    `build-data failed; removed the partial database at ${NAMES ? NAMES_DB : OUT_DB}`
+    `build-data failed; removed the partial database at ${partial}`
   );
   throw error;
 }

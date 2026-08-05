@@ -9,7 +9,7 @@ The dictionary database is too large to bundle (~400 MB built, ~129 MB gzipped) 
 ## What already exists (do not rebuild)
 
 - **`src/host/download.ts`** — fetches `<prefix>.zst`, verifies sha256, zstd-decompresses via a `.part` temp file, renames atomically, writes a `.version` sidecar. Handles both `jisho-full.db` and `jisho-names.db` prefixes.
-- **`src/host/ensureDatabase.ts`** — dev backend (copy `assets/jisho.db`) vs installed backend (download); compares version sidecars and re-copies on mismatch; offline-first (never blocks activation on a network check).
+- **`src/host/ensureDatabase.ts`** — dev backend (hard-link `assets/jisho.db`, falling back to a copy across volumes) vs installed backend (download); compares version sidecars and re-provisions on mismatch; offline-first (never blocks activation on a network check). Linking rather than copying is worth ~7.3s of every fresh-profile activation at the full dictionary's ~450MB (measured: 7322ms → 41ms), and the version comparison is what keeps a link from resolving to the pre-rebuild inode.
 - **`scripts/build-data.ts --full` / `--names`** — already emits the full release trio per artifact: `.zst`, `.zst.sha256`, `.zst.version` (zstd level 19, measured ~29% smaller than gzip -9). Version string is `` `${VARIANT} ${dict.dictDate} ${builtAt}` ``.
 - **`.github/workflows/release.yml`** — Bumpy-driven extension publish (Marketplace + Open VSX) on push to main.
 

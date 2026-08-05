@@ -1472,63 +1472,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tursodatabase/database-common@npm:^0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database-common@npm:0.6.1"
-  checksum: 10/6f80524954f31a1ebf4d5ebfeac2ef0ad7f46d46a3704488cd311de77dc4783b1cf746f69d47a0d34a08b80a71d4e00cd422c568a36c00e4e554bca4fc66611e
-  languageName: node
-  linkType: hard
-
-"@tursodatabase/database-darwin-arm64@npm:0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database-darwin-arm64@npm:0.6.1"
-  conditions: os=darwin & cpu=arm64
-  languageName: node
-  linkType: hard
-
-"@tursodatabase/database-linux-arm64-gnu@npm:0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database-linux-arm64-gnu@npm:0.6.1"
-  conditions: os=linux & cpu=arm64 & libc=glibc
-  languageName: node
-  linkType: hard
-
-"@tursodatabase/database-linux-x64-gnu@npm:0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database-linux-x64-gnu@npm:0.6.1"
-  conditions: os=linux & cpu=x64 & libc=glibc
-  languageName: node
-  linkType: hard
-
-"@tursodatabase/database-win32-x64-msvc@npm:0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database-win32-x64-msvc@npm:0.6.1"
-  conditions: os=win32 & cpu=x64
-  languageName: node
-  linkType: hard
-
-"@tursodatabase/database@npm:^0.6.1":
-  version: 0.6.1
-  resolution: "@tursodatabase/database@npm:0.6.1"
-  dependencies:
-    "@tursodatabase/database-common": "npm:^0.6.1"
-    "@tursodatabase/database-darwin-arm64": "npm:0.6.1"
-    "@tursodatabase/database-linux-arm64-gnu": "npm:0.6.1"
-    "@tursodatabase/database-linux-x64-gnu": "npm:0.6.1"
-    "@tursodatabase/database-win32-x64-msvc": "npm:0.6.1"
-  dependenciesMeta:
-    "@tursodatabase/database-darwin-arm64":
-      optional: true
-    "@tursodatabase/database-linux-arm64-gnu":
-      optional: true
-    "@tursodatabase/database-linux-x64-gnu":
-      optional: true
-    "@tursodatabase/database-win32-x64-msvc":
-      optional: true
-  checksum: 10/00f1320ccf07d2e32dde1fe9ef7ffa9cab412a07961e500fab7687f51deb40678aab4d9e8853ebf6bbd419b55b0b97574de31a1e99f87ef9d727c25df1fcfc07
-  languageName: node
-  linkType: hard
-
 "@tybys/wasm-util@npm:^0.10.0":
   version: 0.10.3
   resolution: "@tybys/wasm-util@npm:0.10.3"
@@ -6819,7 +6762,6 @@ __metadata:
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.2"
     "@testing-library/user-event": "npm:^14.6.1"
-    "@tursodatabase/database": "npm:^0.6.1"
     "@types/node": "npm:^26.0.1"
     "@types/react": "npm:^19.2.17"
     "@types/react-dom": "npm:^19.2.3"

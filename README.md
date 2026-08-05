@@ -83,11 +83,9 @@ vp test             # run the test suite
 vp run build        # build both targets and package a .vsix
 ```
 
-The native SQLite engine ([`@tursodatabase/database`][turso]) ships a platform-specific `.node` addon that cannot be bundled, so it is packaged into the `.vsix` from `node_modules` (this is why packaging uses `vsce package --no-yarn` rather than `--no-dependencies`).
+SQLite comes from Node's built-in [`node:sqlite`][node-sqlite], so the database needs no native package of its own. The [Lindera][lindera] tokenizer does: it ships a platform-specific `.node` addon that cannot be bundled, so it is packaged into the `.vsix` from `node_modules` (this is why packaging uses `vsce package --no-yarn` rather than `--no-dependencies`).
 
-Marketplace releases are **per-platform packages**: `vp run build:platforms` builds one `.vsix` per target (Windows x64, macOS Apple Silicon, Linux x64/arm64) from a single machine by fetching each platform's prebuilt turso binary from npm — no cross-compilation or CI matrix needed. Bumpy's release flow runs this same script and publishes each package.
-
-> **Platform note:** Intel Macs (darwin-x64) are unsupported until turso ships that binary; `vp run build` still produces a current-platform-only `.vsix` for local testing.
+Marketplace releases are **per-platform packages**: `vp run build:platforms` builds one `.vsix` per target (Windows x64/arm64, macOS Intel/Apple Silicon, Linux x64/arm64) from a single machine by fetching each platform's prebuilt tokenizer binary from npm — no cross-compilation or CI matrix needed. Bumpy's release flow runs this same script and publishes each package.
 
 ## 📚 Dictionary delivery
 
@@ -182,7 +180,7 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [kanjicanvas]: http://github.com/asdfjkl/kanjicanvas
 [perfect-freehand]: https://github.com/steveruizok/perfect-freehand
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
-[turso]: https://www.npmjs.com/package/@tursodatabase/database
+[node-sqlite]: https://nodejs.org/api/sqlite.html
 [lindera]: https://github.com/lindera/lindera
 [lindera-issue]: https://github.com/lindera/lindera/issues
 [viteplus]: https://viteplus.dev/

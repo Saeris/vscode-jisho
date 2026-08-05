@@ -1,11 +1,15 @@
 /**
  * Build one platform-specific .vsix per supported target, all from a single machine.
  *
- * Each .vsix must contain exactly its target's native binaries: the `@tursodatabase` addon (~13MB)
- * AND the `lindera-nodejs` tokenizer addon (~5MB). Both ship as prebuilt per-platform npm packages,
- * so no native toolchain is needed: for each target this script fetches the matching package
- * tarballs from the npm registry, swaps them into node_modules/ (removing the other platforms'),
- * and runs `vsce package --no-yarn --target <t>`. Originals are restored afterwards.
+ * Each .vsix must contain exactly its target's native binary: the `lindera-nodejs` tokenizer addon
+ * (~5MB). It ships as prebuilt per-platform npm packages, so no native toolchain is needed: for each
+ * target this script fetches the matching package tarball from the npm registry, swaps it into
+ * node_modules/ (removing the other platforms'), and runs `vsce package --no-yarn --target <t>`.
+ * Originals are restored afterwards.
+ *
+ * The database used to be a second native dependency (`@tursodatabase`, ~13MB per target). It is now
+ * Node's built-in `node:sqlite`, so it needs no packaging at all — which both shrinks every .vsix
+ * and widened the target list (see TARGETS).
  *
  * Run after `vp pack && vp build` (the JS artifacts are platform-independent):
  *   vp exec node scripts/package-platforms.ts
@@ -45,29 +49,20 @@ interface NativeDep {
   readonly pkgFor: Record<string, string>;
 }
 
-// vsce --target list. Constrained to what @tursodatabase ships — notably NO darwin-x64 (Intel Mac)
-// as of 0.6.1 — even though lindera-nodejs ships more. Both deps' pkgFor maps below cover these.
+// vsce --target list. The tokenizer is now the ONLY native dependency — the database is Node's
+// built-in `node:sqlite` — so this is exactly what lindera-nodejs ships. That is what restored
+// darwin-x64 (Intel Mac) and win32-arm64: the old list was capped at four targets because
+// @tursodatabase had no build for either.
 const TARGETS = [
   "win32-x64",
+  "win32-arm64",
+  "darwin-x64",
   "darwin-arm64",
   "linux-x64",
   "linux-arm64"
 ] as const;
 
 const NATIVE_DEPS: readonly NativeDep[] = [
-  {
-    name: "@tursodatabase/database",
-    dir: join(MODULES_DIR, "@tursodatabase"),
-    registry: (pkg, version) =>
-      `https://registry.npmjs.org/@tursodatabase/${pkg}/-/${pkg}-${version}.tgz`,
-    versionPkg: join(MODULES_DIR, "@tursodatabase", "database", "package.json"),
-    pkgFor: {
-      "win32-x64": "database-win32-x64-msvc",
-      "darwin-arm64": "database-darwin-arm64",
-      "linux-x64": "database-linux-x64-gnu",
-      "linux-arm64": "database-linux-arm64-gnu"
-    }
-  },
   {
     name: "lindera-nodejs",
     dir: MODULES_DIR,
@@ -76,6 +71,8 @@ const NATIVE_DEPS: readonly NativeDep[] = [
     versionPkg: join(MODULES_DIR, "lindera-nodejs", "package.json"),
     pkgFor: {
       "win32-x64": "lindera-nodejs-win32-x64-msvc",
+      "win32-arm64": "lindera-nodejs-win32-arm64-msvc",
+      "darwin-x64": "lindera-nodejs-darwin-x64",
       "darwin-arm64": "lindera-nodejs-darwin-arm64",
       "linux-x64": "lindera-nodejs-linux-x64-gnu",
       "linux-arm64": "lindera-nodejs-linux-arm64-gnu"

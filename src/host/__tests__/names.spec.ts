@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { connect } from "@tursodatabase/database";
+import { DatabaseSync } from "node:sqlite";
 import { NamesDictionary } from "../names";
 
 // Runs against the JMnedict database from `vp run build:data:names`. That build is large and
@@ -65,16 +65,6 @@ describeIfDb("NamesDictionary (against built jisho-names.db)", () => {
   test("returns null for an unknown id", async () => {
     await expect(dict.getName("no-such-id")).resolves.toBeNull();
   });
-});
-
-describeIfDb("browsing names by type (#27)", () => {
-  let dict: NamesDictionary;
-  beforeAll(async () => {
-    dict = await NamesDictionary.open(DB_PATH);
-  });
-  afterAll(async () => {
-    await dict?.close();
-  });
 
   test("#place and #name divide the dictionary between them", async () => {
     // WHY: `place` is the LARGEST category in JMnedict — 227k of 743k entries — so letting it fall
@@ -85,22 +75,16 @@ describeIfDb("browsing names by type (#27)", () => {
     expect(places).toBeGreaterThan(100_000);
     expect(names).toBeGreaterThan(100_000);
 
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const total = (await (
-        await raw.prepare(
-          "SELECT COUNT(DISTINCT word_id) AS n FROM name_translations"
-        )
-      ).get()) as { n: number };
-      // Coverage, not a partition: the two overlap slightly because a handful of entries are BOTH
-      // (亜細亜 is a place and a given name, 愛輝 likewise — 234 of them). Those genuinely belong
-      // in each list, so the sum EXCEEDS the total rather than equalling it. What matters is that
-      // nothing falls between the two.
-      expect(places + names).toBeGreaterThanOrEqual(total.n);
-      expect(places + names).toBeLessThan(total.n * 1.01);
-    } finally {
-      await raw.close();
-    }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const total = raw
+      .prepare("SELECT COUNT(DISTINCT word_id) AS n FROM name_translations")
+      .get() as { n: number };
+    // Coverage, not a partition: the two overlap slightly because a handful of entries are BOTH
+    // (亜細亜 is a place and a given name, 愛輝 likewise — 234 of them). Those genuinely belong
+    // in each list, so the sum EXCEEDS the total rather than equalling it. What matters is that
+    // nothing falls between the two.
+    expect(places + names).toBeGreaterThanOrEqual(total.n);
+    expect(places + names).toBeLessThan(total.n * 1.01);
   });
 
   test("returns hydrated rows, the same shape a name search gives", async () => {

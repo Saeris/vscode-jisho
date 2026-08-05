@@ -173,17 +173,11 @@ export default defineConfig({
     outDir: `./dist`,
     deps: {
       // `vscode` is provided by the host at runtime — never bundle it.
-      // `@tursodatabase/database` loads a platform-specific native .node addon via
-      // its own resolver; it must stay unbundled and ship in node_modules.
       // `lindera-nodejs` (via our vendor shim) loads a platform-specific .node addon
       // by package name at runtime, so the shim and the `lindera-nodejs-*` platform
       // packages must stay unbundled in node_modules.
-      neverBundle: [
-        "vscode",
-        /^@tursodatabase\//,
-        /lindera-nodejs/,
-        /vendor\/lindera-nodejs/
-      ],
+      // (The database needs no entry here: `node:sqlite` is a built-in module.)
+      neverBundle: ["vscode", /lindera-nodejs/, /vendor\/lindera-nodejs/],
       alwaysBundle: []
     }
   },

@@ -5,12 +5,12 @@ import type {
 } from "../../shared/messages";
 import type { SqliteStore } from "../store";
 import { parseStrings } from "./parse";
-import { searchResult } from "./search";
+import { searchResults } from "./search";
 
 /**
  * The kanji-character queries: one character's full page, and the recursive component tree behind it.
  *
- * `getKanji`'s "words containing this kanji" section reuses `searchResult` from the search module —
+ * `getKanji`'s "words containing this kanji" section reuses `searchResults` from the search module —
  * it is the same row shape the search list renders, so it stays single-sourced there.
  */
 
@@ -143,18 +143,17 @@ export const getKanji = async (
       LIMIT 10`,
     literal
   );
-  const words: KanjiWordDto[] = [];
-  for (const { word_id, common } of wordRows) {
-    const preview = await searchResult(store, word_id, common === 1);
-    if (preview) {
-      words.push({
-        id: preview.id,
-        headword: preview.headword,
-        reading: preview.reading,
-        glossPreview: preview.glossPreview
-      });
-    }
-  }
+  // One hydration query for the whole list — see `searchResults`.
+  const previews = await searchResults(
+    store,
+    wordRows.map((r) => ({ id: r.word_id, common: r.common === 1 }))
+  );
+  const words: KanjiWordDto[] = previews.map((p) => ({
+    id: p.id,
+    headword: p.headword,
+    reading: p.reading,
+    glossPreview: p.glossPreview
+  }));
 
   return {
     literal: row.literal,

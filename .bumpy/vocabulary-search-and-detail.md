@@ -6,5 +6,5 @@ Initial dictionary implementation: an offline Japanese vocabulary search and wor
 
 - Search by Japanese (kanji/kana) or English, ranked exact → prefix → substring with common words first.
 - Word detail: all readings and kanji writings, senses grouped by part of speech, common badges, and cross-references.
-- Data pipeline compiles [jmdict-simplified](https://github.com/scriptin/jmdict-simplified) into a local SQLite database served by [@tursodatabase/database](https://www.npmjs.com/package/@tursodatabase/database).
+- Data pipeline compiles [jmdict-simplified](https://github.com/scriptin/jmdict-simplified) into a local SQLite database read through Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html).
 - React webview (React Aria + TanStack Query + XState) themed to the active VSCode color theme.

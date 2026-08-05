@@ -1,9 +1,9 @@
 /**
- * Host-side dictionary query layer. Opens the Turso/SQLite database and exposes typed,
+ * Host-side dictionary query layer. Opens the SQLite database and exposes typed,
  * async lookups that return the plain DTOs from `../shared/messages`. The UI never touches
  * SQL — it goes through the message protocol, which calls these.
  */
-import { SqliteStore } from "./store";
+import { DisposableStore, SqliteStore } from "./store";
 import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
 import { getMoreExamples, getWord } from "./queries/words";
@@ -56,10 +56,16 @@ export class Dictionary {
   }
 
   static async open(path: string): Promise<Dictionary> {
-    const store = await SqliteStore.open(path);
-    const dict = new Dictionary(store);
+    // `using` disposes the store if anything below throws; `release()` cancels that once the
+    // Dictionary owns it. A rejected `open` gives the caller no object to close, so without
+    // this the connection leaks for the whole session — and the version check below is a REJECTION
+    // PATH THE DELIVERY LAYER EXPECTS TO TAKE, after which it re-provisions the very file it failed
+    // on. On Windows an open handle makes that file unreplaceable.
+    using disposable = new DisposableStore(await SqliteStore.open(path));
+    const dict = new Dictionary(disposable.store);
     await dict.#assertSchemaVersion();
-    await store.loadTags("tags");
+    await disposable.store.loadTags("tags");
+    disposable.release();
     return dict;
   }
 
@@ -87,6 +93,11 @@ export class Dictionary {
 
   async close(): Promise<void> {
     await this.#store.close();
+  }
+
+  /** `using dict = ...` closes the underlying handle on scope exit. See `SqliteStore`. */
+  [Symbol.dispose](): void {
+    this.#store[Symbol.dispose]();
   }
 
   /** Radical picker. Delegated to a factory because it owns a cache; see queries/radicals.ts. */

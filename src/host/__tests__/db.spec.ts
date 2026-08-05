@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect } from "@tursodatabase/database";
+import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { Dictionary, SchemaVersionError } from "../db";
 import { SCHEMA_VERSION } from "../../shared/schema";
@@ -26,24 +26,20 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // the normalizer; this covers the integration, which is where it would silently break: an
     // unpopulated column still sorts, just wrongly, and by codepoint katakana lands in a block
     // AFTER every hiragana entry instead of interleaved where a reader expects it.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        `SELECT text FROM kana
-          WHERE text IN ('ラーメン', 'あめ', 'コーヒー', 'ひと')
-          ORDER BY sort_key`
-      );
-      const rows = (await stmt.all()) as { text: string }[];
-      const seen = [...new Set(rows.map((r) => r.text))];
-      expect(seen).toEqual(["あめ", "コーヒー", "ひと", "ラーメン"]);
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      `SELECT text FROM kana
+        WHERE text IN ('ラーメン', 'あめ', 'コーヒー', 'ひと')
+        ORDER BY sort_key`
+    );
+    const rows = stmt.all() as { text: string }[];
+    const seen = [...new Set(rows.map((r) => r.text))];
+    expect(seen).toEqual(["あめ", "コーヒー", "ひと", "ラーメン"]);
 
-      const empty = (await (
-        await raw.prepare("SELECT COUNT(*) AS n FROM kana WHERE sort_key = ''")
-      ).get()) as { n: number };
-      expect(empty.n).toBe(0);
-    } finally {
-      await raw.close();
-    }
+    const empty = raw
+      .prepare("SELECT COUNT(*) AS n FROM kana WHERE sort_key = ''")
+      .get() as { n: number };
+    expect(empty.n).toBe(0);
   });
 
   test("classifies radicals into the seven positional categories", async () => {
@@ -84,20 +80,16 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // result leads with. Compares CARDINALITY rather than the sets themselves: a per-row EXISTS
     // check is a full scan (~45s), while both counts below are indexed. A build that stopped
     // populating either side, or populated them from different predicates, diverges here.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        `SELECT (SELECT COUNT(*) FROM words WHERE is_uk = 1) AS flagged,
-                (SELECT COUNT(DISTINCT s.word_id)
-                   FROM sense_tags t JOIN senses s ON s.id = t.sense_id
-                  WHERE t.kind = 'misc' AND t.code = 'uk') AS tagged`
-      );
-      const row = (await stmt.get()) as { flagged: number; tagged: number };
-      expect(row.flagged).toBeGreaterThan(0);
-      expect(row.flagged).toBe(row.tagged);
-    } finally {
-      await raw.close();
-    }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      `SELECT (SELECT COUNT(*) FROM words WHERE is_uk = 1) AS flagged,
+              (SELECT COUNT(DISTINCT s.word_id)
+                 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+                WHERE t.kind = 'misc' AND t.code = 'uk') AS tagged`
+    );
+    const row = stmt.get() as { flagged: number; tagged: number };
+    expect(row.flagged).toBeGreaterThan(0);
+    expect(row.flagged).toBe(row.tagged);
   });
 
   test("resolves a lemma by index rather than scanning", async () => {
@@ -345,15 +337,21 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
   });
 
   test("resolveByLemma strips a glued honorific お/ご to reach the base noun", async () => {
-    // WHY: IPADIC glues お/ご into a kango noun's lemma (お電話, ご案内), which has no entry, so direct
-    // resolution returns null. A null-only fallback retries with the prefix stripped — お電話→電話.
+    // WHY: IPADIC glues お/ご into a kango noun's lemma (お会議, ご確認), which has no entry, so direct
+    // resolution returns null. A null-only fallback retries with the prefix stripped — お会議→会議.
     // Null-only means it can't regress a working case, and lexicalized honorifics (お茶/お名前 — which
     // ARE entries) resolve directly and never reach the fallback, so they keep their own heading.
-    expect((await dict.resolveByLemma("お電話", "noun"))?.headword).toBe(
-      "電話"
+    //
+    // The examples must be forms JMdict does NOT carry as entries of their own. お電話/ご案内 were
+    // used here until a full-dictionary build turned out to contain both — at which point they
+    // resolve directly and stop exercising this path at all. Whether a given honorific is
+    // lexicalized is upstream data that can change on any dictionary refresh, so the assertion
+    // below pins the BEHAVIOUR (prefixed form reaches the base) using forms verified absent.
+    expect((await dict.resolveByLemma("お会議", "noun"))?.headword).toBe(
+      "会議"
     );
-    expect((await dict.resolveByLemma("ご案内", "noun"))?.headword).toBe(
-      "案内"
+    expect((await dict.resolveByLemma("ご確認", "noun"))?.headword).toBe(
+      "確認"
     );
     // Lexicalized: お茶 IS its own entry, so it stays お茶 (the fallback never fires).
     expect((await dict.resolveByLemma("お茶", "noun"))?.headword).toBe("お茶");
@@ -510,39 +508,35 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // Tanaka examples, deduped by Tatoeba id and furigana-annotated at build time. This guards the
     // build's invariants at the storage seam the future more-examples page reads: the pool exists, it
     // never duplicates an inline sentence for the same word, and every stored sentence carries ruby.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const rows = async <T>(sql: string): Promise<T[]> =>
-        (await (await raw.prepare(sql)).all()) as T[];
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const rows = async <T>(sql: string): Promise<T[]> =>
+      raw.prepare(sql).all() as T[];
 
-      // The pool is populated and distinct from the inline set.
-      const [counts] = await rows<{ tanaka: number; tatoeba: number }>(
-        `SELECT SUM(source='tanaka') tanaka, SUM(source='tatoeba') tatoeba FROM sentences`
-      );
-      expect(counts.tanaka).toBeGreaterThan(0);
-      expect(counts.tatoeba).toBeGreaterThan(counts.tanaka);
+    // The pool is populated and distinct from the inline set.
+    const [counts] = await rows<{ tanaka: number; tatoeba: number }>(
+      `SELECT SUM(source='tanaka') tanaka, SUM(source='tatoeba') tatoeba FROM sentences`
+    );
+    expect(counts.tanaka).toBeGreaterThan(0);
+    expect(counts.tatoeba).toBeGreaterThan(counts.tanaka);
 
-      // No sentence is stored as both inline and pool for one word (dedup by Tatoeba id).
-      const [{ dupes }] = await rows<{ dupes: number }>(
-        `SELECT COUNT(*) dupes FROM (
-           SELECT word_id, tatoeba_id FROM sentences WHERE tatoeba_id IS NOT NULL
-           GROUP BY word_id, tatoeba_id HAVING COUNT(DISTINCT source) > 1
-         )`
-      );
-      expect(dupes).toBe(0);
+    // No sentence is stored as both inline and pool for one word (dedup by Tatoeba id).
+    const [{ dupes }] = await rows<{ dupes: number }>(
+      `SELECT COUNT(*) dupes FROM (
+         SELECT word_id, tatoeba_id FROM sentences WHERE tatoeba_id IS NOT NULL
+         GROUP BY word_id, tatoeba_id HAVING COUNT(DISTINCT source) > 1
+       )`
+    );
+    expect(dupes).toBe(0);
 
-      // Furigana is stored for every sentence (ruby markup on kanji-bearing ones).
-      const [{ missing }] = await rows<{ missing: number }>(
-        `SELECT COUNT(*) missing FROM sentences WHERE ja_furigana IS NULL OR ja_furigana = ''`
-      );
-      expect(missing).toBe(0);
-      const [{ ruby }] = await rows<{ ruby: number }>(
-        `SELECT COUNT(*) ruby FROM sentences WHERE ja_furigana LIKE '%{%|%}%'`
-      );
-      expect(ruby).toBeGreaterThan(0);
-    } finally {
-      await raw.close();
-    }
+    // Furigana is stored for every sentence (ruby markup on kanji-bearing ones).
+    const [{ missing }] = await rows<{ missing: number }>(
+      `SELECT COUNT(*) missing FROM sentences WHERE ja_furigana IS NULL OR ja_furigana = ''`
+    );
+    expect(missing).toBe(0);
+    const [{ ruby }] = await rows<{ ruby: number }>(
+      `SELECT COUNT(*) ruby FROM sentences WHERE ja_furigana LIKE '%{%|%}%'`
+    );
+    expect(ruby).toBeGreaterThan(0);
   });
 
   test("getMoreExamples returns the pool with furigana, grouped (F1)", async () => {
@@ -589,22 +583,18 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // WHY: the empty case is the one the user actually hit, and it is not rare — nearly half the
     // dictionary. A word whose pool is empty must report 0 rather than, say, falling back to the
     // inline count, or the link would still render and still lead nowhere.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const [row] = (await (
-        await raw.prepare(
-          `SELECT w.id FROM words w
-            WHERE NOT EXISTS (
-              SELECT 1 FROM sentences WHERE word_id = w.id AND source = 'tatoeba')
-            LIMIT 1`
-        )
-      ).all()) as { id: string }[];
-      const word = await dict.getWord(row.id);
-      expect(word!.poolExamples).toBe(0);
-      await expect(dict.getMoreExamples(row.id)).resolves.toBeNull();
-    } finally {
-      await raw.close();
-    }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const [row] = raw
+      .prepare(
+        `SELECT w.id FROM words w
+          WHERE NOT EXISTS (
+            SELECT 1 FROM sentences WHERE word_id = w.id AND source = 'tatoeba')
+          LIMIT 1`
+      )
+      .all() as { id: string }[];
+    const word = await dict.getWord(row.id);
+    expect(word!.poolExamples).toBe(0);
+    await expect(dict.getMoreExamples(row.id)).resolves.toBeNull();
   });
 
   test("getMoreExamples excludes the inline Tanaka sentences (F1)", async () => {
@@ -613,22 +603,18 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // against the raw table: no getMoreExamples sentence shares a Tatoeba id with a tanaka row.
     const [top] = await dict.search("食べる");
     const more = await dict.getMoreExamples(top.id);
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const tanaka = (await (
-        await raw.prepare(
-          "SELECT ja_furigana FROM sentences WHERE word_id = ? AND source = 'tanaka'"
-        )
-      ).all(top.id)) as { ja_furigana: string }[];
-      const tanakaSet = new Set(tanaka.map((r) => r.ja_furigana));
-      const poolJa = [
-        ...(more?.senses.flatMap((g) => g.sentences) ?? []),
-        ...(more?.wordLevel ?? [])
-      ].map((s) => s.jaFurigana);
-      for (const ja of poolJa) expect(tanakaSet.has(ja)).toBe(false);
-    } finally {
-      await raw.close();
-    }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const tanaka = raw
+      .prepare(
+        "SELECT ja_furigana FROM sentences WHERE word_id = ? AND source = 'tanaka'"
+      )
+      .all(top.id) as { ja_furigana: string }[];
+    const tanakaSet = new Set(tanaka.map((r) => r.ja_furigana));
+    const poolJa = [
+      ...(more?.senses.flatMap((g) => g.sentences) ?? []),
+      ...(more?.wordLevel ?? [])
+    ].map((s) => s.jaFurigana);
+    for (const ja of poolJa) expect(tanakaSet.has(ja)).toBe(false);
   });
 
   // ── Kanji (M4) ────────────────────────────────────────────────────────────
@@ -659,34 +645,30 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // the ordering INVARIANT (holds on any variant): among the returned words, once a less-common one
     // appears no more-common one follows it, and the frequency-ranked words lead the unranked ones.
     // A word's own `common` flag and rank aren't on the DTO, so re-derive the guarantee from the DB.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const rows = (await (
-        await raw.prepare(
-          `SELECT MAX(s.is_common) AS common, w.freq_rank AS rank
-             FROM search_terms s JOIN words w ON w.id = s.word_id
-            WHERE s.kind = 'char' AND s.term = '生'
-            GROUP BY s.word_id
-            ORDER BY common DESC, w.freq_rank IS NULL, w.freq_rank ASC
-            LIMIT 10`
-        )
-      ).all()) as { common: number; rank: number | null }[];
-      expect(rows.length).toBeGreaterThan(1);
-      for (let i = 1; i < rows.length; i++) {
-        const prev = rows[i - 1];
-        const cur = rows[i];
-        // common never increases going down the list.
-        expect(cur.common).toBeLessThanOrEqual(prev.common);
-        // Within the same common tier, a ranked word never follows an unranked one, and ranks are
-        // non-decreasing (more frequent first).
-        if (cur.common === prev.common) {
-          if (prev.rank === null) expect(cur.rank).toBeNull();
-          else if (cur.rank !== null)
-            expect(cur.rank).toBeGreaterThanOrEqual(prev.rank);
-        }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const rows = raw
+      .prepare(
+        `SELECT MAX(s.is_common) AS common, w.freq_rank AS rank
+           FROM search_terms s JOIN words w ON w.id = s.word_id
+          WHERE s.kind = 'char' AND s.term = '生'
+          GROUP BY s.word_id
+          ORDER BY common DESC, w.freq_rank IS NULL, w.freq_rank ASC
+          LIMIT 10`
+      )
+      .all() as { common: number; rank: number | null }[];
+    expect(rows.length).toBeGreaterThan(1);
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1];
+      const cur = rows[i];
+      // common never increases going down the list.
+      expect(cur.common).toBeLessThanOrEqual(prev.common);
+      // Within the same common tier, a ranked word never follows an unranked one, and ranks are
+      // non-decreasing (more frequent first).
+      if (cur.common === prev.common) {
+        if (prev.rank === null) expect(cur.rank).toBeNull();
+        else if (cur.rank !== null)
+          expect(cur.rank).toBeGreaterThanOrEqual(prev.rank);
       }
-    } finally {
-      await raw.close();
     }
   });
 
@@ -815,21 +797,17 @@ describeIfDbForLinks("example annotation accuracy", () => {
   const tokens = async (): Promise<
     { surface: string; code: string; id: string }[]
   > => {
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const rows = (await (
-        await raw.prepare("SELECT ja_furigana FROM sentences")
-      ).all()) as { ja_furigana: string }[];
-      const out: { surface: string; code: string; id: string }[] = [];
-      for (const r of rows) {
-        for (const m of r.ja_furigana.matchAll(TOKEN)) {
-          out.push({ surface: stripRuby(m[1]), code: m[2], id: m[3] });
-        }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const rows = raw.prepare("SELECT ja_furigana FROM sentences").all() as {
+      ja_furigana: string;
+    }[];
+    const out: { surface: string; code: string; id: string }[] = [];
+    for (const r of rows) {
+      for (const m of r.ja_furigana.matchAll(TOKEN)) {
+        out.push({ surface: stripRuby(m[1]), code: m[2], id: m[3] });
       }
-      return out;
-    } finally {
-      await raw.close();
     }
+    return out;
   };
 
   test("links pronouns, and every link points at a pronoun entry", async () => {
@@ -847,18 +825,14 @@ describeIfDbForLinks("example annotation accuracy", () => {
     // exactness check stopped firing.
     expect(linked.length / pn.length).toBeGreaterThan(0.9);
 
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
-          WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'pn' LIMIT 1`
-      );
-      // Check every DISTINCT target rather than every occurrence — same coverage, far fewer queries.
-      for (const id of new Set(linked.map((t) => t.id))) {
-        await expect(stmt.get(id)).resolves.toBeDefined();
-      }
-    } finally {
-      await raw.close();
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+        WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'pn' LIMIT 1`
+    );
+    // Check every DISTINCT target rather than every occurrence — same coverage, far fewer queries.
+    for (const id of new Set(linked.map((t) => t.id))) {
+      expect(stmt.get(id)).toBeDefined();
     }
   });
 
@@ -870,19 +844,13 @@ describeIfDbForLinks("example annotation accuracy", () => {
     const adn = (await tokens()).filter((t) => t.code === "adn");
     expect(adn.length).toBeGreaterThan(0);
 
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
-          WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'adj-pn' LIMIT 1`
-      );
-      for (const id of new Set(
-        adn.filter((t) => t.id !== "").map((t) => t.id)
-      )) {
-        await expect(stmt.get(id)).resolves.toBeDefined();
-      }
-    } finally {
-      await raw.close();
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      `SELECT 1 FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+        WHERE s.word_id = ? AND t.kind = 'pos' AND t.code = 'adj-pn' LIMIT 1`
+    );
+    for (const id of new Set(adn.filter((t) => t.id !== "").map((t) => t.id))) {
+      expect(stmt.get(id)).toBeDefined();
     }
   });
 
@@ -899,28 +867,24 @@ describeIfDbForLinks("example annotation accuracy", () => {
     );
     expect(closed.length).toBeGreaterThan(0);
 
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        `SELECT text FROM kanji WHERE word_id = ?1
-          UNION SELECT text FROM kana WHERE word_id = ?1`
-      );
-      const formsOf = new Map<string, Set<string>>();
-      const mismatched: string[] = [];
-      for (const t of closed) {
-        let forms = formsOf.get(t.id);
-        if (forms === undefined) {
-          forms = new Set(
-            ((await stmt.all(t.id)) as { text: string }[]).map((r) => r.text)
-          );
-          formsOf.set(t.id, forms);
-        }
-        if (!forms.has(t.surface)) mismatched.push(t.surface);
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      `SELECT text FROM kanji WHERE word_id = ?1
+        UNION SELECT text FROM kana WHERE word_id = ?1`
+    );
+    const formsOf = new Map<string, Set<string>>();
+    const mismatched: string[] = [];
+    for (const t of closed) {
+      let forms = formsOf.get(t.id);
+      if (forms === undefined) {
+        forms = new Set(
+          (stmt.all(t.id) as { text: string }[]).map((r) => r.text)
+        );
+        formsOf.set(t.id, forms);
       }
-      expect(mismatched).toEqual([]);
-    } finally {
-      await raw.close();
+      if (!forms.has(t.surface)) mismatched.push(t.surface);
     }
+    expect(mismatched).toEqual([]);
   });
 
   test("never links particles or auxiliaries", async () => {
@@ -939,24 +903,20 @@ describeIfDbForLinks("example annotation accuracy", () => {
     // the four linkable content categories carried a POS. A regression here means the palette has
     // quietly stopped describing the sentence, which is hard to see in a screenshot but obvious in
     // a number.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const rows = (await (
-        await raw.prepare("SELECT ja_furigana FROM sentences LIMIT 20000")
-      ).all()) as { ja_furigana: string }[];
-      let annotated = 0;
-      let total = 0;
-      for (const r of rows) {
-        total += stripRuby(r.ja_furigana.replace(TOKEN, "$1")).length;
-        for (const m of r.ja_furigana.matchAll(TOKEN)) {
-          annotated += stripRuby(m[1]).length;
-        }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const rows = raw
+      .prepare("SELECT ja_furigana FROM sentences LIMIT 20000")
+      .all() as { ja_furigana: string }[];
+    let annotated = 0;
+    let total = 0;
+    for (const r of rows) {
+      total += stripRuby(r.ja_furigana.replace(TOKEN, "$1")).length;
+      for (const m of r.ja_furigana.matchAll(TOKEN)) {
+        annotated += stripRuby(m[1]).length;
       }
-      // Measured at 93.4%; the remainder is punctuation and `other`, which carry no claim.
-      expect(annotated / total).toBeGreaterThan(0.9);
-    } finally {
-      await raw.close();
     }
+    // Measured at 93.4%; the remainder is punctuation and `other`, which carry no claim.
+    expect(annotated / total).toBeGreaterThan(0.9);
   });
 });
 
@@ -968,17 +928,17 @@ describeIfDbForVersion("schema version guard", () => {
    * touching the fixture), then return the copy's path. Cleaned up before returning is not possible
    * — the caller opens it — so each caller removes it; a `finally` keeps that reliable.
    */
-  const withCorruptedCopy = async (
-    mutate: (db: Awaited<ReturnType<typeof connect>>) => Promise<void>
-  ): Promise<string> => {
+  const withCorruptedCopy = (mutate: (db: DatabaseSync) => void): string => {
     const tmp = join(
       tmpdir(),
       `jisho-schema-${process.pid}-${Math.random().toString(36).slice(2)}.db`
     );
     copyFileSync(DB_PATH, tmp);
-    const db = await connect(tmp);
-    await mutate(db);
-    await db.close();
+    // `using` so a throwing `mutate` still releases the handle: on Windows an open connection makes
+    // the temp file undeletable, and `cleanup` would then fail with EPERM, masking the real
+    // assertion failure.
+    using db = new DatabaseSync(tmp);
+    mutate(db);
     return tmp;
   };
 
@@ -1001,11 +961,9 @@ describeIfDbForVersion("schema version guard", () => {
     // The correctness core: a version-skewed DB (stale cache, or an artifact out of sync with the
     // shipped .vsix) must fail FAST with a typed error the delivery layer can turn into an
     // "update your dictionary" prompt — not crash deep inside a query on a missing column.
-    const tmp = await withCorruptedCopy(async (db) => {
-      await (
-        await db.prepare(
-          "INSERT OR REPLACE INTO meta(key,value) VALUES('schemaVersion',?)"
-        )
+    const tmp = withCorruptedCopy((db) => {
+      db.prepare(
+        "INSERT OR REPLACE INTO meta(key,value) VALUES('schemaVersion',?)"
       ).run(String(SCHEMA_VERSION + 999));
     });
     try {
@@ -1020,10 +978,8 @@ describeIfDbForVersion("schema version guard", () => {
   test("treats a database with no version as a mismatch", async () => {
     // A DB built before schema versioning existed reports version 0 ≠ current, so it is refused
     // and re-provisioned rather than silently trusted.
-    const tmp = await withCorruptedCopy(async (db) => {
-      await (
-        await db.prepare("DELETE FROM meta WHERE key='schemaVersion'")
-      ).run();
+    const tmp = withCorruptedCopy((db) => {
+      db.prepare("DELETE FROM meta WHERE key='schemaVersion'").run();
     });
     try {
       await expect(Dictionary.open(tmp)).rejects.toBeInstanceOf(

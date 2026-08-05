@@ -61,6 +61,14 @@ jspm_packages/
 /assets/jisho-names.db-wal
 /assets/jisho-names.db-shm
 /assets/jisho-names.db.version
+# Staging databases: a build writes `<db>.building` and renames it into place on success, so these
+# exist only mid-build or after a failed one.
+/assets/*.db.building
+/assets/*.db.building-wal
+/assets/*.db.building-shm
+# Hand-kept local fixtures — e.g. a `common` build set aside while `assets/jisho.db` holds the full
+# one. Regenerable (`vp run build:data`), personal to a checkout, never shipped.
+/assets/*-backup.db
 
 # Typescript
 *.tsbuildinfo

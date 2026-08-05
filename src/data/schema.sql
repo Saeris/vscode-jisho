@@ -38,12 +38,25 @@ CREATE TABLE words (
   -- 為る above 擦る in lemma resolution (freq_rank is backwards for usually-kana words). Was three
   -- correlated `misc_json LIKE '%"uk"%'` subqueries; `sense_tags` still carries the code itself for
   -- display. True for ~6% of senses.
-  is_uk INTEGER NOT NULL DEFAULT 0
+  is_uk INTEGER NOT NULL DEFAULT 0,
+  -- Gojūon collation key of the word's FIRST kana reading, denormalized from `kana.sort_key`.
+  --
+  -- Browsing a category orders by reading, and reaching that through `kana` costs a correlated
+  -- subquery per candidate row — which SQLite must run for EVERY match before LIMIT applies. On the
+  -- full dictionary that is 189,798 rows for "Nouns" alone: measured at ~2s per browse, and
+  -- identical at LIMIT 10 and LIMIT 2000, because the ordering is the whole cost. Denormalizing
+  -- lets `idx_words_sort` answer the ORDER BY directly. Empty string for a word with no kana row,
+  -- so it sorts last rather than dropping out of an ORDER BY.
+  sort_key  TEXT NOT NULL DEFAULT ''
 );
 
 -- Ranking scans words by frequency; NULLs (the majority) are excluded by the partial index so it
 -- stays small.
 CREATE INDEX idx_words_freq ON words(freq_rank) WHERE freq_rank IS NOT NULL;
+
+-- Browsing a category in gojūon order (#54). Without this the ORDER BY builds a temp B-tree over
+-- every word in the category before LIMIT can apply.
+CREATE INDEX idx_words_sort ON words(sort_key);
 
 -- Kanji (non-kana-only) writings of a word.
 CREATE TABLE kanji (
@@ -280,6 +293,26 @@ CREATE INDEX idx_search_term_lower ON search_terms(term_lower);
 -- ONLY — kanji "typos" are a visual-similarity problem (the F3 data), not a normalization one, and
 -- romaji tolerance is edit-distance. The partial index keeps it to those ~28k rows rather than 428k.
 CREATE INDEX idx_search_term_norm  ON search_terms(term_norm) WHERE term_norm IS NOT NULL;
+
+-- How many words each browse classifier holds, precomputed (#27/#54).
+--
+-- The browse tree shows ~90 counts at once and the tag autocomplete needs all of them to hide
+-- combinations that would narrow to zero — so this is asked constantly and never changes between
+-- dictionary builds. Deriving it at runtime meant scanning all 406,028 `sense_tags` rows, measured
+-- at ~2s on the full dictionary.
+--
+-- Only the UNFILTERED counts live here. Refining counts (how many remain once other tags are
+-- applied) still have to be computed live, because the combinations are unbounded — but that is the
+-- rarer case and is cached per applied-set in the webview.
+--
+-- The classifier ids are the extension's own (`shared/classifiers.ts`), not the dataset's, so this
+-- table is a CACHE of something code defines: an id here that the code no longer knows is ignored,
+-- and an id the code knows that is missing here falls back to the live count. That keeps adding a
+-- category a code-only change rather than one requiring a data rebuild.
+CREATE TABLE classifier_counts (
+  classifier_id TEXT PRIMARY KEY,
+  n             INTEGER NOT NULL
+);
 
 -- Build/attribution metadata (source revisions, entry counts, dict date) as key/value.
 CREATE TABLE meta (

@@ -6,16 +6,49 @@
  * ready-to-open `jisho.db`, provisioning it if absent.
  *
  * Two backends behind one signature:
- *   - **dev:** copy the locally-built `assets/jisho.db` (produced by `vp run build:data`) that
- *     sits alongside the extension source when running via F5.
+ *   - **dev:** link (or copy) the locally-built `assets/jisho.db` (produced by `vp run build:data`)
+ *     that sits alongside the extension source when running via F5.
  *   - **installed:** download the full dictionary from the rolling `dictionary-latest` GitHub
  *     Release with a progress notification, sha256-verified (see `download.ts`).
  */
+import { link, unlink } from "node:fs/promises";
 import * as vscode from "vscode";
 import { downloadDatabase } from "./download";
 
 const DB_NAME = "jisho.db";
 const VERSION_NAME = "jisho.db.version";
+
+/**
+ * Materialize `from` at `to` as a HARD LINK, falling back to a byte copy.
+ *
+ * The dev database is ~450MB and `workspace.fs.copy` measured **7,322ms** of every fresh-profile
+ * activation — the single largest cost before the first search, against 2ms to actually open it.
+ * A hard link is the same bytes under a second name: measured at **6ms**, and it consumes no extra
+ * disk. The DB is opened read-only, so sharing the inode is safe.
+ *
+ * Falls back to a real copy whenever linking fails, which is not exotic: hard links cannot cross
+ * volumes, so a globalStorage on a different drive from the repo (or a filesystem without link
+ * support) lands here. Correctness never depends on which path ran.
+ *
+ * STALENESS is handled by the caller, and must be: a rebuild renames a NEW file over
+ * `assets/jisho.db` (see `promote` in scripts/build-data.ts), which leaves this link pointing at
+ * the old inode. The `.version` sidecar comparison is what catches that and re-links — without it
+ * the extension would silently serve the previous dictionary forever.
+ */
+const linkOrCopy = async (from: vscode.Uri, to: vscode.Uri): Promise<void> => {
+  // Remove any existing entry first: `link()` fails on an existing destination, and a stale link
+  // (or a copy from before this change) is exactly what we are replacing.
+  try {
+    await unlink(to.fsPath);
+  } catch {
+    // Not present, or not removable — `link` below will report the real problem.
+  }
+  try {
+    await link(from.fsPath, to.fsPath);
+  } catch {
+    await vscode.workspace.fs.copy(from, to, { overwrite: true });
+  }
+};
 
 export const ensureDatabase = async (
   context: vscode.ExtensionContext
@@ -25,9 +58,12 @@ export const ensureDatabase = async (
   const target = vscode.Uri.joinPath(storageDir, DB_NAME);
   const targetVersion = vscode.Uri.joinPath(storageDir, VERSION_NAME);
 
-  // dev backend: copy the DB shipped with the extension (assets/jisho.db). Re-copy whenever the
+  // dev backend: link the DB shipped with the extension (assets/jisho.db). Re-link whenever the
   // bundled version differs from the cached one, so a rebuilt DB propagates instead of a stale copy
   // being cached forever. (In production this only triggers on a genuine dictionary update.)
+  //
+  // The version check is load-bearing for LINKS specifically, not just freshness: a rebuild renames
+  // a new file into place, so the old link would otherwise keep resolving to the previous inode.
   const bundled = vscode.Uri.joinPath(context.extensionUri, "assets", DB_NAME);
   const bundledVersion = vscode.Uri.joinPath(
     context.extensionUri,
@@ -38,7 +74,7 @@ export const ensureDatabase = async (
     const wantVersion = await readText(bundledVersion);
     const haveVersion = await readText(targetVersion);
     if (!(await exists(target)) || wantVersion !== haveVersion) {
-      await vscode.workspace.fs.copy(bundled, target, { overwrite: true });
+      await linkOrCopy(bundled, target);
       if (wantVersion !== undefined) {
         await vscode.workspace.fs.writeFile(
           targetVersion,

@@ -4,7 +4,7 @@
  * dictionary must never wait on it. Mirrors `Dictionary`'s index-friendly search discipline (exact
  * + prefix range scans over `name_search_terms`, never unanchored LIKE) and typed read helpers.
  */
-import { SqliteStore } from "./store";
+import { DisposableStore, SqliteStore } from "./store";
 import type {
   NameDetailDto,
   NameResultDto,
@@ -20,13 +20,22 @@ export class NamesDictionary {
   }
 
   static async open(path: string): Promise<NamesDictionary> {
-    const store = await SqliteStore.open(path);
-    await store.loadTags("name_tags");
-    return new NamesDictionary(store);
+    // See `Dictionary.open`: disposed automatically unless `release()` transfers ownership, so a
+    // throw partway cannot leak the handle.
+    using disposable = new DisposableStore(await SqliteStore.open(path));
+    await disposable.store.loadTags("name_tags");
+    const dict = new NamesDictionary(disposable.store);
+    disposable.release();
+    return dict;
   }
 
   async close(): Promise<void> {
     await this.#store.close();
+  }
+
+  /** `using dict = ...` closes the underlying handle on scope exit. See `SqliteStore`. */
+  [Symbol.dispose](): void {
+    this.#store[Symbol.dispose]();
   }
 
   // Delegates to the shared store — see src/host/store.ts for why these are not implemented twice.
@@ -76,45 +85,58 @@ export class NamesDictionary {
       ...(exactOnly ? [needle, needle, limit] : [needle, `${needle}￿`, limit])
     );
 
-    const out: NameResultDto[] = [];
-    for (const { word_id } of rows) {
-      const preview = await this.#nameResult(word_id);
-      if (preview) out.push(preview);
-    }
-    return out;
+    return this.#nameResults(rows.map((r) => r.word_id));
   }
 
-  async #nameResult(id: string): Promise<NameResultDto | null> {
-    const kanji = await this.#get<{ text: string }>(
-      "SELECT text FROM name_kanji WHERE word_id = ? ORDER BY position LIMIT 1",
-      id
-    );
-    const kana = await this.#get<{ text: string }>(
-      "SELECT text FROM name_kana WHERE word_id = ? ORDER BY position LIMIT 1",
-      id
-    );
-    const trans = await this.#get<{
-      types_json: string;
-      translations_json: string;
+  /**
+   * Hydrate a page of names in ONE query, preserving the caller's order.
+   *
+   * Per-name hydration was three queries each, so a 2,000-row `#place` browse ran 6,000 of them.
+   * The driver is synchronous, so that lands as one blocking burst rather than interleaving with
+   * the event loop — see the same change in `queries/search.ts`.
+   */
+  async #nameResults(ids: string[]): Promise<NameResultDto[]> {
+    if (ids.length === 0) return [];
+    const list = ids.map(() => "?").join(",");
+    const rows = await this.#all<{
+      id: string;
+      kanji: string | null;
+      kana: string | null;
+      types_json: string | null;
+      translations_json: string | null;
     }>(
-      "SELECT types_json, translations_json FROM name_translations WHERE word_id = ? ORDER BY position LIMIT 1",
-      id
+      `SELECT w.id AS id,
+              (SELECT text FROM name_kanji WHERE word_id = w.id ORDER BY position LIMIT 1) AS kanji,
+              (SELECT text FROM name_kana  WHERE word_id = w.id ORDER BY position LIMIT 1) AS kana,
+              (SELECT types_json FROM name_translations WHERE word_id = w.id ORDER BY position LIMIT 1) AS types_json,
+              (SELECT translations_json FROM name_translations WHERE word_id = w.id ORDER BY position LIMIT 1) AS translations_json
+         FROM name_words w
+        WHERE w.id IN (${list})`,
+      ...ids
     );
-
-    const reading = kana?.text ?? "";
-    const headword = kanji?.text ?? reading;
-    if (headword === "") return null;
-    const types = trans
-      ? parseStrings(trans.types_json).map((c) => this.#tag(c).description)
-      : [];
-    const translations = trans ? parseStrings(trans.translations_json) : [];
-    return {
-      id,
-      headword,
-      reading: kanji ? reading : "", // no separate reading line for kana-only names
-      types,
-      translationPreview: translations[0] ?? ""
-    };
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const out: NameResultDto[] = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      if (r === undefined) continue;
+      const reading = r.kana ?? "";
+      const headword = r.kanji ?? reading;
+      if (headword === "") continue;
+      out.push({
+        id,
+        headword,
+        reading: r.kanji !== null ? reading : "", // no separate reading line for kana-only names
+        types:
+          r.types_json === null
+            ? []
+            : parseStrings(r.types_json).map((c) => this.#tag(c).description),
+        translationPreview:
+          r.translations_json === null
+            ? ""
+            : (parseStrings(r.translations_json)[0] ?? "")
+      });
+    }
+    return out;
   }
 
   /**
@@ -148,12 +170,7 @@ export class NamesDictionary {
         LIMIT ?`,
       limit
     );
-    const out: NameResultDto[] = [];
-    for (const { word_id } of rows) {
-      const result = await this.#nameResult(word_id);
-      if (result) out.push(result);
-    }
-    return out;
+    return this.#nameResults(rows.map((r) => r.word_id));
   }
 
   /** How many names a type holds, for the browse tree's counts. */

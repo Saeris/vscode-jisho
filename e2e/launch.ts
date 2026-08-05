@@ -53,6 +53,8 @@ export type ThemeKind = keyof typeof THEMES;
 
 export interface Launched {
   browser: Browser;
+  /** The temp profile dir — its `logs/` subtree holds the extension's output-channel log files. */
+  userDataDir: string;
   /** The main VS Code workbench window as a Playwright Page. */
   window: Page;
   /**
@@ -291,6 +293,7 @@ export const launchVSCode = async (
   return {
     browser,
     window,
+    userDataDir,
     setTheme: async (kind: ThemeKind): Promise<void> => {
       const { name, workbenchClass } = THEMES[kind];
       seedUserData(userDataDir, { ...settings, "workbench.colorTheme": name });

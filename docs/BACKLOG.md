@@ -233,7 +233,13 @@ Considered swapping `@tursodatabase/database` for [PGlite](https://pglite.dev) (
 - **Doesn't unblock M8.** Turso already ships a `-wasm` sibling build; the async query layer was written for that path from M1.
 - **Cost is a full data-layer rewrite** — schema, `build-data.ts`, both query modules, delivery pipeline, and re-uploading every artifact.
 
-**Revisit if:** Turso's native `fts_match` (Tantivy-backed, experimental) proves inadequate for #1; per-platform packaging becomes a real maintenance burden; or M8 hits a wall with `-wasm`.
+**Revisit if:** per-platform packaging becomes a real maintenance burden, or M8 hits a wall in the browser.
+
+**Update 2026-08 — the engine moved, and two of the arguments above changed.** We left Turso for Node's built-in `node:sqlite` (see CONVENTIONS.md for why: Turso's join planner scanned 218k rows whenever an index satisfied the `ORDER BY`, which made tag-backed browse never finish). Consequences for this record:
+
+- **"Real full-text search" is no longer PGlite's to win.** Stock SQLite 3.53 ships FTS5, and `db.loadExtension` is available — so `lindera-sqlite` (MIT, prebuilt for all our targets) can give us a Japanese-aware FTS5 tokenizer in the database we already ship. Note that stock FTS5 alone would NOT: `unicode61` scores zero on CJK.
+- **The per-platform-binary argument shrank.** The database no longer contributes a native binary at all; only the tokenizer does. That also restored darwin-x64 and win32-arm64.
+- The delivery-model and single-connection objections are unaffected and still decisive. **The decline stands.**
 
 ### 26. BCCWJ frequency as an optional user-imported dictionary (feature — medium)
 

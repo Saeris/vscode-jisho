@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { connect } from "@tursodatabase/database";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test, beforeAll, afterAll } from "vitest";
 import { Dictionary } from "../db";
 import { CLASSIFIERS, CLASSIFIER_BY_ID } from "../../shared/classifiers";
@@ -30,26 +30,22 @@ describeIfDb("browse by classifier", () => {
     // WHY: this is the guard for the whole hand-authored table. A typo, or a code JMdict retires,
     // produces an empty category rather than an error — indistinguishable from a category that is
     // genuinely empty in this build. Checking the CODE exists separates the two.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const known = new Set(
-        (
-          (await (await raw.prepare("SELECT tag FROM tags")).all()) as {
-            tag: string;
-          }[]
-        ).map((r) => r.tag)
-      );
-      const unknown: string[] = [];
-      for (const list of Object.values(CLASSIFIERS)) {
-        for (const c of list) {
-          if (c.kind !== "tag" || c.prefix) continue;
-          if (!known.has(c.code)) unknown.push(`${c.id} (${c.code})`);
-        }
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const known = new Set(
+      (
+        raw.prepare("SELECT tag FROM tags").all() as {
+          tag: string;
+        }[]
+      ).map((r) => r.tag)
+    );
+    const unknown: string[] = [];
+    for (const list of Object.values(CLASSIFIERS)) {
+      for (const c of list) {
+        if (c.kind !== "tag" || c.prefix) continue;
+        if (!known.has(c.code)) unknown.push(`${c.id} (${c.code})`);
       }
-      expect(unknown).toEqual([]);
-    } finally {
-      await raw.close();
     }
+    expect(unknown).toEqual([]);
   });
 
   test("prefix classifiers cover the verb families with no umbrella code", async () => {
@@ -107,21 +103,17 @@ describeIfDb("browse by classifier", () => {
     expect(rows.length).toBeGreaterThan(10);
     // Readings must be non-decreasing under the same collation the DB used. Compare the stored
     // keys rather than the display strings, since that is what was actually sorted.
-    const raw = await connect(DB_PATH, { readonly: true });
-    try {
-      const stmt = await raw.prepare(
-        "SELECT sort_key FROM kana WHERE word_id = ? ORDER BY position LIMIT 1"
-      );
-      const keys: string[] = [];
-      for (const r of rows) {
-        const row = (await stmt.get(r.id)) as { sort_key: string } | undefined;
-        if (row) keys.push(row.sort_key);
-      }
-      const sorted = [...keys].sort();
-      expect(keys).toEqual(sorted);
-    } finally {
-      await raw.close();
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const stmt = raw.prepare(
+      "SELECT sort_key FROM kana WHERE word_id = ? ORDER BY position LIMIT 1"
+    );
+    const keys: string[] = [];
+    for (const r of rows) {
+      const row = stmt.get(r.id) as { sort_key: string } | undefined;
+      if (row) keys.push(row.sort_key);
     }
+    const sorted = [...keys].sort();
+    expect(keys).toEqual(sorted);
   });
 
   test("counts the whole category, not the capped page", async () => {
@@ -142,6 +134,47 @@ describeIfDb("browse by classifier", () => {
     const counts = await dict.refineCounts([]);
     expect(counts.kanji).toBeGreaterThan(1000);
     expect(counts.word).toBeGreaterThan(1000);
+  });
+
+  test("the precomputed counts agree with counting the rows directly", async () => {
+    // WHY: `refineCounts([])` is served from `classifier_counts`, which the BUILD writes — so the
+    // number the browse tree shows is only as good as that table. A cache that silently disagrees
+    // with the data it summarises is the specific failure this introduces, and every other test
+    // here would still pass through it: they assert magnitudes ("> 1000"), which a wrong-but-large
+    // number satisfies. So count a few categories straight from `sense_tags`/`words` and demand
+    // exact equality.
+    const counts = await dict.refineCounts([]);
+    using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+    const scalar = async (
+      sql: string,
+      ...params: string[]
+    ): Promise<number> => {
+      const row = raw.prepare(sql).get(...params) as { n: number } | undefined;
+      return row?.n ?? 0;
+    };
+
+    // An exact-code tag, a prefix family (godan is v5r/v5k/v5s… with no umbrella code), a
+    // `words`-column classifier, and a whole-table one — one of each shape the build counts.
+    const distinctForCode = `SELECT COUNT(DISTINCT s.word_id) AS n
+                               FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+                              WHERE t.kind = 'pos' AND t.code = ?`;
+    expect(counts["noun"]).toBe(await scalar(distinctForCode, "n"));
+    expect(counts["verb-godan"]).toBe(
+      await scalar(
+        `SELECT COUNT(DISTINCT s.word_id) AS n
+           FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+          WHERE t.kind = 'pos' AND t.code >= 'v5' AND t.code < 'v5￿'`
+      )
+    );
+    expect(counts["jlpt-n5"]).toBe(
+      await scalar("SELECT COUNT(*) AS n FROM words WHERE jlpt = 5")
+    );
+    expect(counts["word"]).toBe(
+      await scalar("SELECT COUNT(*) AS n FROM words")
+    );
+    expect(counts["kanji"]).toBe(
+      await scalar("SELECT COUNT(*) AS n FROM kanji_characters")
+    );
   });
 
   test("a result type and a word filter cancel each other out", async () => {
@@ -212,12 +245,18 @@ describeIfDb("browse by classifier", () => {
     await expect(dict.browse(kanji, "frequency", 20)).resolves.toEqual([]);
   });
 
-  test("an empty category returns an empty list rather than failing", async () => {
-    // WHY: Ryuukyuu-ben has a valid JMdict code (`rkb`) and ZERO words in a `common` build —
-    // dialect words are mostly not common. That is a truthful answer about the shipped data, so it
-    // must render as an empty list, not an error. A full build populates it.
+  test("a sparse category answers truthfully rather than failing", async () => {
+    // WHY: Ryuukyuu-ben has a valid JMdict code (`rkb`) but almost no words — ZERO in a `common`
+    // build, since dialect words are mostly not common; a handful in a full one. Either is a
+    // truthful answer about the shipped data, and both must render as a list rather than an error.
+    //
+    // Asserted as "rows and count agree" rather than a fixed number, because the answer legitimately
+    // depends on which variant was built — pinning it to 0 made this fail the moment a full DB was
+    // present, which is a property of the fixture, not a defect.
     const rkb = CLASSIFIER_BY_ID.get("ryuukyuu")!;
-    await expect(dict.browse(rkb)).resolves.toEqual([]);
-    await expect(dict.browseCount(rkb)).resolves.toBe(0);
+    const rows = await dict.browse(rkb);
+    const count = await dict.browseCount(rkb);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(count).toBe(rows.length);
   });
 });

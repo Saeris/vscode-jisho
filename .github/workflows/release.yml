@@ -58,7 +58,7 @@ jobs:
         run: vp run build:tokenizer-dict
 
       # Bumpy runs the per-package build/publish commands from package.json's `bumpy` block:
-      # package-platforms.ts builds one .vsix per target (each with its matching @tursodatabase
+      # package-platforms.ts builds one .vsix per target (each with its matching lindera-nodejs
       # native binary), then publish-vsix.ts publishes every target to the Marketplace + Open VSX.
       - run: vp dlx @varlock/bumpy ci release
         env:

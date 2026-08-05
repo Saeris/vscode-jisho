@@ -13,7 +13,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import { connect } from "@tursodatabase/database";
+import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../src/shared/schema.ts";
 
 const fail = (message: string): never => {
@@ -33,10 +33,12 @@ if (!existsSync(dbPath)) fail(`database not found: ${dbPath}`);
 
 // Read-only: this script only asks questions, and a writable open would leave -wal/-shm beside a
 // release artifact we are about to upload.
-const db = await connect(dbPath, { readonly: true });
+const db = new DatabaseSync(dbPath, { readOnly: true });
 
-const scalar = async (sql: string, ...params: unknown[]): Promise<unknown> => {
-  const rows: unknown = await (await db.prepare(sql)).all(...params);
+// `params` is narrowed to what the driver actually binds (it was `unknown[]` when the driver took
+// anything); every call site here passes a string or a number.
+const scalar = (sql: string, ...params: Array<string | number>): unknown => {
+  const rows: unknown = db.prepare(sql).all(...params);
   if (!Array.isArray(rows) || rows.length === 0) return undefined;
   const row: unknown = rows[0];
   if (typeof row !== "object" || row === null) return undefined;
@@ -47,7 +49,7 @@ const scalar = async (sql: string, ...params: unknown[]): Promise<unknown> => {
 // 1. Schema version present and matching what the extension expects. The names DB carries no schema
 //    version (it is not gated the same way), so this check is word-DB only.
 if (!isNames) {
-  const stamped = await scalar(
+  const stamped = scalar(
     "SELECT value FROM meta WHERE key = ?",
     SCHEMA_VERSION_KEY
   );
@@ -65,31 +67,27 @@ if (!isNames) {
 
 // 2. Known queries answer — a build that produced an empty or truncated table would fail here.
 if (isNames) {
-  const nameCount = Number(
-    await scalar("SELECT COUNT(*) AS c FROM name_words")
-  );
+  const nameCount = Number(scalar("SELECT COUNT(*) AS c FROM name_words"));
   if (!(nameCount > 0))
     fail(`names DB has no name_words rows (got ${nameCount})`);
 } else {
-  const wordCount = Number(await scalar("SELECT COUNT(*) AS c FROM words"));
+  const wordCount = Number(scalar("SELECT COUNT(*) AS c FROM words"));
   if (!(wordCount > 0)) fail(`words table is empty (got ${wordCount})`);
 
   // 食べる (JMdict 1358280) must resolve — a canary that the core word data imported.
   const taberu = Number(
-    await scalar("SELECT COUNT(*) AS c FROM words WHERE id = '1358280'")
+    scalar("SELECT COUNT(*) AS c FROM words WHERE id = '1358280'")
   );
   if (taberu !== 1) fail("canary word 食べる (id 1358280) is missing");
 
   // 食 must resolve as a kanji — a canary that the kanji pass ran.
   const shoku = Number(
-    await scalar(
-      "SELECT COUNT(*) AS c FROM kanji_characters WHERE literal = '食'"
-    )
+    scalar("SELECT COUNT(*) AS c FROM kanji_characters WHERE literal = '食'")
   );
   if (shoku !== 1) fail("canary kanji 食 is missing");
 }
 
-await db.close();
+db.close();
 
 // 3. The compressed artifact matches its own sha256 sidecar (what the downloader will verify).
 if (zstPath !== undefined) {

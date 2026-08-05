@@ -5,12 +5,12 @@
  * string, which is a tuned composite score; browsing filters by a category and orders by something
  * a reader can navigate — frequency, or gojūon. Folding the two together would mean either ranking
  * a list that has no query to be relevant to, or diluting the search ranking with filter logic.
- * They share `searchResult`, so the ROWS cannot drift even though the queries differ.
+ * They share `searchResults`, so the ROWS cannot drift even though the queries differ.
  */
 import type { SqliteStore } from "../store";
 import { CLASSIFIER_BY_ID, type Classifier } from "../../shared/classifiers";
 import type { KanjiResultDto, SearchResultDto } from "../../shared/messages";
-import { kanjiResults, searchResult } from "./search";
+import { kanjiResults, searchResults } from "./search";
 
 /** How a browsed list is ordered. */
 export type BrowseOrder = "frequency" | "gojuon";
@@ -19,9 +19,10 @@ export type BrowseOrder = "frequency" | "gojuon";
  * The `words.id` set for a classifier, already ordered.
  *
  * Ordering happens in SQL rather than in the webview because the list can be thousands of rows and
- * the sort keys (`freq_rank`, `kana.sort_key`) are columns the DB already has — `sort_key` exists
+ * both sort keys (`freq_rank`, `sort_key`) are indexed columns ON `words` — `sort_key` exists
  * precisely so gojūon ordering is an index-friendly ORDER BY rather than a JS collator over a
- * payload (#35).
+ * payload (#35), and it is denormalized onto the word rather than reached through `kana` so the
+ * ORDER BY can stop at LIMIT instead of scanning the whole category.
  */
 const idsFor = async (
   store: SqliteStore,
@@ -31,10 +32,12 @@ const idsFor = async (
 ): Promise<Array<{ id: string; common: number }>> => {
   // Gojūon reads the first kana row per word; frequency reads the word's own rank. Both put words
   // with no key last rather than dropping them — a word missing a frequency rank is still a word.
+  // `w.sort_key`, denormalized onto `words` at build time, NOT a subquery into `kana`. The
+  // correlated form made SQLite evaluate it for every candidate row before LIMIT could apply —
+  // measured at ~2s for "Nouns" on the full dictionary, and identical at LIMIT 10, because the
+  // ordering was the entire cost. `idx_words_sort` now answers it directly.
   const orderBy =
-    order === "gojuon"
-      ? `(SELECT sort_key FROM kana WHERE word_id = w.id ORDER BY position LIMIT 1)`
-      : `w.freq_rank IS NULL, w.freq_rank`;
+    order === "gojuon" ? `w.sort_key` : `w.freq_rank IS NULL, w.freq_rank`;
 
   // A result-type filter selects WHICH KIND of thing comes back, not which words. `#word` is the
   // whole word set (it only narrows in combination with a non-word type, where the intersection is
@@ -111,12 +114,12 @@ export const browse = async (
   limit = 2000
 ): Promise<SearchResultDto[]> => {
   const rows = await idsFor(store, classifier, order, limit);
-  const out: SearchResultDto[] = [];
-  for (const row of rows) {
-    const result = await searchResult(store, row.id, row.common === 1);
-    if (result !== null) out.push(result);
-  }
-  return out;
+  // Hydrated in ONE query rather than per row — `idsFor` has already put them in the order the
+  // reader sees, and `searchResults` preserves it.
+  return searchResults(
+    store,
+    rows.map((r) => ({ id: r.id, common: r.common === 1 }))
+  );
 };
 
 /**
@@ -159,6 +162,34 @@ export const refineCounts = async (
   store: SqliteStore,
   applied: Classifier[]
 ): Promise<Record<string, number>> => {
+  // Nothing applied — the overwhelmingly common case (the browse tree, and the first tag typed).
+  // Read the counts the BUILD precomputed rather than deriving them: the live derivation scans all
+  // 406,028 `sense_tags` rows, measured at ~2s on the full dictionary, for an answer that cannot
+  // change until the next dictionary build.
+  //
+  // A classifier the build did not know (added in code since) is simply absent, and falls through
+  // to the live path below — which is what keeps adding a category a code-only change.
+  if (applied.length === 0) {
+    const rows = await store.all<{ classifier_id: string; n: number }>(
+      "SELECT classifier_id, n FROM classifier_counts"
+    );
+    if (rows.length > 0) {
+      const cached: Record<string, number> = {};
+      for (const r of rows) cached[r.classifier_id] = r.n;
+      const missing = [...CLASSIFIER_BY_ID.values()].filter(
+        (c) =>
+          !(c.id in cached) &&
+          // Name types are never in this table — the word build cannot count them, and the host
+          // supplies them separately.
+          !(
+            c.kind === "result" &&
+            (c.result === "name" || c.result === "place")
+          )
+      );
+      if (missing.length === 0) return cached;
+    }
+  }
+
   // The candidate pool: the words the applied WORD filters leave. Result-type filters are excluded
   // — they select a kind of result rather than narrowing words, and `idsFor` returns nothing for
   // the non-word ones, which would empty the pool and zero every count.
@@ -194,15 +225,32 @@ export const refineCounts = async (
     }
   }
 
-  // One scan, counting DISTINCT words per classifier — a word with three `v5*` senses is one godan
+  // One pass, counting DISTINCT words per classifier — a word with three `v5*` senses is one godan
   // verb, not three.
+  //
+  // GROUPED IN SQL rather than scanned row-by-row in JS. The ungrouped form pulled all 406,028
+  // rows across the boundary to count ~90 things, which was most of the ~2s this used to take; the
+  // grouped form returns one row per (kind, code, word) that a classifier could possibly match,
+  // and when a pool is present it is restricted to those words in SQL too.
   const seen = new Map<string, Set<string>>();
+  // Bound the IN-list: SQLite caps bound parameters (999 by default, 32k when raised), and a broad
+  // filter like "Nouns" leaves ~190k words. Past the cap the unrestricted query plus a JS filter is
+  // the fallback — slower, but correct, and it only happens for filters so broad that the counts
+  // they produce are barely narrowing anything anyway.
+  const poolIds = pool === null || pool.size > 900 ? [] : [...pool];
+  const restricted = poolIds.length > 0;
   const rows = await store.all<{ kind: string; code: string; word_id: string }>(
-    `SELECT t.kind AS kind, t.code AS code, s.word_id AS word_id
-       FROM sense_tags t JOIN senses s ON s.id = t.sense_id`
+    restricted
+      ? `SELECT DISTINCT t.kind AS kind, t.code AS code, s.word_id AS word_id
+           FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+          WHERE s.word_id IN (${poolIds.map(() => "?").join(",")})`
+      : `SELECT DISTINCT t.kind AS kind, t.code AS code, s.word_id AS word_id
+           FROM sense_tags t JOIN senses s ON s.id = t.sense_id`,
+    ...poolIds
   );
   for (const r of rows) {
-    if (pool !== null && !pool.has(r.word_id)) continue;
+    // Only when the IN-list was skipped: the restricted query already filtered.
+    if (!restricted && pool !== null && !pool.has(r.word_id)) continue;
     const hit = [
       ...(exact.get(`${r.kind}\t${r.code}`) ?? []),
       ...prefixes.filter(
