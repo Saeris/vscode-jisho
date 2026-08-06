@@ -78,6 +78,109 @@ body {
   );
 }
 
+/*
+ * ─── Typography defaults ────────────────────────────────────────────────────────────────────────
+ *
+ * Adapted from tak-dcxi's CJK typography guide (gist 0f8b924d6dd81aaeb58dc2e287f2ab3a). The guide
+ * targets the open web; this is a VSCode webview, so two of its premises do not hold here and the
+ * recommendations are filtered accordingly:
+ *
+ *   1. We do not own the font stack. `--vscode-font-family` is whatever the user configured, so
+ *      anything font-metric-dependent (`palt` kerning, `text-box-edge: cap alphabetic`) can not be
+ *      set blind — it would land differently for every user. Those are left out.
+ *   2. The runtime is a single known Chromium, not a browser matrix. Everything below is supported
+ *      at our engine floor (VSCode ^1.123 → Chromium 148), so no fallbacks are needed. The one
+ *      exception is `hanging-punctuation`, which Chromium has never shipped, so it is omitted.
+ *
+ * All of it is wrapped in `:where()` for zero specificity: these are defaults that every component
+ * rule overrides for free, which matters because several deliberately set their own (the
+ * `line-height: 1` glyph cells, `word-break: keep-all` on the headword writings).
+ */
+
+:where(body) {
+  /*
+   * A read floor of 1.5, per WCAG 1.4.12 and the guide.
+   *
+   * Measured, because the usual "normal is ~1.2" shorthand is wrong in a way that matters here:
+   * `normal` is font-derived, and in Chromium the Latin fallback resolves to ~1.14 while the CJK
+   * fallback already resolves to ~1.5 (CJK faces declare far more default leading). So this is
+   * effectively a fix for the ENGLISH text — the definition glosses, which are the most-read prose
+   * in the extension and until now inherited that ~1.14.
+   */
+  line-height: 1.5;
+
+  /*
+   * Wrapping. `anywhere` is the last-resort break for strings with no break opportunity, which for
+   * a dictionary means long romaji readings and URLs in the About view; without it they force a
+   * horizontal scrollbar in a narrow sidebar. It does not affect CJK, which already breaks between
+   * characters.
+   *
+   * `line-break: strict` is the CJK half: it applies 禁則処理 strictly, so a line can not begin with
+   * small kana (っ ゃ ゅ ょ), a long-vowel mark (ー), or closing punctuation. Japanese text is
+   * everywhere in this UI and this is exactly the kind of detail a dictionary should get right.
+   */
+  overflow-wrap: anywhere;
+  line-break: strict;
+
+  /*
+   * Insert optical spacing at Japanese↔Latin boundaries *inside a text run*. Narrow in scope for us
+   * — the example sentences keep their Japanese and English in separate elements, so most of the UI
+   * has no such boundary — but it is correct where one does occur (inline notes, mixed headwords),
+   * and costs nothing where one does not.
+   */
+  text-autospace: normal;
+
+  /*
+   * Trim the leading half-width space before an opening bracket at the start of a line. JMdict
+   * glosses and sense notes are full of parenthesised text, and the untrimmed version reads as a
+   * stray indent.
+   */
+  text-spacing-trim: trim-start;
+}
+
+/*
+ * Text the user typed or that must stay character-exact: no automatic spacing, no punctuation
+ * trimming. Both properties inherit, so they have to be switched off explicitly rather than just
+ * left unset. The search field is the important one — inserting optical space into a query as it is
+ * typed would be visible and wrong.
+ */
+:where(input, textarea, [contenteditable]) {
+  text-autospace: no-autospace;
+  text-spacing-trim: space-all;
+}
+
+/*
+ * Japanese line-breaking at phrase boundaries rather than between arbitrary characters.
+ *
+ * Chromium segments the text with its own morphological model, so 図書館に行きます breaks after に
+ * rather than mid-word. It needs `lang="ja"` to know to do this, which the markup already provides
+ * — every Japanese string in the webview is tagged for screen readers, and that same attribute is
+ * what makes this work.
+ *
+ * Scoped to headings and short display strings on purpose: the guide is explicit that applying it
+ * to body copy produces odd ragged gaps. `balance` is paired with it because phrase breaking gives
+ * the balancer meaningful break points to choose between.
+ */
+:where(h1, h2, h3):lang(ja) {
+  word-break: auto-phrase;
+  text-wrap: balance;
+}
+
+/* English headings get balancing too — the same "avoid a one-word last line" goal, minus the
+   phrase segmentation, which is meaningless for space-separated text. */
+:where(h1, h2, h3):lang(en) {
+  text-wrap: balance;
+}
+
+/*
+ * English prose: `pretty` prevents a heading or paragraph ending in a single stranded word (an
+ * orphan). Deliberately NOT applied to `:lang(ja)` — Japanese body text is set solid (ベタ組み) and
+ * the guide advises against wrap tuning on Japanese paragraphs.
+ */
+:where(p):lang(en) {
+  text-wrap: pretty;
+}
+
 #root {
   height: 100%;
 }
