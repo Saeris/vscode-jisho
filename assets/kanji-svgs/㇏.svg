@@ -7,5 +7,5 @@
 <g class="glyph"><path id="z12751d1" d="M210 257C233 290 300 394 551 779C567 803 591 812 611 811C669 807 784 803 836 801C858 800 869 797 870 791C870 785 856 776 834 768C728 729 627 689 608 673C531 611 408 443 260 255C198 176 144 162 210 257Z"/></g>
 <defs><clipPath id="z12751c1"><use href="#z12751d1"/></clipPath><marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
 <g class="strokes"><path pathLength="3333" clip-path="url(#z12751c1)" d="M188 200L597 751L864 790"/></g>
-<g class="guides"><text class="g1" style="--gs:1" x="188" y="200">①</text><path class="g1 aligned" style="--gs:1" d="M188,200 Q597,751 630.38,755.88 Q830.63,785.13 864,790"/><path class="g1 offset" style="--gs:1" d="M273.68,131.46 Q630.84,656.81 659.99,661.46 Q834.86,689.35 864,694"/></g>
+<g class="guides"><path class="g1 aligned" style="--gs:1" d="M188,200 Q597,751 630.38,755.88 Q830.63,785.13 864,790"/><path class="g1 offset" style="--gs:1" d="M273.68,131.46 Q630.84,656.81 659.99,661.46 Q834.86,689.35 864,694"/><text class="g1" style="--gs:1" x="188" y="200">①</text></g>
 </svg>

@@ -407,10 +407,13 @@ const guideFor = (d: string, index: number): string => {
     y: p.y + b0
   }));
 
+  // Arrows BEFORE the numeral: SVG paints in document order, so emitting the marker first let each
+  // arrow cross out its own start number — the numeral is the thing you read to know where to
+  // begin, so it has to win.
   return (
-    marker +
     `<path class="g${n} aligned" style="--gs:${n}" d="${aligned}"/>` +
-    `<path class="g${n} offset" style="--gs:${n}" d="${smoothPath(shifted)}"/>`
+    `<path class="g${n} offset" style="--gs:${n}" d="${smoothPath(shifted)}"/>` +
+    marker
   );
 };
 

@@ -30,15 +30,32 @@
    */
   --jisho-guide-accent: var(--vscode-charts-green, #1a7f37);
   --jisho-guide-arrow: var(--vscode-charts-red, #d1242f);
-  /* Conjugation-suffix emphasis. Not a mix: srgb blending muddied both hue and lightness (two
-     user reports). Instead, take the LIGHTNESS from the theme's own foreground — which contrasts
-     with the background by definition, so the accent inherits body-text legibility exactly — and
-     paint the orange hue/chroma onto it. APCA contrast tracks lightness difference, so this holds
-     in any theme. Verify with the light-theme E2E capture. */
+  /* Conjugation-suffix emphasis.
+     Derived from the theme's own foreground so it inherits body-text legibility in any theme, and
+     not an srgb mix (blending muddied both hue and lightness — two user reports).
+     Overridden below on light grounds; see there for why one formula could not serve both. */
   --jisho-inflection: oklch(from var(--jisho-fg) l 0.14 60);
 
   --jisho-radius: 4px;
   --jisho-gap: 8px;
+}
+
+/*
+ * Conjugation-suffix emphasis on a LIGHT ground.
+ *
+ * Deriving the accent from the foreground's lightness works on dark themes and fails on light ones,
+ * and the reason is gamut rather than taste. At a light theme's foreground (~L 0.32) a chroma of
+ * 0.14 is 187% of the most sRGB can represent at that lightness, so it clips to a muddy #542300 —
+ * measured APCA 102 against the background, which is BODY TEXT's own 99.7. The suffix therefore
+ * reads as ordinary dark text. On a dark ground the same formula clips to #ffb469, which sits ~4.5
+ * Lc lighter and warmer than body text, and the distinction lands.
+ *
+ * So light gets its own value: L 0.48 at the gamut-max chroma for that lightness. Measured APCA 88
+ * — well clear of the ~75 floor for body-size text, and 11.7 Lc away from the plain text beside it,
+ * which is what makes the suffix legible AS a suffix. Verify with the light-theme E2E capture.
+ */
+body.vscode-light {
+  --jisho-inflection: oklch(0.48 0.115 55);
 }
 
 html,

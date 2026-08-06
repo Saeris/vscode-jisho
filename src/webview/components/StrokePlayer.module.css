@@ -143,15 +143,18 @@
   opacity: var(--gs-visible);
 }
 
-/* Numbered start marker. 96/16 keeps the reference 1:6 glyph-to-outline ratio; the outline is the
-   surface colour so the numeral stays legible over the character in any theme. */
+/* Numbered start marker: a GREEN RING around a surface-coloured numeral, per the reference.
+   `paint-order: stroke` draws the outline first, so the accent reads as a ring rather than a
+   smear over the glyph edges — and the fill knocks the numeral out of it, which is what keeps the
+   digit legible on top of a black stroke. Swapping these two (accent fill, surface outline) makes
+   the numeral vanish into the character it sits on. 96/16 keeps the reference 1:6 ratio. */
 .canvas :global(svg.acjk .guides text) {
   font-size: 96px;
-  fill: var(--jisho-guide-accent);
+  fill: var(--jisho-bg);
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  stroke: var(--jisho-bg);
+  stroke: var(--jisho-guide-accent);
   stroke-width: 16;
 }
 
