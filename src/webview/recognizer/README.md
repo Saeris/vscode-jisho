@@ -11,7 +11,7 @@ We did **not** vendor the original code. It's a pre-ES6 global-object (`KanjiCan
 - `correspondence.ts` — stroke distance metrics (endpoint / initial / whole-whole) and the one-to-one stroke-correspondence map (`getMap` greedy + hill-climb, `completeMap` M–N).
 - `index.ts` — the pipeline: `recognize(strokes, refPatterns)` → normalize → features → coarse classification → fine classification → ranked candidate characters.
 - `patterns.ts` — decodes the reference stroke patterns from a compact binary blob into `RefPattern[]`. **Lazy-loaded** via dynamic `import()` so it never enters the base bundle.
-- `patterns.data.ts` — the patterns as base64 of a compact binary blob (do not hand-edit). Base64-inline because the webview CSP blocks fetching an asset file. This replaced an ~8MB JS array literal: the built chunk went 6.4MB→1.8MB (2.3MB→1.25MB gz), and decoding a flat `ArrayBuffer` is far cheaper for parse time and heap than a giant nested literal. It is the **canonical committed source** for the patterns.
+- `patterns.data.ts` — the patterns as base64 of a compact binary blob (do not hand-edit). This replaced an ~8MB JS array literal: the built chunk went 6.4MB→1.8MB (2.3MB→1.25MB gz), and decoding a flat `ArrayBuffer` is far cheaper for parse time and heap than a giant nested literal. It is the **canonical committed source** for the patterns. Base64 stays inline not because the CSP forbids a fetch — `connect-src` is ours to grant — but because it would buy 285KB compressed (0.7% of the `.vsix`) at the cost of a round trip on the lazy chunk's critical path. See BACKLOG #24.
 
 ### Binary format (little-endian)
 

@@ -207,14 +207,16 @@ Our contour renders in a **dedicated band above** the reading; Shirabe **overlay
 
 `patterns.data.ts` is a 1.8MB TS module wrapping a base64 string that `patterns.ts` `atob()`s at runtime. The [import-bytes proposal](https://github.com/tc39/proposal-import-bytes) (TC39 **Stage 2.7**) would let us commit a raw `patterns.bin` and `import bytes from "./patterns.bin" with { type: "bytes" }` — deleting `patterns.data.ts`, the `decodeBase64` helper, and base64's +33% encoding overhead, and yielding a `Uint8Array` (backed by an immutable ArrayBuffer) straight to the existing `DataView` decoder.
 
-**Blocked: Rolldown/Vite does not implement it.** Verified empirically (2026-07) — a probe importing a `.bin` with the attribute fails with `The requested module '…?import' does not provide an export named 'default'`; the attribute is silently ignored. Deno 2.4 and Bun have shipped comparable features, so bundler support is plausibly near.
+**Blocked: Rolldown/Vite does not implement it.** Verified empirically (2026-07, re-verified 2026-08) — a probe importing a `.bin` with the attribute now fails at parse time (`[PARSE_ERROR] Expected a semicolon…` pointing INTO the binary), i.e. the attribute is still ignored and the file is fed to the JS parser. Deno 2.4 and Bun have shipped comparable features, so bundler support is plausibly near.
+
+**The decode cost this entry was partly motivated by is gone (2026-08).** `patterns.ts` now uses `Uint8Array.fromBase64` instead of the hand-rolled `atob` + charCodeAt loop: full pattern load went 10.7ms → 2.8ms on the engine floor's Chromium 148, byte-identical across all 2,213 patterns. The decode had been 3.9ms of a 4.2ms load — it dominated, and the `DataView` walk was nearly free. What remains for this entry is the encoding overhead and the deletion of `patterns.data.ts`, not runtime speed.
 
 Notes for whoever picks this up:
 
-- **The bytes must arrive inside a JS module** — the webview CSP blocks fetching an asset, which is why `?url` + `fetch()` (the normal answer) is not available to us. This constraint is the whole reason for the base64 smuggling.
+- **The "CSP blocks fetching" framing was wrong, and is corrected here.** `webviewHtml.ts` sets `default-src 'none'` with no `connect-src`, so `fetch()` is blocked _by our own policy_ — a directive we write and could grant. The honest reason to keep the bytes in a JS module is that fetching buys little: it trades 285KB compressed for a network round trip on the lazy chunk's critical path plus a CSP directive to audit.
+- **The size win is small in context.** Base64 costs 440KB raw / 285KB compressed, against a **39MB `.vsix`** — about 0.7% of what a user downloads. The chunk itself is 1217KB compressed inside the vsix, ~3% of the package. Simpler code, not bytes, is the reason to do this.
 - `?raw` (a JS string) and `?inline` (a data URL, registered extensions only) both work today but are base64 under the hood — no real gain over the status quo.
-- The **wire** win is smaller than +33% suggests: gzip recovers most of base64's overhead (current chunk 1.80MB → 1.25MB gz). The real wins are simpler code and less parse/heap churn.
-- Pairs with **#21**'s patterns re-extract/re-encode tool — same encoder, so do them together. The binary format is specified in `src/webview/recognizer/README.md`.
+- Pairs with **#21**'s patterns re-extract/re-encode tool — same encoder, so do them together. Note there is **no encoder in the tree today**: `patterns.ts` long claimed `scripts/encode-patterns.ts`, which has never existed. The binary format is specified in `src/webview/recognizer/README.md`.
 
 ### 25. Evaluated and declined: PGlite instead of Turso/SQLite (decision record)
 
