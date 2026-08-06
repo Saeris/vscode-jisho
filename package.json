@@ -253,7 +253,7 @@
     "fflate": "^0.8.3",
     "ovsx": "1.1.0",
     "playwright": "^1.62.1",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "typescript-plugin-css-modules": "^5.2.0",
     "unbzip2-stream": "^1.4.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
@@ -262,7 +262,6 @@
     "wanakana": "^5.3.1"
   },
   "resolutions": {
-    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.9.tsgo.7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
@@ -277,7 +276,6 @@
     "skipNpmPublish": true
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.7.1",
     "@tanstack/react-query": "^5.101.4",
     "@xstate/react": "^6.1.0",
     "class-variance-authority": "^0.7.1",
@@ -286,8 +284,6 @@
     "react": "^19.2.8",
     "react-aria-components": "^1.20.0",
     "react-dom": "^19.2.8",
-    "react-hook-form": "^7.84.0",
-    "valibot": "^1.4.2",
     "xstate": "^5.32.5"
   }
 }

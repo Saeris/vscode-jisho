@@ -1,5 +1,18 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "../fixtures";
 import { screenshotSidebar } from "../webview";
+
+/**
+ * Whether the optional JMnedict names database has been built (`vp run build:data:names`).
+ *
+ * The `#name`/`#place` result types are HIDDEN when it is absent — that is the extension behaving
+ * correctly, not a failure — so a test that clicks them has to check the same thing the host does.
+ * CI provisions only `build:data` (the names build is ~743k entries / ~400MB, too slow to make
+ * every Release run pay for one screenshot), so without this guard that test fails there while
+ * passing locally.
+ */
+const hasNamesDb = existsSync(join(process.cwd(), "assets", "jisho-names.db"));
 
 /**
  * Browsing by category (#54): the tree, a group, and a word list in both orderings.
@@ -241,6 +254,12 @@ test("a word page's grammar tag browses its category", async ({ jisho }) => {
 });
 
 test("capture: #place opens a name list", async ({ vscode, jisho }) => {
+  // Skipped without the names DB — see `hasNamesDb`. The tag genuinely does not exist then, so
+  // this would be asserting against a UI the extension deliberately did not render.
+  test.skip(
+    !hasNamesDb,
+    "requires assets/jisho-names.db (vp run build:data:names)"
+  );
   // WHY (#27): the last result type that promised more than it delivered. `#name`/`#place` read the
   // separate names DB, which `browse()` does not touch — they suggested and opened nothing.
   await jisho
