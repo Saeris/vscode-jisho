@@ -10,19 +10,8 @@
   text-underline-offset: 2px;
 }
 
-.tooltip {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: 240px;
-  padding: 6px 8px;
-  font-size: 0.85em;
-  line-height: 1.4;
-  color: var(--vscode-editorHoverWidget-foreground, var(--jisho-fg));
-  background: var(--vscode-editorHoverWidget-background, var(--jisho-input-bg));
-  border: 1px solid var(--vscode-editorHoverWidget-border, var(--jisho-border));
-  border-radius: var(--jisho-radius);
-}
+/* The tooltip surface itself lives in InfoTip.module.css — this file keeps only what is specific
+   to a Term: the trigger's inline-text affordance and the worked example inside the tooltip. */
 
 /* The worked example, set apart from the definition: a rule above it and dimmed, so the tooltip
    reads as "what it is" then "what it looks like" rather than one run-on paragraph. */

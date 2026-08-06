@@ -47,18 +47,19 @@ test("tapping a result opens its word detail", async ({ vscode }) => {
   // getByText() also matches the now-hidden search results. Assert on visible elements only.
   // The Back control is the detail view's unambiguous marker.
   await expect(frame.getByRole("button", { name: /back/i })).toBeVisible();
-  // The detail shows the reading and a resolved part-of-speech tag. The tag renders as a compact
-  // pill with the JMdict description as its tooltip (#50) — asserting on the TOOLTIP keeps this
-  // checking that the tag RESOLVED, without pinning the label, which follows the `tagLabels`
-  // setting ("ichidan verb" by default, 一段動詞 in Japanese mode).
+  // The detail shows the reading and a resolved part-of-speech tag.
+  //
+  // Asserted on the pill's `data-pos`, not its tooltip. This used to read `getByTitle(/ichidan/i)`,
+  // but a BROWSABLE tag's tooltip is now React Aria's rather than a `title` attribute, and React
+  // Aria only attaches `aria-describedby` while the tooltip is OPEN — so neither the old attribute
+  // nor the accessible description is present at rest. `data-pos` carries the resolved palette
+  // category, which is what "the tag resolved" actually means here, and it does not move with the
+  // `tagLabels` setting ("ichidan verb" by default, 一段動詞 in Japanese mode) either.
   await expect(
     frame.getByText("たべる").locator("visible=true").first()
   ).toBeVisible();
   await expect(
-    frame
-      .getByTitle(/ichidan/i)
-      .locator("visible=true")
-      .first()
+    frame.locator('[data-pos="verb"]').locator("visible=true").first()
   ).toBeVisible();
 });
 

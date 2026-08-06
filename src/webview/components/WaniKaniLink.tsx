@@ -1,3 +1,4 @@
+import { InfoTip } from "./InfoTip";
 import styles from "./WaniKaniLink.module.css";
 
 /**
@@ -13,11 +14,14 @@ export const WaniKaniLink = ({
 }: {
   term: string;
 }): React.ReactElement => (
-  <a
-    className={styles.link}
-    href={`https://www.wanikani.com/search?query=${encodeURIComponent(term)}`}
-    title={`Look up ${term} on WaniKani`}
-  >
-    WK
-  </a>
+  <InfoTip content={`Look up ${term} on WaniKani`}>
+    {/* An anchor is already focusable and semantic, so `Focusable` only has to attach the
+        description — no role needed here. */}
+    <a
+      className={styles.link}
+      href={`https://www.wanikani.com/search?query=${encodeURIComponent(term)}`}
+    >
+      WK
+    </a>
+  </InfoTip>
 );

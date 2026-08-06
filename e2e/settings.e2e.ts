@@ -82,14 +82,21 @@ test("tagLabels=japanese relabels the grammar pills", async () => {
   // The DEFAULT would render "ichidan verb" here. Proving the Japanese term shows instead is what
   // confirms the setting travelled the whole path — package.json → host snapshot → bridge →
   // `useHostSettings` → pill — since none of the unit tests cross the host boundary.
+  // Located by `data-pos` rather than by tooltip: a browsable tag's tooltip moved to React Aria,
+  // which only attaches `aria-describedby` while the tooltip is OPEN, so there is no attribute to
+  // match at rest. `data-pos` carries the resolved palette category and is independent of the
+  // label, which is exactly what this test is varying.
   const pill = frame
-    .getByTitle(/ichidan/i)
+    .locator('[data-pos="verb"]')
     .locator("visible=true")
     .first();
   await expect(pill).toHaveText("一段動詞");
-  // The description survives as the tooltip: in this mode it is the ONLY place a learner who does
-  // not yet read 一段動詞 can find out what it means.
-  await expect(pill).toHaveAttribute("title", /ichidan/i);
+  // The description survives as the tooltip: in Japanese mode it is the ONLY place a learner who
+  // cannot yet read 一段動詞 can find out what it means. Opened by hover, since React Aria shows a
+  // tooltip on focus only when focus arrived from the KEYBOARD (`isFocusVisible`), which a
+  // programmatic `.focus()` does not satisfy.
+  await pill.hover();
+  await expect(frame.getByRole("tooltip")).toContainText(/ichidan/i);
   // Reference shot for the word-detail design iteration (BACKLOG #32), Japanese-label variant.
   await app().window.screenshot({
     path: "test-results/shots/04-tag-labels-japanese.png"

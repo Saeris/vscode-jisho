@@ -1,5 +1,5 @@
-import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import { FORM_NOTES } from "../../shared/grammar";
+import { InfoTip } from "./InfoTip";
 import { Ruby } from "./Ruby";
 import styles from "./Term.module.css";
 
@@ -36,17 +36,25 @@ export const Term = ({ children }: TermProps): React.ReactElement => {
   const definition = GLOSSARY[children] ?? note?.gist;
   if (definition === undefined) return <>{children}</>;
   return (
-    <TooltipTrigger delay={300}>
-      <Button className={styles.term}>{children}</Button>
-      <Tooltip className={styles.tooltip} offset={4}>
-        <span>{definition}</span>
-        {note ? (
-          <span className={styles.example}>
-            <Ruby markup={note.example.ja} />
-            {` — ${note.example.en}`}
-          </span>
-        ) : null}
-      </Tooltip>
-    </TooltipTrigger>
+    <InfoTip
+      content={
+        <>
+          <span>{definition}</span>
+          {note ? (
+            <span className={styles.example}>
+              <Ruby markup={note.example.ja} />
+              {` — ${note.example.en}`}
+            </span>
+          ) : null}
+        </>
+      }
+    >
+      {/* `button` rather than a bare span: this wraps inline TEXT, so it needs the dotted underline
+          and `cursor: help` to advertise that there is anything to hover at all. The badges and
+          pills that use InfoTip directly are already visibly distinct from prose. */}
+      <button type="button" className={styles.term}>
+        {children}
+      </button>
+    </InfoTip>
   );
 };

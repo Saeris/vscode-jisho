@@ -3,6 +3,7 @@ import { posCategory, posPillLabel, usageLabel } from "../../shared/posTags";
 import { classifierForTag } from "../../shared/classifiers";
 import { useNavigate } from "../navigation";
 import { useHostSettings } from "../useHostSettings";
+import { InfoTip } from "./InfoTip";
 import styles from "./TagPill.module.css";
 
 /**
@@ -19,7 +20,7 @@ import styles from "./TagPill.module.css";
  * tags stay neutral: they are not parts of speech, and a hue would imply a grammatical meaning they
  * do not have.
  *
- * The full JMdict description is always the `title`, so shortening a label never loses information.
+ * The full JMdict description is always in the tooltip, so shortening a label never loses information.
  */
 export const TagPill = ({
   tag,
@@ -67,6 +68,8 @@ export const TagPill = ({
 
   // A tag the browse tree does not surface stays inert rather than opening a list the tree itself
   // would not offer — see `classifierForTag`.
+  // An inert pill keeps the native `title`: it is a label, not a widget, and the themed tooltip
+  // requires an interactive role that would announce a button with nowhere to go. See `InfoTip`.
   if (classifier === undefined) {
     return (
       <span {...shared} title={tag.description}>
@@ -76,16 +79,17 @@ export const TagPill = ({
   }
 
   return (
-    <button
-      {...shared}
-      type="button"
-      // The tooltip says what the tag MEANS and what tapping does — the description alone would
-      // leave the new affordance undiscoverable.
-      title={`${tag.description} — browse all`}
-      onClick={() => openWordList(classifier.id)}
-    >
-      {label}
-    </button>
+    // The tooltip says what the tag MEANS and what tapping does — the description alone would
+    // leave the new affordance undiscoverable.
+    <InfoTip content={`${tag.description} — browse all`}>
+      <button
+        {...shared}
+        type="button"
+        onClick={() => openWordList(classifier.id)}
+      >
+        {label}
+      </button>
+    </InfoTip>
   );
 };
 
@@ -123,6 +127,7 @@ export const TagPills = ({
  */
 export const CommonPill = (): React.ReactElement => (
   <p className={styles.row}>
+    {/* Native `title` for the same reason as an inert TagPill — a marker, not a widget. */}
     <span
       className={`${styles.pill} ${styles.common}`}
       title="One of the more frequently used words in the language (JMdict common ranking)"

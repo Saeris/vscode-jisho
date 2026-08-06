@@ -74,11 +74,17 @@ describe("tagPills", () => {
   it("keeps the full description as the tooltip in both modes", async () => {
     // WHY: shortening a label must never LOSE the information — the description is how a learner
     // finds out what 尊敬語 means, and it is the ONLY place that meaning survives in Japanese mode.
+    //
+    // Driven by FOCUS rather than a `title` attribute. A browsable pill's tooltip moved to React
+    // Aria, so there is no attribute left to read — and focus is the better probe anyway: it is
+    // the access path `title` never supported, so this now covers the reason for the move as well
+    // as the content. (Hover would also work in a real browser but needs the warmup delay; focus
+    // shows immediately by design.)
     const pos = [tag("adv", "adverb (fukushi)")];
     const { rerender } = renderPills(<TagPills pos={pos} usage={[]} />);
-    expect(screen.getByText("adverb")).toHaveAttribute(
-      "title",
-      expect.stringContaining("adverb (fukushi)")
+    screen.getByText("adverb").focus();
+    await expect(screen.findByRole("tooltip")).resolves.toHaveTextContent(
+      /adverb \(fukushi\)/
     );
 
     await setTagLabels("japanese");
@@ -87,9 +93,25 @@ describe("tagPills", () => {
         <TagPills pos={pos} usage={[]} />
       </NavigationProvider>
     );
-    expect(screen.getByText("副詞")).toHaveAttribute(
+    screen.getByText("副詞").focus();
+    await expect(screen.findByRole("tooltip")).resolves.toHaveTextContent(
+      /adverb \(fukushi\)/
+    );
+  });
+
+  it("keeps an inert pill's description on a native title", () => {
+    // WHY: an unlinked pill is a LABEL, not a widget, so it does not get the React Aria tooltip —
+    // that requires an interactive role, which would announce a button leading nowhere. The
+    // description still has to survive label shortening, just by the older mechanism.
+    renderPills(
+      <TagPills
+        pos={[tag("v2g-s", "Nidan verb (lower class) with 'gu' ending")]}
+        usage={[]}
+      />
+    );
+    expect(screen.getByText(/Nidan|nidan/)).toHaveAttribute(
       "title",
-      expect.stringContaining("adverb (fukushi)")
+      expect.stringContaining("Nidan verb")
     );
   });
 

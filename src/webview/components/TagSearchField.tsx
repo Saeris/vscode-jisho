@@ -266,6 +266,11 @@ export const TagSearchField = ({
                 {segment.value?.label ??
                   findClassifier(segment.text)?.label ??
                   segment.text}
+                {/* Stays a native `title` where everything else moved to `InfoTip`: this glyph is
+                    `aria-hidden`, i.e. decoration inside the Token that owns the real interaction.
+                    An InfoTip would have to make it focusable to attach its description, which
+                    means putting a tab stop on hidden content — a worse outcome than an unstyled
+                    tooltip. */}
                 <span
                   className={styles.tokenRemove}
                   title={`Remove ${segment.value?.label ?? segment.text}`}
