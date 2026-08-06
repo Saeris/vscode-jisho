@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/extension.ts",
+    "src/webview/index.tsx",
+    "scripts/*.ts",
+    "bench/entry.ts",
+    "e2e/**/*.e2e.ts",
+    "**/__tests__/**/*.{ts,tsx}",
+    "**/*.spec.{ts,tsx}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.ts"],
+  "ignoreDependencies": [
+    "@vscode/vsce",
+    "ovsx",
+    "playwright",
+    "@varlock/bumpy",
+    "@scriptin/jmdict-simplified-types",
+    "typescript-plugin-css-modules"
+  ],
+  "ignoreBinaries": ["wmic"]
+}

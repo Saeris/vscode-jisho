@@ -8,9 +8,7 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  PALETTE_CATEGORIES,
-  palette,
-  posVar,
+  paletteCss,
   type Ground,
   type PaletteId
 } from "../src/shared/posPalette.ts";
@@ -23,17 +21,15 @@ const IDS: PaletteId[] = [
 ];
 
 /**
- * One palette as a custom-property block. Each colour is declared TWICE — `rgb()` then `oklch()` —
- * so a renderer that cannot parse `oklch()` discards the second and keeps the first.
+ * One palette as a custom-property block.
+ *
+ * The declarations themselves come from `paletteCss` rather than being rebuilt here: this script
+ * used to reimplement the same double-declaration (`rgb()` then `oklch()`, in that order, so a
+ * renderer that cannot parse `oklch()` keeps the first), which is one fallback rule expressed in
+ * two places — exactly the drift this generator exists to prevent between the palette and the CSS.
  */
-const block = (selector: string, id: PaletteId, ground: Ground): string => {
-  const p = palette(id, ground);
-  const decls = PALETTE_CATEGORIES.flatMap((c) => [
-    `  ${posVar(c)}: ${p[c].rgb};`,
-    `  ${posVar(c)}: ${p[c].css};`
-  ]).join("\n");
-  return `${selector} {\n${decls}\n}`;
-};
+const block = (selector: string, id: PaletteId, ground: Ground): string =>
+  `${selector} {\n  ${paletteCss(id, ground)}\n}`;
 
 const HEADER = `/*
  * Part-of-speech palette tokens.
