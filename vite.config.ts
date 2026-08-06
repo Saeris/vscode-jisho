@@ -152,6 +152,11 @@ export default defineConfig({
   // Stable, hash-free output names let extension.ts reference them directly.
   plugins: [...react()],
   build: {
+    // `engines.vscode ^1.123` resolves to exactly one renderer — Chromium 148 — so the browser
+    // matrix is a single point and the default (`baseline-widely-available`, i.e. Chrome 111)
+    // down-levels for browsers that can never run this code. Stated rather than inferred: without
+    // it, a toolchain default shifting under us is a silent output change, not a reviewable one.
+    target: "chrome148",
     outDir: "dist/webview",
     emptyOutDir: true,
     rollupOptions: {
@@ -167,6 +172,10 @@ export default defineConfig({
   // single bundled .cjs (no .d.ts — extensions aren't consumed as a library).
   pack: {
     entry: ["src/extension.ts"],
+    // The extension host is Node, not the renderer — a different runtime from the webview above and
+    // so a different target. VSCode 1.123 ships Node 24; `node24` is the floor, not the Node that
+    // happens to run the build.
+    target: "node24",
     clean: false, // don't wipe dist/webview (built separately by `vp build`)
     format: [`cjs`],
     dts: false,

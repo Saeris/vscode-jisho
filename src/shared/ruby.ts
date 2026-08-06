@@ -39,9 +39,6 @@ const runs = (surface: string): Array<{ text: string; kanji: boolean }> => {
   return out;
 };
 
-const escapeRegExp = (text: string): string =>
-  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 /**
  * Pair each kanji run of `surface` with its share of `reading`. Returns null when the two can't be
  * reconciled — a mismatched reading, or a surface with no kanji to annotate.
@@ -57,7 +54,9 @@ export const alignReading = (
   // A kana-only surface would already have returned; every kanji run needs at least one character
   // of reading, and the kana runs must appear verbatim.
   const pattern = parts
-    .map((part) => (part.kanji ? "(.+?)" : escapeRegExp(toHiragana(part.text))))
+    .map((part) =>
+      part.kanji ? "(.+?)" : RegExp.escape(toHiragana(part.text))
+    )
     .join("");
   const match = new RegExp(`^${pattern}$`).exec(kana);
   if (!match) return null;

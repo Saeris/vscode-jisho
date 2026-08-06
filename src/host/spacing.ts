@@ -32,7 +32,7 @@ export const addSpacingToLine = async (line: string): Promise<string> => {
     }
   }
   let result = line;
-  for (const at of insertions.reverse()) {
+  for (const at of insertions.toReversed()) {
     result = `${result.slice(0, at)} ${result.slice(at)}`;
   }
   return result;

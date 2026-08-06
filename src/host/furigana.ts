@@ -45,7 +45,7 @@ export const addFuriganaToLine = async (line: string): Promise<string> => {
     }
   }
   let result = line;
-  for (const edit of edits.reverse()) {
+  for (const edit of edits.toReversed()) {
     result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
   }
   return result;

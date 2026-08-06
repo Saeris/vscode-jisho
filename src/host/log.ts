@@ -142,7 +142,7 @@ export const mark = (label: string): void => {
  */
 export const formatTrace = (): string => {
   if (spans.length === 0) return "No startup activity recorded yet.";
-  const rows = [...spans].sort((a, b) => a.at - b.at);
+  const rows = spans.toSorted((a, b) => a.at - b.at);
   const width = Math.max(...rows.map((r) => r.label.length));
   const lines = [
     `Jisho startup trace — ${rows.length} step(s), t=0 at activation`,
@@ -168,7 +168,7 @@ export const formatTrace = (): string => {
   // the two are indistinguishable and the blame lands on whatever span happened to be open.
   if (lagSamples.length > 0) {
     const total = lagSamples.reduce((sum, s) => sum + s.lag, 0);
-    const worst = [...lagSamples].sort((a, b) => b.lag - a.lag).slice(0, 10);
+    const worst = lagSamples.toSorted((a, b) => b.lag - a.lag).slice(0, 10);
     lines.push(
       "",
       `event-loop stalls: ${lagSamples.length} over ${LAG_FLOOR}ms, ${total}ms blocked in total`,

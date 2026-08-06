@@ -68,13 +68,10 @@ export const radicalLookup = (store: SqliteStore): RadicalLookup => {
     const selectedSets = selected
       .map((r) => kanji.get(r))
       .filter((s): s is Set<string> => s !== undefined);
-    let matchSet: Set<string> | null = null;
-    if (selectedSets.length > 0) {
-      matchSet = new Set(selectedSets[0]);
-      for (const s of selectedSets.slice(1)) {
-        matchSet = new Set([...matchSet].filter((k) => s.has(k)));
-      }
-    }
+    const matchSet: Set<string> | null =
+      selectedSets.length > 0
+        ? selectedSets.reduce((acc, s) => acc.intersection(s))
+        : null;
 
     // A radical stays enabled if adding it to the current match set keeps something. With nothing
     // selected, all radicals are enabled (empty list signals that to the UI).

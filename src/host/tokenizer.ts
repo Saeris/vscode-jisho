@@ -189,10 +189,7 @@ export const segment = async (text: string): Promise<DetailedSegment[]> => {
       reading: feature(details, IPADIC_READING),
       pos
     };
-    // Explicit length guard so `prev` is genuinely defined-or-undefined (index access is
-    // otherwise typed non-null with noUncheckedIndexedAccess off).
-    const prev =
-      segments.length > 0 ? segments[segments.length - 1] : undefined;
+    const prev = segments.at(-1);
     // Fold auxiliaries and suffixal する / inflectional suffixes onto the previous content
     // segment, so a "segment" is a searchable unit (勉強する, not 勉強 + し + ます).
     const isSuffix =
