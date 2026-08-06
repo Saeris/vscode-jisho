@@ -70,6 +70,16 @@
   padding-top: 8px;
 }
 
+/*
+ * A browse list is up to 2000 rows (the `browse()` cap), so off-screen rows are skipped until they
+ * scroll near the viewport. Without it, every restyle relayouts the whole list: measured at 380px
+ * over 2000 rows, 35.6ms -> 6.1ms.
+ *
+ * `auto` on the intrinsic size, not a bare length: Chromium then remembers each row's real height
+ * once measured and uses 56px only for rows it has never rendered, so the scroll height converges on
+ * the true one (verified: 137545px initially, exactly 112000px once scrolled through). A bare
+ * `100% 56px` collapses the scroll height instead — do not use it here.
+ */
 .item {
   display: flex;
   flex-direction: column;
@@ -77,6 +87,8 @@
   padding: 6px 4px;
   border-bottom: 1px solid var(--jisho-border);
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 
 .item[data-focused],
@@ -225,6 +237,9 @@
   padding: 6px 4px;
   border-bottom: 1px solid var(--jisho-border);
   cursor: pointer;
+  /* Same reasoning as `.item` above; measured at 57px for the taller kanji glyph. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 57px;
 }
 
 .kanjiItem[data-focused],

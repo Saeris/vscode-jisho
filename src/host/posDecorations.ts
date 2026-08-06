@@ -25,6 +25,13 @@ import {
 /** Languages we colour. Prose formats — this is a syntax highlighter for text, not for code. */
 export const DECORATED_LANGUAGES = ["markdown", "plaintext"];
 
+/**
+ * How long typing must pause before the colouring repaints. Long enough to sit between keystrokes
+ * at any realistic typing speed — including kana input, where one character is several keystrokes —
+ * and short enough that the repaint reads as part of stopping rather than as a lag.
+ */
+const REFRESH_DELAY_MS = 150;
+
 const isDecorated = (document: vscode.TextDocument): boolean =>
   DECORATED_LANGUAGES.includes(document.languageId);
 
@@ -146,12 +153,38 @@ export class PosDecorator {
   #enabled: boolean;
   /** Per-editor generation counter: a newer pass invalidates an in-flight older one. */
   readonly #generation = new Map<string, number>();
+  /** Pending `refreshSoon` timers, keyed like `#generation`. */
+  readonly #pending = new Map<string, ReturnType<typeof setTimeout>>();
   #disposed = false;
 
   constructor() {
     this.#paletteId = readPalette();
     this.#enabled = readEnabled();
     this.#decorations = createDecorations(this.#paletteId);
+  }
+
+  /**
+   * Coalesce edits: repaint once the typing pauses, rather than per keystroke.
+   *
+   * Only the TEXT-CHANGE trigger goes through here. Scrolling and editor visibility stay on
+   * `refresh` because there the delay would be visible as uncoloured text the reader is already
+   * looking at, whereas mid-word colouring is churn nobody reads.
+   *
+   * The generation counter already stops a superseded pass cheaply (~3.6ms of an otherwise ~219ms
+   * viewport pass), so this is about the repaint that lands the moment typing stops, not about
+   * runaway work.
+   */
+  refreshSoon(editor: vscode.TextEditor, delayMs = REFRESH_DELAY_MS): void {
+    if (this.#disposed) return;
+    const key = editor.document.uri.toString();
+    clearTimeout(this.#pending.get(key));
+    this.#pending.set(
+      key,
+      setTimeout(() => {
+        this.#pending.delete(key);
+        void this.refresh(editor);
+      }, delayMs)
+    );
   }
 
   /**
@@ -223,6 +256,10 @@ export class PosDecorator {
 
   dispose(): void {
     this.#disposed = true;
+    // Before disposing the decoration types: a pending timer would otherwise wake up and call
+    // `setDecorations` with types that no longer exist.
+    for (const timer of this.#pending.values()) clearTimeout(timer);
+    this.#pending.clear();
     this.#disposeDecorations();
     this.#generation.clear();
   }

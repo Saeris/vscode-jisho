@@ -23,6 +23,19 @@ const setup = (): {
 };
 
 describe("tag search field", () => {
+  it("keeps the spellchecker off the query box", () => {
+    // WHY: a query is Japanese, a romaji reading, or a `#tag` — never English prose, so left on the
+    // spellchecker red-underlines effectively every search typed. `Autocomplete` sets this for us
+    // today, which is exactly why it is worth a test: nothing in THIS file would show up as broken
+    // if a version bump stopped doing it, and the field is a contenteditable div rather than an
+    // <input>, where the attribute is the only thing turning it off.
+    setup();
+    expect(screen.getByRole("searchbox")).toHaveAttribute(
+      "spellcheck",
+      "false"
+    );
+  });
+
   it("opens the suggestions on # and narrows them as you type", async () => {
     // WHY (#27): typing `#` is the discovery path for someone who does not know the tag
     // vocabulary. It has to offer the list, then narrow it — otherwise the only way to find a tag

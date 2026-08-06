@@ -137,8 +137,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (!DECORATED_LANGUAGES.includes(event.document.languageId)) return;
       for (const editor of vscode.window.visibleTextEditors) {
+        // Debounced: mid-word colouring is churn, and the pass is a tokenizer call per visible line.
+        // The other three triggers stay immediate — see `refreshSoon`.
         if (editor.document === event.document)
-          void posDecorator.refresh(editor);
+          posDecorator.refreshSoon(editor);
       }
     }),
     vscode.window.onDidChangeVisibleTextEditors(() => {

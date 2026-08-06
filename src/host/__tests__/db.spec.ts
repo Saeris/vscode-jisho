@@ -751,6 +751,84 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(kanji.map((k) => k.literal)).toContain("食");
   });
 
+  test("returns every kanji of a multi-character query, in query order", async () => {
+    // WHY: searching 図書館 is asking about all three characters, and the Kanji section is read
+    // alongside the word — so it must list them in the order they appear in the word, not in
+    // whatever order the rows come back from SQLite. The hydrator re-sorts to the caller's order
+    // precisely because `IN (...)` does not preserve it: asked for 図書館, SQLite returns 図 学 語
+    // -shaped index order for a mixed set.
+    const kanji = await dict.searchKanji("図書館");
+    expect(kanji.map((k) => k.literal)).toEqual(["図", "書", "館"]);
+  });
+
+  test("keeps the first position of a repeated character", async () => {
+    // WHY: 日本日 must not render 日 twice — a duplicate row reads as a data bug — and the survivor
+    // is the FIRST occurrence, so the section still tracks the order the reader sees.
+    const kanji = await dict.searchKanji("日本日");
+    expect(kanji.map((k) => k.literal)).toEqual(["日", "本"]);
+  });
+
+  test("drops CJK characters that have no kanji entry", async () => {
+    // WHY: 龘 is a real CJK ideograph that Kanjidic does not carry. It must vanish from the section
+    // rather than render an empty row. This is the case the removed per-character existence query
+    // used to handle; hydration drops unknown literals on its own, and this pins that.
+    const kanji = await dict.searchKanji("語龘学");
+    expect(kanji.map((k) => k.literal)).toEqual(["語", "学"]);
+  });
+
+  test("returns nothing when no character of the query is a known kanji", async () => {
+    // WHY: an all-unknown query must produce an empty section, not a section of blank rows.
+    await expect(dict.searchKanji("龘")).resolves.toEqual([]);
+  });
+
+  test("ignores iteration marks and kana mixed into a kanji query", async () => {
+    // WHY: 人々 is one word to a reader but 々 has no kanji entry, so only 人 is a lookup target.
+    // Kana in the same query (人と本) is likewise not a kanji.
+    expect((await dict.searchKanji("人々")).map((k) => k.literal)).toEqual([
+      "人"
+    ]);
+    expect((await dict.searchKanji("人と本")).map((k) => k.literal)).toEqual([
+      "人",
+      "本"
+    ]);
+  });
+
+  test("caps a long kanji query at the limit, before hydrating", async () => {
+    // WHY: the section is a sidebar list, not a dump of every character in a pasted sentence. The
+    // cap is asserted at BOTH the explicit limit and the default, because a cap applied only when
+    // the caller names one still floods the section on the path the UI actually uses.
+    const capped = await dict.searchKanji("日本人学生図書館語食", 3);
+    expect(capped.map((k) => k.literal)).toEqual(["日", "本", "人"]);
+
+    // Ten distinct kanji against the default limit of 8.
+    const defaulted = await dict.searchKanji("日本人学生図書館語食");
+    expect(defaulted).toHaveLength(8);
+  });
+
+  test("counts a surrogate-pair character as one character", async () => {
+    // WHY: 𠮷 (U+20BB7) is two UTF-16 units. Iterating by unit rather than code point would split
+    // it into two lone surrogates. Neither half is matched by the kanji class, so the visible
+    // result is the same either way — what this pins is that the SPLIT does not corrupt the
+    // characters around it, which is where a unit-wise walk actually goes wrong.
+    await expect(dict.searchKanji("\u{20BB7}")).resolves.toEqual([]);
+    expect(
+      (await dict.searchKanji("語\u{20BB7}学")).map((k) => k.literal)
+    ).toEqual(["語", "学"]);
+    // Kanji beyond the BMP are out of scope for CJK-query lookup regardless: `isKanjiChar` covers
+    // U+3400-U+9FFF and the compatibility block, so the eight ext-B literals the dictionary does
+    // carry (𠮟 and friends) are reachable by browse, never by typing them here.
+  });
+
+  test("hydrates the same fields however the kanji was found", async () => {
+    // WHY: a kanji reached by CJK query and the same kanji reached by meaning are the same thing
+    // arrived at two ways (the shared `kanjiResults` hydrator) — the row must not differ.
+    const [viaLiteral] = await dict.searchKanji("食");
+    const viaMeaning = (await dict.searchKanji("eat")).find(
+      (k) => k.literal === "食"
+    );
+    expect(viaLiteral).toEqual(viaMeaning);
+  });
+
   test("returns no kanji section for a kana query", async () => {
     // WHY: kana queries (たべる) are word searches; they must not populate the Kanji section.
     await expect(dict.searchKanji("たべる")).resolves.toEqual([]);

@@ -392,23 +392,15 @@ export const searchKanji = async (
     );
     literals = rows.map((r) => r.kanji);
   } else {
-    // Each distinct CJK character of the query, in order, that is a known kanji. Look up the
-    // character directly against `kanji_characters` (PK on `literal`) — the search_terms index
-    // is on `term`, not `kanji`, so an IN-over-kanji query would full-scan.
+    // Each distinct CJK character of the query, in order. Candidates are passed through unchecked:
+    // `kanjiResults` already drops any literal `kanji_characters` does not have, so a separate
+    // existence query per character only asks the same question twice.
     // Array.from iterates by code point, so multi-unit characters stay intact.
     const seen = new Set<string>();
-    const chars = Array.from(query)
+    literals = Array.from(query)
       .filter((c) => isKanjiChar(c) && !seen.has(c) && seen.add(c))
       .slice(0, limit);
-    if (chars.length === 0) return [];
-    literals = [];
-    for (const c of chars) {
-      const hit = await store.get<{ literal: string }>(
-        "SELECT literal FROM kanji_characters WHERE literal = ?",
-        c
-      );
-      if (hit) literals.push(hit.literal);
-    }
+    if (literals.length === 0) return [];
   }
 
   return kanjiResults(store, literals);
