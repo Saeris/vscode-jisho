@@ -1,9 +1,13 @@
 /**
  * Japanese morphological analysis via Lindera (Vibrato/MeCab-quality). Wraps the `lindera-nodejs`
- * NAPI binding (through the `vendor/lindera-nodejs` loader shim — the published package is broken,
- * see docs/specs/14) behind a small typed service. Lazy-initialized via a dynamic `import()`: the
- * native addon load + IPADIC dictionary read (~200ms) are paid on the first Japanese query, never
- * at activation.
+ * NAPI binding behind a small typed service. Lazy-initialized via a dynamic `import()`: the native
+ * addon load + IPADIC dictionary read (~200ms) are paid on the first Japanese query, never at
+ * activation.
+ *
+ * This used to import a local `vendor/lindera-nodejs` shim, because the published package shipped
+ * without the napi-generated entry point that resolves its per-platform `.node` (docs/specs/14).
+ * Fixed upstream in 5.0.0, whose own loader covers more targets than ours did (musl, universal
+ * darwin), so the shim is gone and this imports the package directly.
  *
  * We own this integration layer (POS normalization, サ変-compound coalescing, the Segment DTO); the
  * lattice algorithm itself is Lindera's. The IPADIC dictionary is NOT embedded (unlike the old WASM
@@ -14,7 +18,7 @@
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { Tokenizer as LinderaTokenizer } from "../../vendor/lindera-nodejs/index.mjs";
+import type { Tokenizer as LinderaTokenizer } from "lindera-nodejs";
 import type { PartOfSpeech, SegmentDto } from "../shared/messages";
 
 /** A built tokenizer instance (the class is a value; this is its instance type). */
@@ -77,14 +81,23 @@ export const configureTokenizer = (compiledDictDir: string): void => {
 };
 
 /**
- * Build the tokenizer once and reuse. Loaded via dynamic `import()` (not a top-level import) so the
- * native addon + IPADIC dictionary are resident only once a Japanese query needs them. Reads the
- * dictionary from the path set by `configureTokenizer`; falls back to the repo `assets/` copy so
- * unit tests (which never call `configureTokenizer`) resolve the dev dictionary.
+ * Build the tokenizer once and reuse. Reads the dictionary from the path set by
+ * `configureTokenizer`; falls back to the repo `assets/` copy so unit tests (which never call
+ * `configureTokenizer`) resolve the dev dictionary.
+ *
+ * The dynamic `import()` is worth less than it looks and is kept for one specific reason. Measured:
+ * importing the package is **9ms** (it loads the native `.node`), while `loadDictionary()` is
+ * **39ms** — and that stays lazy either way, because it happens here rather than at module scope.
+ * What the dynamic form buys is that `extension.ts` imports THIS module at activation, so a
+ * top-level `import "lindera-nodejs"` would load the addon for every user on every activation,
+ * including those who never type Japanese. 9ms unconditionally is a poor trade for syntax.
+ *
+ * (`import defer` would express this better — static syntax, evaluation on first access — but it is
+ * TC39 stage 3 and Node 26 does not support it outside a V8 flag. Revisit when it ships.)
  */
 const getTokenizer = async (): Promise<Tokenizer> => {
   cached ??= (async (): Promise<Tokenizer> => {
-    const lindera = await import("../../vendor/lindera-nodejs/index.mjs");
+    const lindera = await import("lindera-nodejs");
     // Dev/test fallback: the repo-local compiled dictionary (produced/vendored under assets/).
     const dir = dictPath ?? join(process.cwd(), "assets", "lindera-ipadic");
     const dictionary = lindera.loadDictionary(dir);

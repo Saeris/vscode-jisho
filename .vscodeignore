@@ -40,7 +40,8 @@ assets/**
 # Exclude node_modules by default, but the neverBundle'd runtime packages must ship in the
 # .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .node).
 node_modules/**
-!node_modules/@tursodatabase/**
-# The lindera-nodejs loader shim lives in vendor/, but the platform .node packages it resolves
-# must ship (only the current platform's is present after per-target packaging).
+# `lindera-nodejs` resolves a per-platform `.node` at runtime, so both it and the platform package
+# must ship (only the current platform's is present after per-target packaging). The database needs
+# no entry: it is Node's built-in `node:sqlite`.
+!node_modules/lindera-nodejs/**
 !node_modules/lindera-nodejs-*/**

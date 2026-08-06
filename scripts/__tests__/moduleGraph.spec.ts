@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
  * merge. The failure was therefore invisible until it was already on the default branch.
  *
  * Checking resolvability rather than "does it end in .ts" keeps this about the property that matters
- * — `../../vendor/lindera-nodejs/index.mjs` is fine precisely because it resolves.
+ * — a bare package specifier like `lindera-nodejs` is fine precisely because it resolves.
  */
 
 const repoRoot = resolve(import.meta.dirname, "../..");

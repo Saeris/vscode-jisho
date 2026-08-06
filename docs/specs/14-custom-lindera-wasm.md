@@ -190,3 +190,18 @@ Result: `wasm-pack build --release --target=nodejs -- --features=embed-ipadic` *
 - Bundle-size delta measured (expect ≤ current 13 MB, ipadic-only).
 - Each user-dict entry has a corpus sentence proving it tokenizes, plus a guard it doesn't mis-fire.
 - CI builds the WASM reproducibly; the release gate depends on it.
+
+---
+
+## Resolved (2026-08-05): the shim is gone, upstream fixed it
+
+`lindera-nodejs@5.0.0` ships a working package, so `vendor/lindera-nodejs/` has been **deleted** and `tokenizer.ts` imports `lindera-nodejs` directly.
+
+Both defects this spec recorded are fixed upstream:
+
+- **The missing entry point.** 5.0.0's tarball ships `index.js` + `index.d.ts` (`files: ["index.js","index.d.ts"]`), and its loader is _more_ complete than our ~30-line shim — 727 lines covering musl, universal-darwin and loong64, where ours handled only the four gnu/msvc targets we ship.
+- **The `require`-only exports map** (the "secondary staleness" note above). 5.0.0 declares a full map — `{".": {"types","import","require","default"}}` — so `await import("lindera-nodejs")` works with no `createRequire` dance, which is exactly what the shim existed to provide.
+
+The dictionary was rebuilt to 5.0.0 in the same change (the serialized format is version-locked to the lindera core), and `build-tokenizer-dict.ts` now compares the VERSION marker's CONTENTS rather than merely its existence, so a future bump cannot silently leave a stale dictionary in place.
+
+The custom-WASM path for the web extension (spec 06) is unaffected — that decision stands on its own.

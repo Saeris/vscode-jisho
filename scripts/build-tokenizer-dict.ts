@@ -17,6 +17,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -32,7 +33,7 @@ const SLANG_SRC = join(root, "src", "data", "slang-userdict.csv");
 const SLANG_DEST = join(OUT_DIR, "slang-userdict.csv");
 
 // Pinned to the lindera-nodejs version in package.json (dictionary format is version-locked).
-const LINDERA_VERSION = "4.0.1";
+const LINDERA_VERSION = "5.0.0";
 const DICT_URL = `https://github.com/lindera/lindera/releases/download/v${LINDERA_VERSION}/lindera-ipadic-${LINDERA_VERSION}.zip`;
 
 // The 8 files load_dictionary_from_bytes / loadDictionary expect (the compiled dictionary dir).
@@ -101,12 +102,26 @@ const copySlang = (): void => {
 
 // Skip the DOWNLOAD when the dictionary is already present at the pinned version (idempotent, fast),
 // but always refresh the slang copy (a cheap file copy of committed source).
+//
+// The marker's CONTENTS are compared, not merely its existence: the serialized dictionary format is
+// version-locked to the lindera core, so a bump here must re-fetch or the tokenizer throws
+// `InvalidAutomatonError` at runtime. Checking only for the file left a stale dictionary in place
+// across the 4.0.1 -> 5.0.0 bump, which is a silent failure until something tokenizes.
 const versionMarker = join(OUT_DIR, "VERSION");
-if (existsSync(versionMarker)) {
+const provisioned = existsSync(versionMarker)
+  ? readFileSync(versionMarker, "utf8").trim()
+  : undefined;
+if (provisioned === LINDERA_VERSION) {
   console.log(
-    `assets/lindera-ipadic/ already provisioned; delete it to re-fetch.`
+    `assets/lindera-ipadic/ already at ${LINDERA_VERSION}; delete it to re-fetch.`
   );
 } else {
+  if (provisioned !== undefined) {
+    console.log(
+      `assets/lindera-ipadic/ holds ${provisioned}, but ${LINDERA_VERSION} is pinned — re-fetching.`
+    );
+    rmSync(OUT_DIR, { recursive: true, force: true });
+  }
   await main();
 }
 copySlang();

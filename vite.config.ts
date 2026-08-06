@@ -173,11 +173,11 @@ export default defineConfig({
     outDir: `./dist`,
     deps: {
       // `vscode` is provided by the host at runtime — never bundle it.
-      // `lindera-nodejs` (via our vendor shim) loads a platform-specific .node addon
-      // by package name at runtime, so the shim and the `lindera-nodejs-*` platform
-      // packages must stay unbundled in node_modules.
+      // `lindera-nodejs` loads a platform-specific .node addon by package name at
+      // runtime, so it and the `lindera-nodejs-*` platform packages must stay
+      // unbundled in node_modules.
       // (The database needs no entry here: `node:sqlite` is a built-in module.)
-      neverBundle: ["vscode", /lindera-nodejs/, /vendor\/lindera-nodejs/],
+      neverBundle: ["vscode", /lindera-nodejs/],
       alwaysBundle: []
     }
   },

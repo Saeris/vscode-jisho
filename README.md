@@ -120,7 +120,7 @@ IPADIC misses some slang (きもい, うざい, エモい …), which the lattic
 
 ### Regenerating the tokenizer binary (rare, needs Rust)
 
-We do **not** build the tokenizer binary — we consume the prebuilt `lindera-nodejs` from npm. The published package is currently broken (its npm tarball is missing its entry point; [upstream issue][lindera-issue]), so a small loader shim lives in [`vendor/lindera-nodejs/`](vendor/lindera-nodejs/); remove it once upstream ships a working release. Only if we ever needed a _custom_ build (e.g. a WASM build for a future web extension, or a lindera version bump) would Rust + `wasm-pack` enter the toolchain — the investigation and recipe are in [`docs/specs/14`](docs/specs/14-custom-lindera-wasm.md). The dictionary version is **pinned** to the `lindera-nodejs` package version (the compiled format is version-locked), so bump both together.
+We do **not** build the tokenizer binary — we consume the prebuilt `lindera-nodejs` from npm. (Through 4.x its npm tarball was missing the entry point that resolves the per-platform `.node`, so a loader shim lived in `vendor/`; upstream fixed that in 5.0.0 and the shim is gone.) Only if we ever needed a _custom_ build (e.g. a WASM build for a future web extension) would Rust + `wasm-pack` enter the toolchain — the investigation and recipe are in [`docs/specs/14`](docs/specs/14-custom-lindera-wasm.md). The dictionary version is **pinned** to the `lindera-nodejs` package version (the compiled format is version-locked), so bump both together.
 
 ## 📣 Data sources & attribution
 
@@ -182,7 +182,6 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [node-sqlite]: https://nodejs.org/api/sqlite.html
 [lindera]: https://github.com/lindera/lindera
-[lindera-issue]: https://github.com/lindera/lindera/issues
 [viteplus]: https://viteplus.dev/
 [bumpy]: https://bumpy.varlock.dev/
 [license]: ./LICENSE.md
