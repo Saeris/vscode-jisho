@@ -38,6 +38,21 @@
 }
 
 /*
+ * The chip currently filtering the results (#16). `data-selected` is React Aria's own state
+ * attribute, set by ToggleButtonGroup.
+ *
+ * Inverted — the POS colour becomes the ground — rather than merely a stronger border. The
+ * unselected chips already use their colour on the border, so "more border" reads as hover, and the
+ * one piece of state a filter must make unmistakable is WHICH chip is on. `--jisho-bg` for the text
+ * keeps the pairing legible in any theme, since the palette is tuned against that background.
+ */
+.chip[data-selected] {
+  background: var(--pos-color, var(--jisho-active-bg));
+  border-color: var(--pos-color, var(--jisho-active-bg));
+  color: var(--jisho-bg);
+}
+
+/*
  * Non-content segments (particles, auxiliaries): static text, not tappable — but no longer dimmed
  * to grey. An uncoloured word is not neutral, it is ambiguous: several palette colours desaturate
  * toward grey under dichromacy, so "no category" becomes confusable with "some category"

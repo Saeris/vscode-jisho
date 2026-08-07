@@ -43,6 +43,12 @@ export interface Navigation {
   searchFor: (term: string) => void;
   appendToSearch: (char: string) => void;
   setSearchQuery: (query: string) => void;
+  /**
+   * Filter the results to one breakdown chip, or `null` for the whole sentence (#16). Not a
+   * navigation, but it lives here because the selection lives in the machine's context — for the
+   * same reason `searchQuery` does, so Back returns to the filtered view.
+   */
+  selectSegment: (index: number | null) => void;
 }
 
 const NavigationContext = createContext<Navigation | undefined>(undefined);
@@ -75,7 +81,8 @@ export const makeNavigation = (
   home: canGoHome ? (): void => send({ type: "home" }) : undefined,
   searchFor: (term): void => send({ type: "searchFor", term }),
   appendToSearch: (char): void => send({ type: "appendToSearch", char }),
-  setSearchQuery: (query): void => send({ type: "setSearchQuery", query })
+  setSearchQuery: (query): void => send({ type: "setSearchQuery", query }),
+  selectSegment: (index): void => send({ type: "selectSegment", index })
 });
 
 export const NavigationProvider = ({

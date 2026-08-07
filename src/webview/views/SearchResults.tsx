@@ -27,13 +27,21 @@ interface SearchResultsProps {
    * than one handed it. Data down, actions through the hook.
    */
   query: string;
+  /**
+   * Which breakdown chip is filtering the results, or null for the whole sentence (#16). Owned by
+   * the navigation machine for the same reason `query` is: Back from a word must return to the
+   * filtered view rather than silently to the unfiltered one.
+   */
+  selectedSegment: number | null;
 }
 
 export const SearchResults = ({
-  query
+  query,
+  selectedSegment
 }: SearchResultsProps): React.ReactElement => {
   const {
     setSearchQuery: onQueryChange,
+    selectSegment,
     openWord: onOpenWord,
     openKanji: onOpenKanji,
     openName: onOpenName,
@@ -164,6 +172,29 @@ export const SearchResults = ({
   const kanji = data?.kanji ?? [];
   const nameResults = names ?? [];
   const segments = data?.segments ?? [];
+
+  /**
+   * Narrow the results to the selected breakdown chip (#16).
+   *
+   * Client-side over the results already fetched, like the tag filter above — and here it costs
+   * nothing extra, because the host already searched for every content lemma at once: `search`
+   * passes all of them as deinflection candidates, so 図書館に行きました returns entries for both
+   * 図書館 and 行く in one response. Selecting a chip picks a subset of what is on screen, which is
+   * why switching between chips is instant and needs no round trip.
+   *
+   * Matched against the PRIMARY headword and reading only. Matching any writing pulls in unrelated
+   * entries that merely share a form — measured on 私, where the loose rule also returns 妾 and 儂.
+   *
+   * An out-of-range index (restored from a previous session, before this query's segments existed)
+   * simply matches nothing to filter by and leaves the results alone.
+   */
+  const activeSegment =
+    selectedSegment === null ? undefined : segments[selectedSegment];
+  if (activeSegment !== undefined) {
+    const { lemma } = activeSegment;
+    words = words.filter((w) => w.headword === lemma || w.reading === lemma);
+  }
+
   const count = data ? words.length + kanji.length : undefined;
 
   // ListBox in single-selection mode opens on Enter via onAction; keep selection uncontrolled.
@@ -254,7 +285,11 @@ export const SearchResults = ({
       </div>
 
       {segments.length > 0 ? (
-        <SegmentBar segments={segments} onSelectSegment={onQueryChange} />
+        <SegmentBar
+          segments={segments}
+          selected={selectedSegment}
+          onSelectSegment={selectSegment}
+        />
       ) : null}
 
       {/* Tags count as a query even with no text — they ARE the filter — so the empty view only

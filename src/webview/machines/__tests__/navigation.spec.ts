@@ -9,6 +9,7 @@ import {
   navigationMachine,
   navigationMachineFrom
 } from "../navigation";
+import type { View } from "../navigation";
 
 describe("navigationMachine", () => {
   it("starts on the search view with no back available", () => {
@@ -333,7 +334,8 @@ describe("hydrateContext", () => {
       expect(hydrateContext(junk)).toEqual({
         stack: [{ name: "search" }],
         forwardStack: [],
-        searchQuery: ""
+        searchQuery: "",
+        selectedSegment: null
       });
     }
   });
@@ -345,6 +347,52 @@ describe("hydrateContext", () => {
     });
     expect(activeView(restored)).toEqual({ name: "about" });
     expect(restored.searchQuery).toBe("");
+  });
+
+  it("restores EVERY view in the union, not just the ones that predate browse", () => {
+    // WHY: the allowlist is a hand-maintained string set, so a view added to `View` without being
+    // added there is not a type error — it silently makes that view unrestorable and dumps the user
+    // back to a fresh search on the next reload. `browse` and `wordList` were exactly that between
+    // #54 shipping and 2026-08-06. Asserting the whole union is what makes the next omission fail.
+    const everyView: View[] = [
+      { name: "search" },
+      { name: "wordDetail", id: "1" },
+      { name: "moreExamples", id: "1" },
+      { name: "kanjiDetail", literal: "水" },
+      { name: "strokeOrder", literal: "水" },
+      { name: "componentTree", literal: "水" },
+      { name: "nameDetail", id: "1" },
+      { name: "browse", group: "jlpt" },
+      { name: "wordList", id: "jlpt-n5" },
+      { name: "radicals", preselect: ["水"] },
+      { name: "handwriting" },
+      { name: "about" }
+    ];
+    for (const view of everyView.slice(1)) {
+      const restored = hydrateContext({
+        stack: [{ name: "search" }, view],
+        searchQuery: ""
+      });
+      expect(activeView(restored)).toEqual(view);
+    }
+  });
+
+  it("restores the breakdown filter, and treats a pre-#16 context as unfiltered", () => {
+    // WHY: the selection is persisted so Back from a word returns to the FILTERED results. State
+    // written before this field existed simply has none, and must restore as "no filter" rather
+    // than discarding the whole session.
+    const filtered = hydrateContext({
+      stack: [{ name: "search" }],
+      searchQuery: "図書館に行く",
+      selectedSegment: 2
+    });
+    expect(filtered.selectedSegment).toBe(2);
+
+    const legacy = hydrateContext({
+      stack: [{ name: "search" }],
+      searchQuery: "図書館に行く"
+    });
+    expect(legacy.selectedSegment).toBeNull();
   });
 });
 

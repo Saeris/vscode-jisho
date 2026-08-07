@@ -1,12 +1,12 @@
 import type { ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import type { NavEvent } from "../../machines/navigation";
 import { SearchResults } from "../SearchResults";
-import type { SearchResultDto } from "../../../shared/messages";
+import type { SearchResultDto, SegmentDto } from "../../../shared/messages";
 
 // Mock the query layer so results are deterministic and synchronous — this test is about the
 // keyboard-navigation + rendering wiring (BACKLOG #12), not the bridge/host round-trip.
@@ -42,10 +42,14 @@ vi.mock("../../bridge", () => ({
   }))
 }));
 
+// The breakdown bar only renders when the host returns segments, which it does for a multi-word
+// Japanese query. Mutable so a single test can turn it on without a second mock factory.
+const segments = vi.hoisted(() => ({ current: [] as SegmentDto[] }));
+
 vi.mock("../../queries", () => ({
   searchQuery: (query: string) => ({
     queryKey: ["search", query],
-    queryFn: () => ({ words, kanji: [], segments: [] }),
+    queryFn: () => ({ words, kanji: [], segments: segments.current }),
     enabled: query.trim().length > 0
   }),
   namesQuery: (query: string) => ({
@@ -82,7 +86,9 @@ const renderView = (
   const wrapper = (ui: ReactElement): ReactElement => (
     <QueryClientProvider client={client}>{ui}</QueryClientProvider>
   );
-  return render(wrapper(<SearchResults query="食べる" {...props} />)).sent;
+  return render(
+    wrapper(<SearchResults query="食べる" selectedSegment={null} {...props} />)
+  ).sent;
 };
 
 describe("search results (rendering + query wiring)", () => {
@@ -157,5 +163,58 @@ describe("search results keyboard hand-off", () => {
 
     await userEvent.keyboard("{ArrowUp}");
     expect(document.activeElement).toBe(screen.getByRole("searchbox"));
+  });
+});
+
+describe("breakdown filter (#16)", () => {
+  // A two-content-word sentence, which is what makes the host emit segments at all. 食べる matches
+  // one of the mocked results by headword; 食う matches the other.
+  const sentence: SegmentDto[] = [
+    { surface: "食べる", lemma: "食べる", reading: "タベル", pos: "verb" },
+    { surface: "や", lemma: "や", reading: "ヤ", pos: "particle" },
+    { surface: "食う", lemma: "食う", reading: "クウ", pos: "verb" }
+  ];
+
+  // The mock's segments are module-level and mutable, so hand them back rather than leaving the
+  // breakdown bar rendered for every other spec in this file.
+  afterEach(() => {
+    segments.current = [];
+  });
+
+  // Assert against the RESULT rows, not raw text: with the bar rendered, every headword also
+  // appears as a chip, so `getByText("食う")` matches both and cannot tell them apart.
+  const headwords = (): string[] =>
+    [...document.querySelectorAll('[role="option"]')].map(
+      (o) => o.textContent ?? ""
+    );
+
+  it("shows every result when no chip is selected", async () => {
+    // WHY: the baseline the filter is measured against — an unselected bar must not narrow
+    // anything, or the breakdown would silently hide results just by appearing.
+    segments.current = sentence;
+    renderView({ selectedSegment: null });
+    await screen.findAllByText("食べる");
+    expect(headwords()).toHaveLength(2);
+  });
+
+  it("narrows the results to the selected chip's word", async () => {
+    // WHY: this IS the feature. Selecting 食べる must leave 食べる and drop 食う — filtering the
+    // sentence in place, where the old behaviour re-searched and destroyed the sentence entirely.
+    segments.current = sentence;
+    renderView({ selectedSegment: 0 });
+    await screen.findAllByText("食べる");
+    const shown = headwords();
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toContain("食べる");
+  });
+
+  it("leaves the results alone when the selection is past the end", async () => {
+    // WHY: the index is restored from a previous session and is only meaningful against the current
+    // query's segments. A stale index must degrade to "no filter", not to an empty list the user
+    // cannot explain or clear.
+    segments.current = sentence;
+    renderView({ selectedSegment: 99 });
+    await screen.findAllByText("食べる");
+    expect(headwords()).toHaveLength(2);
   });
 });

@@ -58,12 +58,25 @@ export interface NavContext {
    * cache restores its results.
    */
   searchQuery: string;
+  /**
+   * Which breakdown chip is filtering the results (#16), as an index into the search response's
+   * `segments`; null when the whole sentence is showing.
+   *
+   * Held here for the same reason as `searchQuery`: tapping a chip then opening a result and
+   * pressing Back must return to the filtered view, not silently to the unfiltered one.
+   *
+   * An INDEX rather than the lemma, because a sentence can repeat a word (行って…行く) and the two
+   * chips are separately selectable. It is only meaningful against the segments of the current
+   * query, so every action that changes the query clears it.
+   */
+  selectedSegment: number | null;
 }
 
 export const freshContext = (): NavContext => ({
   stack: [{ name: "search" }],
   forwardStack: [],
-  searchQuery: ""
+  searchQuery: "",
+  selectedSegment: null
 });
 
 export type NavEvent =
@@ -86,6 +99,8 @@ export type NavEvent =
   | { type: "forward" }
   | { type: "home" }
   | { type: "setSearchQuery"; query: string }
+  /** Filter the results to one breakdown chip, or `null` to show the whole sentence again (#16). */
+  | { type: "selectSegment"; index: number | null }
   /** Jump to the search view with a new query — the tap-through action for cross-references. */
   | { type: "searchFor"; term: string }
   /** Append a character to the query and return to search — the handwriting-pick action. */
@@ -245,14 +260,24 @@ const define = (initial: NavContext, persist: Persist) =>
        */
       clearForward: assign({ forwardStack: () => [] }),
       reset: assign({ stack: () => [{ name: "search" } satisfies View] }),
+      /**
+       * Editing the query invalidates the breakdown selection.
+       *
+       * `selectedSegment` indexes the segments of the query that produced it, and typing produces a
+       * different sentence with a different (or empty) breakdown — so keeping the index would leave
+       * the results filtered by a chip that is no longer on screen. Shared by every action that
+       * changes the query text.
+       */
       setQuery: assign({
         searchQuery: ({ context, event }) =>
-          event.type === "setSearchQuery" ? event.query : context.searchQuery
+          event.type === "setSearchQuery" ? event.query : context.searchQuery,
+        selectedSegment: () => null
       }),
       searchFor: assign({
         stack: () => [{ name: "search" } satisfies View],
         searchQuery: ({ context, event }) =>
-          event.type === "searchFor" ? event.term : context.searchQuery
+          event.type === "searchFor" ? event.term : context.searchQuery,
+        selectedSegment: () => null
       }),
       appendToSearch: assign({
         // Return to the search view and append the chosen character (handwriting → search flow).
@@ -260,7 +285,12 @@ const define = (initial: NavContext, persist: Persist) =>
         searchQuery: ({ context, event }) =>
           event.type === "appendToSearch"
             ? context.searchQuery + event.char
-            : context.searchQuery
+            : context.searchQuery,
+        selectedSegment: () => null
+      }),
+      selectSegment: assign({
+        selectedSegment: ({ context, event }) =>
+          event.type === "selectSegment" ? event.index : context.selectedSegment
       }),
       /**
        * Write the context out after a navigation.
@@ -306,7 +336,11 @@ const define = (initial: NavContext, persist: Persist) =>
       home: { actions: ["reset", "clearForward", "persist"] },
       setSearchQuery: { actions: ["setQuery", "persist"] },
       searchFor: { actions: ["searchFor", "clearForward", "persist"] },
-      appendToSearch: { actions: ["appendToSearch", "clearForward", "persist"] }
+      appendToSearch: {
+        actions: ["appendToSearch", "clearForward", "persist"]
+      },
+      // Filters the current results in place; it does not navigate, so history is untouched.
+      selectSegment: { actions: ["selectSegment", "persist"] }
     }
   });
 
@@ -349,6 +383,9 @@ export const hydrateContext = (persisted: unknown): NavContext => {
   const { stack, searchQuery } = persisted as Partial<NavContext>;
   if (!Array.isArray(stack) || stack.length === 0) return fresh;
 
+  // Must list every member of `View`. A name missing here is not a type error — it silently makes
+  // that view unrestorable, dropping the whole session back to a fresh search on the next reload,
+  // which is how `browse` and `wordList` went unrestorable between #54 shipping and 2026-08-06.
   const names = new Set<string>([
     "search",
     "wordDetail",
@@ -357,6 +394,8 @@ export const hydrateContext = (persisted: unknown): NavContext => {
     "strokeOrder",
     "componentTree",
     "nameDetail",
+    "browse",
+    "wordList",
     "radicals",
     "handwriting",
     "about"
@@ -376,7 +415,7 @@ export const hydrateContext = (persisted: unknown): NavContext => {
   // Forward history is optional: state written before this field existed simply has none, and an
   // unrecognised entry drops the forward history rather than the whole session — losing a redo is
   // a far smaller harm than sending the user back to an empty search.
-  const { forwardStack } = persisted as Partial<NavContext>;
+  const { forwardStack, selectedSegment } = persisted as Partial<NavContext>;
   const forward =
     Array.isArray(forwardStack) && forwardStack.every(isView)
       ? forwardStack
@@ -385,7 +424,14 @@ export const hydrateContext = (persisted: unknown): NavContext => {
   return {
     stack,
     forwardStack: forward,
-    searchQuery: typeof searchQuery === "string" ? searchQuery : ""
+    searchQuery: typeof searchQuery === "string" ? searchQuery : "",
+    // Also optional, and likewise written by builds that predate it. Not range-checked against the
+    // segments it indexes: those come from a query that has not run yet at restore time, and the
+    // view already treats an index past the end as "no filter".
+    selectedSegment:
+      typeof selectedSegment === "number" && selectedSegment >= 0
+        ? selectedSegment
+        : null
   };
 };
 

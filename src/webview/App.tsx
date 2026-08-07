@@ -80,7 +80,10 @@ export const App = (): React.ReactElement => {
           view is active; the query text lives in machine context because tap-through
           (`searchFor`) also writes it. */}
       <Activity mode={view.name === "search" ? "visible" : "hidden"}>
-        <SearchResults query={state.context.searchQuery} />
+        <SearchResults
+          query={state.context.searchQuery}
+          selectedSegment={state.context.selectedSegment}
+        />
       </Activity>
       {view.name === "wordDetail" ? <WordDetail id={view.id} /> : null}
       {view.name === "moreExamples" ? <MoreExamples id={view.id} /> : null}
