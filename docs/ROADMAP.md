@@ -37,7 +37,7 @@ Audited against the code and CI on 2026-08-06.
 
 These are judgement calls, listed in the order they were queued. Cutting any of them delays nothing.
 
-- **BACKLOG #16** — breakdown bar filters the sentence in place instead of re-searching destructively. Queued directly after the tooltip work.
+- ~~**BACKLOG #16** — breakdown bar filters the sentence in place.~~ ✅ shipped 2026-08-06.
 - **BACKLOG #32** — word-detail layout redesign toward Shirabe's definition formatting. A design-review loop with live screenshots, not a one-shot.
 - **BACKLOG #23** — pitch contour overlaid on the kana rather than banded above. The author already judged the band "good enough"; do this only if it grates in use.
 
