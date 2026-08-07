@@ -344,6 +344,28 @@ export interface BrowseRequest {
 }
 
 /**
+ * One kanji browse list (#55) — a JLPT level, a school grade, or the frequency-ranked set.
+ *
+ * Its own request rather than a `browse` with a different id: kanji lists are a SEPARATE taxonomy
+ * from the word classifiers (they filter characters, not words), and sending a `KanjiListId` where
+ * a `Classifier.id` is expected would blur the boundary that keeps a kanji-only filter out of
+ * `#tag` search, where it could never match.
+ */
+export interface KanjiListRequest {
+  type: "kanjiList";
+  requestId: string;
+  /** A `KanjiListId` from shared/classifiers. */
+  id: string;
+}
+
+export interface KanjiListResponse {
+  type: "kanjiList";
+  requestId: string;
+  /** Empty when the id is unknown — a truthful answer rather than an error. */
+  kanji: KanjiResultDto[];
+}
+
+/**
  * Word counts for every classifier, so the browse tree can show how big each category is.
  *
  * One request for all of them rather than one per category: the tree renders ~90 counts at once,
@@ -463,6 +485,7 @@ export type Request =
   | GetWordRequest
   | GetMoreExamplesRequest
   | BrowseRequest
+  | KanjiListRequest
   | BrowseCountsRequest
   | GetKanjiRequest
   | GetStrokeSvgRequest
@@ -689,6 +712,7 @@ export type Response =
   | GetWordResponse
   | GetMoreExamplesResponse
   | BrowseResponse
+  | KanjiListResponse
   | BrowseCountsResponse
   | GetKanjiResponse
   | GetStrokeSvgResponse

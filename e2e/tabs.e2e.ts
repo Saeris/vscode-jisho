@@ -140,3 +140,26 @@ test("returns to the tab you left after the sidebar is collapsed", async () => {
       .getByRole("tab", { name: "Kanji" })
   ).toHaveAttribute("aria-selected", "true");
 });
+
+test("the Kanji tab drills into a JLPT level and opens a character", async () => {
+  // WHY (#55 step 2): the list count is the visible proof the JLPT import landed — N5 is 79 kanji,
+  // asserted in the build and in db.spec, and this checks the number a user actually sees. Tapping
+  // through then confirms the grid reaches a real detail page rather than a dead cell.
+  const frame = await jishoFrame(vscode!.window);
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  await tabs.getByRole("tab", { name: "Kanji" }).click();
+
+  await frame.getByRole("button", { name: "Browse N5 kanji" }).click();
+  await expect(frame.getByText("79 kanji")).toBeVisible();
+  await vscode!.window.screenshot({
+    path: "test-results/shots/27-kanji-n5.png"
+  });
+  // The caveat text, which is the part that stops the counts reading as wrong.
+  await expect(frame.getByText(/per level, not cumulative/)).toBeHidden();
+
+  // 日 leads the list — most frequent first.
+  await frame.getByRole("option").first().click();
+  await expect(tabs).toBeHidden();
+  await frame.getByRole("button", { name: /back/i }).click();
+  await expect(tabs).toBeVisible();
+});

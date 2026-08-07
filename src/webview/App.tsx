@@ -13,6 +13,7 @@ import { NavigationTabs } from "./components/NavigationTabs";
 import { About } from "./views/About";
 import { Browse, BrowseTab } from "./views/Browse";
 import { ComingSoon } from "./views/ComingSoon";
+import { KanjiBrowse } from "./views/KanjiBrowse";
 import { WordList } from "./views/WordList";
 import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
@@ -96,12 +97,7 @@ export const App = (): React.ReactElement => {
               />
             ),
             vocab: <BrowseTab />,
-            kanji: (
-              <ComingSoon
-                title="Kanji"
-                detail="Browsing kanji by grade, JLPT level and frequency is on the way."
-              />
-            ),
+            kanji: <KanjiBrowse />,
             kana: (
               <ComingSoon
                 title="Kana"

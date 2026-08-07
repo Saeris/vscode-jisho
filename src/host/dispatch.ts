@@ -9,7 +9,7 @@
 import * as vscode from "vscode";
 import type { Dictionary } from "./db";
 import { hasKanji } from "../shared/japanese";
-import { CLASSIFIER_BY_ID } from "../shared/classifiers";
+import { CLASSIFIER_BY_ID, isKanjiListId } from "../shared/classifiers";
 import { timed } from "./log";
 import type { NamesDictionary } from "./names";
 import { contentSegmentCount, segment } from "./tokenizer";
@@ -123,6 +123,17 @@ export const respond = async (
         requestId: request.requestId,
         examples: await dict.getMoreExamples(request.id)
       };
+    case "kanjiList": {
+      // Same contract as `browse` below: an unknown id answers empty rather than throwing across
+      // the bridge. `KANJI_LIST_FILTERS` is the allowlist, so only ids defined there reach SQL.
+      return {
+        type: "kanjiList",
+        requestId: request.requestId,
+        kanji: isKanjiListId(request.id)
+          ? await dict.browseKanjiList(request.id)
+          : []
+      };
+    }
     case "browse": {
       // An unknown id is a bad request, not a missing category — but it must not throw across the
       // bridge, so it answers with the same empty shape a genuinely empty category gives.

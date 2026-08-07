@@ -443,3 +443,13 @@ export const KANJI_LIST_FILTERS: Readonly<
   "kanji-jinmeiyo": { sql: "grade IN (9, 10)", params: [] },
   "kanji-frequent": { sql: "frequency IS NOT NULL", params: [] }
 };
+
+/**
+ * Narrow an arbitrary id to a `KanjiListId`.
+ *
+ * The id crosses the webview bridge as a plain string, so the host checks it against the filter
+ * table rather than asserting — an unknown id then answers with an empty list instead of reaching
+ * SQL or throwing across the bridge.
+ */
+export const isKanjiListId = (value: string): value is KanjiListId =>
+  Object.hasOwn(KANJI_LIST_FILTERS, value);

@@ -90,8 +90,12 @@
   font-size: 0.9em;
 }
 
-/* React Aria puts the separator on every crumb but the last. */
-.crumbs > :not(:last-child)::after {
+/*
+ * The separator sits between crumbs, so it goes on every LIST ITEM but the last — `.crumbs`'s
+ * direct children include React Aria's own wrapper, and matching those put a stray "›" before the
+ * first crumb (it rendered as ". Kanji› N5").
+ */
+.crumbs li:not(:last-child)::after {
   content: "›";
   margin-inline-start: 4px;
   color: var(--jisho-muted);

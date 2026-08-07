@@ -6,6 +6,7 @@
 import type {
   GetAboutResponse,
   BrowseResponse,
+  KanjiListResponse,
   BrowseCountsResponse,
   GetKanjiResponse,
   GetMoreExamplesResponse,
@@ -186,6 +187,9 @@ export const browse = async (
   id: string,
   order: "frequency" | "gojuon"
 ): Promise<BrowseResponse> => request("browse", { id, order });
+
+export const kanjiList = async (id: string): Promise<KanjiListResponse> =>
+  request("kanjiList", { id });
 
 export const browseCounts = async (
   applied: string[] = []

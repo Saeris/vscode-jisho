@@ -18,6 +18,7 @@ import type {
 } from "../shared/messages";
 import {
   browse,
+  kanjiList,
   browseCounts,
   getAbout,
   getKanji,
@@ -271,4 +272,18 @@ export const recentSearchesQuery = (): ReturnType<
   queryOptions({
     queryKey: ["recentSearches"],
     queryFn: async () => (await getRecentSearches()).recent
+  });
+
+/**
+ * One kanji browse list (#55). Cached indefinitely by default like the other browse queries — the
+ * lists only change when the dictionary is replaced.
+ */
+export const kanjiListQuery = (
+  id: string
+): ReturnType<
+  typeof queryOptions<KanjiResultDto[], Error, KanjiResultDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["kanjiList", id],
+    queryFn: async () => (await kanjiList(id)).kanji
   });

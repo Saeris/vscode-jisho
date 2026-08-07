@@ -1,0 +1,73 @@
+/* The Kanji tab (#55): group list, then one list's characters as a grid. */
+
+.groupTitle {
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+  margin: 16px 0 6px;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.count {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+}
+
+/*
+ * `auto-fill` with a minimum rather than a fixed column count: the sidebar's width is the user's to
+ * choose, and a fixed count either overflows when narrow or wastes space when wide.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 4px;
+  outline: none;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--jisho-radius);
+  cursor: pointer;
+}
+
+.cell[data-focused],
+.cell[data-hovered] {
+  background: var(--jisho-hover-bg);
+  border-color: var(--jisho-border);
+}
+
+.cell[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+/* The character is the row's identity, so it gets the size; `line-height: 1` keeps the cell tight
+   around it (the glyph cells elsewhere do the same). */
+.literal {
+  font-size: 2em;
+  line-height: 1;
+}
+
+/* One line, clipped: the meaning is orientation, not the content — the detail page has the rest. */
+.meaning {
+  font-size: 0.7em;
+  color: var(--jisho-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
