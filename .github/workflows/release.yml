@@ -68,8 +68,6 @@ jobs:
           BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
           # Personal access token for the VS Code Marketplace publisher.
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          # Personal access token for Open VSX (open-vsx.org).
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
           # Yarn 4 corrupts the tarball path Bumpy captures from stdout if
           # color codes are enabled. NO_COLOR alone is not enough for Yarn 4.
           NO_COLOR: "1"
