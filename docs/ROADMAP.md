@@ -6,15 +6,45 @@ The single consolidated view of where vscode-jisho is going. Every milestone has
 
 ## Milestone sequence
 
-| #   | Theme                          | Status                                     | Plan                     |
-| --- | ------------------------------ | ------------------------------------------ | ------------------------ |
-| M1  | Vocabulary search + detail     | ✅ shipped                                 | [M1-PLAN.md](M1-PLAN.md) |
-| M2  | Search quality                 | ✅ shipped                                 | [M2-PLAN.md](M2-PLAN.md) |
-| M3  | Release — installable v0.1     | ✅ code complete (publish pending secrets) | [M3-PLAN.md](M3-PLAN.md) |
-| M4  | Kanji as first-class           | ✅ shipped                                 | [M4-PLAN.md](M4-PLAN.md) |
-| M5  | Morphology & multi-word search | ✅ shipped                                 | [M5-PLAN.md](M5-PLAN.md) |
-| M6  | Enrichment datasets            | ✅ shipped                                 | [M6-PLAN.md](M6-PLAN.md) |
-| M7  | Stroke order & handwriting     | ✅ shipped                                 | [M7-PLAN.md](M7-PLAN.md) |
+| #   | Theme                          | Status                                 | Plan                     |
+| --- | ------------------------------ | -------------------------------------- | ------------------------ |
+| M1  | Vocabulary search + detail     | ✅ shipped                             | [M1-PLAN.md](M1-PLAN.md) |
+| M2  | Search quality                 | ✅ shipped                             | [M2-PLAN.md](M2-PLAN.md) |
+| M3  | Release — installable v0.1     | ✅ code complete; see the v1 checklist | [M3-PLAN.md](M3-PLAN.md) |
+| M4  | Kanji as first-class           | ✅ shipped                             | [M4-PLAN.md](M4-PLAN.md) |
+| M5  | Morphology & multi-word search | ✅ shipped                             | [M5-PLAN.md](M5-PLAN.md) |
+| M6  | Enrichment datasets            | ✅ shipped                             | [M6-PLAN.md](M6-PLAN.md) |
+| M7  | Stroke order & handwriting     | ✅ shipped                             | [M7-PLAN.md](M7-PLAN.md) |
+| M8  | Web extension (vscode.dev)     | post-v1, feasibility settled           | [M8-PLAN.md](M8-PLAN.md) |
+
+## v1 release checklist — the actual remaining work
+
+Every feature milestone has shipped. What is left before the first public release is **not features**; it is the short list below. Anything not on this list is post-v1 by definition, however desirable — see [BACKLOG.md](BACKLOG.md).
+
+Audited against the code and CI on 2026-08-06.
+
+### Blocking
+
+| #   | Item                                                                                                                                                                                            | State                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| R1  | **Documentation spike** — a dedicated pass over README, the docs tree, and in-repo guidance. Deliberately sequenced LAST, immediately before publishing, so it documents what actually shipped. | not started; scope to be detailed separately       |
+| R2  | **Freeze the schema** — flip `SCHEMA_FROZEN` in [src/shared/schema.ts](../src/shared/schema.ts) and pin the hash. The drift guard is inert until this happens.                                  | `SCHEMA_FROZEN = false`, `SCHEMA_VERSION = 6`      |
+| R3  | **`OVSX_PAT` secret** — `BUMPY_GH_TOKEN` and `VSCE_PAT` exist; the Open VSX token does not, and `release.yml` passes it.                                                                        | missing                                            |
+| R4  | **Merge the Bumpy version PR** and run the first publish.                                                                                                                                       | PR #1 open since 2026-07-11; version still `0.0.0` |
+
+**R3 is more urgent than it looks.** [scripts/publish-vsix.ts](../scripts/publish-vsix.ts) publishes to the Marketplace and then Open VSX **per platform**, inside one loop. A missing `OVSX_PAT` therefore fails _after_ the first platform has already published to the Marketplace, leaving a partly-published release to reconcile by hand. Either add the secret or make the Open VSX step tolerate its absence before R4.
+
+### Not blocking, but wanted for a _polished_ v1
+
+These are judgement calls, listed in the order they were queued. Cutting any of them delays nothing.
+
+- **BACKLOG #16** — breakdown bar filters the sentence in place instead of re-searching destructively. Queued directly after the tooltip work.
+- **BACKLOG #32** — word-detail layout redesign toward Shirabe's definition formatting. A design-review loop with live screenshots, not a one-shot.
+- **BACKLOG #23** — pitch contour overlaid on the kana rather than banded above. The author already judged the band "good enough"; do this only if it grates in use.
+
+### Already done, contrary to older notes
+
+The release blocker is **gone**: `dictionary-latest` is published and complete (word DB, names DB, checksums, version sidecars). BACKLOG items #10, #17, #21, #27 and #54 have shipped — only their headings lagged. The engine floor is now stated honestly (`vscode ^1.123`, `node >=24.15`) and CI tests exactly the two runtimes we ship to.
 
 ## M1 — Vocabulary search + detail (shipped)
 
@@ -86,7 +116,11 @@ Make the extension run in web-based VSCode (vscode.dev / github.dev), where the 
 
 ## Standing decisions (carried across milestones)
 
-- **State ownership line:** TanStack Query = async state · XState = UI/navigation state · React Aria = interaction primitives · CVA + CSS Modules = styling · RHF + Valibot reserved for real forms.
-- **Engine:** Turso/SQLite, async API, WASM sibling kept viable for an eventual web-extension build. No FTS5 — Turso's native `fts_match` is the upgrade path when `LIKE` ranking stops scaling.
+> The milestone bodies above are kept as the record of what was PLANNED at the time, including premises that later changed — the M5 section still says the tokenizer is WASM and M8 still assumes Turso. Where a milestone body and this list disagree, **this list is current**.
+
+- **State ownership line:** TanStack Query = async state · XState = UI/navigation state · React Aria = interaction primitives · CVA + CSS Modules = styling. React Hook Form and Valibot were removed in 2026-08 — there are no forms, and carrying them broke `vsce package`. Reintroduce them if a real form ever appears.
+- **Engine (superseded 2026-08):** `node:sqlite`, not Turso. Turso never finished the browse queries at full scale (its planner scans 218k rows rather than using the join) and 0.7.2 did not fix it; `node:sqlite` measured 4–10× faster cold and restores darwin-x64. The store is the seam — see [BACKLOG.md](BACKLOG.md) and the `node-sqlite-engine` change. FTS5 is available in the bundled SQLite but is not used yet; `LIKE` ranking is still fast enough.
+- **Runtime floor:** VSCode `^1.123` fixes both runtimes exactly — Node **24.15** (extension host) and Chromium **148** (webview). They are not interchangeable: `Uint8Array.fromBase64` exists in Chromium 148 but not Node 24. CI pins the same 24.15 rather than a matrix; raise both together, and note VSCode has never shipped Node 26.
+- **Tokenizer:** Lindera **native** via `lindera-nodejs`, on IPADIC — not the WASM build the M5 text below describes. UniDic was evaluated and rejected (SUW-only, splits 図書館); NEologd rejected on size/licence/staleness.
 - **Attribution is a feature:** every dataset addition (M4, M6) extends the credits view and the DB `meta` provenance in the same change.
 - **Out of scope, permanently:** flashcards, notes, synchronization.

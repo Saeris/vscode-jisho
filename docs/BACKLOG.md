@@ -12,7 +12,9 @@ Search-quality and UX improvements, ordered roughly by increasing complexity. Ea
 
 [ROADMAP.md](ROADMAP.md) is the milestone view and is the better starting point for "what does this product do today" — M1 through M7 are shipped, M8 (web extension) is not started. Everything this file's items #1–#7 describe shipped across M2, M4 and M5; they are retained because their bodies record decisions the code no longer shows.
 
-Audited against the code on 2026-07-30. Items not explicitly marked were not re-verified in that pass.
+**Nothing in this file blocks v1.** The release checklist lives in [ROADMAP.md](ROADMAP.md#v1-release-checklist--the-actual-remaining-work); items here are candidates for it at most. #16, #32 and #23 are the three named there as wanted-but-not-blocking.
+
+Audited against the code on 2026-07-30, and again on 2026-08-06 — the second pass found #10, #17, #27, #35 and #54 had shipped without their headings being updated, and #21 partly so. Items not explicitly marked were not re-verified.
 
 ## Search relevance & matching
 
@@ -93,7 +95,7 @@ Caveat: typed-japanese self-reports LLM-generated rules with possible inaccuraci
 
 Link-driven navigation (word → kanji → component kanji → word → …) builds a deep stack that's tedious to Back out of. The navigation machine already has a `home`/`reset` action (collapses the stack to `search`) — it just needs a UI affordance. Add a persistent "home"/breadcrumb control in detail-view headers (a 🏠 or the app title as a button) dispatching `home`. Consider showing it only when `canGoBack` and stack depth > 1. Trivial; independent.
 
-### 10. Jargon tooltips (feature — small)
+### 10. Jargon tooltips (feature — small) — ✅ shipped 2026-08-06 (React Aria, `InfoTip`)
 
 Dictionary terminology is opaque to newcomers (the user hadn't seen "nanori"). Add hover tooltips to non-obvious labels — start with **on / kun / nanori** in `KanjiDetail`, apply sparingly elsewhere as more are found. Implementation: a small `<Term>` component (React Aria `Tooltip` + `TooltipTrigger`, which we already have via react-aria-components) wrapping the label with a definition string; theme-aware. A tiny glossary map keeps definitions in one place.
 
@@ -164,7 +166,7 @@ The M5 segment bar makes each content word a tappable chip, but tapping one **re
 
 Observed comparing our word detail against Shirabe Jisho's. Ordered small→large.
 
-### 17. Recent-search history on the empty search view (feature — small)
+### 17. Recent-search history on the empty search view (feature — small) — ✅ shipped
 
 When the search box is empty, Shirabe shows a list of the user's recent searches grouped by date ("Jul 10 / Jul 5 / Jun 30"), each tappable to re-run. Ours shows only a "Type to search" placeholder. Add a recent-search list: record each committed query (cap ~20, dedup, most-recent-first) and render it when the query is empty, each item re-running the search on tap. **Persistence** rides on the same host `Memento` (`context.globalState`) mechanism as BACKLOG #14 — a small `getState`/`setState` message pair, so pair it with or after #14. Independent of the rest; good small win.
 
@@ -189,7 +191,7 @@ Shirabe layers examples three ways: (a) a per-sense "Examples Ⓐ/Ⓑ" list tied
 - **furigana in sentences** — see #15; Shirabe's sentences carry ruby readings over kanji. Fold into #15 when furigana lands.
 - TTS on sentences — a play button per sentence/page, reusing `speech.ts`. Trivial once the pages exist.
 
-### 21. Stroke-SVG transform script + sibling-index() CSS (refinement of M7 #1)
+### 21. Stroke-SVG transform script + sibling-index() CSS (refinement of M7 #1) — ⚠️ partly shipped; (a) and (b) done, the recognizer re-extract tool remains
 
 M7 #1 vendored the customized AnimCJK SVGs from guide-to-japanese as-is (inline per-stroke `--d` delays). Two follow-ups: (a) a **build script that regenerates our SVG shape from the authoritative AnimCJK source** (inject the guides layer, our CSS), so we can re-sync from upstream instead of the author's uncommitted fork; (b) refactor the animation CSS to compute per-stroke delay from **`sibling-index()`/`sibling-count()`** (now available as CSS properties) instead of hardcoded `--d:1s…9s` — which needs wrapping the animated strokes in their own `<g>` so `sibling-index()` counts cleanly (a structural change the transform script should make). Together these make the SVGs reproducible and the CSS far simpler. Deferred from M7 #1 to keep the milestone moving.
 
@@ -255,7 +257,7 @@ Considered swapping `@tursodatabase/database` for [PGlite](https://pglite.dev) (
 
 **Cheap way to settle it properly:** NINJAL invite contact at `kotonoha@ninjal.ac.jp`. A written "an open-source educational tool may bundle the frequency list" would make bundling a non-question. Worth asking before building the import path.
 
-### 27. Tag classifiers + tag search (`#vulgar`, `#n5`) (feature — medium)
+### 27. Tag classifiers + tag search (`#vulgar`, `#n5`) (feature — medium) — ✅ shipped
 
 Two halves of one idea, both unlocked by the JMdict priority-tag extraction in the ranking work:
 
@@ -405,7 +407,7 @@ Shape: a curated grammar-notes dataset (our own writing, versioned in-repo — i
 
 Start small: the ~15 N5 particles and the auxiliary chain the conjugation table already generates. This is a writing task as much as a coding one — budget accordingly.
 
-### 35. Sort browseable lists by reading — gojūon order (fix — small) — ⛔ BLOCKED on a consuming surface (#54)
+### 35. Sort browseable lists by reading — gojūon order (fix — small) — ✅ shipped with #54; `BrowseOrder` offers `frequency | gojuon` and the list has a kana jump rail
 
 Codepoint order over kanji is meaningless; Japanese "alphabetical" order is 五十音順 applied to the READING — and we already store readings for everything, so proper Japanese collation is nearly free. Normalize katakana → hiragana, fold small kana and voiced marks (JIS X 4061 is the reference standard for the comparison rules), sort. Most Western dictionary apps get this wrong; getting it right is cheap differentiation.
 
@@ -615,7 +617,7 @@ Related and already fixed: `removeFuriganaFromLine` used to be `stripRuby(line).
 
 ## Browsing
 
-### 54. Vocabulary lists — browse the dictionary by category, not only by search box (feature — large)
+### 54. Vocabulary lists — browse the dictionary by category, not only by search box (feature — large) — ✅ shipped
 
 A second way in. Everything today starts at the search box, which only helps someone who already knows what they are looking for; a learner also wants to _browse_ — "show me N5 vocabulary", "show me Kansai-ben". This is the surface that **#35** (gojūon ordering) has been waiting for: a category list is exactly the kind of index a reader scans alphabetically, unlike every ranked list we currently render.
 
