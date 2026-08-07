@@ -1,0 +1,70 @@
+/*
+ * The navigation root's tab bar (#55).
+ *
+ * Column layout with the list pinned last, so the bar sits at the bottom edge of the panel while the
+ * active section fills everything above it.
+ */
+.tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/*
+ * Every panel is mounted, so the inactive ones have to be taken out of layout rather than merely
+ * hidden — `display: none` on `[data-inert]`, which React Aria sets on the panels that are not
+ * selected. Visibility alone would leave them occupying space and scrolling the active one away.
+ *
+ * `min-height: 0` lets the active panel's own scroll container shrink inside the flex column; without
+ * it a long list pushes the tab bar off the bottom of the panel.
+ */
+.panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel[inert] {
+  display: none;
+}
+
+/*
+ * `order: 1` puts the bar visually last while it stays after the panels in the DOM too — the reading
+ * order and the visual order agree, so a screen reader meets the content before the controls.
+ */
+.list {
+  order: 1;
+  display: flex;
+  border-top: 1px solid var(--jisho-border);
+  background: var(--jisho-input-bg);
+  /* Above the panel's own scroll shadow, so the bar reads as chrome rather than as list content. */
+  position: relative;
+}
+
+.tab {
+  flex: 1;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+  cursor: pointer;
+  /* Reserve the selected indicator's space on every tab, so selecting one does not shift the row. */
+  border-top: 2px solid transparent;
+  margin-top: -1px;
+}
+
+.tab[data-hovered] {
+  color: var(--jisho-fg);
+  background: var(--jisho-hover-bg);
+}
+
+.tab[data-selected] {
+  color: var(--jisho-fg);
+  border-top-color: var(--jisho-focus);
+  background: var(--jisho-bg);
+}
+
+.tab[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}

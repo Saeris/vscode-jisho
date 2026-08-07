@@ -46,7 +46,6 @@ export const SearchResults = ({
     openKanji: onOpenKanji,
     openName: onOpenName,
     openRadicals,
-    openBrowse,
     openWordList,
     openHandwriting,
     openAbout
@@ -325,23 +324,10 @@ export const SearchResults = ({
       {/* Tags count as a query even with no text — they ARE the filter — so the empty view only
           shows when neither is present. */}
       {query.trim() === "" && tags.length === 0 ? (
-        <>
-          {/* The browse entry point (#54). On the empty view rather than in the toolbar: it and
-              the recent list answer the same question — "I have nothing typed yet" — and the
-              toolbar's four icons are already at the width this sidebar can spare. */}
-          <Button
-            className={styles.browseLink}
-            onPress={() => openBrowse()}
-            aria-label="Browse words by category"
-          >
-            <span aria-hidden="true">📚</span>
-            Browse by category
-            <span className={styles.browseChevron} aria-hidden="true">
-              ›
-            </span>
-          </Button>
-          <RecentSearches onSelect={onQueryChange} />
-        </>
+        // The "Browse by category" link that used to sit here is gone: the Vocab tab (#55) is the
+        // same destination, always visible, and offering both made the empty view answer a question
+        // the tab bar had already answered.
+        <RecentSearches onSelect={onQueryChange} />
       ) : (
         renderStatus({
           query: deferredQuery,

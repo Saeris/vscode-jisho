@@ -1,0 +1,19 @@
+/* Placeholder panel for a tab whose content lands in a later step (#55). */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--jisho-gap);
+}
+
+.title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.detail {
+  margin: 0;
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}

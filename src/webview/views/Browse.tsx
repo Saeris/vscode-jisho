@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "react-aria-components";
+import { Breadcrumb, Breadcrumbs, Button, Link } from "react-aria-components";
 import {
   CLASSIFIERS,
   CLASSIFIER_GROUPS,
@@ -31,7 +32,7 @@ export const Browse = ({ group }: { group?: string }): React.ReactElement => {
     <div className={styles.container}>
       <DetailHeader onBack={useNavigate().back} />
       {active === undefined ? (
-        <GroupList />
+        <GroupList onOpen={useNavigate().openBrowse} />
       ) : (
         <CategoryList
           group={active.id}
@@ -44,34 +45,93 @@ export const Browse = ({ group }: { group?: string }): React.ReactElement => {
   );
 };
 
-/** The top level: one row per group. */
-const GroupList = (): React.ReactElement => {
-  const { openBrowse } = useNavigate();
+/**
+ * The same tree as the Vocab TAB rather than a pushed view (#55).
+ *
+ * Its drill level is local state, not a stack entry, because the tab is the navigation root: pushing
+ * a view would put the browse tree ON TOP of the tab bar it lives inside, and Back would pop out of
+ * the root entirely. Local state also means the level survives switching tabs for free — the panel
+ * is force-mounted, so nothing here unmounts.
+ */
+export const BrowseTab = (): React.ReactElement => {
+  const { data: counts } = useQuery(browseCountsQuery());
+  const [group, setGroup] = useState<ClassifierGroupId | undefined>(undefined);
+  const active = CLASSIFIER_GROUPS.find((g) => g.id === group);
   return (
-    <div className={styles.body}>
-      <h1 className={styles.title}>Browse</h1>
-      <ul className={styles.list}>
-        {CLASSIFIER_GROUPS.map((g) => (
-          <li key={g.id}>
-            <Button
-              className={styles.row}
-              onPress={() => openBrowse(g.id)}
-              aria-label={`Browse ${g.label}`}
-            >
-              <span className={styles.rowLabel}>{g.label}</span>
-              <span className={styles.rowCount}>
-                {CLASSIFIERS[g.id].length}
-              </span>
-              <span className={styles.chevron} aria-hidden="true">
-                ›
-              </span>
-            </Button>
-          </li>
-        ))}
-      </ul>
+    <div className={styles.container}>
+      {active === undefined ? (
+        <GroupList onOpen={setGroup} />
+      ) : (
+        <>
+          <BrowseCrumbs
+            label={active.label}
+            onRoot={() => setGroup(undefined)}
+          />
+          <CategoryList
+            group={active.id}
+            label={active.label}
+            counts={counts?.counts ?? {}}
+            namesAvailable={counts?.namesAvailable ?? false}
+          />
+        </>
+      )}
     </div>
   );
 };
+
+/**
+ * Where you are in the tree, and the way back up.
+ *
+ * Breadcrumbs rather than a Back button: inside a tab there is no stack to go back through, so a
+ * Back arrow would be lying about what it does. A trail says where "up" goes and stays correct when
+ * the tree grows a third level.
+ */
+const BrowseCrumbs = ({
+  label,
+  onRoot
+}: {
+  label: string;
+  onRoot: () => void;
+}): React.ReactElement => (
+  <Breadcrumbs className={styles.crumbs}>
+    <Breadcrumb>
+      <Link className={styles.crumbLink} onPress={onRoot}>
+        Browse
+      </Link>
+    </Breadcrumb>
+    <Breadcrumb>
+      <span className={styles.crumbCurrent}>{label}</span>
+    </Breadcrumb>
+  </Breadcrumbs>
+);
+
+/** The top level: one row per group. */
+const GroupList = ({
+  onOpen
+}: {
+  onOpen: (group: ClassifierGroupId) => void;
+}): React.ReactElement => (
+  <div className={styles.body}>
+    <h1 className={styles.title}>Browse</h1>
+    <ul className={styles.list}>
+      {CLASSIFIER_GROUPS.map((g) => (
+        <li key={g.id}>
+          <Button
+            className={styles.row}
+            onPress={() => onOpen(g.id)}
+            aria-label={`Browse ${g.label}`}
+          >
+            <span className={styles.rowLabel}>{g.label}</span>
+            <span className={styles.rowCount}>{CLASSIFIERS[g.id].length}</span>
+            <span className={styles.chevron} aria-hidden="true">
+              ›
+            </span>
+          </Button>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 /** One group's categories, each opening its word list. */
 const CategoryList = ({

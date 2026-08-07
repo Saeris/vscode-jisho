@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
-import type { NavEvent } from "./machines/navigation";
+import type { NavEvent, Tab } from "./machines/navigation";
 
 /**
  * The navigation API views call, instead of receiving a closure per destination as a prop.
@@ -49,6 +49,11 @@ export interface Navigation {
    * same reason `searchQuery` does, so Back returns to the filtered view.
    */
   selectSegment: (index: number | null) => void;
+  /**
+   * Switch the navigation root's section (#55). Like `selectSegment`, not a navigation — it changes
+   * what the root view shows rather than pushing anything, so Back is unaffected.
+   */
+  selectTab: (tab: Tab) => void;
 }
 
 const NavigationContext = createContext<Navigation | undefined>(undefined);
@@ -82,7 +87,8 @@ export const makeNavigation = (
   searchFor: (term): void => send({ type: "searchFor", term }),
   appendToSearch: (char): void => send({ type: "appendToSearch", char }),
   setSearchQuery: (query): void => send({ type: "setSearchQuery", query }),
-  selectSegment: (index): void => send({ type: "selectSegment", index })
+  selectSegment: (index): void => send({ type: "selectSegment", index }),
+  selectTab: (tab): void => send({ type: "selectTab", tab })
 });
 
 export const NavigationProvider = ({

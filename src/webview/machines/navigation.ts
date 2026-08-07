@@ -41,6 +41,33 @@ export type View =
   | { name: "handwriting" }
   | { name: "about" };
 
+/**
+ * The four sections of the navigation root (#55).
+ *
+ * They are not stack views. The root is one view — `search` — and these choose what it SHOWS, which
+ * is why switching tabs does not push history and Back never lands "between" tabs. Drilling into a
+ * word or kanji pushes a real view on top, and the tab bar hides until you come back.
+ */
+export type Tab = "search" | "vocab" | "kanji" | "kana";
+
+export const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
+  { id: "search", label: "Search" },
+  { id: "vocab", label: "Vocab" },
+  { id: "kanji", label: "Kanji" },
+  { id: "kana", label: "Kana" }
+];
+
+/**
+ * Narrow an arbitrary value to a `Tab`.
+ *
+ * Exported because both callers need it and both would otherwise reach for a cast: React Aria hands
+ * `onSelectionChange` a `Key` (string | number), and `hydrateContext` reads whatever a previous
+ * build persisted. A predicate turns those into a checked narrowing rather than an assertion that
+ * silently accepts a value the UI cannot render.
+ */
+export const isTab = (value: unknown): value is Tab =>
+  TABS.some((t) => t.id === value);
+
 export interface NavContext {
   /** The view stack; the last element is the active view. Never empty (search is the floor). */
   stack: View[];
@@ -70,13 +97,25 @@ export interface NavContext {
    * query, so every action that changes the query clears it.
    */
   selectedSegment: number | null;
+  /**
+   * Which section of the navigation root is showing (#55).
+   *
+   * The ONLY per-tab state the machine holds. Everything else a tab remembers — breadcrumb depth,
+   * scroll position, list virtualisation — lives in component state kept alive by the tab panels
+   * being force-mounted rather than unmounted, so there is nothing to serialise and nothing to
+   * restore. This one field is here because `<Activity>`-style preservation dies with the document,
+   * and VSCode deallocates the webview whenever the sidebar is collapsed; without persisting it the
+   * panel would reopen on Search no matter where the user was.
+   */
+  tab: Tab;
 }
 
 export const freshContext = (): NavContext => ({
   stack: [{ name: "search" }],
   forwardStack: [],
   searchQuery: "",
-  selectedSegment: null
+  selectedSegment: null,
+  tab: "search"
 });
 
 export type NavEvent =
@@ -101,6 +140,8 @@ export type NavEvent =
   | { type: "setSearchQuery"; query: string }
   /** Filter the results to one breakdown chip, or `null` to show the whole sentence again (#16). */
   | { type: "selectSegment"; index: number | null }
+  /** Switch the navigation root's section (#55). Does not navigate, so it pushes no history. */
+  | { type: "selectTab"; tab: Tab }
   /** Jump to the search view with a new query — the tap-through action for cross-references. */
   | { type: "searchFor"; term: string }
   /** Append a character to the query and return to search — the handwriting-pick action. */
@@ -292,6 +333,10 @@ const define = (initial: NavContext, persist: Persist) =>
         selectedSegment: ({ context, event }) =>
           event.type === "selectSegment" ? event.index : context.selectedSegment
       }),
+      selectTab: assign({
+        tab: ({ context, event }) =>
+          event.type === "selectTab" ? event.tab : context.tab
+      }),
       /**
        * Write the context out after a navigation.
        *
@@ -340,7 +385,9 @@ const define = (initial: NavContext, persist: Persist) =>
         actions: ["appendToSearch", "clearForward", "persist"]
       },
       // Filters the current results in place; it does not navigate, so history is untouched.
-      selectSegment: { actions: ["selectSegment", "persist"] }
+      selectSegment: { actions: ["selectSegment", "persist"] },
+      // Likewise: the tabs are one view's sections, not stack entries, so switching pushes nothing.
+      selectTab: { actions: ["selectTab", "persist"] }
     }
   });
 
@@ -415,11 +462,15 @@ export const hydrateContext = (persisted: unknown): NavContext => {
   // Forward history is optional: state written before this field existed simply has none, and an
   // unrecognised entry drops the forward history rather than the whole session — losing a redo is
   // a far smaller harm than sending the user back to an empty search.
-  const { forwardStack, selectedSegment } = persisted as Partial<NavContext>;
+  const { forwardStack, selectedSegment, tab } =
+    persisted as Partial<NavContext>;
   const forward =
     Array.isArray(forwardStack) && forwardStack.every(isView)
       ? forwardStack
       : [];
+  // Validated against the known tabs rather than trusted: an unrecognised value would render no
+  // panel at all, leaving a blank root with a tab bar that appears to be on nothing.
+  const restoredTab: Tab = isTab(tab) ? tab : "search";
 
   return {
     stack,
@@ -431,7 +482,8 @@ export const hydrateContext = (persisted: unknown): NavContext => {
     selectedSegment:
       typeof selectedSegment === "number" && selectedSegment >= 0
         ? selectedSegment
-        : null
+        : null,
+    tab: restoredTab
   };
 };
 

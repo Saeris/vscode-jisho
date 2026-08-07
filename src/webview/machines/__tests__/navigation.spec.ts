@@ -20,6 +20,32 @@ describe("navigationMachine", () => {
     expect(canGoBack(actor.getSnapshot().context)).toBe(false);
   });
 
+  it("switching tabs changes the section without touching history", () => {
+    // WHY (#55): the tabs are sections of the ROOT view, not views of their own. If switching
+    // pushed a stack entry, Back would walk through tabs you had visited instead of leaving the
+    // root, and the tab bar would have to hide itself mid-root. Asserting the stack is UNCHANGED is
+    // what pins that distinction — the depth is the whole design.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectTab", tab: "kanji" });
+    const ctx = actor.getSnapshot().context;
+    expect(ctx.tab).toBe("kanji");
+    expect(ctx.stack).toHaveLength(1);
+    expect(canGoBack(ctx)).toBe(false);
+  });
+
+  it("keeps the active tab when a detail view is pushed and popped", () => {
+    // WHY: Home returns to "whichever tab you left", which only works if opening a word does not
+    // quietly reset the section. The tab has to outlive the round trip.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectTab", tab: "vocab" });
+    actor.send({ type: "openWord", id: "1358280" });
+    expect(actor.getSnapshot().context.tab).toBe("vocab");
+    actor.send({ type: "back" });
+    const ctx = actor.getSnapshot().context;
+    expect(ctx.tab).toBe("vocab");
+    expect(activeView(ctx)).toEqual({ name: "search" });
+  });
+
   it("opening a word pushes a detail view and enables back", () => {
     // WHY: tapping a result must navigate *forward* to that word (preserving search beneath), which
     // is what makes returning to the same result list possible.
@@ -335,7 +361,8 @@ describe("hydrateContext", () => {
         stack: [{ name: "search" }],
         forwardStack: [],
         searchQuery: "",
-        selectedSegment: null
+        selectedSegment: null,
+        tab: "search"
       });
     }
   });
@@ -393,6 +420,22 @@ describe("hydrateContext", () => {
       searchQuery: "図書館に行く"
     });
     expect(legacy.selectedSegment).toBeNull();
+  });
+
+  it("restores the active tab, and falls back to Search for anything unknown", () => {
+    // WHY (#55): the tab is the one piece of per-tab state the machine holds, because everything
+    // else survives in force-mounted panels — but those die with the document, and VSCode
+    // deallocates the webview on a sidebar collapse. Without this the panel always reopens on
+    // Search. An unrecognised value must not be trusted through: it would select no panel at all,
+    // leaving a blank root under a tab bar that looks like it is on nothing.
+    expect(
+      hydrateContext({ stack: [{ name: "search" }], tab: "kanji" }).tab
+    ).toBe("kanji");
+    expect(
+      hydrateContext({ stack: [{ name: "search" }], tab: "nonsense" }).tab
+    ).toBe("search");
+    // Written by a build that predates tabs.
+    expect(hydrateContext({ stack: [{ name: "search" }] }).tab).toBe("search");
   });
 });
 

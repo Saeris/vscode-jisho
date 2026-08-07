@@ -73,3 +73,39 @@
 .chevron {
   color: var(--jisho-muted);
 }
+
+/*
+ * Breadcrumb trail for the Vocab tab (#55).
+ *
+ * Replaces the Back button when the tree is a TAB rather than a pushed view: inside a tab there is
+ * no stack to pop, so an arrow would promise navigation that does not exist. The trail names where
+ * "up" goes instead, and has room for a third level if the tree ever grows one.
+ */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+  font-size: 0.9em;
+}
+
+/* React Aria puts the separator on every crumb but the last. */
+.crumbs > :not(:last-child)::after {
+  content: "›";
+  margin-inline-start: 4px;
+  color: var(--jisho-muted);
+}
+
+.crumbLink {
+  color: var(--jisho-link);
+  cursor: pointer;
+}
+
+.crumbLink[data-hovered] {
+  text-decoration: underline;
+}
+
+.crumbCurrent {
+  color: var(--jisho-muted);
+}

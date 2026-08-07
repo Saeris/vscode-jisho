@@ -9,8 +9,10 @@ import {
   canGoHome,
   navigationMachineFrom
 } from "./machines/navigation";
+import { NavigationTabs } from "./components/NavigationTabs";
 import { About } from "./views/About";
-import { Browse } from "./views/Browse";
+import { Browse, BrowseTab } from "./views/Browse";
+import { ComingSoon } from "./views/ComingSoon";
 import { WordList } from "./views/WordList";
 import { Handwriting } from "./views/Handwriting";
 import { KanjiDetail } from "./views/KanjiDetail";
@@ -74,15 +76,39 @@ export const App = (): React.ReactElement => {
       canGoHome={canGoHome(state.context)}
       canGoForward={canGoForward(state.context)}
     >
-      {/* The search view stays mounted inside an <Activity> instead of unmounting when a detail
-          view is pushed on top: its scroll position, list state, and query subscriptions all
-          survive Back natively. The navigation machine remains the source of truth for which
-          view is active; the query text lives in machine context because tap-through
-          (`searchFor`) also writes it. */}
+      {/* The navigation ROOT (#55): four sections you switch between, not four views you navigate
+          to. It stays mounted inside an <Activity> when a detail view is pushed on top, so scroll
+          position, list state and in-flight queries all survive Back natively — and because the
+          tab panels inside are force-mounted, that preservation reaches each individual tab. The
+          machine stays the source of truth for WHICH view is active and which tab is showing.
+
+          The bar is deliberately absent above depth 1: on a word or kanji page the tabs are
+          irrelevant chrome, and Home is the way back to whichever one you left. */}
       <Activity mode={view.name === "search" ? "visible" : "hidden"}>
-        <SearchResults
-          query={state.context.searchQuery}
-          selectedSegment={state.context.selectedSegment}
+        <NavigationTabs
+          selected={state.context.tab}
+          onSelect={(tab) => send({ type: "selectTab", tab })}
+          panels={{
+            search: (
+              <SearchResults
+                query={state.context.searchQuery}
+                selectedSegment={state.context.selectedSegment}
+              />
+            ),
+            vocab: <BrowseTab />,
+            kanji: (
+              <ComingSoon
+                title="Kanji"
+                detail="Browsing kanji by grade, JLPT level and frequency is on the way."
+              />
+            ),
+            kana: (
+              <ComingSoon
+                title="Kana"
+                detail="The hiragana and katakana charts are on the way."
+              />
+            )
+          }}
         />
       </Activity>
       {view.name === "wordDetail" ? <WordDetail id={view.id} /> : null}
