@@ -652,6 +652,20 @@ Interleaves with **#27** (tag search) — they are the same data reached two way
 
 **Open questions for the design pass:** where the entry point lives (a third top-level view alongside search and radicals?), whether lists are paginated or virtualised (N5 alone is ~700 words), and whether a browsed list is a distinct navigation view or reuses `SearchResults` with a synthetic query.
 
+### 55. Tabbed navigation, and Kanji + Kana browse (feature — large)
+
+Full spec: [specs/16-tabbed-navigation-and-browse.md](specs/16-tabbed-navigation-and-browse.md).
+
+#54 shipped vocabulary browsing as a view you navigate _to_, from a button on the empty search screen — which is #54's own "where does the entry point live?" open question, answered provisionally. Shirabe Jisho treats browsing as a peer of search: top-level sections you switch between, each remembering where you were. Adopt that as four tabs along the bottom of the panel — **Search · Vocab · Kanji · Kana** — and fill in the two sections we lack.
+
+**Nav model (decided):** the tabs are the ROOT of the stack, not a peer of the detail views. `stack[0]` carries the active tab, the tab bar renders only at depth 1, and Home returns to whichever tab you left. Barely a change to the machine — `reset` already hardcodes the floor and `hydrateContext` already enforces it, so the root is renamed rather than introduced. Chosen over per-tab stacks, which would restructure `NavContext` for the same user-visible result.
+
+**Per-tab state (decided):** breadcrumb depth and scroll live in component state inside each tab, kept alive by `<Activity>` rather than persisted — the pattern `SearchResults` already uses. Only `tab` goes in the machine, because `<Activity>` covers tab switching but NOT a sidebar collapse, which deallocates the document.
+
+**Kanji data:** every axis already exists in `kanji_characters` (grade, frequency, stroke count) except JLPT. Kanjidic2's `jlpt` is the pre-2010 four-level scale and does NOT convert arithmetically — measured, 水 4→N5 and 私 3→N4 shift by one but 顔 3→N3 does not. New source: `onlyskin/kanjiapi`'s `jlpt.tsv` (MIT, static), 2,211 kanji, no cross-level duplicates, all present in our table. Cross-examined against JLPT Sensei: our N5 is a strict subset differing by exactly one kanji (分). Two caveats to surface in the UI — our counts are per-level not cumulative, and 172 jōyō kanji carry no JLPT level at all (92% coverage).
+
+**Kana:** `GOJUON_ROWS` is a flat list for the jump rail; the grid needs its own small static table (5 columns, dakuten/handakuten, digraphs). One toggle, no drill-down.
+
 ## Suggested sequencing
 
 **Superseded — every item this section ordered is shipped.** It read "1. #1 (relevance ranking) — highest leverage, do this first" long after #1 shipped in M2, which is exactly the trap the numbering warning at the top of this file exists to prevent. Kept as a record of the original M1-era plan; do not read it as a plan.

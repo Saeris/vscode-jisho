@@ -39,6 +39,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 13  | [Tokenizer-layer accuracy: correction passes over IPADIC output](13-tokenizer-layer-accuracy.md)                | #43         | Scoping — mechanisms probed, sequence proposed       |
 | 14  | [Owning the tokenizer: shared compiled dictionary, two thin bindings](14-custom-lindera-wasm.md)                | #43         | Architecture settled; native binding **shipped**     |
 | 15  | [Re-deriving the schema from the queries we actually run](15-schema-for-the-remaining-backlog.md)               | #27/#35/#51 | **Implemented** (schema v5); BCCWJ seam design-only  |
+| 16  | [Tabbed navigation, and Kanji + Kana browse](16-tabbed-navigation-and-browse.md)                                | #54 (ext.)  | Specified — nav model + JLPT source settled          |
 
 Not yet specced: the #32 word-detail layout redesign, and the visual-regression baseline procedure.
 
