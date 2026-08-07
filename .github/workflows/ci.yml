@@ -23,21 +23,24 @@ jobs:
     uses: ./.github/workflows/e2e.yml
 
   ci:
-    name: Check & Test (Node ${{ matrix.node-version }})
+    name: Check & Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Active LTS and Current track the Node release calendar automatically.
-        # Previous LTS is pinned; bump it once per year when a new even-numbered
-        # Node major reaches LTS status.
-        node-version: ["22", "lts", "latest"]
     steps:
       - uses: actions/checkout@v6
 
+      # Pinned to the Node that VSCode's extension host actually runs, NOT a matrix.
+      #
+      # This is an extension, not a library: the only Node that ever executes `src/host/**` is the
+      # one Electron embeds, which `engines.vscode` fixes exactly (^1.123 -> Electron 42 -> Node
+      # 24.15). Testing other majors asserted against environments no user has, and it actively
+      # blocked correct work — the matrix went red on `RegExp.escape` (Node 24+) even though every
+      # supported VSCode has it.
+      #
+      # Raise this in lockstep with `engines.vscode`. VSCode has never shipped Node 26, so 24 is
+      # both the floor and the ceiling today.
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "24.15"
           cache: true
 
       # The `component` Vitest project runs every rendering spec in real Chromium — jsdom is gone (see

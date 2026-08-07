@@ -27,14 +27,38 @@ import manifest from "./package.json" with { type: "json" };
 // runs, and results from an environment (a real browser) the numbers do not claim to describe.
 const NOT_BENCH = "bench/**";
 
+/**
+ * `.ts` specs that must run in the browser project despite not rendering anything, because the code
+ * under test uses an API the extension host's Node does not have.
+ *
+ * Keep this list short and justified — the default remains that pure logic is tested in Node, which
+ * starts faster. `vi.resetModules()` also does not re-execute a module in browser mode (the native
+ * ESM registry cannot be invalidated), so a spec that re-imports to reset module state cannot move
+ * here.
+ */
+const BROWSER_ONLY = [
+  // `patterns.ts` decodes with `Uint8Array.fromBase64` (Chromium 148 / Node 25+).
+  "src/webview/recognizer/__tests__/recognize.spec.ts"
+];
+
+/**
+ * Pure logic, in Node.
+ *
+ * `.ts` only: anything rendering a component is `.tsx` and belongs to `componentProject`, so the
+ * extension is the boundary and no exclude list has to restate it.
+ *
+ * The exception is `BROWSER_ONLY`. The two runtimes we ship to are not interchangeable — the
+ * webview's Chromium 148 has `Uint8Array.fromBase64`, the extension host's Node 24 does not (it
+ * landed in Node 25) — so webview code using a browser-only API cannot be exercised under Node
+ * even when the code itself is pure logic. Those specs move to the browser project, where the
+ * environment matches production.
+ */
 const unitProject: TestProjectConfiguration = {
   test: {
     name: "unit",
     // `scripts/` too: the data-build transforms are pure functions and belong at this layer.
-    // Only `.ts`: anything rendering a component is `.tsx` and belongs to the `component` project, so
-    // the extension IS the boundary — no exclude list has to restate it.
     include: ["src/**/*.{test,spec}.ts", "scripts/**/*.{test,spec}.ts"],
-    exclude: [...configDefaults.exclude, NOT_BENCH],
+    exclude: [...configDefaults.exclude, NOT_BENCH, ...BROWSER_ONLY],
     environment: "node"
   }
 };
@@ -59,7 +83,8 @@ const unitProject: TestProjectConfiguration = {
 const componentProject: TestProjectConfiguration = {
   test: {
     name: "component",
-    include: ["src/**/*.{test,spec}.tsx"],
+    // Everything that renders, plus the `BROWSER_ONLY` logic specs whose code needs a browser API.
+    include: ["src/**/*.{test,spec}.tsx", ...BROWSER_ONLY],
     exclude: [...configDefaults.exclude, NOT_BENCH],
     browser: {
       enabled: true,

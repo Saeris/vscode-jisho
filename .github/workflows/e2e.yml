@@ -19,9 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # The Node VSCode's extension host runs (see ci.yml). This suite drives a real VSCode, so the
+      # host bundle it builds has to target that runtime.
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: "lts"
+          node-version: "24.15"
           cache: true
 
       # NO Playwright browser install. The harness attaches to VS Code's OWN Chromium over CDP

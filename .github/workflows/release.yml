@@ -36,9 +36,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The Node VSCode's extension host runs (see ci.yml). This job packages the code that ships,
+      # so it must build against the runtime that will execute it.
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: "lts"
+          node-version: "24.15"
           cache: true
 
       # Release precondition: the extension downloads its dictionary from the rolling

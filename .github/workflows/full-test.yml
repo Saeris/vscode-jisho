@@ -19,9 +19,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # The Node VSCode's extension host runs (see ci.yml).
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: "lts"
+          node-version: "24.15"
           cache: true
 
       - name: Resolve Playwright version
