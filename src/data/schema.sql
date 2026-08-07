@@ -192,6 +192,13 @@ CREATE TABLE kanji_characters (
   stroke_count  INTEGER,                      -- accepted count (Kanjidic misc.strokeCounts[0])
   frequency     INTEGER,                      -- newspaper frequency rank (1..2500), null otherwise
   jlpt          INTEGER,                      -- old-scale JLPT level 1-4, null otherwise
+  -- Modern N5-N1 level (stored 5..1, matching `words.jlpt`'s direction), null when unlisted.
+  -- SEPARATE from `jlpt` above because the two scales are different data, not different encodings:
+  -- the pre-2010 four-level scale does not map onto N5-N1 arithmetically (水 4→N5 and 私 3→N4 shift
+  -- by one, but 顔 3→N3 does not), so overwriting would silently corrupt whichever consumer wanted
+  -- the other one. Sourced from tanos.co.uk via onlyskin/kanjiapi — the same author as the
+  -- word-level lists in `words.jlpt`.
+  jlpt_n        INTEGER,
   on_json       TEXT NOT NULL DEFAULT '[]',   -- on'yomi readings (katakana)
   kun_json      TEXT NOT NULL DEFAULT '[]',   -- kun'yomi readings (hiragana, with okurigana dots)
   meanings_json TEXT NOT NULL DEFAULT '[]',   -- English meanings, in source order

@@ -338,3 +338,108 @@ export const matchClassifiers = (
   }
   return out;
 };
+
+// ── Kanji browse lists (#55) ───────────────────────────────────────────────────
+//
+// Kept beside the word classifiers for the same reason those are shared: the host resolves an id to
+// rows and the webview renders the tree from it, so a list that exists in one and not the other is
+// impossible by construction. They are a SEPARATE taxonomy rather than more `Classifier`s because
+// they filter `kanji_characters` rather than words — feeding them to `#tag` search would offer the
+// user a filter that can never match a word.
+
+/** A kanji browse list's stable id. */
+export type KanjiListId =
+  | "kanji-jlpt-n5"
+  | "kanji-jlpt-n4"
+  | "kanji-jlpt-n3"
+  | "kanji-jlpt-n2"
+  | "kanji-jlpt-n1"
+  | "kanji-grade-1"
+  | "kanji-grade-2"
+  | "kanji-grade-3"
+  | "kanji-grade-4"
+  | "kanji-grade-5"
+  | "kanji-grade-6"
+  | "kanji-joyo-secondary"
+  | "kanji-jinmeiyo"
+  | "kanji-frequent";
+
+export interface KanjiList {
+  id: KanjiListId;
+  label: string;
+}
+
+export interface KanjiListGroup {
+  id: "jlpt" | "grade" | "frequency";
+  label: string;
+  lists: readonly KanjiList[];
+  /** Shown under the group's heading — the caveats a learner needs to read the counts correctly. */
+  note?: string;
+}
+
+export const KANJI_LIST_GROUPS: readonly KanjiListGroup[] = [
+  {
+    id: "jlpt",
+    label: "JLPT level",
+    // Two things a user comparing us against another resource will otherwise read as our error.
+    note: "Counts are per level, not cumulative — other sites often quote a running total. 172 jōyō kanji (分, 的, and most prefecture names) carry no level at all.",
+    lists: [
+      { id: "kanji-jlpt-n5", label: "N5" },
+      { id: "kanji-jlpt-n4", label: "N4" },
+      { id: "kanji-jlpt-n3", label: "N3" },
+      { id: "kanji-jlpt-n2", label: "N2" },
+      { id: "kanji-jlpt-n1", label: "N1" }
+    ]
+  },
+  {
+    id: "grade",
+    label: "School grade",
+    lists: [
+      { id: "kanji-grade-1", label: "Grade 1" },
+      { id: "kanji-grade-2", label: "Grade 2" },
+      { id: "kanji-grade-3", label: "Grade 3" },
+      { id: "kanji-grade-4", label: "Grade 4" },
+      { id: "kanji-grade-5", label: "Grade 5" },
+      { id: "kanji-grade-6", label: "Grade 6" },
+      // Grade 8 is Kanjidic's code for "jōyō, taught in secondary school" — there is no grade 7.
+      { id: "kanji-joyo-secondary", label: "Secondary (jōyō)" },
+      // Grades 9 and 10 are the jinmeiyō set: legal for names, outside the jōyō list.
+      { id: "kanji-jinmeiyo", label: "Jinmeiyō (names)" }
+    ]
+  },
+  {
+    id: "frequency",
+    label: "Frequency",
+    lists: [{ id: "kanji-frequent", label: "Most frequent" }]
+  }
+];
+
+export const KANJI_LIST_BY_ID: ReadonlyMap<KanjiListId, KanjiList> = new Map(
+  KANJI_LIST_GROUPS.flatMap((g) => g.lists).map((l) => [l.id, l])
+);
+
+/**
+ * Each list's WHERE clause, as SQL plus its parameters.
+ *
+ * A fixed table rather than a caller-built predicate: the id arrives from the webview, and this way
+ * it can only ever select a clause that was written here — an unknown id yields no query at all
+ * rather than a fragment reaching the database.
+ */
+export const KANJI_LIST_FILTERS: Readonly<
+  Record<KanjiListId, { sql: string; params: Array<string | number> }>
+> = {
+  "kanji-jlpt-n5": { sql: "jlpt_n = ?", params: [5] },
+  "kanji-jlpt-n4": { sql: "jlpt_n = ?", params: [4] },
+  "kanji-jlpt-n3": { sql: "jlpt_n = ?", params: [3] },
+  "kanji-jlpt-n2": { sql: "jlpt_n = ?", params: [2] },
+  "kanji-jlpt-n1": { sql: "jlpt_n = ?", params: [1] },
+  "kanji-grade-1": { sql: "grade = ?", params: [1] },
+  "kanji-grade-2": { sql: "grade = ?", params: [2] },
+  "kanji-grade-3": { sql: "grade = ?", params: [3] },
+  "kanji-grade-4": { sql: "grade = ?", params: [4] },
+  "kanji-grade-5": { sql: "grade = ?", params: [5] },
+  "kanji-grade-6": { sql: "grade = ?", params: [6] },
+  "kanji-joyo-secondary": { sql: "grade = ?", params: [8] },
+  "kanji-jinmeiyo": { sql: "grade IN (9, 10)", params: [] },
+  "kanji-frequent": { sql: "frequency IS NOT NULL", params: [] }
+};

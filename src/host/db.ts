@@ -12,10 +12,11 @@ import {
   browse,
   browseCount,
   browseKanji,
+  browseKanjiList,
   refineCounts,
   type BrowseOrder
 } from "./queries/browse";
-import type { Classifier } from "../shared/classifiers";
+import type { Classifier, KanjiListId } from "../shared/classifiers";
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../shared/schema";
 import type {
   ComponentTreeDto,
@@ -163,6 +164,14 @@ export class Dictionary {
     limit = 2000
   ): Promise<KanjiResultDto[]> {
     return browseKanji(this.#store, classifier, limit);
+  }
+
+  /** One kanji browse list (#55) — a JLPT level, a school grade, or the frequency-ranked set. */
+  async browseKanjiList(
+    list: KanjiListId,
+    limit = 3000
+  ): Promise<KanjiResultDto[]> {
+    return browseKanjiList(this.#store, list, limit);
   }
 
   /** How many words a classifier holds — the browse tree's counts. */

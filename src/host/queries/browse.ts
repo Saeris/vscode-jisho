@@ -8,7 +8,12 @@
  * They share `searchResults`, so the ROWS cannot drift even though the queries differ.
  */
 import type { SqliteStore } from "../store";
-import { CLASSIFIER_BY_ID, type Classifier } from "../../shared/classifiers";
+import {
+  CLASSIFIER_BY_ID,
+  KANJI_LIST_FILTERS,
+  type Classifier,
+  type KanjiListId
+} from "../../shared/classifiers";
 import type { KanjiResultDto, SearchResultDto } from "../../shared/messages";
 import { kanjiResults, searchResults } from "./search";
 
@@ -140,6 +145,36 @@ export const browseKanji = async (
     `SELECT literal FROM kanji_characters
       ORDER BY frequency IS NULL, frequency, stroke_count
       LIMIT ?`,
+    limit
+  );
+  return kanjiResults(
+    store,
+    rows.map((r) => r.literal)
+  );
+};
+
+/**
+ * The kanji in one browse list (#55) — a JLPT level, a school grade, or the frequency-ranked set.
+ *
+ * Ordered exactly like `browseKanji` above, and for the same reason: a kanji has no reading to sort
+ * gojūon by, so frequency-then-strokes is the ordering a character list actually wants.
+ *
+ * The filter is chosen from a fixed set rather than taking a caller-supplied predicate, so the SQL
+ * stays a parameterised lookup on an indexed column and there is no path for a browse id to become
+ * a query fragment.
+ */
+export const browseKanjiList = async (
+  store: SqliteStore,
+  list: KanjiListId,
+  limit = 3000
+): Promise<KanjiResultDto[]> => {
+  const where = KANJI_LIST_FILTERS[list];
+  const rows = await store.all<{ literal: string }>(
+    `SELECT literal FROM kanji_characters
+      WHERE ${where.sql}
+      ORDER BY frequency IS NULL, frequency, stroke_count
+      LIMIT ?`,
+    ...where.params,
     limit
   );
   return kanjiResults(

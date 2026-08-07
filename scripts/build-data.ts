@@ -318,6 +318,30 @@ const JLPT_LEVELS: Array<{ file: string; level: number }> = [
   { file: "n1.csv", level: 1 }
 ];
 
+// Kanji-level JLPT on the MODERN N5-N1 scale (#55). Kanjidic ships a `jlptLevel`, but it is the
+// pre-2010 four-level scale and does not convert: measured, 水 4→N5 and 私 3→N4 shift by one while
+// 顔 3→N3 does not, so it is different data rather than a different encoding — hence a separate
+// column rather than an overwrite.
+//
+// Source: onlyskin/kanjiapi's `jlpt.tsv` (MIT). Its commit message records the provenance as
+// tanos.co.uk — Jonathan Waller, the SAME author as the word-level lists we already ship in
+// `words.jlpt`, under the same CC-BY terms. So this adds no new licensing surface, and it explains
+// why the file agrees with JLPT Sensei's published lists to within one kanji (分, absent here).
+//
+// Format: five tab-separated lines, `level ⇥ <run of kanji>`. Measured on the pinned commit:
+// N5=79, N4=166, N3=367, N2=367, N1=1232 (2,211 total), no kanji at more than one level, and every
+// one present in Kanjidic. Pinned for reproducibility; unchanged upstream since 2025-03.
+const KANJI_JLPT_SHA = "f5cf050a82e407d93c5676427938d5ad2fbaf479";
+const KANJI_JLPT_URL = `https://raw.githubusercontent.com/onlyskin/kanjiapi/${KANJI_JLPT_SHA}/jlpt.tsv`;
+/** Per-level counts asserted at build time, so a silently-changed upstream file fails the build. */
+const KANJI_JLPT_EXPECTED: Record<number, number> = {
+  5: 79,
+  4: 166,
+  3: 367,
+  2: 367,
+  1: 1232
+};
+
 // Recursive kanji decomposition (cjk-decomp, amake fork). Multi-licensed — the README grants "6
 // licenses, of which you only need choose one", MIT among them, and the committed LICENSE file is
 // Apache-2.0; either fits our MIT extension (unlike cjkvi-ids, whose ids.txt is CHISE-derived
@@ -438,6 +462,55 @@ const fetchDecomposition = async (): Promise<Map<string, string[]>> => {
   }
   console.log(`  ${map.size} decomposition records`);
   return map;
+};
+
+/**
+ * Fetch the modern N5-N1 kanji lists, as `literal → level` (5 = N5 … 1 = N1).
+ *
+ * Asserted against `KANJI_JLPT_EXPECTED` rather than trusted: this is a rolling `raw.githubusercontent`
+ * path pinned to a commit, and the failure mode if it ever changed shape is a browse list that is
+ * silently short — a user cannot tell "N3 has 367 kanji" from "N3 has 40 and the parse broke".
+ */
+const fetchKanjiJlpt = async (): Promise<Map<string, number>> => {
+  console.log("Downloading kanji JLPT levels…");
+  const res = await fetchRetrying(KANJI_JLPT_URL, {
+    headers: { "User-Agent": "vscode-jisho-build" }
+  });
+  if (!res.ok) throw new Error(`kanji jlpt → ${res.status} ${res.statusText}`);
+  const levels = new Map<string, number>();
+  const seen: Record<number, number> = {};
+  for (const line of (await res.text()).split(/\r?\n/)) {
+    const [rawLevel, chars] = line.split("\t");
+    const level = Number(rawLevel);
+    if (!Number.isInteger(level) || level < 1 || level > 5 || !chars) continue;
+    // Code points are exactly the unit wanted here: the line is a run of CJK ideographs with no
+    // separators, and several jōyō kanji (𠮟, the standard form of 叱) are outside the BMP, so a
+    // UTF-16 split would halve them. The rule's emoji/grapheme concern does not apply to this data.
+    // oxlint-disable-next-line typescript/no-misused-spread
+    const list = [...chars];
+    seen[level] = list.length;
+    for (const literal of list) {
+      // A kanji at two levels would make the browse lists overlap and the badge ambiguous. The
+      // pinned file has none; fail loudly rather than silently keeping whichever came last.
+      const existing = levels.get(literal);
+      if (existing !== undefined) {
+        throw new Error(
+          `kanji jlpt: ${literal} appears at both N${String(existing)} and N${String(level)}`
+        );
+      }
+      levels.set(literal, level);
+    }
+  }
+  for (const [level, expected] of Object.entries(KANJI_JLPT_EXPECTED)) {
+    const actual = seen[Number(level)] ?? 0;
+    if (actual !== expected) {
+      throw new Error(
+        `kanji jlpt: N${level} has ${String(actual)} kanji, expected ${String(expected)} — upstream data changed shape`
+      );
+    }
+  }
+  console.log(`  ${levels.size} kanji with an N-level`);
+  return levels;
 };
 
 // ── Tatoeba example-sentence pool (F1) ─────────────────────────────────────────
@@ -886,6 +959,8 @@ interface Sources {
   priority: Map<string, WordPriority>;
   /** char → its direct component children (cjk-decomp, unpruned). */
   decomp: Map<string, string[]>;
+  /** kanji → modern N5-N1 level, 5..1 (#55). Absent for the ~8k kanji no level lists. */
+  kanjiJlpt: Map<string, number>;
   /** Tatoeba example pool + the exports' last-modified dates (F1). */
   tatoeba: Awaited<ReturnType<typeof fetchTatoeba>>;
   /** Yencken similar-kanji tables (stroke-edit + Yeh-Li radical) + their dates (F3). */
@@ -916,7 +991,8 @@ const downloadSources = async (): Promise<Sources> => {
     decomp,
     tatoeba,
     yenckenStroke,
-    yenckenRadical
+    yenckenRadical,
+    kanjiJlpt
   ] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -928,7 +1004,8 @@ const downloadSources = async (): Promise<Sources> => {
     fetchDecomposition(),
     fetchTatoeba(),
     fetchYencken(YENCKEN_STROKE_URL),
-    fetchYencken(YENCKEN_RADICAL_URL)
+    fetchYencken(YENCKEN_RADICAL_URL),
+    fetchKanjiJlpt()
   ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -950,6 +1027,7 @@ const downloadSources = async (): Promise<Sources> => {
     pitch,
     priority,
     decomp,
+    kanjiJlpt,
     tatoeba,
     yencken: { stroke: yenckenStroke, radical: yenckenRadical },
     release: release.tag_name
@@ -966,6 +1044,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     pitch,
     priority,
     decomp,
+    kanjiJlpt,
     tatoeba,
     yencken
   } = sources;
@@ -1023,9 +1102,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO search_terms(word_id, kind, term, term_lower, is_common, is_primary, sense_breadth, term_norm) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insKanjiChar = db.prepare(
-    `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt,
+    `INSERT INTO kanji_characters(literal, grade, stroke_count, frequency, jlpt, jlpt_n,
        on_json, kun_json, meanings_json, nanori_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insComponent = db.prepare(
     "INSERT INTO kanji_components(literal, component) VALUES (?, ?)"
@@ -1113,7 +1192,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   const kanjiSet = new Set<string>();
   let kdone = 0;
   for (const char of kanjidic.characters) {
-    importKanji(char, { insKanjiChar, insKanjiTerm });
+    importKanji(char, { insKanjiChar, insKanjiTerm, jlptN: kanjiJlpt });
     kanjiSet.add(char.literal);
     checkpointEvery(db, ++kdone);
   }
@@ -1312,14 +1391,18 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     ],
 
     [
+      // One entry for both scales: the word lists and the kanji lists are the SAME author's data,
+      // reaching us through different intermediaries. Crediting them separately would imply two
+      // provenances to reconcile when there is only one.
       "jlptSource",
-      "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk, via stephenmk/yomitan-jlpt-vocab"
+      "JLPT levels (unofficial): Jonathan Waller / tanos.co.uk — words via stephenmk/yomitan-jlpt-vocab, kanji via onlyskin/kanjiapi"
     ],
     [
       "jlptLicense",
       "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
     ],
     ["jlptMatched", String(jlptMatched)],
+    ["jlptKanjiMatched", String(kanjiJlpt.size)],
 
     ["pitchSource", "Pitch accent: Kanjium (Uros O.), from NHK/Wadoku data"],
     [
@@ -1996,6 +2079,8 @@ const importTatoebaPool = async (
 interface KanjiStmts {
   insKanjiChar: Statement;
   insKanjiTerm: Statement;
+  /** Modern N5-N1 levels, keyed by literal (#55). Absent for the ~8k kanji no level lists. */
+  jlptN: Map<string, number>;
 }
 
 const importKanji = (char: Kanjidic2Character, s: KanjiStmts): void => {
@@ -2021,6 +2106,7 @@ const importKanji = (char: Kanjidic2Character, s: KanjiStmts): void => {
     char.misc.strokeCounts[0] ?? null,
     char.misc.frequency,
     char.misc.jlptLevel,
+    s.jlptN.get(char.literal) ?? null,
     JSON.stringify(on),
     JSON.stringify(kun),
     JSON.stringify(meanings),

@@ -434,6 +434,59 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     }
   });
 
+  // ── Kanji-level JLPT, modern N5–N1 scale (#55) ────────────────────────────
+
+  test("stores the modern kanji JLPT scale separately from Kanjidic's old one", async () => {
+    // WHY: `jlpt` (Kanjidic, pre-2010 four-level) and `jlpt_n` (N5–N1) are DIFFERENT DATA, not two
+    // encodings of the same thing — 水 is old-4/N5 and 私 old-3/N4, both shifting by one, while 顔 is
+    // old-3/N3 and does not. Overwriting one with the other would silently corrupt whichever
+    // consumer wanted the other, so this pins that both survive and that 顔 is the case proving the
+    // shift is not uniform.
+    const levels = await Promise.all(
+      ["水", "私", "顔"].map(async (literal) => ({
+        literal,
+        list: await dict.browseKanjiList("kanji-jlpt-n5")
+      }))
+    );
+    // 水 is N5; 私 and 顔 are not, so only 水 appears in the N5 list.
+    const n5 = new Set(levels[0].list.map((k) => k.literal));
+    expect(n5.has("水")).toBe(true);
+    expect(n5.has("私")).toBe(false);
+    expect(n5.has("顔")).toBe(false);
+
+    // And they land where the modern scale says, not where Kanjidic's old one would put them.
+    const n4 = await dict.browseKanjiList("kanji-jlpt-n4");
+    expect(n4.some((k) => k.literal === "私")).toBe(true);
+    const n3 = await dict.browseKanjiList("kanji-jlpt-n3");
+    expect(n3.some((k) => k.literal === "顔")).toBe(true);
+  });
+
+  test("carries every JLPT kanji level, at the counts the source publishes", async () => {
+    // WHY: the browse lists are only as good as this import, and the failure mode is a list that is
+    // silently SHORT — a user cannot tell "N3 has 367 kanji" from "N3 has 40 and the parse broke".
+    // The build asserts the same numbers against the upstream file; this asserts they reached the
+    // database. Kanji at two levels would make the lists overlap, so uniqueness is pinned too.
+    const expected = [
+      ["kanji-jlpt-n5", 79],
+      ["kanji-jlpt-n4", 166],
+      ["kanji-jlpt-n3", 367],
+      ["kanji-jlpt-n2", 367],
+      ["kanji-jlpt-n1", 1232]
+    ] as const;
+    const seen = new Set<string>();
+    let total = 0;
+    for (const [id, count] of expected) {
+      const list = await dict.browseKanjiList(id);
+      expect(list).toHaveLength(count);
+      total += list.length;
+      for (const k of list) {
+        expect(seen.has(k.literal)).toBe(false);
+        seen.add(k.literal);
+      }
+    }
+    expect(total).toBe(2211);
+  });
+
   // ── Pitch accent (M6) ─────────────────────────────────────────────────────
 
   test("attaches pitch accents to the matching reading", async () => {
