@@ -96,6 +96,55 @@ test("pasting a sentence lands it once, with the caret after it", async () => {
   expect(await searchText(frame)).toBe(`${paste}か`);
 });
 
+test("a sentence's results are labelled as partial matches", async () => {
+  // WHY (Shirabe reference): every result for a sentence is a fragment of what was typed, and an
+  // unlabelled list says nothing about that. Verified against the real dictionary rather than a
+  // mock, because the section only appears when the HOST decides the query is multi-word.
+  const win = vscode!.window;
+  const frame = await jishoFrame(win);
+
+  await fillSearch(frame, "毎日日本語を勉強します");
+  await expect(frame.getByText("Partial matches")).toBeVisible();
+  // No entry exists for the whole sentence, so nothing is featured above it.
+  await expect(frame.getByRole("listbox", { name: "Full match" })).toHaveCount(
+    0
+  );
+
+  await win.screenshot({ path: "test-results/shots/23-partial-matches.png" });
+});
+
+test("a set phrase the tokenizer does not split is a plain ranked list", async () => {
+  // WHY: 申し訳ございません is a dictionary entry AND, in Shirabe, a sentence broken into
+  // もうしわけ/ござい/ません. IPADIC disagrees — it tokenizes the whole polite formula as ONE noun, so
+  // no breakdown exists to label and the query is not "multi-word" by our definition.
+  //
+  // The right outcome is therefore the plain ranked list, with the exact entry on top: featuring it
+  // above a "Partial matches" header would promise a fragment list we have nothing to put in. This
+  // pins that, so a future tokenizer change that DOES split it shows up here as a failure to
+  // re-decide rather than as a silently different UI.
+  const win = vscode!.window;
+  const frame = await jishoFrame(win);
+
+  await fillSearch(frame, "申し訳ございません");
+  await expect(frame.getByRole("option").first()).toContainText(
+    "申し訳ございません"
+  );
+  await expect(frame.getByText("Partial matches")).toHaveCount(0);
+  await expect(frame.getByRole("listbox", { name: "Full match" })).toHaveCount(
+    0
+  );
+
+  await win.screenshot({ path: "test-results/shots/24-set-phrase.png" });
+});
+
+test("a plain word lookup is not labelled", async () => {
+  // WHY: 食べる already leads by ranking; adding a header to every ordinary search would be noise.
+  const frame = await jishoFrame(vscode!.window);
+  await fillSearch(frame, "食べる");
+  await expect(frame.getByRole("option").first()).toBeVisible();
+  await expect(frame.getByText("Partial matches")).toHaveCount(0);
+});
+
 test("continuing to type after a filter keeps the caret at the end", async () => {
   // WHY: the reported failure showed up as Enter inserting a newline BEFORE the text, i.e. the
   // caret had silently moved to offset 0. Typing more characters and checking they land at the end

@@ -195,6 +195,36 @@ export const SearchResults = ({
     words = words.filter((w) => w.headword === lemma || w.reading === lemma);
   }
 
+  /**
+   * Split a sentence's results into the entry for the WHOLE query and the constituent words.
+   *
+   * Shirabe Jisho's model: search 毎日日本語を勉強します and every result is a fragment of what you
+   * typed, so presenting them as a flat list says nothing about what they are. Labelling them
+   * "Partial matches" does — and when the sentence IS itself an entry (申し訳ございません), that entry
+   * leads, visually distinct, with the fragments below it.
+   *
+   * Gated on `segments.length > 0`, which is already the app's definition of a multi-word query:
+   * `analyzeQuery` emits segments only when a query has more than one content word. A plain lookup
+   * (食べる) keeps its single ranked list, where the exact match already leads and a "Partial
+   * matches" header would only add noise. It also means this section and the breakdown bar appear
+   * together, which is the honest pairing — the bar filters the partial list.
+   *
+   * The whole-query entry is found by the same primary headword/reading comparison the breakdown
+   * filter uses, rather than by a server-side score: the DTO carries no rank, and this is the one
+   * question being asked — "is what I typed itself a word?"
+   */
+  const isSentence = segments.length > 0;
+  const trimmedQuery = query.trim();
+  const fullMatch = isSentence
+    ? words.find(
+        (w) => w.headword === trimmedQuery || w.reading === trimmedQuery
+      )
+    : undefined;
+  const partialWords =
+    fullMatch === undefined
+      ? words
+      : words.filter((w) => w.id !== fullMatch.id);
+
   const count = data ? words.length + kanji.length : undefined;
 
   // ListBox in single-selection mode opens on Enter via onAction; keep selection uncontrolled.
@@ -323,9 +353,13 @@ export const SearchResults = ({
       )}
 
       <div className={styles.list} ref={listRef} onKeyDown={onListKeyDown}>
-        {words.length > 0 ? (
+        {/* The whole query, when it is itself a dictionary entry. Its own ListBox rather than the
+            first row of the list below, so it can be styled as the answer and the one beneath it
+            can be labelled as fragments — and so the keyboard hand-off still finds it first, since
+            those handlers look for `[role="option"]` across this whole container. */}
+        {fullMatch !== undefined ? (
           <ListBox
-            aria-label="Word results"
+            aria-label="Full match"
             selectionMode="single"
             onSelectionChange={noop}
             onAction={(key) => {
@@ -333,7 +367,45 @@ export const SearchResults = ({
               remember(words.find((w) => w.id === id)?.headword);
               onOpenWord(id);
             }}
-            items={words}
+            items={[fullMatch]}
+          >
+            {(item) => (
+              <ListBoxItem
+                id={item.id}
+                textValue={item.headword}
+                className={`${styles.item} ${styles.fullMatch}`}
+              >
+                <span className={styles.itemTop}>
+                  <span className={styles.headword}>{item.headword}</span>
+                  {item.reading ? (
+                    <span className={styles.reading}>{item.reading}</span>
+                  ) : null}
+                  {item.common ? <Badge kind="common">common</Badge> : null}
+                  <JlptBadge level={item.jlpt} />
+                </span>
+                <span className={styles.gloss}>{item.glossPreview}</span>
+              </ListBoxItem>
+            )}
+          </ListBox>
+        ) : null}
+
+        {/* Only labelled for a multi-word query, where the results genuinely ARE fragments of what
+            was typed. A plain lookup keeps its unlabelled ranked list. */}
+        {isSentence && partialWords.length > 0 ? (
+          <div className={styles.sectionHeader}>Partial matches</div>
+        ) : null}
+
+        {partialWords.length > 0 ? (
+          <ListBox
+            aria-label={isSentence ? "Partial matches" : "Word results"}
+            selectionMode="single"
+            onSelectionChange={noop}
+            onAction={(key) => {
+              const id = String(key);
+              remember(words.find((w) => w.id === id)?.headword);
+              onOpenWord(id);
+            }}
+            items={partialWords}
           >
             {(item) => (
               <ListBoxItem

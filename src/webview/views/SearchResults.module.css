@@ -134,6 +134,23 @@
   border-bottom: 1px solid var(--jisho-border);
 }
 
+/*
+ * The entry for the WHOLE query, above the "Partial matches" it is broken into.
+ *
+ * It only ever appears with a labelled list beneath it, so it needs to read as the direct answer to
+ * what was typed rather than as the first of many. The headword scales up — the same signal
+ * Shirabe uses — and a leading accent rule ties it to the row without the heavier treatment a
+ * background fill would give it, which would collide with the hover and selected states above.
+ */
+.fullMatch {
+  padding-inline-start: calc(var(--jisho-gap) - 3px);
+  border-inline-start: 3px solid var(--jisho-focus);
+}
+
+.fullMatch .headword {
+  font-size: 1.35em;
+}
+
 /* Kanji result row: large character on the left, meaning + readings on the right. */
 .kanjiItem {
   display: flex;

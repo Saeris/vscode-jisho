@@ -45,11 +45,19 @@ vi.mock("../../bridge", () => ({
 // The breakdown bar only renders when the host returns segments, which it does for a multi-word
 // Japanese query. Mutable so a single test can turn it on without a second mock factory.
 const segments = vi.hoisted(() => ({ current: [] as SegmentDto[] }));
+// Likewise for the result rows, so the full-match split can be given a query that IS one of them.
+const results = vi.hoisted(() => ({
+  current: null as SearchResultDto[] | null
+}));
 
 vi.mock("../../queries", () => ({
   searchQuery: (query: string) => ({
     queryKey: ["search", query],
-    queryFn: () => ({ words, kanji: [], segments: segments.current }),
+    queryFn: () => ({
+      words: results.current ?? words,
+      kanji: [],
+      segments: segments.current
+    }),
     enabled: query.trim().length > 0
   }),
   namesQuery: (query: string) => ({
@@ -216,5 +224,80 @@ describe("breakdown filter (#16)", () => {
     renderView({ selectedSegment: 99 });
     await screen.findAllByText("食べる");
     expect(headwords()).toHaveLength(2);
+  });
+});
+
+describe("full match vs partial matches", () => {
+  const sentence: SegmentDto[] = [
+    { surface: "食べる", lemma: "食べる", reading: "タベル", pos: "verb" },
+    { surface: "や", lemma: "や", reading: "ヤ", pos: "particle" },
+    { surface: "食う", lemma: "食う", reading: "クウ", pos: "verb" }
+  ];
+
+  afterEach(() => {
+    segments.current = [];
+    results.current = null;
+  });
+
+  it("labels the results of a multi-word query as partial matches", async () => {
+    // WHY (Shirabe reference): searching a sentence returns fragments of what was typed, and a flat
+    // unlabelled list says nothing about what they are. The header is the whole point.
+    segments.current = sentence;
+    renderView({ query: "食べるや食う" });
+    await screen.findAllByText("食べる");
+    expect(screen.getByText("Partial matches")).toBeDefined();
+  });
+
+  it("does NOT label a plain single-word lookup", async () => {
+    // WHY: 食べる already puts its exact match first by ranking, and calling the rest "partial
+    // matches" would add a header to every ordinary search. The section is for sentences only —
+    // which is exactly when the host emits segments.
+    renderView({ query: "食べる" });
+    await screen.findAllByText("食べる");
+    expect(screen.queryByText("Partial matches")).toBeNull();
+  });
+
+  it("lifts the whole-query entry out of the list when the sentence IS a word", async () => {
+    // WHY: 申し訳ございません is both a dictionary entry and something the tokenizer breaks up, so it
+    // must appear ONCE as the answer rather than buried among its own fragments.
+    segments.current = sentence;
+    results.current = [
+      {
+        id: "whole",
+        headword: "申し訳ございません",
+        reading: "もうしわけございません",
+        common: true,
+        glossPreview: "I'm sorry",
+        jlpt: null
+      },
+      {
+        id: "part",
+        headword: "申し訳",
+        reading: "もうしわけ",
+        common: true,
+        glossPreview: "apology",
+        jlpt: null
+      }
+    ];
+    renderView({ query: "申し訳ございません" });
+    await screen.findAllByText("申し訳ございません");
+
+    // The full match is its own list, and the fragment is under the labelled one.
+    const full = screen.getByRole("listbox", { name: "Full match" });
+    expect(full.textContent).toContain("申し訳ございません");
+    const partial = screen.getByRole("listbox", { name: "Partial matches" });
+    expect(partial.textContent).toContain("申し訳");
+    // Not duplicated into both.
+    expect(partial.textContent).not.toContain("申し訳ございません");
+  });
+
+  it("shows only partial matches when the sentence is not itself a word", async () => {
+    // WHY: 毎日日本語を勉強します has no entry of its own, so there is nothing to feature — the second
+    // Shirabe screenshot has no full-match section at all.
+    segments.current = sentence;
+    renderView({ query: "毎日日本語を勉強します" });
+    await screen.findAllByText("食べる");
+    expect(screen.queryByRole("listbox", { name: "Full match" })).toBeNull();
+    expect(screen.getByText("Partial matches")).toBeDefined();
   });
 });
