@@ -121,8 +121,15 @@ cypress/e2e/build
 .vercel/*
 !.vercel/package.json
 
-# Claude Code local agent state
-.claude/
+# Claude Code local agent state — but NOT the skills, which are project
+# documentation: they carry this repo's conventions for anyone (or any agent)
+# working on it, so they are versioned with the code they describe.
+#
+# The contents are excluded rather than the directory itself: git cannot
+# re-include a path inside an excluded DIRECTORY, so `.claude/` followed by
+# `!.claude/skills/` does not work.
+.claude/*
+!.claude/skills/
 
 # CPU profiles emitted by scripts/profile.mjs
 profiles/

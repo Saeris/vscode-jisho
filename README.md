@@ -17,6 +17,7 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 - **Vocabulary search** — by Japanese (kanji or kana), Hepburn romaji, _or_ English, ranked by relevance rather than raw match tier. Conjugated input works: type 食べました and get 食べる.
 - **Multi-word queries** — a sentence is tokenized into its words with parts of speech, shown as a breakdown bar you can tap to search any single word.
 - **Kanji as a first-class result** — searches surface matching characters in their own section, with a full kanji page: meanings, on/kun readings, stroke count, grade, JLPT level, component breakdown, and visually-similar look-alikes.
+- **Browse by category** — four sections along the bottom of the panel: Search, Vocab (JLPT level, frequency, part of speech, subject, dialect), Kanji (JLPT level, school grade, frequency), and Kana (the gojūon chart).
 - **Radical picker & handwriting** — find a character you can't type, either by picking its radicals (filterable by position) or by drawing it.
 - **Names** — JMnedict readings, so a name in your text resolves instead of coming back empty.
 
@@ -26,7 +27,7 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 - **Pitch accent** drawn as a contour over the reading, and **text-to-speech** for any reading.
 - **Conjugation tables** for verbs and adjectives, with each form's grammar explained.
 - **Example sentences** with furigana, where every word is a tap target to its own entry — a couple inline, the full pooled set on its own page.
-- **Stroke order**, animated with a scrubber plus a per-stroke chart.
+- **Stroke order**, animated with a scrubber plus a per-stroke chart, for kanji and kana alike.
 - **Copy as** — the word, its reading, romaji, or furigana as Markdown ruby or HTML.
 
 **In-editor conveniences**
@@ -43,131 +44,36 @@ An **offline** Japanese dictionary that lives in your VSCode sidebar. Look up un
 
 Still to come: running in web VS Code (vscode.dev). See the [roadmap](./docs/ROADMAP.md) for the full sequence and [BACKLOG.md](./docs/BACKLOG.md) for the open ideas.
 
-## 🛠 Development (running the extension)
+## 📣 Data sources
 
-This extension has three build targets: the **extension host** bundle (`vp pack` → a CommonJS `.cjs` VSCode loads in its Node extension host), the **webview** app (`vp build` → the React UI that renders in the sidebar), and a one-off **data build** (`vp run build:data` → the SQLite dictionary). The first two are wired into the F5 debug flow; the data build you run occasionally.
+This extension is built on the work of several open dictionary projects, whose licences require attribution. Full notices are in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md); the About view inside the extension carries the same credits.
 
-### 1. Install dependencies and provision the data
-
-```bash
-vp install                   # install dependencies
-vp run build:data            # download JMdict → build assets/jisho.db (a one-off, ~60s)
-vp run build:tokenizer-dict  # download the compiled IPADIC tokenizer dictionary (a one-off)
-```
-
-`build:data` downloads the latest [`jmdict-eng-common`][jmdict-simplified] release and compiles it into `assets/jisho.db`. `build:tokenizer-dict` downloads the pinned Lindera IPADIC dictionary the Japanese tokenizer loads (the tokenizer is the native [`lindera-nodejs`][lindera] binding — see [Tokenizer](#-tokenizer) below) and copies our slang user-dictionary next to it, into `assets/lindera-ipadic/`. Re-run either only to refresh that data. Both are **provisioned build artifacts** — not committed, and either **bundled** into the `.vsix` (the tokenizer dictionary) or **downloaded on first activation** (the JMdict DB); see [Dictionary delivery](#-dictionary-delivery).
-
-**No Rust toolchain is needed for ordinary development** — the tokenizer ships as a prebuilt native binary, and the dictionary is downloaded compiled. Rust only enters the picture if we ever regenerate the tokenizer binary itself (see [Tokenizer](#-tokenizer)).
-
-### 2. Run it with F5
-
-Press **`F5`** (Run → Start Debugging) in this project. VSCode will:
-
-1. Run the `build` task (builds `dist/extension.cjs` and `dist/webview/`).
-2. Open a second window titled **`[Extension Development Host]`** with the extension loaded from this folder.
-
-In that window, click the **Jisho** icon in the activity bar and search (`たべる`, `eat`, `食べる`…). Because F5 runs from your workspace folder, the extension finds `assets/jisho.db` directly.
-
-### 3. Iterate
-
-- Run the **`watch`** task once (Terminal → Run Task → `watch`) to rebuild the host and webview on every change.
-- In the Extension Development Host window, press **`Ctrl+R`** (Reload Window) to load the latest build. Stop debugging with **`Shift+F5`**.
-
-> **Note:** F5 uses the workspace's `assets/jisho.db` directly (and picks up rebuilds automatically). Installed `.vsix` copies instead download the full dictionary on first activation — see [Dictionary delivery](#-dictionary-delivery).
-
-## 📦 Building & packaging
-
-```bash
-vp check            # format + lint + typecheck
-vp test             # run the test suite
-vp run build        # build both targets and package a .vsix
-```
-
-SQLite comes from Node's built-in [`node:sqlite`][node-sqlite], so the database needs no native package of its own. The [Lindera][lindera] tokenizer does: it ships a platform-specific `.node` addon that cannot be bundled, so it is packaged into the `.vsix` from `node_modules` (this is why packaging uses `vsce package --no-yarn` rather than `--no-dependencies`).
-
-Marketplace releases are **per-platform packages**: `vp run build:platforms` builds one `.vsix` per target (Windows x64/arm64, macOS Intel/Apple Silicon, Linux x64/arm64) from a single machine by fetching each platform's prebuilt tokenizer binary from npm — no cross-compilation or CI matrix needed. Bumpy's release flow runs this same script and publishes each package.
-
-## 📚 Dictionary delivery
-
-The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, zstd-decompressed, sha256-verified, with a progress notification — then everything is offline. In F5 development the workspace copy of `assets/jisho.db` is used directly instead (and refreshes automatically when you rebuild it).
-
-The download comes from the rolling **`dictionary-latest`** GitHub Release, which is decoupled from extension releases so dictionary refreshes don't require publishing a new extension version. To create or refresh it (maintainer task):
-
-```bash
-vp run build:data:full   # builds assets/jisho.db + jisho-full.db.zst (+ .sha256, .version)
-gh release create dictionary-latest --title "Dictionary data" --notes "Rolling JMdict database" \
-  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
-# or, to refresh an existing release:
-gh release upload dictionary-latest --clobber \
-  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
-```
-
-The **names dictionary** (JMnedict, ~743k entries) is a separate optional artifact — downloaded on demand the first time a search could return names — built and uploaded the same way:
-
-```bash
-vp run build:data:names  # builds assets/jisho-names.db + jisho-names.db.zst (+ .sha256, .version)
-gh release upload dictionary-latest --clobber \
-  assets/jisho-names.db.zst assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
-```
-
-## 🈁 Tokenizer
-
-Japanese word segmentation uses [Lindera][lindera] (MeCab/IPADIC-quality morphological analysis) via its native Node binding, [`lindera-nodejs`][lindera]. The binding ships as a **prebuilt per-platform binary** — the same model as our SQLite native addon — so **ordinary contributors need no Rust toolchain**. The IPADIC dictionary is not embedded in the binary: it's a compiled directory provisioned by `vp run build:tokenizer-dict` into `assets/lindera-ipadic/` (gitignored, ~55 MB) and **bundled into the `.vsix`** so the tokenizer works offline on install.
-
-### Adding slang / colloquial words
-
-IPADIC misses some slang (きもい, うざい, エモい …), which the lattice otherwise shatters into fragments. We fix this with a small **user dictionary** layered on IPADIC at tokenize time: `src/data/slang-userdict.csv` (committed source). To add a word, follow the format guide in [`src/data/slang-userdict.md`](src/data/slang-userdict.md) — **only add words IPADIC genuinely lacks** (check by tokenizing them first; most everyday slang is already present in IPADIC 4.x), and add a `corpus.spec.ts` regression. Re-run `vp run build:tokenizer-dict` to copy it next to the dictionary.
-
-### Regenerating the tokenizer binary (rare, needs Rust)
-
-We do **not** build the tokenizer binary — we consume the prebuilt `lindera-nodejs` from npm. (Through 4.x its npm tarball was missing the entry point that resolves the per-platform `.node`, so a loader shim lived in `vendor/`; upstream fixed that in 5.0.0 and the shim is gone.) Only if we ever needed a _custom_ build (e.g. a WASM build for a future web extension) would Rust + `wasm-pack` enter the toolchain — the investigation and recipe are in [`docs/specs/14`](docs/specs/14-custom-lindera-wasm.md). The dictionary version is **pinned** to the `lindera-nodejs` package version (the compiled format is version-locked), so bump both together.
-
-## 📣 Data sources & attribution
-
-This extension is built on the work of several open dictionary projects. Their licenses require attribution, which is reproduced here (and will be surfaced in-app):
-
-- **[JMdict / EDICT][jmdict]** — Japanese-English dictionary data, © the [Electronic Dictionary Research and Development Group (EDRDG)][edrdg], used under the [EDRDG License][edrdg-license]. Sourced via [jmdict-simplified][jmdict-simplified].
-- **[KANJIDIC2][kanjidic]** — kanji character data (readings, meanings, stroke counts, grades, JLPT levels), © EDRDG, used under [CC BY-SA 4.0][cc-by-sa].
-- **[KRADFILE / RADKFILE][kradfile]** — kanji radical/component decompositions, © EDRDG (RADKFILE2/KRADFILE2 © Jim Rose), used under the [EDRDG License][edrdg-license].
-- **[Kanji confusion data][yencken]** — visually-similar ("look-alike") kanji, © [Lars Yencken][yencken] (stroke-edit and Yeh-Li radical distance over the jōyō kanji, from his PhD research), used under [CC BY 3.0][cc-by-3]. A component-overlap heuristic fills in non-jōyō kanji. This is a deterministic approximation, not curated confusable pairs.
-- **[JLPT vocabulary levels][tanos-jlpt]** — word-level JLPT tags, © [Jonathan Waller][tanos-jlpt] (tanos.co.uk), used under [CC BY-SA 4.0][cc-by-sa] via [yomitan-jlpt-vocab][yomitan-jlpt]. No official JLPT vocabulary list exists, so these levels are an unofficial community estimate.
-- **[Pitch accent][kanjium]** — mora-position pitch accent notation, © Uros O. ([Kanjium][kanjium], derived from NHK/Wadoku data), used under [CC BY-SA 4.0][cc-by-sa].
-- **[Example sentences][tatoeba]** — from the [Tatoeba][tatoeba] project, used under [CC BY 2.0 FR][cc-by-fr]. The curated Tanaka-corpus subset (embedded in JMdict via jmdict-simplified) provides the per-sense inline examples; the fuller Tatoeba corpus (jpn_indices + jpn/eng sentence exports) provides the word-level "more examples" pool.
-- **[JMnedict][jmnedict]** — the names dictionary (optional download), © [EDRDG][edrdg], used under the [EDRDG License][edrdg-license].
-- **[AnimCJK][animcjk]** — kanji stroke-order animations, © FM&SH; glyph paths adapt the Arphic PL KaitiM fonts and [Makemeahanzi][makemeahanzi], used under the [Arphic Public License][apl] (file-scoped copyleft; the license text ships with the SVG data in `assets/kanji-svgs/`).
-- **[KanjiCanvas][kanjicanvas]** — handwriting recognition, © Dominik Klein (MIT). We ship a functional TypeScript reimplementation of its algorithm (Wakahara et al. stroke-correspondence method) plus its reference stroke patterns; see `src/webview/recognizer/`.
-- **[perfect-freehand][perfect-freehand]** — pressure-sensitive drawing for the handwriting input, © Steve Ruiz (MIT).
-
-Additional sources (AnimCJK stroke data) will be added and credited as their features are implemented.
+- **[JMdict / EDICT][jmdict]** and **[JMnedict][jmnedict]** — dictionary and name data, © [EDRDG][edrdg], under the [EDRDG Licence][edrdg-license].
+- **[KANJIDIC2][kanjidic]** and **[KRADFILE / RADKFILE][kradfile]** — kanji data and radical decompositions, © EDRDG.
+- **[JLPT vocabulary levels][tanos-jlpt]** — © [Jonathan Waller][tanos-jlpt], under [CC BY-SA 4.0][cc-by-sa].
+- **[Pitch accent][kanjium]** — © Uros O., under [CC BY-SA 4.0][cc-by-sa].
+- **[Kanji confusion data][yencken]** — © [Lars Yencken][yencken], under [CC BY 3.0][cc-by-3].
+- **[Example sentences][tatoeba]** — from [Tatoeba][tatoeba], under [CC BY 2.0 FR][cc-by-fr].
+- **[AnimCJK][animcjk]** — stroke-order drawings, © FM&SH, under the [Arphic Public License][apl] (kanji) and [LGPL v3][lgpl] (kana).
+- **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]** — handwriting recognition and drawing, MIT.
 
 ## 🤝 Contributing
 
-New here? [Development](#-development-running-the-extension) covers first-time setup (`vp install` + the two data-provisioning steps) — no Rust toolchain needed for ordinary work. Editing the tokenizer or its dictionaries? See [Tokenizer](#-tokenizer).
-
-The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release.
-
-```bash
-vp install           # install dependencies
-vp check --fix       # format + lint + typecheck (with autofixes)
-vp test              # run Vitest
-yarn bumpy add       # create a bump file describing your change
-```
+Building the extension, running the tests, and refreshing the dictionary data are all covered in [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports go to [GitHub Issues][issues].
 
 ## 🥂 License
 
-Extension source released under the [MIT license][license] © [Drake Costa][personal-website]. Bundled dictionary data remains under its respective upstream licenses (see [Data sources & attribution](#-data-sources--attribution)).
+Extension source released under the [MIT license][license] © [Drake Costa][personal-website]. Bundled dictionary data remains under its respective upstream licences — see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
 [ci_badge]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml/badge.svg
 [ci]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml
 [shirabe]: https://ricoapps.com/
 [jmdict]: http://www.edrdg.org/jmdict/j_jmdict.html
-[jmdict-simplified]: https://github.com/scriptin/jmdict-simplified
 [edrdg]: https://www.edrdg.org/
 [edrdg-license]: https://www.edrdg.org/edrdg/licence.html
 [kanjidic]: https://www.edrdg.org/wiki/index.php/KANJIDIC_Project
 [kradfile]: https://www.edrdg.org/krad/kradinf.html
 [tanos-jlpt]: https://www.tanos.co.uk/jlpt/
-[yomitan-jlpt]: https://github.com/stephenmk/yomitan-jlpt-vocab
 [kanjium]: https://github.com/mifunetoshiro/kanjium
 [tatoeba]: https://tatoeba.org/
 [yencken]: https://lars.yencken.org/datasets/kanji-confusion/
@@ -175,14 +81,11 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [cc-by-3]: https://creativecommons.org/licenses/by/3.0/
 [jmnedict]: https://www.edrdg.org/enamdict/enamdict_doc.html
 [animcjk]: https://github.com/parsimonhi/animCJK
-[makemeahanzi]: https://github.com/skishore/makemeahanzi
 [apl]: https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE
+[lgpl]: https://www.gnu.org/licenses/lgpl-3.0.html
 [kanjicanvas]: http://github.com/asdfjkl/kanjicanvas
 [perfect-freehand]: https://github.com/steveruizok/perfect-freehand
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
-[node-sqlite]: https://nodejs.org/api/sqlite.html
-[lindera]: https://github.com/lindera/lindera
-[viteplus]: https://viteplus.dev/
-[bumpy]: https://bumpy.varlock.dev/
+[issues]: https://github.com/Saeris/vscode-jisho/issues
 [license]: ./LICENSE.md
 [personal-website]: https://saeris.gg

@@ -25,7 +25,12 @@ media/**
 vite.config.*
 tsconfig.json
 yarn.lock
+# Contributor-facing docs. vsce excludes CONTRIBUTING.md by default, but the intent is stated here
+# so it does not depend on that. THIRD_PARTY_NOTICES.md deliberately DOES ship — several of the
+# bundled datasets require their attribution to travel with the distribution.
 CLAUDE.md
+CONTRIBUTING.md
+.claude/**
 
 # The dictionary DB is delivered by download on first activation, not bundled.
 assets/**
