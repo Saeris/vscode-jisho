@@ -189,3 +189,49 @@ body {
   outline: 1px solid var(--jisho-focus);
   outline-offset: -1px;
 }
+
+/*
+ * Scrollbars, styled to match VS Code's own.
+ *
+ * A webview view sits inside a `monaco-scrollable-element` that renders VS Code's scrollbar at the
+ * panel's right edge — always present, visible on hover. Ours rendered Chromium's default chunky
+ * bar immediately inside it, so a scrolling panel showed TWO bars side by side. Measured, the outer
+ * one has nothing to scroll (scrollHeight === clientHeight), so it is the inner one that has to
+ * stop competing with it.
+ *
+ * Matching VS Code's slider colours and its 10px width makes the pair read as one control. The
+ * track stays transparent because VS Code's does; a filled track is what made the doubling obvious.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  /* No radius and no border: VS Code's slider is a plain rectangle, and rounding ours would make
+     the two visibly different controls rather than one. */
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* The corner where two scrollbars meet, which otherwise paints as a light square. */
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
