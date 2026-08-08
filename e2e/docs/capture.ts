@@ -90,6 +90,19 @@ interface CaptureOptions {
 }
 
 /**
+ * The side-bar width every capture is taken at, set once by the suite.
+ *
+ * Module state rather than a per-capture option because it must hold for ALL of them: the panel is
+ * container-queried, so a pass at a different width lays out differently, and a light/dark pair that
+ * disagrees about more than colour is a broken pair. One setting cannot be forgotten at a call site.
+ */
+let docSidebarWidth: number | undefined;
+
+export const useSidebarWidth = (width: number): void => {
+  docSidebarWidth = width;
+};
+
+/**
  * Capture a target, once per theme, via the callback that puts the panel in the right state.
  *
  * `prepare` runs again for each theme rather than once, because switching the theme rewrites
@@ -104,6 +117,11 @@ export const captureBothThemes = async (
   mkdirSync(IMAGE_DIR, { recursive: true });
   for (const theme of THEMES) {
     await vscode.setTheme(theme);
+    // Re-assert the width per theme: a theme change re-renders the workbench, and the two passes
+    // laying out at different widths is exactly how the light and dark radical-picker captures
+    // ended up scrolled to different positions.
+    if (docSidebarWidth !== undefined)
+      await widenSidebar(vscode.window, docSidebarWidth);
     const target = await prepare(theme);
     await settle(vscode.window, !keepPointer);
     const path = join(IMAGE_DIR, `${name}-${theme}.png`);
@@ -118,8 +136,49 @@ export const sidebar = (window: Page): Locator =>
   window.locator(".part.sidebar");
 
 /**
+ * Widen the side bar past the panel's own narrow-layout breakpoint.
+ *
+ * The panel is CONTAINER-queried, so its layout is a function of this width, and at VS Code's
+ * default 300px the conjugation table renders its stacked form — form name on one line, the two
+ * cells under it. That is a real layout (`@container (max-width: 379px)` in WordDetail.module.css)
+ * and the right one in a narrow sidebar, but the three-column table is the richer view and the one
+ * worth documenting.
+ *
+ * Dragged, because side-bar width lives in the profile's workbench state rather than settings —
+ * the same reason `closeChatPanel` is a UI action. The drag is AWAITED against the measured width
+ * so a missed sash fails here rather than silently producing stacked-layout screenshots.
+ */
+export const widenSidebar = async (
+  window: Page,
+  width: number
+): Promise<void> => {
+  const bar = window.locator(".part.sidebar");
+  const box = await bar.boundingBox();
+  if (!box) throw new Error("the side bar has no box");
+  if (Math.abs(box.width - width) < 2) return;
+  // The sash sits on the side bar's trailing edge. Grab it a little inside the edge: exactly on the
+  // boundary the hit-test can land on the editor instead.
+  await window.mouse.move(box.x + box.width, box.y + box.height / 2);
+  await window.mouse.down();
+  await window.mouse.move(box.x + width, box.y + box.height / 2, { steps: 10 });
+  await window.mouse.up();
+  await expect
+    .poll(async () => Math.round((await bar.boundingBox())?.width ?? 0), {
+      timeout: 5_000
+    })
+    .toBeGreaterThanOrEqual(width - 4);
+};
+
+/**
  * The editor area plus the sidebar — for scenarios where the POINT is the two together, such as
  * hovering a word in a file while the panel shows the same entry.
+ *
+ * Shot WHOLE, deliberately. The window lands at 1440x900 (16:10), not the 1440x810 the suite asks
+ * for, and that is not fixable from here: Electron does not expose CDP's `Browser.setWindowBounds`
+ * over an attached session, and VS Code restores its own persisted geometry over Chromium's
+ * `--window-size` switch. Cropping to 16:9 would mean cutting 90px off the bottom, which takes the
+ * status bar with it and makes the app look truncated. 16:10 is a standard embed ratio, so the
+ * honest framing is the better one.
  */
 export const workbenchRegion = (window: Page): Locator =>
   window.locator(".monaco-workbench");
@@ -163,6 +222,33 @@ export const cropAround = async (
 };
 
 /**
+ * A vertical SLICE of the side bar: the panel's full width, cut to the rows you name.
+ *
+ * The difference between this and `cropAround` is what makes a crop readable. Cropping tight to the
+ * subject's own boxes gave a 94px-wide sliver of the headword — the right region, and useless as a
+ * picture, with the pitch contour clipped and the tag pills cut mid-word. Taking the width from the
+ * PANEL keeps the subject in its column, with the layout's own margins around it, so the reader can
+ * see what part of the page they are looking at.
+ *
+ * Reach for this whenever the subject is a band of a panel; keep `cropAround` for things that are
+ * genuinely their own object, like a popup menu.
+ */
+export const sliceOfPanel = async (
+  window: Page,
+  elements: Locator[],
+  padding = 12
+): Promise<Target> => {
+  const panel = await sidebar(window).boundingBox();
+  if (!panel) throw new Error("the side bar has no box");
+  const region = await cropAround(window, elements, padding);
+  if (!isRegion(region)) throw new Error("cropAround did not return a region");
+  return {
+    page: window,
+    clip: { ...region.clip, x: panel.x, width: panel.width }
+  };
+};
+
+/**
  * Scroll an element to the TOP of the panel's scroll container.
  *
  * `scrollIntoViewIfNeeded` is not enough: it stops as soon as the element is technically visible, so
@@ -172,9 +258,20 @@ export const cropAround = async (
  */
 export const scrollToTop = async (element: Locator): Promise<void> => {
   await element.evaluate((el) => {
-    const scroller = el.closest<HTMLElement>(
-      "[class*='body'], [class*='list']"
-    );
+    // Find the nearest ancestor that actually SCROLLS, rather than matching class names. The
+    // name-based version silently missed the radical picker (its scroller is `.picker`) and fell
+    // through to `scrollIntoView`, which is why the light and dark passes settled at different
+    // offsets. Computed overflow is the property that matters, so test for it directly.
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller) {
+      const { overflowY } = getComputedStyle(scroller);
+      if (
+        (overflowY === "auto" || overflowY === "scroll") &&
+        scroller.scrollHeight > scroller.clientHeight
+      )
+        break;
+      scroller = scroller.parentElement;
+    }
     if (!scroller) {
       el.scrollIntoView({ block: "start" });
       return;

@@ -150,6 +150,11 @@ const seedUserData = (
         // button in particular reads as something the extension is asking for.
         "window.commandCenter": false,
         "workbench.layoutControl.enabled": false,
+        // The 1.128 "modern UI" restyles the title bar and tabs into a rounded, browser-like shell.
+        // It is opt-in and still experimental, so a screenshot taken with it on shows a VS Code most
+        // readers do not have — and it is the editor's chrome rather than anything about this
+        // extension. Off, so the captures look like the default install.
+        "workbench.experimental.modernUI": false,
         "update.mode": "none",
         "telemetry.telemetryLevel": "off",
         "extensions.autoUpdate": false,
@@ -190,6 +195,39 @@ const assertPortFree = async (): Promise<void> => {
     if (err instanceof Error && err.message.includes("already in use"))
       throw err;
   }
+};
+
+/**
+ * Wait for the window to report the size we asked Chromium for at launch.
+ *
+ * The size itself is set by the `--window-size` switch rather than from here. Two other approaches
+ * do NOT work and are worth recording so they are not retried: `page.setViewportSize` emulates a
+ * viewport inside a window whose real size is unchanged, so the workbench lays out at one size while
+ * the chrome is drawn at another; and CDP's `Browser.setWindowBounds` — the obvious fix — is not
+ * exposed by Electron over an attached session ("'Browser.getWindowForTarget' wasn't found"),
+ * because Electron owns its windows in the main process.
+ */
+const awaitWindowSize = async (
+  window: Page,
+  size: { width: number; height: number }
+): Promise<void> => {
+  await window
+    .waitForFunction(
+      // `globalThis`, not `window`: inside this callback the browser's `window` is shadowed by the
+      // Playwright Page parameter of the same name in the enclosing scope.
+      (want) => Math.abs(globalThis.innerWidth - want) < 40,
+      size.width,
+      { timeout: 10_000 }
+    )
+    .catch(() => {
+      // A window manager may refuse an exact size (tiling WMs, or a display smaller than the
+      // request). The captures are still usable at whatever size was granted, so this reports
+      // rather than fails the whole run.
+      console.warn(
+        `window size ${size.width}x${size.height} was not honoured; ` +
+          "full-app captures will use the window manager's size instead"
+      );
+    });
 };
 
 /**
@@ -259,8 +297,21 @@ export const clearNotifications = async (window: Page): Promise<void> => {
   }
 };
 
+export interface LaunchOptions {
+  /**
+   * Force the window to an exact size, in CSS pixels.
+   *
+   * For the documentation captures, where the window IS the image: left to the OS the window
+   * inherits whatever geometry the machine last used, so a full-app screenshot's aspect ratio is an
+   * accident of the developer's display. Pinning it makes the hero images reproducible and lets them
+   * be sized for embedding rather than cropped to fit afterwards.
+   */
+  windowSize?: { width: number; height: number };
+}
+
 export const launchVSCode = async (
-  settings: Record<string, unknown> = {}
+  settings: Record<string, unknown> = {},
+  { windowSize }: LaunchOptions = {}
 ): Promise<Launched> => {
   await assertPortFree();
   const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
@@ -300,6 +351,12 @@ export const launchVSCode = async (
       "--disable-gpu-sandbox",
       "--disable-extensions", // load only OUR extension via the dev path
       "--no-sandbox",
+      // Chromium's own switch, applied when the window is CREATED. This is the only lever that
+      // works here: Electron does not expose CDP's `Browser.setWindowBounds` over an attached
+      // session, and a Playwright viewport override would desynchronize layout from chrome.
+      ...(windowSize
+        ? [`--window-size=${windowSize.width},${windowSize.height}`]
+        : []),
       workspaceDir
     ],
     {
@@ -349,6 +406,7 @@ export const launchVSCode = async (
     );
   };
   const window = await findWorkbench();
+  if (windowSize) await awaitWindowSize(window, windowSize);
   await closeChatPanel(window);
   await hideAccountChrome(window);
 

@@ -29,6 +29,9 @@ import {
   cropAround,
   scrollToTop,
   sidebar,
+  sliceOfPanel,
+  useSidebarWidth,
+  widenSidebar,
   workbenchRegion
 } from "./capture";
 
@@ -75,15 +78,38 @@ let vscode: Launched | undefined;
 /** The fixture files, copied into the throwaway workspace so the editor has something to open. */
 const FIXTURES = ["grammar-notes.md", "checkout.ts", "reading-notes.md"];
 
+/**
+ * A REQUESTED window size, so the full-app captures do not inherit whatever geometry the developer's
+ * display last used.
+ *
+ * Requested rather than guaranteed: this goes to Chromium's `--window-size`, and VS Code restores
+ * its own persisted geometry over it, so the window settles at 1440x900 (16:10) rather than exactly
+ * this. That is a fine embed ratio, and `workbenchRegion` explains why it is not forced to 16:9.
+ * The value still matters — it pins the WIDTH, which is what the sidebar/editor split is measured
+ * against.
+ */
+const WINDOW = { width: 1440, height: 810 };
+
+/**
+ * Past the panel's `@container (max-width: 379px)` breakpoint, so the conjugation table documents
+ * its three-column form rather than the narrow stacked one. See `widenSidebar`.
+ */
+const SIDEBAR_WIDTH = 420;
+
 test.beforeAll(async () => {
-  vscode = await launchVSCode({
-    "workbench.sideBar.location": "left",
-    // Part-of-speech colouring is OFF by default, but it is a headline feature and the editor
-    // captures are where it shows. Turning it on here documents what it looks like rather than
-    // what the defaults are.
-    "vscode-jisho.highlighting.enabled": true
-  });
+  vscode = await launchVSCode(
+    {
+      "workbench.sideBar.location": "left",
+      // Part-of-speech colouring is OFF by default, but it is a headline feature and the editor
+      // captures are where it shows. Turning it on here documents what it looks like rather than
+      // what the defaults are.
+      "vscode-jisho.highlighting.enabled": true
+    },
+    { windowSize: WINDOW }
+  );
   await openJishoSidebar(vscode.window);
+  useSidebarWidth(SIDEBAR_WIDTH);
+  await widenSidebar(vscode.window, SIDEBAR_WIDTH);
 
   // The workspace is a fresh temp dir, so the fixtures have to be written into it.
   for (const name of FIXTURES) {
@@ -122,12 +148,24 @@ test("capture: the search box and its tools", async () => {
   await captureBothThemes(vscode!, "search-toolbar", async () => {
     const frame = await jishoFrame(win);
     await returnToSearch(frame);
-    await fillSearch(frame, "");
+    // A query in the field, not an empty one. An empty box photographs as an unfinished control and
+    // says nothing about what gets typed into it; a romaji query also shows that the field takes
+    // more than kana or kanji, which is the least discoverable thing about it.
+    await fillSearch(frame, "toshokan");
     const box = frame.getByRole("searchbox");
     const about = frame.getByRole("button", { name: /about this extension/i });
     await expect(box).toBeVisible();
     await expect(about).toBeVisible();
-    return cropAround(win, [box, about]);
+    // Down to the first result, so the strip has something under it. Cropped to the field and its
+    // icons alone this was a ~40px band floating in isolation — the toolbar reads as part of a
+    // search panel only when you can see it sitting above what it searches.
+    // Two rows, so the crop ends on a whole one. Bounding to the first result alone cut the second
+    // through the middle, which reads as a rendering glitch rather than a deliberate edge.
+    const firstHit = frame.getByRole("option").first();
+    const secondHit = frame.getByRole("option").nth(1);
+    await expect(firstHit).toBeVisible();
+    await expect(secondHit).toBeVisible();
+    return sliceOfPanel(win, [box, about, secondHit]);
   });
 });
 
@@ -172,12 +210,24 @@ test("capture: finding a kanji by its radicals", async () => {
     // 目 (eye), verified present in the picker's own list — the water radical is there under a
     // different variant, and a character that "should" be a radical is not necessarily the one
     // KRADFILE uses. Two selections keep the result set small and legible.
-    await frame.getByRole("button", { name: "目", exact: true }).click();
-    await frame.getByRole("button", { name: "月", exact: true }).click();
+    // 目 (eye) + 貝 (shell), rather than a pairing spread across the list. BOTH selections need to
+    // be in the same frame or the picture cannot show what multi-radical filtering does — an
+    // earlier pairing put one of them well above the fold, so the capture showed a single
+    // highlighted radical and a result list, which is indistinguishable from a one-radical search.
+    const eye = frame.getByRole("button", { name: "目", exact: true });
+    await eye.click();
+    await frame.getByRole("button", { name: "貝", exact: true }).click();
     // Results are what the capture is for, so wait for one before shooting.
     await expect(
       frame.getByRole("button", { name: /^Open .+:/ }).first()
     ).toBeVisible();
+    // Pin the picker's scroll position, so both themes frame the SAME radicals.
+    //
+    // Clicking a radical scrolls its list, and the two passes settled at different offsets — the
+    // light and dark captures showed different parts of the grid and appeared to disagree about
+    // which radicals were selected. Scrolling 目 to the top is a fixed reference both passes reach,
+    // and it also guarantees the first selection is actually IN frame, which it previously was not.
+    await scrollToTop(eye);
     return sidebar(win);
   });
 });
@@ -198,34 +248,62 @@ test("capture: drawing a kanji to find it", async () => {
     const box = await canvas.boundingBox();
     if (!box) throw new Error("the drawing canvas has no box");
 
-    // 二 — two horizontal strokes. Chosen because it is legible at this size and its shape survives
-    // being drawn by straight-line interpolation, which a curvy character would not.
+    /*
+     * One stroke, drawn the way a pen draws it.
+     *
+     * The ink is `perfect-freehand` with `thinning: 0.6`, which derives width from VELOCITY. The
+     * first version of this interpolated in eight equal steps, so every sample had identical
+     * velocity and the outline came out a uniform bar — the picture lost the pressure-sensitive
+     * ink that is half of what makes the canvas feel like writing.
+     *
+     * Easing fixes that at the source rather than faking a width: `sin²` starts slow, accelerates
+     * through the middle and settles at the end, so the stroke renders thin at the entry, full
+     * through the body, and tapered at the exit. More samples because the outline is only as smooth
+     * as the points it is built from.
+     */
     const stroke = async (
       x1: number,
       y1: number,
       x2: number,
       y2: number
     ): Promise<void> => {
+      const steps = 24;
       await win.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
       await win.mouse.down();
-      for (let i = 1; i <= 8; i++) {
+      for (let i = 1; i <= steps; i++) {
+        const t = Math.sin((Math.PI / 2) * (i / steps)) ** 2;
         await win.mouse.move(
-          box.x + box.width * (x1 + ((x2 - x1) * i) / 8),
-          box.y + box.height * (y1 + ((y2 - y1) * i) / 8)
+          box.x + box.width * (x1 + (x2 - x1) * t),
+          box.y + box.height * (y1 + (y2 - y1) * t)
         );
       }
       await win.mouse.up();
     };
-    await stroke(0.3, 0.35, 0.7, 0.35);
-    await stroke(0.2, 0.65, 0.8, 0.65);
+
+    /*
+     * The first four strokes of 年 — deliberately PARTIAL.
+     *
+     * A complete, unambiguous character makes a dull picture: one candidate, and nothing to show for
+     * the ranking. 年 is dense with near neighbours (牛 生 午 毎 年), so a partial drawing puts
+     * several plausible characters in the list and demonstrates what the candidate strip is FOR —
+     * you do not have to finish, or to know the stroke count, to find what you are after.
+     */
+    await stroke(0.46, 0.16, 0.32, 0.32); // opening left-falling stroke
+    await stroke(0.28, 0.34, 0.66, 0.34); // upper horizontal
+    await stroke(0.26, 0.54, 0.72, 0.54); // second horizontal
+    await stroke(0.5, 0.2, 0.5, 0.8); // the long vertical, dropping below the body
 
     // The recognizer loads its patterns lazily on the first stroke, so give the candidates a real
     // wait rather than the default. Their presence is the whole point of the shot.
+    //
+    // Asserts that SOME candidate appeared rather than naming one: the ranking of a partial drawing
+    // is the recognizer's business, and pinning an exact character here would make this capture
+    // fail on a legitimate scoring change rather than on a broken feature. A candidate button's
+    // accessible name is the character itself, so they are matched as single CJK glyphs — the hint
+    // paragraph they replace is not a button, so this cannot pass on an empty strip.
     await expect(
-      frame.getByRole("button", { name: /^二$|^Add /i }).first()
-    ).toBeVisible({
-      timeout: 20_000
-    });
+      frame.getByRole("button", { name: /^[一-鿿]$/u }).first()
+    ).toBeVisible({ timeout: 20_000 });
     return sidebar(win);
   });
 });
@@ -261,7 +339,9 @@ test("capture: the headword and its tags", async () => {
     const tag = frame.getByRole("button", { name: /ichidan verb/i }).first();
     await expect(top).toBeVisible();
     await expect(tag).toBeVisible();
-    return cropAround(win, [top, tag]);
+    // A panel-width SLICE, not the union of those two boxes: cropping tight to them gave a 94px
+    // sliver that clipped the pitch contour and cut the tag pills mid-word.
+    return sliceOfPanel(win, [top, tag]);
   });
 });
 
@@ -296,12 +376,16 @@ test("capture: the copy-as menu", async () => {
     await returnToSearch(frame);
     await fillSearch(frame, "食べる");
     await frame.getByRole("option").first().click();
-    await frame.getByRole("button", { name: /Copy 食べる as/ }).click();
+    const trigger = frame.getByRole("button", { name: /Copy 食べる as/ });
+    await trigger.click();
     const menu = frame.getByRole("menu").first();
     await expect(menu).toBeVisible();
     // The furigana variants are the least obvious entries and the reason the menu exists.
     await expect(menu.getByText(/ruby|furigana/i).first()).toBeVisible();
-    return cropAround(win, [menu]);
+    // The TRIGGER is in frame too, and the crop runs the panel's full width. A shot of the menu
+    // alone is a floating list of options with nothing to say where it came from — the point is
+    // that a control on the entry opens it.
+    return sliceOfPanel(win, [trigger, menu]);
   });
   // And once more on the way out, so the NEXT scenario starts clean.
   await vscode!.window.keyboard.press("Escape");
@@ -480,7 +564,15 @@ test("capture: a hover in a study note", async () => {
       // Wait for the ENTRY, not merely the card: VS Code renders the hover shell immediately and
       // fills it in when the provider resolves, so a capture can catch "(loading...)".
       await expect(hover).not.toContainText("loading");
-      return hover;
+      // The TEXT as well as the card. Cropped to the card alone this is a definition floating on a
+      // background — you cannot tell it came from pointing at a word in a document, which is the
+      // whole feature. Including the lines it covers shows the prose, the pointer's target, and the
+      // answer in one frame.
+      return cropAround(
+        win,
+        [...(await win.locator(".view-line").all()), hover],
+        16
+      );
       // `keepPointer`: the card IS the subject, and parking the pointer dismisses it.
     },
     { keepPointer: true }
