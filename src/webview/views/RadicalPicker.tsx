@@ -100,7 +100,16 @@ export const RadicalPicker = ({
               onPress={() => onOpenKanji(k.literal)}
               aria-label={`Open ${k.literal}: ${k.meaningPreview}`}
             >
-              {k.literal}
+              <span className={styles.matchLiteral} lang="ja">
+                {k.literal}
+              </span>
+              {/* The meaning was already on the wire and already in the aria-label — it was just
+                  never shown. A wall of bare characters makes the reader open each one to find out
+                  what it is; the meaning under the glyph is what makes the list scannable, and it
+                  matches the Similar kanji tiles on the detail page. */}
+              {k.meaningPreview ? (
+                <span className={styles.matchMeaning}>{k.meaningPreview}</span>
+              ) : null}
             </Button>
           ))
         )}

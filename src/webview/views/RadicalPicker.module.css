@@ -76,6 +76,10 @@
   flex-wrap: wrap;
   gap: 4px;
   align-content: flex-start;
+  /* Spread each row across the container instead of packing everything to the left. The tiles are a
+     fixed width, so a left-packed grid leaves a ragged gutter down the right-hand side that gets
+     wider the narrower the panel. */
+  justify-content: space-around;
 }
 
 .hint {
@@ -83,15 +87,38 @@
   margin: 0;
 }
 
+/* Tiles, matching the Similar kanji grid on the detail page: character over a one-word meaning.
+   A bare-character grid reads as a wall of glyphs the user has to open one by one. */
 .match {
-  min-width: 2em;
-  height: 2em;
-  font-size: 1.1em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 4.5em;
+  padding: 6px 4px;
   background: transparent;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
   color: var(--jisho-fg);
   cursor: pointer;
+  text-align: center;
+}
+
+.matchLiteral {
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.matchMeaning {
+  font-size: 0.72em;
+  line-height: 1.15;
+  color: var(--jisho-muted);
+  /* Clamp to two lines so a long first-meaning can't distort the tile grid. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .match:hover {

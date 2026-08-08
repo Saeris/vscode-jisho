@@ -91,10 +91,16 @@ const FIXTURES = ["grammar-notes.md", "checkout.ts", "reading-notes.md"];
 const WINDOW = { width: 1440, height: 810 };
 
 /**
- * Past the panel's `@container (max-width: 379px)` breakpoint, so the conjugation table documents
- * its three-column form rather than the narrow stacked one. See `widenSidebar`.
+ * Just past the panel's `@container (max-width: 379px)` breakpoint, so the conjugation table
+ * documents its three-column form rather than the narrow stacked one. See `widenSidebar`.
+ *
+ * Not 380, and the difference is measured rather than guessed: the breakpoint is on the CONTAINER
+ * (`.conjugations`), which sits inside the panel's chrome, and the container runs 27px narrower than
+ * the side bar (373 at 400, 383 at 410, 393 at 420). So the query clears 379 at a side bar of 407 or
+ * more. 410 is the first round number past that, which keeps the capture close to a width someone
+ * would plausibly dock rather than showing an unusually wide panel.
  */
-const SIDEBAR_WIDTH = 420;
+const SIDEBAR_WIDTH = 410;
 
 test.beforeAll(async () => {
   vscode = await launchVSCode(
@@ -265,16 +271,30 @@ test("capture: drawing a kanji to find it", async () => {
       x1: number,
       y1: number,
       x2: number,
-      y2: number
+      y2: number,
+      /**
+       * How far the stroke bows away from the straight line between its ends, as a fraction of the
+       * canvas. Positive bows left/up.
+       *
+       * Straight segments alone drew a convincing "4" rather than a partial 年 — the opening
+       * left-falling stroke (ノ) of 年 is CURVED, and rendering it as a diagonal line is what made
+       * the drawing read as the wrong character. A quadratic bend is enough to carry the difference.
+       */
+      bow = 0
     ): Promise<void> => {
       const steps = 24;
       await win.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
       await win.mouse.down();
       for (let i = 1; i <= steps; i++) {
         const t = Math.sin((Math.PI / 2) * (i / steps)) ** 2;
+        // Perpendicular offset, peaking at the middle of the stroke and vanishing at both ends.
+        const bend = bow * 4 * t * (1 - t);
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const len = Math.hypot(dx, dy) || 1;
         await win.mouse.move(
-          box.x + box.width * (x1 + (x2 - x1) * t),
-          box.y + box.height * (y1 + (y2 - y1) * t)
+          box.x + box.width * (x1 + dx * t - (dy / len) * bend),
+          box.y + box.height * (y1 + dy * t + (dx / len) * bend)
         );
       }
       await win.mouse.up();
@@ -288,10 +308,13 @@ test("capture: drawing a kanji to find it", async () => {
      * several plausible characters in the list and demonstrates what the candidate strip is FOR —
      * you do not have to finish, or to know the stroke count, to find what you are after.
      */
-    await stroke(0.46, 0.16, 0.32, 0.32); // opening left-falling stroke
-    await stroke(0.28, 0.34, 0.66, 0.34); // upper horizontal
-    await stroke(0.26, 0.54, 0.72, 0.54); // second horizontal
-    await stroke(0.5, 0.2, 0.5, 0.8); // the long vertical, dropping below the body
+    await stroke(0.54, 0.14, 0.3, 0.36, 0.04); // ノ — curved, left-falling
+    await stroke(0.28, 0.36, 0.72, 0.36); // upper horizontal
+    await stroke(0.26, 0.58, 0.78, 0.58); // second horizontal
+    // The long vertical, DROPPING WELL BELOW the lower bar. This is the stroke that separates 年
+    // from 牛/午 and from a handwritten "4": stopping it at the bar left a drawing that read as the
+    // digit, whatever the surrounding strokes did.
+    await stroke(0.5, 0.2, 0.5, 0.84);
 
     // The recognizer loads its patterns lazily on the first stroke, so give the candidates a real
     // wait rather than the default. Their presence is the whole point of the shot.
@@ -544,7 +567,7 @@ test("capture: a hover in a study note", async () => {
       // scenario happened to leave open would be incoherent.
       const frame = await jishoFrame(win);
       await returnToSearch(frame);
-      await fillSearch(frame, "毎日");
+      await fillSearch(frame, "今日");
       await expect(frame.getByRole("option").first()).toBeVisible();
 
       await openFixture(win, "reading-notes.md");
@@ -554,12 +577,15 @@ test("capture: a hover in a study note", async () => {
         .locator(".view-line", { hasText: "毎日日本語を勉強します" })
         .first();
       await expect(line).toBeVisible();
+      // 今日, twelve characters in, rather than 毎日 at the start of the line: the card is anchored
+      // under the word it explains, so hovering the first word pinned it to the left edge of the
+      // crop. A word mid-line centres it under the prose.
       const hover = await hoverEditorWord(
         win,
         "毎日日本語を勉強します",
-        0,
-        11,
-        "毎日"
+        12,
+        25,
+        "今日"
       );
       // Wait for the ENTRY, not merely the card: VS Code renders the hover shell immediately and
       // fills it in when the provider resolves, so a capture can catch "(loading...)".

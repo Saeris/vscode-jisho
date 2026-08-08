@@ -58,7 +58,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: center;
+  /* Spread across the strip rather than centring, matching the radical picker's match grid: with a
+     full row of candidates, centring and spreading agree, but a short second row reads as a
+     stranded cluster when centred. */
+  justify-content: space-around;
 }
 
 /* Candidate kanji chips — large enough to read and tap. */
