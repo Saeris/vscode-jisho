@@ -12,7 +12,7 @@ import {
 import { NavigationTabs } from "./components/NavigationTabs";
 import { About } from "./views/About";
 import { Browse, BrowseTab } from "./views/Browse";
-import { ComingSoon } from "./views/ComingSoon";
+import { KanaBrowse } from "./views/KanaBrowse";
 import { KanjiBrowse } from "./views/KanjiBrowse";
 import { WordList } from "./views/WordList";
 import { Handwriting } from "./views/Handwriting";
@@ -98,12 +98,7 @@ export const App = (): React.ReactElement => {
             ),
             vocab: <BrowseTab />,
             kanji: <KanjiBrowse />,
-            kana: (
-              <ComingSoon
-                title="Kana"
-                detail="The hiragana and katakana charts are on the way."
-              />
-            )
+            kana: <KanaBrowse />
           }}
         />
       </Activity>

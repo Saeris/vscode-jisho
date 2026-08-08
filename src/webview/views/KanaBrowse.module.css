@@ -1,0 +1,122 @@
+/* The Kana tab (#55 step 3): the gojūon chart, one section per grid. */
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--jisho-gap);
+}
+
+.toggle {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 12px;
+}
+
+.toggleButton {
+  flex: 1;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toggleButton[data-hovered] {
+  background: var(--jisho-hover-bg);
+}
+
+.toggleButton[data-selected] {
+  background: var(--jisho-input-bg);
+  border-color: var(--jisho-focus);
+}
+
+.toggleButton[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+  margin: 0 0 6px;
+}
+
+/*
+ * A fixed column count, unlike the kanji grid's `auto-fill`: a chart's columns ARE the vowels, so
+ * reflowing them to fit the sidebar would destroy the only structure the chart carries. The count
+ * comes from the section (5 for gojūon, 3 for the digraphs) and is set inline.
+ *
+ * Cells place themselves with `grid-column`, so the chart's gaps stay empty without needing filler
+ * elements inside the listbox collection.
+ */
+.grid {
+  display: grid;
+  gap: 3px;
+  outline: none;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--jisho-radius);
+  cursor: pointer;
+}
+
+.cell[data-focused],
+.cell[data-hovered] {
+  background: var(--jisho-hover-bg);
+  border-color: var(--jisho-border);
+}
+
+/*
+ * Obsolete kana (ゐ/ゑ and their katakana twins), and the digraphs, which have no drawing to open.
+ *
+ * Dimmed rather than hidden: a learner who meets ゐ in historical text needs somewhere to look it
+ * up, and a chart missing a row a paper chart has looks broken. The dimming says "this exists but
+ * is not part of what you are learning" — the same argument the disabled browse rows make.
+ */
+.obsolete .kana,
+.obsolete .romaji {
+  opacity: 0.45;
+}
+
+.cell[data-disabled] {
+  cursor: default;
+}
+
+/* A disabled cell still reads as content, so only the affordance goes — no hover highlight. */
+.cell[data-disabled][data-hovered] {
+  background: transparent;
+  border-color: transparent;
+}
+
+.cell[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+/* The kana is the cell's identity, so it gets the size; `line-height: 1` keeps the cell tight
+   around it, matching the kanji grid. */
+.kana {
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.romaji {
+  font-size: 0.7em;
+  color: var(--jisho-muted);
+}
