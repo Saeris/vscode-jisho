@@ -106,9 +106,50 @@ export const TagSearchField = ({
     if (text !== textOf(value)) setValue(valueOf(text));
   }
 
+  /**
+   * Keep the caret in view, the way a native single-line input does.
+   *
+   * The field clips instead of wrapping (see `.input` in the stylesheet), and a contenteditable does
+   * NOT scroll to follow its own caret — measured, `scrollLeft` stayed at 0 while the text ran to
+   * more than twice the field's width, so a long query was typed into characters the reader could
+   * not see. A native `<input>` scrolls here for free; this element has to be told.
+   *
+   * Deferred a frame because the DOM still holds the PREVIOUS text at the moment `apply` runs: the
+   * new value renders on React's next commit, and scrolling before that measures the old width.
+   */
+  const revealCaret = (): void => {
+    requestAnimationFrame(() => {
+      const el = boxRef.current;
+      if (!el) return;
+      const selection = el.ownerDocument.getSelection();
+      const box = el.getBoundingClientRect();
+      if (
+        selection === null ||
+        selection.rangeCount === 0 ||
+        !el.contains(selection.focusNode)
+      ) {
+        // No caret to follow — a programmatic set, or the clear button. Show the end, which is what
+        // a reader expects to be looking at after their last keystroke.
+        el.scrollLeft = el.scrollWidth;
+        return;
+      }
+      const caret = selection.getRangeAt(0).getBoundingClientRect();
+      // `padding-right` reserves room for the clear button, so the usable right edge stops short of
+      // the element's own. Without this the caret hides beneath the button at the end of a query.
+      const gutter = parseFloat(getComputedStyle(el).paddingRight) || 0;
+      const left = box.left;
+      const right = box.right - gutter;
+      // BOTH directions. Arrow-left happens to scroll back on its own; arrow-right does not, and
+      // measured, the caret ran off the right edge with scrollLeft stuck at 0.
+      if (caret.right > right) el.scrollLeft += caret.right - right;
+      else if (caret.left < left) el.scrollLeft -= left - caret.left;
+    });
+  };
+
   const apply = (next: TagSearchValue): void => {
     setValue(next);
     onChange(textOf(next), tokensOf(next));
+    revealCaret();
   };
 
   /**
@@ -245,6 +286,10 @@ export const TagSearchField = ({
                 return;
               }
             }
+            // Caret movement changes nothing about the VALUE, so `apply` never runs for it — but
+            // the field clips, so Home/End and the arrows can walk the caret out of view. Measured:
+            // arrow-right left it off the right edge with scrollLeft stuck at 0.
+            revealCaret();
             onKeyDown?.(e);
           }}
         >

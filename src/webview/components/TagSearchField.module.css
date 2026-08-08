@@ -69,6 +69,28 @@
   line-height: 1.5;
   min-height: 1.5em;
   cursor: text;
+
+  /*
+   * ONE LINE, scrolling rather than wrapping.
+   *
+   * A sentence-length query wrapped to three lines and grew the field to 71px (measured), which
+   * pushed the toolbar and every result down the panel — the layout shifted under the reader as
+   * they typed, and the clear button drifted away from the text it clears. Clipping is the better
+   * trade: the caret stays visible because the field scrolls to follow it.
+   *
+   * `!important` is load-bearing, not laziness. React Aria sets `white-space: pre-wrap` as an INLINE
+   * style on this element (verified in the running webview, not inferred), because a contenteditable
+   * needs it to preserve typed spaces — and an inline style beats any stylesheet rule. `pre` keeps
+   * that space preservation while refusing to wrap, so nothing about typing changes.
+   */
+  white-space: pre !important;
+  overflow-x: auto;
+  /* No horizontal scrollbar across the field; the caret scrolling into view is the affordance. */
+  scrollbar-width: none;
+}
+
+.input::-webkit-scrollbar {
+  display: none;
 }
 
 .input[data-focused] {
