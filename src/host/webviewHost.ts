@@ -390,16 +390,24 @@ export class JishoViewProvider
     const literal = request.literal.normalize("NFC");
     // The literal names a file, so insist on exactly one code point before touching the filesystem.
     if (Array.from(literal).length === 1) {
-      try {
-        const uri = vscode.Uri.joinPath(
-          this.#context.extensionUri,
-          "assets",
-          "kanji-svgs",
-          `${literal}.svg`
-        );
-        svg = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-      } catch {
-        svg = null; // no drawing exists for this character
+      // Two directories because the two sets carry different licences (Arphic PL vs LGPL — see
+      // build-strokes.ts). A literal belongs to exactly one of them, so trying both in turn keeps
+      // that split invisible to callers rather than making every caller classify the character.
+      for (const dir of ["kanji-svgs", "kana-svgs"]) {
+        try {
+          const uri = vscode.Uri.joinPath(
+            this.#context.extensionUri,
+            "assets",
+            dir,
+            `${literal}.svg`
+          );
+          svg = new TextDecoder().decode(
+            await vscode.workspace.fs.readFile(uri)
+          );
+          break;
+        } catch {
+          svg = null; // not in this set; try the next
+        }
       }
     }
     return { type: "getStrokeSvg", requestId: request.requestId, svg };

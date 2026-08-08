@@ -6,6 +6,6 @@
 <svg id="z12755" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
 <g class="glyph"><path id="z12755d1" d="M562 243C550 502 502 663 388 779C353 813 323 836 285 858C265 870 280 868 291 867C317 863 399 832 458 779C534 709 591 590 620 358C627 300 634 252 651 213C654 204 654 197 648 193C634 183 606 169 581 160C565 154 550 152 538 157C523 162 521 171 533 183C552 202 563 223 562 243Z"/></g>
 <defs><clipPath id="z12755c1"><use href="#z12755d1"/></clipPath><marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
-<g class="strokes"><path pathLength="3333" clip-path="url(#z12755c1)" d="M531 169L607 222L539 586L445 755L285 862"/></g>
+<g class="strokes"><path style="--stroke:1" pathLength="3333" clip-path="url(#z12755c1)" d="M531 169L607 222L539 586L445 755L285 862"/></g>
 <g class="guides"><path class="g1 aligned" style="--gs:1" d="M531,169 Q607,222 573,404 Q539,586 492,670.5 Q445,755 365,808.5 Q365,808.5 285,862"/><path class="g1 offset" style="--gs:1" d="M435,169 Q488.34,214.66 464.48,371.45 Q440.61,528.23 407.63,601.03 Q374.64,673.82 318.49,719.91 Q318.49,719.91 262.34,766"/><text class="g1" style="--gs:1" x="531" y="169">①</text></g>
 </svg>

@@ -109,7 +109,9 @@ export const About = (): React.ReactElement => {
             <a href="https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE">
               Arphic Public License
             </a>
-            .
+            . Its kana drawings carry a different licence — the{" "}
+            <a href="https://www.gnu.org/licenses/lgpl-3.0.html">LGPL v3</a> —
+            and ship separately for that reason.
           </p>
           <p>
             Visually-similar (“look-alike”) kanji come from{" "}

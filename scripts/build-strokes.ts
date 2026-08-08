@@ -13,10 +13,24 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fetchAcjkMap, parseAcjk, SOURCE_BASE, type AcjkPart } from "./acjk.ts";
+import {
+  fetchAcjkMap,
+  KANA_SOURCE_BASE,
+  parseAcjk,
+  SOURCE_BASE,
+  type AcjkPart
+} from "./acjk.ts";
+import { KANA_CHART, toKatakana } from "../src/shared/kana-chart.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "assets", "kanji-svgs");
+/**
+ * Kana get their own directory because they carry a DIFFERENT LICENCE: AnimCJK's `svgsJaKana` is
+ * LGPL, while the kanji derive from the Arphic PL KaitiM fonts. Two licences in one folder means one
+ * LICENCE file that is wrong for half its contents, so they are kept physically apart and each
+ * directory ships the terms that actually govern it.
+ */
+const KANA_OUT_DIR = join(root, "assets", "kana-svgs");
 
 /**
  * The offset distance the guide path is pushed away from its stroke, in viewBox units (0-1024).
@@ -36,9 +50,27 @@ const round = (n: number): number => Math.round(n * 100) / 100;
 const distance = (a: Point, b: Point): number =>
   Math.hypot(b.x - a.x, b.y - a.y);
 
-/** Every `M`/`L` vertex of a median path (`M677 114L731 160L541 243`). */
+/**
+ * Every vertex of a median path.
+ *
+ * The two upstream sets write the same polyline two different ways, and both have to parse:
+ *
+ *   kanji  `M677 114L731 160L541 243`            explicit L before every vertex
+ *   kana   `M 570,440 610,484 460,727 200,836`   one M, then IMPLICIT lineto pairs
+ *
+ * Matching on the command letter (the original `[ML]` pattern) finds exactly ONE point in a kana
+ * median, and one point has no direction — which is why every kana shipped with a start numeral but
+ * no direction arrows until this was found. Reading the coordinate PAIRS instead covers both:
+ * medians are polylines by construction, so every number in one is a vertex ordinate.
+ *
+ * Ordinates may be DECIMAL (`M 111.6,323.2 174,363.7`), which kanji medians never are. An
+ * integer-only pattern does not simply skip those points — it matches fragments ACROSS them,
+ * reading `111.6,323.2` as the point `6,323` and then pairing the leftover `.2` with the next
+ * number. お's first stroke became a guide that doubled back on itself at x≈2, drawn as a vertical
+ * bar over the edge of the canvas.
+ */
 const medianPoints = (d: string): Point[] =>
-  [...d.matchAll(/ ?[ML] ?(-?\d+)[ ,](-?\d+)/g)].map((m) => ({
+  [...d.matchAll(/(-?\d*\.?\d+)[ ,](-?\d*\.?\d+)/g)].map((m) => ({
     x: Number(m[1]),
     y: Number(m[2])
   }));
@@ -477,7 +509,13 @@ const partRects = (parts: AcjkPart[], strokeDs: string[]): string =>
 export const transform = (
   source: string,
   literal: string,
-  parts: AcjkPart[] | null = null
+  parts: AcjkPart[] | null = null,
+  /**
+   * Which upstream set this came from. Kana are LGPL and live in `assets/kana-svgs`; kanji are
+   * Arphic PL and live in `assets/kanji-svgs`. The header has to state the right one — a file that
+   * misreports its own licence is worse than one that carries none.
+   */
+  kind: "kanji" | "kana" = "kanji"
 ): string => {
   const viewBox = /viewBox="([^"]*)"/.exec(source)?.[1] ?? "0 0 1024 1024";
   const id = /<svg id="([^"]*)"/.exec(source)?.[1] ?? "";
@@ -487,18 +525,52 @@ export const transform = (
     source,
     (a) => a.includes("id=") && !a.includes("clip-path")
   );
-  const strokes = pathsMatching(source, (a) => a.includes("clip-path"));
+  const allStrokes = pathsMatching(source, (a) => a.includes("clip-path"));
   const defs = /<defs>([\s\S]*?)<\/defs>/.exec(source)?.[1] ?? "";
 
-  if (strokes.length === 0) {
+  if (allStrokes.length === 0) {
     throw new Error(`No animated strokes found for ${literal}`);
   }
 
-  // Drop the per-stroke --d delay: sibling-index() supplies the ordinal now, and the app's CSS owns
-  // the timing. Keep pathLength (it normalises every stroke to 3333, so no JS measurement is needed).
-  const cleanStrokes = strokes.map((s) =>
-    s.replace(/\s*style="[^"]*"/, "").replace(/\s+/g, " ")
-  );
+  /**
+   * Group split-stroke FRAGMENTS: several paths that together draw ONE stroke.
+   *
+   * The kana set renders a stroke that crosses itself as two clipped pieces suffixed a/b on a
+   * shared number — あ's third stroke is `c3a` + `c3b`. This is a CLIPPING workaround, not two
+   * strokes: measured, both fragments carry the same `--d:3s` (so upstream animates them together)
+   * and their medians are identical from the crossing onward, differing only in the first three
+   * points, which are displaced ~740 units in x. Each fragment paints one half of a shape a single
+   * swept median would leak outside of. Kanji never do this — 7 of 28 sampled kana do (あ お す な
+   * ぬ の ば).
+   *
+   * So BOTH paths must render — dropping one leaves the stroke visibly unfinished — while counting,
+   * numbering and guiding treat the group as one. The first fragment is the representative: it is
+   * the one whose median starts where the pen actually lands (the trailing fragment's lead-in sits
+   * off-canvas at x = -170, which is exactly why it must not drive the start marker).
+   */
+  const strokeNumber = (path: string, index: number): string =>
+    /clip-path="url\(#\w*?c(\d+)[a-z]?\)"/.exec(path)?.[1] ?? String(index);
+  const groups: string[][] = [];
+  const groupIndex = new Map<string, number>();
+  allStrokes.forEach((path, i) => {
+    const n = strokeNumber(path, i);
+    const at = groupIndex.get(n);
+    if (at === undefined) {
+      groupIndex.set(n, groups.length);
+      groups.push([path]);
+    } else {
+      groups[at].push(path);
+    }
+  });
+
+  // Drop the per-stroke --d delay: the stamped --stroke ordinal drives the timeline now, and the
+  // app's CSS owns the timing. Keep pathLength (it normalises every stroke to 3333, so no JS
+  // measurement is needed).
+  const clean = (s: string): string =>
+    s.replace(/\s*style="[^"]*"/, "").replace(/\s+/g, " ");
+  const cleanGroups = groups.map((g) => g.map(clean));
+  /** One representative path per stroke — what stroke COUNT and part mapping are computed from. */
+  const cleanStrokes = cleanGroups.map((g) => g[0]);
   const guides = cleanStrokes.map((s, i) => guideFor(dOf(s), i)).join("");
 
   // Parts are only stamped when the acjk decomposition exactly covers the strokes AND the glyph
@@ -525,7 +597,25 @@ export const transform = (
       ? tag
       : tag.replace("<path ", `<path style="--part:${part}" `);
   };
-  const stampedStrokes = cleanStrokes.map((s, i) => stamp(s, i + 1));
+  /**
+   * Every median carries its stroke ORDINAL explicitly, rather than the CSS deriving one from
+   * `sibling-index()`.
+   *
+   * The index was the ordinal only while paths and strokes were 1:1. A split stroke breaks that —
+   * あ's third stroke is two siblings, so the second would draw a beat late and the character would
+   * animate as four. Stamping the number lets both fragments claim stroke 3 and keeps the timeline
+   * honest; for the 3,821 kanji, where no stroke is split, the stamped value equals the sibling
+   * index it replaces.
+   */
+  const stampedStrokes = cleanGroups.flatMap((group, i) =>
+    group.map((s) => {
+      const withPart = stamp(s, i + 1);
+      const style = `--stroke:${i + 1}`;
+      return withPart.includes('style="')
+        ? withPart.replace('style="', `style="${style};`)
+        : withPart.replace("<path ", `<path style="${style}" `);
+    })
+  );
   const stampedGlyph = glyph.map((g, i) => stamp(g, i + 1));
   const rects =
     usable === null
@@ -538,8 +628,15 @@ export const transform = (
   return [
     `<!--`,
     `  Stroke-order data for ${literal}, derived from AnimCJK (https://github.com/parsimonhi/animCJK),`,
-    `  itself derived from the Arphic PL KaitiM fonts. Distributed under the Arphic Public License`,
-    `  (see ARPHICPL.TXT). Regenerated by scripts/build-strokes.ts — do not edit by hand.`,
+    ...(kind === "kana"
+      ? [
+          `  from its svgsJaKana set. Distributed under the GNU Lesser General Public License v3 or`,
+          `  later (see LGPL.txt). Regenerated by scripts/build-strokes.ts — do not edit by hand.`
+        ]
+      : [
+          `  itself derived from the Arphic PL KaitiM fonts. Distributed under the Arphic Public License`,
+          `  (see ARPHICPL.TXT). Regenerated by scripts/build-strokes.ts — do not edit by hand.`
+        ]),
     `-->`,
     `<svg id="${id}" class="acjk" viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg">`,
     `<g class="glyph">${stampedGlyph.join("")}</g>`,
@@ -556,6 +653,31 @@ export const transform = (
 const CONCURRENCY = 16;
 
 /**
+ * Every kana that can have its own drawing, both scripts (#55 step 3).
+ *
+ * Derived from the chart the Kana tab renders rather than listed again here, so a cell added there
+ * cannot end up without a drawing to open.
+ *
+ * SINGLE code points only. A digraph is two characters (きゃ = き + small ゃ), and the host serves a
+ * drawing by one-code-point filename — `#strokeSvg` checks exactly that before touching the disk.
+ * Upstream has no combined drawing for them either. The chart handles this by making digraph cells
+ * inert, so this filter and that decision have to stay in agreement.
+ */
+const chartKana = (): string[] => {
+  const singles = KANA_CHART.flatMap((section) =>
+    section.rows.flatMap((row) =>
+      row.cells
+        .filter((cell) => cell !== undefined)
+        .map((cell) => cell.kana)
+        .filter((kana) => Array.from(kana).length === 1)
+    )
+  );
+  // Both scripts: the chart stores hiragana and derives katakana for display, but a drawing is a
+  // file per literal, so the katakana twin needs fetching in its own right.
+  return [...singles, ...singles.map(toKatakana)];
+};
+
+/**
  * Fetch and transform every kanji in the manifest (the Japanese subset our dictionary surfaces).
  * Missing-upstream (404, benign) and transform-failed (our bug — fail loudly) are counted apart so
  * one can never hide the other.
@@ -567,13 +689,20 @@ const main = async (): Promise<void> => {
   // CJK Compatibility Ideographs (U+F900-FAFF) decompose to a unified codepoint, and macOS treats
   // the pair as ONE filename — shipping both makes the repo uncheckoutable there. Drop the compat
   // twin; #strokeSvg normalizes on read, so its codepoint still finds the unified drawing.
-  const literals = manifest.filter(
+  const kanji = manifest.filter(
     (l) => l.normalize("NFC") === l || !manifest.includes(l.normalize("NFC"))
   );
-  const collapsed = manifest.length - literals.length;
+  const collapsed = manifest.length - kanji.length;
   if (collapsed > 0)
     console.log(`  skipping ${collapsed} compatibility-ideograph duplicates`);
+
+  // Kana are appended rather than added to MANIFEST.txt: the manifest is the set of characters the
+  // DICTIONARY surfaces (it is generated from Kanjidic), while these come from a static chart. Two
+  // different sources of truth, kept apart so regenerating one cannot silently rewrite the other.
+  const kana = new Set(chartKana());
+  const literals = [...kanji, ...kana];
   mkdirSync(OUT_DIR, { recursive: true });
+  mkdirSync(KANA_OUT_DIR, { recursive: true });
   const acjkMap = await fetchAcjkMap();
 
   let done = 0;
@@ -584,7 +713,11 @@ const main = async (): Promise<void> => {
   const process = async (literal: string): Promise<void> => {
     const codepoint = literal.codePointAt(0);
     if (codepoint === undefined) return;
-    const res = await fetch(`${SOURCE_BASE}/${codepoint}.svg`, {
+    // Kana are in their own upstream directory (asking svgsJa for あ 404s) and land in their own
+    // output directory, under their own licence.
+    const isKana = kana.has(literal);
+    const base = isKana ? KANA_SOURCE_BASE : SOURCE_BASE;
+    const res = await fetch(`${base}/${codepoint}.svg`, {
       headers: { "User-Agent": "vscode-jisho-build" }
     });
     if (!res.ok) {
@@ -595,8 +728,17 @@ const main = async (): Promise<void> => {
     try {
       const acjk = acjkMap.get(literal);
       const parsed = acjk === undefined ? null : parseAcjk(literal, acjk);
-      const svg = transform(source, literal, parsed?.parts ?? null);
-      writeFileSync(join(OUT_DIR, `${literal}.svg`), svg, "utf8");
+      const svg = transform(
+        source,
+        literal,
+        parsed?.parts ?? null,
+        isKana ? "kana" : "kanji"
+      );
+      writeFileSync(
+        join(isKana ? KANA_OUT_DIR : OUT_DIR, `${literal}.svg`),
+        svg,
+        "utf8"
+      );
       if (svg.includes(`<g class="parts">`)) withParts++;
       done++;
     } catch (error) {

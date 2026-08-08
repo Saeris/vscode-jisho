@@ -15,6 +15,14 @@
 // something that silently rewrites 3,821 assets the next time this runs.
 export const ANIMCJK_SHA = "ec5e17cca76c87587790bcbce5ea0b4d4fb753d6";
 export const SOURCE_BASE = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/svgsJa`;
+/**
+ * Kana live in their OWN upstream directory, not under `svgsJa` — a request for あ there 404s.
+ *
+ * Same SVG format (`id="z…"`, `class="acjk"`, a 0-1024 viewBox and the same <style> block we strip),
+ * so one transform covers both. The licence differs though: these files are LGPL rather than the
+ * Arphic Public License the kanji carry, and LGPL.txt ships alongside them for that reason.
+ */
+export const KANA_SOURCE_BASE = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/svgsJaKana`;
 export const DICT_URL = `https://raw.githubusercontent.com/parsimonhi/animCJK/${ANIMCJK_SHA}/dictionaryJa.txt`;
 
 /** One top-level component of a kanji, with its 1-based inclusive stroke ranges in drawing order. */

@@ -6,6 +6,6 @@
 <svg id="z12753" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
 <g class="glyph"><path id="z12753d1" d="M471 740C463 767 466 802 488 845C508 885 524 875 542 831C554 799 550 766 550 740C547 677 550 336 555 300C558 276 561 255 568 236C571 224 578 214 574 206C570 198 543 183 507 161C488 149 470 149 457 160C452 163 450 170 458 182C477 211 493 259 494 300C494 607 491 659 471 740Z"/></g>
 <defs><clipPath id="z12753c1"><use href="#z12753d1"/></clipPath><marker id="guide-arrow" viewBox="0 0 16 16" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="inherit"/></marker></defs>
-<g class="strokes"><path pathLength="3333" clip-path="url(#z12753c1)" d="M459 163L531 231L507 864"/></g>
+<g class="strokes"><path style="--stroke:1" pathLength="3333" clip-path="url(#z12753c1)" d="M459 163L531 231L507 864"/></g>
 <g class="guides"><path class="g1 aligned" style="--gs:1" d="M459,163 Q531,231 528,310.13 Q510,784.88 507,864"/><path class="g1 offset" style="--gs:1" d="M363,163 Q435,231 432,310.13 Q414,784.88 411,864"/><text class="g1" style="--gs:1" x="459" y="163">①</text></g>
 </svg>

@@ -32,6 +32,30 @@ svg.acjk path[id] {fill:#ccc;}
 
 const out = (): string => transform(SOURCE, "近");
 
+/**
+ * A kana source (あ, U+3042), trimmed the same way — and carrying the quirk kanji never have: its
+ * third stroke crosses itself, so upstream draws it as two clipped FRAGMENTS on a shared stroke
+ * number (`c3a` + `c3b`) rather than one path. Coordinates are the real ones, including the
+ * trailing fragment's off-canvas start (x = -170).
+ */
+const KANA_SOURCE = `<svg id="z12354" class="acjk" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<style><![CDATA[ @keyframes zk { to { stroke-dashoffset:0; } } ]]></style>
+<path id="z12354d1" d="M660 211C637 211 616 221 597 232Z"/>
+<path id="z12354d2" d="M334 128C328 130 318 134 320 143Z"/>
+<path id="z12354d3a" d="M559 431C556 431 552 435 555 438Z"/>
+<path id="z12354d3b" d="M602 484C565 485 528 489 492 494Z"/>
+<defs>
+	<clipPath id="z12354c1"><use href="#z12354d1"/></clipPath>
+	<clipPath id="z12354c2"><use href="#z12354d2"/></clipPath>
+	<clipPath id="z12354c3a"><use href="#z12354d3a"/></clipPath>
+	<clipPath id="z12354c3b"><use href="#z12354d3b"/></clipPath>
+</defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12354c1)" d="M 174,258 251,308 440,306 697,241"/>
+<path style="--d:2s;" pathLength="3333" clip-path="url(#z12354c2)" d="M 331,137 420,185 373,388 367,632"/>
+<path style="--d:3s;" pathLength="3333" clip-path="url(#z12354c3a)" d="M 570,440 610,484 460,727 200,836"/>
+<path style="--d:4s;" pathLength="3333" clip-path="url(#z12354c3b)" d="M -170,442 -210,484 -60,727 200,836"/>
+</svg>`;
+
 const groupOf = (svg: string, cls: string): string =>
   new RegExp(`<g class="${cls}">([\\s\\S]*?)</g>`).exec(svg)?.[1] ?? "";
 
@@ -51,10 +75,10 @@ describe("stroke SVG transform", () => {
   });
 
   it("puts the animated strokes alone in their own group", () => {
-    // WHY: sibling-index() is what lets CSS know which stroke it's styling — with no JS and no
-    // hardcoded nth-child rules. In the source the medians are siblings of <style>, <defs> and the
-    // filled paths, so stroke 1 reports index 11. Only children of their own <g> makes the index the
-    // stroke number, so g.strokes must contain the medians and NOTHING else.
+    // WHY: g.strokes is the selector the whole draw-on effect hangs off, so it must contain the
+    // medians and NOTHING else — in the source they are siblings of <style>, <defs> and the filled
+    // paths. (The stroke NUMBER now comes from a stamped --stroke rather than sibling-index(),
+    // because a kana's split stroke is two paths sharing one number.)
     const strokes = groupOf(out(), "strokes");
     expect([...strokes.matchAll(/<path/g)]).toHaveLength(2);
     expect(strokes).not.toContain("<style");
@@ -124,9 +148,23 @@ describe("stroke SVG transform", () => {
     const svg = transform(SOURCE, "近", parts);
     for (const cls of ["strokes", "glyph"]) {
       const g = groupOf(svg, cls);
-      expect(g).toContain(`style="--part:1"`);
-      expect(g).toContain(`style="--part:2"`);
+      // Matched within the style attribute rather than as the whole of it: medians also carry the
+      // stamped --stroke ordinal, so the two declarations share one `style`.
+      expect(g).toMatch(/style="[^"]*--part:1/);
+      expect(g).toMatch(/style="[^"]*--part:2/);
     }
+  });
+
+  it("stamps every median with its stroke ordinal", () => {
+    // WHY: the CSS derives the draw-on timeline from --stroke, having previously used
+    // sibling-index(). That index was the stroke number only while paths and strokes were 1:1 — the
+    // kana set breaks it. For a kanji, where nothing is split, the stamped value must equal the
+    // sibling position it replaced, or all 3,821 characters animate in the wrong order.
+    const strokes = groupOf(out(), "strokes");
+    expect([...strokes.matchAll(/--stroke:(\d+)/g)].map((m) => m[1])).toEqual([
+      "1",
+      "2"
+    ]);
   });
 
   it("emits per-part hit rects, largest first, with the radical marked", () => {
@@ -167,6 +205,81 @@ describe("stroke SVG transform", () => {
     const glyph = groupOf(out(), "glyph");
     expect([...glyph.matchAll(/<path/g)]).toHaveLength(2);
     expect(glyph).not.toContain("clip-path");
+  });
+});
+
+describe("kana stroke SVGs", () => {
+  it("renders both fragments of a split stroke, numbered as one stroke", () => {
+    // WHY (#55): a self-crossing stroke is drawn as two CLIPPED PIECES sharing a number (あ's third
+    // is c3a + c3b) — measured, both carry the same --d:3s and their medians are identical from the
+    // crossing on, differing only in a lead-in displaced ~740 units in x. It is one stroke painted
+    // in two halves, so dropping either leaves it visibly unfinished (which shipped once), while
+    // counting them separately animates あ as four strokes.
+    const svg = transform(KANA_SOURCE, "あ", null, "kana");
+    const strokes = groupOf(svg, "strokes");
+    // Both paths present…
+    expect([...strokes.matchAll(/clip-path=/g)]).toHaveLength(4);
+    expect(strokes).toContain("c3a");
+    expect(strokes).toContain("c3b");
+    // …but they claim the SAME stroke ordinal, and the character is 3 strokes.
+    expect([...strokes.matchAll(/--stroke:3/g)]).toHaveLength(2);
+    expect([...strokes.matchAll(/--stroke:4/g)]).toHaveLength(0);
+    // The guides follow the stroke count, so a miscount shows up as a phantom fourth marker.
+    expect([...groupOf(svg, "guides").matchAll(/<text/g)]).toHaveLength(3);
+  });
+
+  it("guides a split stroke from the fragment that starts where the pen lands", () => {
+    // WHY: the start marker and direction arrow come from the median's START, and the trailing
+    // fragment's lead-in sits at x = -170 — outside the viewBox. Guiding from it would put the ③
+    // off-canvas. The first fragment is the representative for everything except rendering.
+    const svg = transform(KANA_SOURCE, "あ", null, "kana");
+    expect(groupOf(svg, "guides")).toContain(`x="570" y="440"`);
+    expect(groupOf(svg, "guides")).not.toContain("-170");
+  });
+
+  it("reads decimal ordinates as whole points", () => {
+    // WHY: kana medians carry decimals (お's first stroke is `M 111.6,323.2 174,363.7 …`); kanji
+    // medians are always integers. An integer-only pattern does not skip a decimal point, it
+    // matches ACROSS it — `111.6,323.2` parses as `6,323`, and the leftover `.2` pairs with the
+    // next number. That produced a guide doubling back on itself at x≈2, rendered as a vertical
+    // bar over the canvas edge, so this pins the START of the guide to the median's real origin.
+    const decimal = `<svg id="z12362" class="acjk" viewBox="0 0 1024 1024">
+<path id="z12362d1" d="M111 323C174 363 327 362 535 309Z"/>
+<defs><clipPath id="z12362c1"><use href="#z12362d1"/></clipPath></defs>
+<path style="--d:1s;" pathLength="3333" clip-path="url(#z12362c1)" d="M 111.6,323.2 174,363.7 327,362.1 535.2,309.4"/>
+</svg>`;
+    const guides = groupOf(transform(decimal, "お", null, "kana"), "guides");
+    expect(guides).toContain(`x="111.6" y="323.2"`);
+    // The aligned guide traces the median, so it must start there too — not at a spliced x≈6.
+    const aligned = /<path class="g1 aligned"[^>]* d="([^"]*)"/.exec(
+      guides
+    )?.[1];
+    expect(aligned?.startsWith("M111.6,323.2")).toBe(true);
+  });
+
+  it("emits direction guides for a kana, not just the numeral", () => {
+    // WHY: the two upstream sets write the same polyline differently — kanji put an explicit L
+    // before every vertex, kana use one M then implicit lineto pairs. A parser keyed on the command
+    // letter found ONE point in a kana median, and one point has no direction, so every kana
+    // shipped with a start numeral and no arrows at all. Both arrow variants must be present.
+    const guides = groupOf(
+      transform(KANA_SOURCE, "あ", null, "kana"),
+      "guides"
+    );
+    expect([...guides.matchAll(/class="g\d+ aligned"/g)]).toHaveLength(3);
+    expect([...guides.matchAll(/class="g\d+ offset"/g)]).toHaveLength(3);
+  });
+
+  it("states the LGPL rather than the kanji set's Arphic licence", () => {
+    // WHY: AnimCJK splits its own terms — kana are LGPL, kanji are Arphic PL — and these files ship
+    // to users. A file that misreports its own licence is worse than one carrying no notice, so the
+    // header follows the SET the drawing came from, not the transform's default.
+    const kana = transform(KANA_SOURCE, "あ", null, "kana");
+    expect(kana).toContain("Lesser General Public License");
+    expect(kana).not.toContain("Arphic");
+    // …and the kanji default is untouched by the parameter existing.
+    expect(out()).toContain("Arphic Public License");
+    expect(out()).not.toContain("Lesser General Public License");
   });
 });
 

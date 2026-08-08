@@ -7,12 +7,17 @@ References that shaped the design: [dmak](https://mbilbille.github.io/dmak/) for
 ## Data pipeline
 
 ```
-AnimCJK upstream (pinned SHA, svgsJa)
+AnimCJK upstream (pinned SHA, svgsJa + svgsJaKana)
   → scripts/build-strokes.ts     strip embedded <style>, group into glyph/strokes/guides, regenerate guides
   → assets/kanji-svgs/*.svg      3,821 files, Arphic Public License (ARPHICPL.TXT ships alongside)
-  → packaged into the .vsix      read by the host per request (getStrokeSvg → readFile)
+  → assets/kana-svgs/*.svg       146 files, LGPL v3 (LGPL.txt ships alongside)
+  → packaged into the .vsix      read by the host per request (getStrokeSvg → readFile, both dirs)
   → webview                      <StrokePlayer> / <StrokeChart> inject the markup and style it
 ```
+
+Kana (#55) come from a **separate upstream directory** — `svgsJaKana`, not `svgsJa`, which 404s for あ — and land in a separate output directory because they carry a **different licence**. One folder holding both would need one licence file that is wrong for half its contents. The host tries both directories in turn, so callers never classify a character.
+
+Only single code points get a drawing: a digraph (きゃ) is two, the host serves by one-code-point filename, and upstream has no combined file either. The Kana chart makes digraph cells inert to match.
 
 The SVGs ship as **files in the extension package**, not rows in `jisho.db`. They used to live in a `stroke_svgs` table because `assets/**` is `.vscodeignore`d and the downloaded database was the only delivery vehicle — but that meant `build:strokes` (regenerates files) and `build:data` (ingested them) had to be run _together_, and forgetting the second step left the extension rendering stale SVGs while every file-reading test passed. Files-in-package removes the sync step entirely and decouples stroke fixes from dictionary releases.
 
@@ -63,7 +68,22 @@ Each cell injects the same SVG and sets `--stroke-index` to its own number — t
 5. **WAAPI semantics**: `pause()` holds position, `play()` resumes (and auto-rewinds a finished animation); setting `currentTime` while running does _not_ pause; there is no progress event — poll with `requestAnimationFrame`. Own the `Animation` object directly instead of fishing it back out of `getAnimations()`.
 6. **Tests must assert behaviour, not mechanism.** Two broken players shipped behind green suites: one asserted "3 strokes drawn after 3 arrow presses" (also true if every input restarts the animation and it races to 3); one counted only fully-drawn strokes (blind to a player that snaps strokes instead of drawing them). The current suite asserts: inputs don't restart, seeks land paused, the handle advances by itself, partial dash offsets exist mid-draw, and multiple seek positions each show exactly the right strokes.
 7. **Pin upstreams.** `downloadAndUnzipVSCode("stable")` re-resolves per E2E run; AnimCJK is fetched by commit SHA. A moving upstream turns a green suite red with no code change.
+8. **One upstream's conventions do not carry to its other datasets.** Pointing the transform at the kana set broke it in two ways at once, and both were invisible in a file that still looked structurally correct. **Verify a shared transform against each dataset it is pointed at** — a matching file header does not mean matching conventions.
+
+   **Split strokes.** A self-crossing kana stroke is painted as two clipped **fragments** sharing one stroke number (あ's third is `c3a` + `c3b`); kanji are strictly one path per stroke. Both fragments carry the same `--d:3s` and their medians are identical from the crossing onward, differing only in a lead-in displaced ~740 units in x — so it is one stroke drawn in two halves, each clipped to the part a single swept median would leak outside of. Measured, 7 of 28 sampled kana (あ お す な ぬ の ば). The first attempt kept one fragment per group and **shipped visibly unfinished strokes**; the fix renders both and stamps them with a shared ordinal.
+
+   **`--stroke` replaced `sibling-index()`.** The sibling index was the stroke number only while paths and strokes were 1:1. With a split stroke the second fragment would draw a beat late and the character would animate as four. The transform now stamps every median with its ordinal, fragments share it, and for the 3,821 kanji the stamped value equals the index it replaced. `countStrokes` counts **distinct ordinals**, not paths.
+
+9. **A polyline can be written two ways, and a parser keyed on the command letter sees only one.** Kanji medians put an explicit `L` before every vertex (`M677 114L731 160`); kana use one `M` then implicit lineto pairs (`M 570,440 610,484`). The `[ML]`-anchored point parser therefore found exactly **one** point in a kana median, and one point has no direction — so every kana shipped with a start numeral and **no direction arrows at all**, on a file that was otherwise perfectly valid. Read coordinate pairs instead; medians are polylines by construction.
+
+10. **A too-narrow number pattern corrupts silently; it does not skip.** Kana ordinates can be decimal (`M 111.6,323.2 174,363.7`) where kanji ordinates never are. An integer-only `(-?\d+)[ ,](-?\d+)` does not ignore those points — it matches **across** them, reading `111.6,323.2` as the point `6,323` and pairing the leftover `.2` with the next number. お's first stroke became a guide that doubled back on itself at x≈2 and drew as a vertical bar over the canvas edge, while every count and structural check still passed. When a parser can produce a _plausible_ wrong answer, assert against known-good VALUES (the guide starts on its median's first point), not just shapes and counts.
 
 ## Licensing
 
-The SVG paths derive from the Arphic PL KaitiM fonts via AnimCJK, so they carry the **Arphic Public License** — file-scoped copyleft with an LGPL-style aggregation clause, bundleable into this MIT extension. `ARPHICPL.TXT` ships next to the SVGs and the transform stamps each file with the notice. `dictionaryJa.txt` (component/radical stroke ranges, used for the planned radical highlighting) is from the same project under the same licence.
+AnimCJK splits its own terms, and so do we.
+
+**Kanji** paths derive from the Arphic PL KaitiM fonts, so they carry the **Arphic Public License** — file-scoped copyleft with an LGPL-style aggregation clause, bundleable into this MIT extension. `ARPHICPL.TXT` ships next to them. `dictionaryJa.txt` (component/radical stroke ranges) is from the same project under the same licence.
+
+**Kana** come from AnimCJK's `svgsJaKana` and are **LGPL v3 or later**, which is why they live in `assets/kana-svgs` with their own `LGPL.txt`. Also file-scoped: bundling the data does not relicense the extension.
+
+The transform stamps each file with the notice for the set it came from — a `kind` parameter, not a default, because a file that misreports its own licence is worse than one carrying none. The About view names both.

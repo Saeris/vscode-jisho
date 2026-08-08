@@ -1,6 +1,6 @@
 /* Stroke-order chart: cell N injects the same SVG and sets --stroke-index to N, so the shared
    rendering arithmetic freezes it at that position — no animation involved. See
-   docs/STROKE-ORDER.md. --stroke-index and --stroke-progress registrations live in
+   docs/STROKE-ORDER.md. The --stroke-index, --stroke-progress and --stroke registrations live in
    StrokePlayer.module.css (registrations are global; the two files always ship together). */
 
 /* 1 when this stroke is the newest one drawn, 0 otherwise. Registered for the calc() in color-mix. */
@@ -53,12 +53,12 @@
 .canvas :global(svg.acjk .strokes path) {
   --stroke-progress: clamp(
     0,
-    calc(var(--stroke-index) - (sibling-index() - 1)),
+    calc(var(--stroke-index) - (var(--stroke) - 1)),
     1
   );
   --stroke-newest: clamp(
     0,
-    calc(1 - abs(var(--stroke-index) - sibling-index())),
+    calc(1 - abs(var(--stroke-index) - var(--stroke))),
     1
   );
 

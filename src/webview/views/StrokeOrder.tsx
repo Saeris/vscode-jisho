@@ -5,9 +5,16 @@ import { StrokeChart } from "../components/StrokeChart";
 import { StrokePlayer } from "../components/StrokePlayer";
 import styles from "./StrokeOrder.module.css";
 
-/** Count strokes in the SVG markup: each animated stroke is a `clip-path`'d path (AnimCJK shape). */
+/**
+ * How many strokes the drawing has.
+ *
+ * Counts DISTINCT stroke ordinals, not paths. They were the same thing until kana arrived: a
+ * self-crossing kana stroke is painted as two clipped fragments sharing one `--stroke` (あ's third
+ * is `c3a` + `c3b`), so counting paths reports あ as 4 strokes and the chart renders a fourth step
+ * identical to the third.
+ */
 const countStrokes = (svg: string): number =>
-  (svg.match(/clip-path=/g) ?? []).length;
+  new Set([...svg.matchAll(/--stroke:(\d+)/g)].map((match) => match[1])).size;
 
 interface StrokeOrderProps {
   literal: string;

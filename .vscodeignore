@@ -33,6 +33,9 @@ assets/**
 # the host per request, and keeping them out of the DB decouples stroke fixes from dictionary
 # releases. See docs/STROKE-ORDER.md.
 !assets/kanji-svgs/**
+# …as do the kana drawings, kept in their own directory because they are LGPL rather than APL and
+# ship the LGPL text that governs them.
+!assets/kana-svgs/**
 # …and the compiled IPADIC tokenizer dictionary IS bundled (loaded by path at runtime; ~55 MB,
 # compresses small in the .vsix zip). See docs/specs/14.
 !assets/lindera-ipadic/**
