@@ -14,7 +14,7 @@
  *   field    81 codes    1,984 words   `sense_tags.kind='field'`
  *   dialect   9 codes       39 words   `sense_tags.kind='dialect'`   ← see the caveat below
  *   jlpt      5 levels   7,208 words   `words.jlpt`
- *   freq      bands     15,147 words   `words.freq_rank`
+ *   freq     48 bands   15,147 words   `words.freq_rank` (nfXX BANDS of 500, not word ranks)
  *
  * DIALECT COUNTS ARE MISLEADING IN A `common` BUILD. The dev database is built `variant: common`,
  * and dialect words are mostly NOT common — Kansai-ben shows 26 words locally against the hundreds
@@ -71,7 +71,14 @@ export type Classifier =
     })
   /** `words.jlpt`, an integer level. */
   | (ClassifierBase & { kind: "jlpt"; level: number })
-  /** A `words.freq_rank` band, e.g. the 2,000 most frequent. Bounds are inclusive. */
+  /**
+   * A range of `words.freq_rank` values — JMdict nfXX BAND numbers, not word ranks. Inclusive.
+   *
+   * The distinction is the whole bug this type once hid: `freq_rank` holds 1–48, where each band is
+   * 500 words ("nf01 = the first 500"), so bounds of 1–2,000 matched every ranked word in the
+   * dictionary and the other seven categories came back empty. The label is derived from these
+   * bounds rather than stored, so the two can no longer disagree.
+   */
   | (ClassifierBase & { kind: "freq"; from: number; to: number });
 
 /** Which axis a classifier filters on. */
@@ -124,23 +131,45 @@ const JLPT: Classifier[] = [5, 4, 3, 2, 1].map((level) => ({
   level
 }));
 
+/** How many words JMdict puts in one nfXX band — "the number of the set of 500 words". */
+const WORDS_PER_BAND = 500;
+/** Bands per category: 4 × 500 = the 2,000-word steps the labels advertise. */
+const BANDS_PER_BUCKET = 4;
+/**
+ * nfXX runs to 48, so 12 buckets cover all ~24,000 ranked words.
+ *
+ * It was 8, which stopped at nf32 and stranded everything below rank 16,000 — 6,947 words in the
+ * full dictionary with a rank and nowhere to browse them.
+ */
+const FREQUENCY_BUCKETS = 12;
+
 /**
  * Frequency bands of 2,000, over JMdict's own nfXX ranking.
  *
  * Bands rather than one 15,000-row list because "the 2,000 most common words" is a goal someone can
  * actually finish, and an undifferentiated ranked list is not.
+ *
+ * `from`/`to` are BAND numbers because that is what `freq_rank` stores; the label converts them back
+ * to the word ranks a reader thinks in. Passing the label's numbers to the query is the bug this
+ * shape exists to prevent — it made every ranked word land in the first bucket.
  */
-const FREQUENCY: Classifier[] = Array.from({ length: 8 }, (_, i) => {
-  const from = i * 2000 + 1;
-  const to = (i + 1) * 2000;
-  return {
-    id: `freq-${String(from)}-${String(to)}`,
-    label: `${from.toLocaleString()} – ${to.toLocaleString()}`,
-    kind: "freq" as const,
-    from,
-    to
-  };
-});
+const FREQUENCY: Classifier[] = Array.from(
+  { length: FREQUENCY_BUCKETS },
+  (_, i) => {
+    const from = i * BANDS_PER_BUCKET + 1;
+    const to = (i + 1) * BANDS_PER_BUCKET;
+    const firstWord = (from - 1) * WORDS_PER_BAND + 1;
+    const lastWord = to * WORDS_PER_BAND;
+    return {
+      // The id names the WORD range, so `#freq-1-2000` stays the tag it always was.
+      id: `freq-${String(firstWord)}-${String(lastWord)}`,
+      label: `${firstWord.toLocaleString()} – ${lastWord.toLocaleString()}`,
+      kind: "freq" as const,
+      from,
+      to
+    };
+  }
+);
 
 /** A `sense_tags`-backed classifier. */
 const tag = (

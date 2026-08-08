@@ -91,6 +91,37 @@ describeIfDb("browse by classifier", () => {
     expect(rows.slice(0, 10).every((r) => r.common)).toBe(true);
   });
 
+  test("frequency buckets partition the ranked words instead of all landing in the first", async () => {
+    // WHY (reported bug): `freq_rank` holds JMdict's nfXX BAND (1–48, each 500 words), not a word
+    // rank. The classifier passed its LABEL's numbers straight through, so `BETWEEN 1 AND 2000`
+    // matched every ranked word in the dictionary — the first bucket showed 15,147 and the other
+    // seven showed 0. Measured against the real DB because the bug was in what the column means,
+    // which no amount of mocking would have caught.
+    const buckets = CLASSIFIERS.frequency;
+    const counts = await Promise.all(
+      buckets.map(async (c) => (await dict.browse(c, "frequency", 5000)).length)
+    );
+    // Several buckets have words — the failure mode was exactly one non-empty bucket.
+    expect(counts.filter((n) => n > 0).length).toBeGreaterThan(4);
+    // And no bucket holds everything: each is ~2,000 by construction (4 bands × 500).
+    const total = counts.reduce((a, b) => a + b, 0);
+    expect(Math.max(...counts)).toBeLessThan(total);
+    for (const n of counts) expect(n).toBeLessThanOrEqual(2000);
+  });
+
+  test("a frequency bucket's rows really are more common than a later bucket's", async () => {
+    // WHY: the counts above would also pass if the bands were mapped to the wrong buckets. This
+    // checks the ORDER the labels claim — "1 – 2,000" must genuinely hold more common words than
+    // "10,001 – 12,000", which is the only thing that makes the category names meaningful.
+    const first = await dict.browse(CLASSIFIERS.frequency[0], "frequency", 200);
+    const later = await dict.browse(CLASSIFIERS.frequency[5], "frequency", 200);
+    expect(first.length).toBeGreaterThan(0);
+    expect(later.length).toBeGreaterThan(0);
+    const commonShare = (rows: typeof first): number =>
+      rows.filter((r) => r.common).length / rows.length;
+    expect(commonShare(first)).toBeGreaterThanOrEqual(commonShare(later));
+  });
+
   test("orders by gojuon when asked, using the stored sort key", async () => {
     // WHY (#35): a browsable list is exactly the surface that wants kana order rather than
     // relevance — it is an index, and an index a reader scans alphabetically. `kana.sort_key` was
