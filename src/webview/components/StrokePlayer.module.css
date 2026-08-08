@@ -268,7 +268,16 @@
   background: var(--vscode-progressBar-background, var(--jisho-accent));
 }
 
+/*
+ * Centred on the rail, explicitly.
+ *
+ * React Aria positions the thumb with `top: 0` plus a translate, which is NOT the flex centring the
+ * track's `align-items` implies — measured, the rail's centre sat at y=388 and the thumb's at 381,
+ * so the handle floated above the track with its bottom edge crossing the middle. `top: 50%` puts
+ * its origin on the rail and the library's own translate keeps the horizontal position.
+ */
 .sliderThumb {
+  top: 50%;
   width: 12px;
   height: 12px;
   border-radius: 50%;
