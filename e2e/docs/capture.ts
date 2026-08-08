@@ -34,6 +34,26 @@ export const THEMES = ["light", "dark"] as const;
 export type DocTheme = (typeof THEMES)[number];
 
 /**
+ * What a scenario hands back: either an element to shoot, or a page region.
+ *
+ * A region rather than only a locator, because a tight crop often spans several elements — a
+ * heading plus the table under it — and no single element bounds it.
+ */
+export type Target =
+  | Locator
+  | {
+      page: Page;
+      clip: { x: number; y: number; width: number; height: number };
+    };
+
+const isRegion = (
+  t: Target
+): t is {
+  page: Page;
+  clip: { x: number; y: number; width: number; height: number };
+} => "clip" in t;
+
+/**
  * Let the panel settle before the shutter.
  *
  * Not a blanket sleep standing in for a missing assertion — scenarios assert their own state first.
@@ -52,6 +72,10 @@ const settle = async (window: Page, movePointer: boolean): Promise<void> => {
     await window.mouse.move(1200, 700);
   }
   await window.waitForTimeout(350);
+  // Again, AFTER the settle wait. Clearing only before it leaves a window in which a toast can
+  // arrive and still be on screen at the shutter — which is exactly how "All installed extensions
+  // are temporarily disabled" landed across the bottom of an overview capture.
+  await clearNotifications(window);
 };
 
 interface CaptureOptions {
@@ -66,7 +90,7 @@ interface CaptureOptions {
 }
 
 /**
- * Capture a region, once per theme, via the callback that puts the panel in the right state.
+ * Capture a target, once per theme, via the callback that puts the panel in the right state.
  *
  * `prepare` runs again for each theme rather than once, because switching the theme rewrites
  * settings.json and the webview reloads — anything the previous pass navigated to is gone.
@@ -74,7 +98,7 @@ interface CaptureOptions {
 export const captureBothThemes = async (
   vscode: Launched,
   name: string,
-  prepare: (theme: DocTheme) => Promise<Locator>,
+  prepare: (theme: DocTheme) => Promise<Target>,
   { keepPointer = false }: CaptureOptions = {}
 ): Promise<void> => {
   mkdirSync(IMAGE_DIR, { recursive: true });
@@ -82,7 +106,10 @@ export const captureBothThemes = async (
     await vscode.setTheme(theme);
     const target = await prepare(theme);
     await settle(vscode.window, !keepPointer);
-    await target.screenshot({ path: join(IMAGE_DIR, `${name}-${theme}.png`) });
+    const path = join(IMAGE_DIR, `${name}-${theme}.png`);
+    if (isRegion(target))
+      await target.page.screenshot({ path, clip: target.clip });
+    else await target.screenshot({ path });
   }
 };
 
@@ -92,34 +119,70 @@ export const sidebar = (window: Page): Locator =>
 
 /**
  * The editor area plus the sidebar — for scenarios where the POINT is the two together, such as
- * hovering a word in a file and reading its definition.
+ * hovering a word in a file while the panel shows the same entry.
  */
 export const workbenchRegion = (window: Page): Locator =>
   window.locator(".monaco-workbench");
 
 /**
- * A tight crop around one element, with breathing room.
+ * A tight crop spanning one or more elements, with breathing room.
  *
  * tldraw's manual crops to the UI being described rather than to a whole window, so the reader's eye
- * lands on the subject without hunting. Returns a clip rather than a locator because the padding has
- * to come from the page, not from an element that does not have it.
+ * lands on the subject without hunting. Takes a LIST because a feature often spans siblings — a
+ * section heading and the table beneath it — that no single element bounds.
+ *
+ * Returns a region rather than a locator: the padding has to come from the page, since an element
+ * cannot be told to photograph more than itself.
  */
-export const clipAround = async (
+export const cropAround = async (
   window: Page,
-  element: Locator,
-  padding = 12
-): Promise<{ x: number; y: number; width: number; height: number }> => {
-  const box = await element.boundingBox();
-  if (!box) throw new Error("cannot crop around an element with no box");
+  elements: Locator[],
+  padding = 10
+): Promise<Target> => {
+  const boxes = await Promise.all(elements.map(async (e) => e.boundingBox()));
+  const present = boxes.filter((b) => b !== null);
+  if (present.length === 0) {
+    throw new Error("cannot crop: none of the elements has a box");
+  }
+  const left = Math.min(...present.map((b) => b.x));
+  const top = Math.min(...present.map((b) => b.y));
+  const right = Math.max(...present.map((b) => b.x + b.width));
+  const bottom = Math.max(...present.map((b) => b.y + b.height));
   const viewport = window.viewportSize() ?? { width: 1440, height: 900 };
-  const x = Math.max(0, box.x - padding);
-  const y = Math.max(0, box.y - padding);
+  const x = Math.max(0, left - padding);
+  const y = Math.max(0, top - padding);
   return {
-    x,
-    y,
-    width: Math.min(viewport.width - x, box.width + padding * 2),
-    height: Math.min(viewport.height - y, box.height + padding * 2)
+    page: window,
+    clip: {
+      x,
+      y,
+      width: Math.min(viewport.width - x, right - left + padding * 2),
+      height: Math.min(viewport.height - y, bottom - top + padding * 2)
+    }
   };
+};
+
+/**
+ * Scroll an element to the TOP of the panel's scroll container.
+ *
+ * `scrollIntoViewIfNeeded` is not enough: it stops as soon as the element is technically visible, so
+ * a heading at the very bottom edge counts as "in view" and the section under it stays off-screen —
+ * which is exactly how the conjugation capture ended up showing its heading and nothing else.
+ * Driving `scrollTop` puts the subject at the top, with the rest of the section below it.
+ */
+export const scrollToTop = async (element: Locator): Promise<void> => {
+  await element.evaluate((el) => {
+    const scroller = el.closest<HTMLElement>(
+      "[class*='body'], [class*='list']"
+    );
+    if (!scroller) {
+      el.scrollIntoView({ block: "start" });
+      return;
+    }
+    scroller.scrollTop +=
+      el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  });
+  await expect(element).toBeVisible();
 };
 
 /**

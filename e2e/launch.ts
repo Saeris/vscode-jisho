@@ -144,6 +144,12 @@ const seedUserData = (
         "window.titleBarStyle": "custom",
         "window.menuBarVisibility": "hidden",
         "workbench.statusBar.visible": true,
+        // The command centre renders the workspace path in a browser-style address bar across the
+        // title bar, and the accounts entry renders a blue "Sign In" button beside it. Both are
+        // about the EDITOR rather than the extension, and in a Marketplace screenshot the sign-in
+        // button in particular reads as something the extension is asking for.
+        "window.commandCenter": false,
+        "workbench.layoutControl.enabled": false,
         "update.mode": "none",
         "telemetry.telemetryLevel": "off",
         "extensions.autoUpdate": false,
@@ -203,6 +209,26 @@ const closeChatPanel = async (window: Page): Promise<void> => {
   // action's identity.
   await auxBar.locator(".codicon-auxiliarybar-close").first().click();
   await auxBar.waitFor({ state: "hidden", timeout: 5_000 });
+};
+
+/**
+ * Hide the title bar's account/update indicator — the blue "Sign In" chip.
+ *
+ * Despite the label it is `.update-indicator.prominent` (confirmed by probing the live DOM), VS
+ * Code's own sign-in-for-sync prompt. It has no settings key and is not a notification, so neither
+ * `seedUserData` nor `clearNotifications` touches it; the only user-facing way to remove it is a
+ * context menu, which is workbench state rather than settings.
+ *
+ * A stylesheet, not a click: hiding by rule is idempotent and cannot race a menu that renders
+ * differently between versions. It is scoped to this throwaway window and affects nothing else.
+ *
+ * Worth removing because it is actively MISLEADING in a Marketplace screenshot — a sign-in button in
+ * a picture of a dictionary extension reads as the extension wanting an account, which it does not.
+ */
+const hideAccountChrome = async (window: Page): Promise<void> => {
+  await window.addStyleTag({
+    content: ".titlebar-right .update-indicator { display: none !important; }"
+  });
 };
 
 /**
@@ -324,6 +350,7 @@ export const launchVSCode = async (
   };
   const window = await findWorkbench();
   await closeChatPanel(window);
+  await hideAccountChrome(window);
 
   return {
     browser,
@@ -336,6 +363,9 @@ export const launchVSCode = async (
       await window
         .locator(`.monaco-workbench.${workbenchClass}`)
         .waitFor({ timeout: 15_000 });
+      // Re-inject: a theme change re-renders the workbench, and an injected stylesheet does not
+      // survive it. Cheap enough to redo unconditionally.
+      await hideAccountChrome(window);
     },
     close: async (): Promise<void> => {
       // Cleanup is PID-scoped, deliberately. NEVER call browser.close() over a CDP *attach* — it can
