@@ -126,8 +126,23 @@
 
 /* The autocomplete. Anchored under the field rather than floating: the sidebar is narrow, and a
    menu that can escape its column is harder to aim at than one that cannot. */
+/*
+ * Sized to its CONTENT, with the field's width as a floor rather than as the width.
+ *
+ * `width: var(--trigger-width)` pinned the menu to the input exactly, so in a narrow panel every
+ * row wrapped mid-word ("Goda / n / verbs") even though there was room beside the field to grow
+ * into. The widest row is ~37 characters ("Yojijukugo (four-character) #yojijukugo · 50"), which a
+ * sidebar can be narrower than.
+ *
+ * `max-width` is the other half and is not optional: React Aria has no `maxWidth` prop and only
+ * flips/repositions the popover, so without a cap a long row would simply overflow the panel. 100vw
+ * less twice the default 12px `containerPadding` is the width the popover can occupy while staying
+ * clear of both viewport edges wherever it is anchored.
+ */
 .popover {
-  width: var(--trigger-width);
+  min-width: var(--trigger-width);
+  max-width: calc(100vw - 24px);
+  width: max-content;
 }
 
 .suggestions {
@@ -151,6 +166,10 @@
   padding: 3px 6px;
   border-radius: var(--jisho-radius);
   cursor: pointer;
+  /* The row's parts are `nowrap`, so at the max-width cap the overflow has to go somewhere: clipped
+     inside the row, not spilling out of the popover. Only reachable in a panel narrower than the
+     longest label — the label keeps priority, since the tag beside it is the shorter of the two. */
+  overflow: hidden;
 }
 
 /*
@@ -176,8 +195,16 @@
   opacity: 0.75;
 }
 
+/*
+ * `white-space: nowrap` is what actually stops the wrapping — widening the popover only gives the
+ * row somewhere to go. `flex: 1` still pushes the tag to the right edge, but a flex item's default
+ * `min-width: auto` would let the label shrink below its text and wrap anyway once the max-width
+ * cap bites, so it is pinned to its content size instead.
+ */
 .suggestionLabel {
   flex: 1;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
 /* The tag itself, shown beside its label so the user learns the vocabulary they could type next
@@ -185,4 +212,7 @@
 .suggestionTag {
   color: var(--jisho-muted);
   font-size: 0.8em;
+  /* Never the thing that wraps: `#verb-intransitive · 1,158` is one token to a reader, and breaking
+     it across lines reads as two separate values. */
+  white-space: nowrap;
 }
