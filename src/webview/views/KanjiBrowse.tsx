@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Breadcrumb,
-  Breadcrumbs,
-  Button,
-  Link,
-  ListBox,
-  ListBoxItem
-} from "react-aria-components";
+import { Button, ListBox, ListBoxItem } from "react-aria-components";
 import type { Selection } from "react-aria-components";
 import {
   KANJI_LIST_BY_ID,
@@ -16,6 +9,7 @@ import {
 } from "../../shared/classifiers";
 import { useNavigate } from "../navigation";
 import { kanjiListQuery } from "../queries";
+import { BrowseHeader } from "../components/BrowseHeader";
 import styles from "./Browse.module.css";
 import kanjiStyles from "./KanjiBrowse.module.css";
 
@@ -34,22 +28,13 @@ export const KanjiBrowse = (): React.ReactElement => {
       {active === undefined || list === undefined ? (
         <GroupList onOpen={setList} />
       ) : (
-        <>
-          <Breadcrumbs className={styles.crumbs}>
-            <Breadcrumb>
-              <Link
-                className={styles.crumbLink}
-                onPress={() => setList(undefined)}
-              >
-                Kanji
-              </Link>
-            </Breadcrumb>
-            <Breadcrumb>
-              <span className={styles.crumbCurrent}>{active.label}</span>
-            </Breadcrumb>
-          </Breadcrumbs>
-          <KanjiList id={list} label={active.label} />
-        </>
+        // The trail replaces this level's heading and carries the count — same row, same component
+        // as the Vocab tab and the word list, so the header's height never changes between them.
+        <KanjiList
+          id={list}
+          label={active.label}
+          onRoot={() => setList(undefined)}
+        />
       )}
     </div>
   );
@@ -101,10 +86,12 @@ const GroupList = ({
  */
 const KanjiList = ({
   id,
-  label
+  label,
+  onRoot
 }: {
   id: KanjiListId;
   label: string;
+  onRoot: () => void;
 }): React.ReactElement => {
   const { openKanji } = useNavigate();
   const { data, isPending } = useQuery(kanjiListQuery(id));
@@ -112,32 +99,48 @@ const KanjiList = ({
   // ListBox opens on Enter via onAction; selection stays uncontrolled like the search results.
   const noop = (_: Selection): void => {};
 
-  if (isPending) return <p className={styles.note}>Loading…</p>;
+  // The header renders even while loading, so the row does not appear late and shift the grid down.
+  const header = (
+    <BrowseHeader
+      crumbs={[{ label: "Kanji", onPress: onRoot }, { label }]}
+      count={isPending ? undefined : `${kanji.length.toLocaleString()} kanji`}
+    />
+  );
+
+  if (isPending)
+    return (
+      <>
+        {header}
+        <p className={styles.note}>Loading…</p>
+      </>
+    );
   return (
-    <div className={kanjiStyles.body}>
-      <p className={kanjiStyles.count}>{kanji.length.toLocaleString()} kanji</p>
-      <ListBox
-        aria-label={`${label} kanji`}
-        className={kanjiStyles.grid}
-        layout="grid"
-        selectionMode="single"
-        onSelectionChange={noop}
-        onAction={(key) => openKanji(String(key))}
-        items={kanji}
-      >
-        {(item) => (
-          <ListBoxItem
-            id={item.literal}
-            textValue={item.literal}
-            className={kanjiStyles.cell}
-          >
-            <span className={kanjiStyles.literal} lang="ja">
-              {item.literal}
-            </span>
-            <span className={kanjiStyles.meaning}>{item.meaningPreview}</span>
-          </ListBoxItem>
-        )}
-      </ListBox>
-    </div>
+    <>
+      {header}
+      <div className={kanjiStyles.body}>
+        <ListBox
+          aria-label={`${label} kanji`}
+          className={kanjiStyles.grid}
+          layout="grid"
+          selectionMode="single"
+          onSelectionChange={noop}
+          onAction={(key) => openKanji(String(key))}
+          items={kanji}
+        >
+          {(item) => (
+            <ListBoxItem
+              id={item.literal}
+              textValue={item.literal}
+              className={kanjiStyles.cell}
+            >
+              <span className={kanjiStyles.literal} lang="ja">
+                {item.literal}
+              </span>
+              <span className={kanjiStyles.meaning}>{item.meaningPreview}</span>
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </div>
+    </>
   );
 };

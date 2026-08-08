@@ -114,21 +114,26 @@ test("a sentence's results are labelled as partial matches", async () => {
 });
 
 test("a set phrase the tokenizer does not split is a plain ranked list", async () => {
-  // WHY: 申し訳ございません is a dictionary entry AND, in Shirabe, a sentence broken into
-  // もうしわけ/ござい/ません. IPADIC disagrees — it tokenizes the whole polite formula as ONE noun, so
-  // no breakdown exists to label and the query is not "multi-word" by our definition.
+  // WHY: お願いします is a dictionary entry AND, read as a sentence, お/願い/します. IPADIC
+  // disagrees — it tokenizes the whole polite formula as ONE unit, so no breakdown exists to label
+  // and the query is not "multi-word" by our definition.
   //
   // The right outcome is therefore the plain ranked list, with the exact entry on top: featuring it
   // above a "Partial matches" header would promise a fragment list we have nothing to put in. This
   // pins that, so a future tokenizer change that DOES split it shows up here as a failure to
   // re-decide rather than as a silently different UI.
+  //
+  // The term was 申し訳ございません, which lives in the FULL dictionary but not the common build the
+  // E2E run provisions (`vp run build:data`) — so it asserted an entry this database does not have,
+  // and the shorter 申し訳 correctly ranked first. Its obvious replacement 申し訳ありません is the
+  // WRONG fix: measured through the tokenizer it is content=2, i.e. genuinely split, so it renders
+  // the very "Partial matches" header this test exists to assert the absence of. お願いします is
+  // content=1 and common — the property under test, in the database the test actually runs against.
   const win = vscode!.window;
   const frame = await jishoFrame(win);
 
-  await fillSearch(frame, "申し訳ございません");
-  await expect(frame.getByRole("option").first()).toContainText(
-    "申し訳ございません"
-  );
+  await fillSearch(frame, "お願いします");
+  await expect(frame.getByRole("option").first()).toContainText("お願いします");
   await expect(frame.getByText("Partial matches")).toHaveCount(0);
   await expect(frame.getByRole("listbox", { name: "Full match" })).toHaveCount(
     0

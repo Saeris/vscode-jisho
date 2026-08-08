@@ -15,11 +15,8 @@
   padding: var(--jisho-gap);
 }
 
-.count {
-  margin: 0 0 8px;
-  font-size: 0.85em;
-  color: var(--jisho-muted);
-}
+/* The count moved onto the breadcrumb row (components/BrowseHeader), where it is right-aligned
+   against the trail instead of costing a line of its own. */
 
 /*
  * `auto-fill` with a minimum rather than a fixed column count: the sidebar's width is the user's to

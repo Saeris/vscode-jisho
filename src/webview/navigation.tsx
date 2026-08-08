@@ -54,6 +54,20 @@ export interface Navigation {
    * what the root view shows rather than pushing anything, so Back is unaffected.
    */
   selectTab: (tab: Tab) => void;
+  /**
+   * The section the navigation root is currently on.
+   *
+   * Read by a pushed view's breadcrumb trail, whose root crumb is "the tab you left" — a word list
+   * drilled from Vocab says "Vocab", the same list opened from the Kanji tab says "Kanji". Exposed
+   * as state rather than derived per view because the machine already owns it.
+   */
+  tab: Tab;
+  /**
+   * Which group the browse tab is drilled into; `undefined` is its group list. Set by the tab
+   * itself, and by a pushed word list's root crumb — see `NavContext.browseGroup`.
+   */
+  browseGroup: string | undefined;
+  selectBrowseGroup: (group?: string) => void;
 }
 
 const NavigationContext = createContext<Navigation | undefined>(undefined);
@@ -66,8 +80,14 @@ const NavigationContext = createContext<Navigation | undefined>(undefined);
 export const makeNavigation = (
   send: (event: NavEvent) => void,
   canGoHome: boolean,
-  canGoForward = false
+  canGoForward = false,
+  tab: Tab = "search",
+  browseGroup?: string
 ): Navigation => ({
+  tab,
+  browseGroup,
+  selectBrowseGroup: (group): void =>
+    send({ type: "selectBrowseGroup", group }),
   openWord: (id): void => send({ type: "openWord", id }),
   openMoreExamples: (id): void => send({ type: "openMoreExamples", id }),
   openKanji: (literal): void => send({ type: "openKanji", literal }),
@@ -95,18 +115,22 @@ export const NavigationProvider = ({
   send,
   canGoHome,
   canGoForward = false,
+  tab = "search",
+  browseGroup,
   children
 }: {
   send: (event: NavEvent) => void;
   canGoHome: boolean;
   canGoForward?: boolean;
+  tab?: Tab;
+  browseGroup?: string;
   children: React.ReactNode;
 }): React.ReactElement => {
   // Rebuilt only when `send` or one of the conditional affordances changes, so a navigation does
   // not hand every consumer a new set of function identities.
   const value = useMemo(
-    () => makeNavigation(send, canGoHome, canGoForward),
-    [send, canGoHome, canGoForward]
+    () => makeNavigation(send, canGoHome, canGoForward, tab, browseGroup),
+    [send, canGoHome, canGoForward, tab, browseGroup]
   );
   return <NavigationContext value={value}>{children}</NavigationContext>;
 };

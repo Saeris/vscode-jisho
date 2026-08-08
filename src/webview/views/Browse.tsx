@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Breadcrumb, Breadcrumbs, Button, Link } from "react-aria-components";
+import { Button } from "react-aria-components";
 import {
   CLASSIFIERS,
   CLASSIFIER_GROUPS,
@@ -9,6 +8,7 @@ import {
 } from "../../shared/classifiers";
 import { useNavigate } from "../navigation";
 import { browseCountsQuery } from "../queries";
+import { BrowseHeader } from "../components/BrowseHeader";
 import { DetailHeader } from "../components/DetailHeader";
 import styles from "./Browse.module.css";
 
@@ -27,49 +27,33 @@ import styles from "./Browse.module.css";
  */
 export const Browse = ({ group }: { group?: string }): React.ReactElement => {
   const { data: counts } = useQuery(browseCountsQuery());
-  const active = CLASSIFIER_GROUPS.find((g) => g.id === group);
-  return (
-    <div className={styles.container}>
-      <DetailHeader onBack={useNavigate().back} />
-      {active === undefined ? (
-        <GroupList onOpen={useNavigate().openBrowse} />
-      ) : (
-        <CategoryList
-          group={active.id}
-          label={active.label}
-          counts={counts?.counts ?? {}}
-          namesAvailable={counts?.namesAvailable ?? false}
-        />
-      )}
-    </div>
-  );
-};
-
-/**
- * The same tree as the Vocab TAB rather than a pushed view (#55).
- *
- * Its drill level is local state, not a stack entry, because the tab is the navigation root: pushing
- * a view would put the browse tree ON TOP of the tab bar it lives inside, and Back would pop out of
- * the root entirely. Local state also means the level survives switching tabs for free — the panel
- * is force-mounted, so nothing here unmounts.
- */
-export const BrowseTab = (): React.ReactElement => {
-  const { data: counts } = useQuery(browseCountsQuery());
-  const [group, setGroup] = useState<ClassifierGroupId | undefined>(undefined);
+  const { openBrowse, home, back } = useNavigate();
   const active = CLASSIFIER_GROUPS.find((g) => g.id === group);
   return (
     <div className={styles.container}>
       {active === undefined ? (
-        <GroupList onOpen={setGroup} />
+        <>
+          <DetailHeader onBack={back} />
+          <GroupList onOpen={openBrowse} />
+        </>
       ) : (
         <>
-          <BrowseCrumbs
-            label={active.label}
-            onRoot={() => setGroup(undefined)}
+          {/* Pushed rather than the tab, so the root crumb is HOME, not "Vocab": this view is
+              reached by graph traversal (a grammar tag on a word page), and naming a tab would
+              claim a parent the reader did not come through. See BrowseHeader. */}
+          <BrowseHeader
+            crumbs={[
+              {
+                label: "⌂",
+                onPress: home ?? back,
+                ariaLabel: "Back to search"
+              },
+              { label: "Browse", onPress: () => openBrowse() },
+              { label: active.label }
+            ]}
           />
           <CategoryList
             group={active.id}
-            label={active.label}
             counts={counts?.counts ?? {}}
             namesAvailable={counts?.namesAvailable ?? false}
           />
@@ -80,30 +64,45 @@ export const BrowseTab = (): React.ReactElement => {
 };
 
 /**
- * Where you are in the tree, and the way back up.
+ * The same tree as the Vocab TAB rather than a pushed view (#55).
  *
- * Breadcrumbs rather than a Back button: inside a tab there is no stack to go back through, so a
- * Back arrow would be lying about what it does. A trail says where "up" goes and stays correct when
- * the tree grows a third level.
+ * Drilling in does not push: the tab IS the navigation root, so a pushed view would sit on top of
+ * the tab bar it lives inside and Back would pop out of the root entirely. The level is therefore a
+ * field on the machine's context rather than a stack entry.
+ *
+ * It used to be local `useState` here, which was simpler and wrong in one specific way: a pushed
+ * word list's breadcrumb needs to send the reader to the TOP of this tab, and a sibling view cannot
+ * reach a `useState` setter. The root crumb could only pop the stack, landing back on this tab
+ * still drilled into its group — the reported bug. See `NavContext.browseGroup`.
  */
-const BrowseCrumbs = ({
-  label,
-  onRoot
-}: {
-  label: string;
-  onRoot: () => void;
-}): React.ReactElement => (
-  <Breadcrumbs className={styles.crumbs}>
-    <Breadcrumb>
-      <Link className={styles.crumbLink} onPress={onRoot}>
-        Browse
-      </Link>
-    </Breadcrumb>
-    <Breadcrumb>
-      <span className={styles.crumbCurrent}>{label}</span>
-    </Breadcrumb>
-  </Breadcrumbs>
-);
+export const BrowseTab = (): React.ReactElement => {
+  const { data: counts } = useQuery(browseCountsQuery());
+  const { browseGroup, selectBrowseGroup } = useNavigate();
+  const active = CLASSIFIER_GROUPS.find((g) => g.id === browseGroup);
+  return (
+    <div className={styles.container}>
+      {active === undefined ? (
+        <GroupList onOpen={selectBrowseGroup} />
+      ) : (
+        <>
+          {/* The trail REPLACES the level's <h1>, so the current crumb is the heading — see
+              BrowseHeader. Two levels today; a third would be one more entry. */}
+          <BrowseHeader
+            crumbs={[
+              { label: "Vocab", onPress: () => selectBrowseGroup(undefined) },
+              { label: active.label }
+            ]}
+          />
+          <CategoryList
+            group={active.id}
+            counts={counts?.counts ?? {}}
+            namesAvailable={counts?.namesAvailable ?? false}
+          />
+        </>
+      )}
+    </div>
+  );
+};
 
 /** The top level: one row per group. */
 const GroupList = ({
@@ -136,12 +135,10 @@ const GroupList = ({
 /** One group's categories, each opening its word list. */
 const CategoryList = ({
   group,
-  label,
   counts,
   namesAvailable
 }: {
   group: ClassifierGroupId;
-  label: string;
   counts: Record<string, number>;
   /** Hides #name/#place until the names dictionary is provisioned — see TagSearchField. */
   namesAvailable: boolean;
@@ -149,7 +146,7 @@ const CategoryList = ({
   const { openWordList } = useNavigate();
   return (
     <div className={styles.body}>
-      <h1 className={styles.title}>{label}</h1>
+      {/* No <h1>: the breadcrumb's current crumb is this level's heading. */}
       {group === "jlpt" ? (
         <p className={styles.note}>
           Levels are an unofficial estimate — official vocabulary lists have not

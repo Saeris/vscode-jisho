@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "../fixtures";
-import { screenshotSidebar } from "../webview";
+import {
+  currentCrumb,
+  fillSearch,
+  openBrowseTab,
+  screenshotSidebar
+} from "../webview";
 
 /**
  * Whether the optional JMnedict names database has been built (`vp run build:data:names`).
@@ -23,10 +28,9 @@ const hasNamesDb = existsSync(join(process.cwd(), "assets", "jisho-names.db"));
 test.describe.configure({ mode: "serial" });
 
 test("capture: browse tree", async ({ vscode, jisho }) => {
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
-  await jisho.getByRole("heading", { name: "Browse" }).waitFor();
+  // The tree is the Vocab TAB now (#55 step 1), not a view reached from the search screen — the
+  // helper asserts the group list is showing, so there is nothing further to wait for here.
+  await openBrowseTab(jisho);
   await screenshotSidebar(vscode.window, "test-results/shots/30-browse.png");
 });
 
@@ -34,11 +38,9 @@ test("capture: a group's categories, with counts", async ({
   vscode,
   jisho
 }) => {
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
-  await jisho.getByRole("heading", { name: "JLPT level" }).waitFor();
+  await currentCrumb(jisho, "JLPT level").waitFor();
   // The counts arrive from the host, so wait for a real number rather than the empty placeholder.
   await expect(
     jisho.getByRole("button", { name: /N5, \d+ words/ })
@@ -53,12 +55,10 @@ test("capture: a word list, gojuon then by frequency", async ({
   vscode,
   jisho
 }) => {
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
   await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
-  await jisho.getByRole("heading", { name: "N5" }).waitFor();
+  await currentCrumb(jisho, "N5").waitFor();
   // Gojūon is the DEFAULT: the list is an index, and kana order plus the rail is how a Japanese
   // dictionary is navigated. `option`, not `menuitem` — the word list is a ListBox; only the tag
   // autocomplete is a Menu.
@@ -80,6 +80,40 @@ test("capture: a word list, gojuon then by frequency", async ({
   );
 });
 
+test("the word list's root crumb reaches the top of the tab, not one step up", async ({
+  jisho
+}) => {
+  // WHY (reported bug): from `Vocab › Subject › Computing`, tapping "Vocab" went to
+  // `Vocab › Subject`. Both upward crumbs were wired to the same stack pop, which reveals the tab
+  // still drilled into its group — right for "Subject", wrong for "Vocab". Each crumb must land
+  // where its label says, and only a real render settles it: the fix moved the tab's drill level
+  // onto the machine so a PUSHED view can reset it, which is exactly the cross-component wiring
+  // component tests cannot see.
+  await openBrowseTab(jisho);
+  await jisho.getByRole("button", { name: /Browse Subject/i }).click();
+  await jisho.getByRole("button", { name: /Computing, \d+ words/ }).click();
+  await currentCrumb(jisho, "Computing").waitFor();
+
+  // The middle crumb goes one level up, to the group the reader drilled through.
+  await jisho
+    .locator('ol li [role="link"]:visible')
+    .filter({ hasText: "Subject" })
+    .click();
+  await expect(currentCrumb(jisho, "Subject")).toBeVisible();
+
+  // Back in, then the ROOT crumb — which must reach the group list, not "Subject" again.
+  await jisho.getByRole("button", { name: /Computing, \d+ words/ }).click();
+  await currentCrumb(jisho, "Computing").waitFor();
+  await jisho
+    .locator('ol li [role="link"]:visible')
+    .filter({ hasText: "Vocab" })
+    .click();
+  await expect(jisho.getByRole("heading", { name: "Browse" })).toBeVisible();
+  await expect(
+    jisho.getByRole("button", { name: /Browse Subject/i })
+  ).toBeVisible();
+});
+
 test("capture: #tag autocomplete and a tag token", async ({
   vscode,
   jisho
@@ -92,6 +126,29 @@ test("capture: #tag autocomplete and a tag token", async ({
     vscode.window,
     "test-results/shots/34-tag-autocomplete.png"
   );
+
+  // WHY (user report): the menu used to be pinned to the field's exact width, so in a narrow panel
+  // rows wrapped mid-word ("Goda / n / verbs") with usable space sitting unused beside the sidebar.
+  // Measured rather than eyeballed: a wrapped row is roughly double height, so a single-line bound
+  // catches the regression without hard-coding the theme's line height. `#go` is the reported query
+  // and pulls the longest label in the set, "Yojijukugo (four-character)".
+  await fillSearch(jisho, "#go");
+  await jisho.getByRole("menuitem").first().waitFor();
+  for (const row of await jisho.getByRole("menuitem").all()) {
+    expect((await row.boundingBox())?.height ?? 99).toBeLessThan(30);
+  }
+  // …and the menu still has to fit on screen: React Aria has no maxWidth prop, so the CSS cap is
+  // the only thing stopping a long row from overflowing. Measured against the WORKBENCH element
+  // rather than `viewportSize()`, which returns null for this Electron window (a `?? 0` fallback
+  // silently turned this into "must be <= 0" and failed on a menu that was fitting perfectly).
+  const menu = await jisho.getByRole("menu").first().boundingBox();
+  const shell = await vscode.window.locator(".monaco-workbench").boundingBox();
+  expect(shell?.width ?? 0).toBeGreaterThan(0);
+  expect((menu?.x ?? 0) + (menu?.width ?? 0)).toBeLessThanOrEqual(
+    (shell?.x ?? 0) + (shell?.width ?? 0)
+  );
+  await fillSearch(jisho, "#jlpt");
+  await expect(jisho.getByRole("menuitem", { name: /N5/ })).toBeVisible();
 
   // Completing one turns it into a token — atomic, and carrying the resolved classifier. The token
   // renders the classifier's LABEL ("N5"), not the raw id it was typed as, so the committed filter
@@ -157,12 +214,10 @@ test("kana rail scrolls its section to the top of the list", async ({
   // WHY (user request): a thumb index should land the section heading at the TOP of the visible
   // list, not merely somewhere on screen — `scrollIntoView` aligns to the nearest edge, which
   // leaves the heading at the bottom when scrolling downward.
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
   await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
-  await jisho.getByRole("heading", { name: "N5" }).waitFor();
+  await currentCrumb(jisho, "N5").waitFor();
 
   // Gojūon is the default, so the rail is present without switching order first.
   const rail = jisho.getByRole("navigation", { name: /jump to kana/i });
@@ -213,12 +268,10 @@ test("result-type tags appear, and dead combinations do not", async ({
 test("capture: #kanji opens a kanji list", async ({ vscode, jisho }) => {
   // WHY (#27): the result-type tag has to RETURN its type. It suggested and filtered correctly for
   // a while before opening anything — the list was empty because `browse()` only knew about words.
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse Result type/i }).click();
   await jisho.getByRole("button", { name: /Kanji, [\d,]+ words/ }).click();
-  await jisho.getByRole("heading", { name: "Kanji" }).waitFor();
+  await currentCrumb(jisho, "Kanji").waitFor();
   await expect(jisho.getByRole("option").first()).toBeVisible();
 
   // The ordering controls are absent: a kanji has no reading to sort gojūon by, so offering あ–ん
@@ -247,10 +300,15 @@ test("a word page's grammar tag browses its category", async ({ jisho }) => {
     .first()
     .click();
   // Lands on that category's list, with its own heading and rows.
-  await expect(
-    jisho.getByRole("heading", { name: "Ichidan verbs" })
-  ).toBeVisible();
+  await expect(currentCrumb(jisho, "Ichidan verbs")).toBeVisible();
   await expect(jisho.getByRole("option").first()).toBeVisible();
+
+  // Arrived by GRAPH traversal — a pill on a word page, from the Search tab — so the trail's root
+  // is the home control rather than a section name. Naming "Vocab" here would claim the reader
+  // drilled through a tab they never opened. (#55)
+  await expect(
+    jisho.getByRole("link", { name: "Back to search" })
+  ).toBeVisible();
 });
 
 test("capture: #place opens a name list", async ({ vscode, jisho }) => {
@@ -262,12 +320,10 @@ test("capture: #place opens a name list", async ({ vscode, jisho }) => {
   );
   // WHY (#27): the last result type that promised more than it delivered. `#name`/`#place` read the
   // separate names DB, which `browse()` does not touch — they suggested and opened nothing.
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse Result type/i }).click();
   await jisho.getByRole("button", { name: /Places, [\d,]+ words/ }).click();
-  await jisho.getByRole("heading", { name: "Places" }).waitFor();
+  await currentCrumb(jisho, "Places").waitFor();
   await expect(jisho.getByRole("option").first()).toBeVisible();
   await screenshotSidebar(
     vscode.window,

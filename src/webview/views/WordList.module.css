@@ -6,24 +6,8 @@
   height: 100%;
 }
 
-.head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: var(--jisho-gap) var(--jisho-gap) 0;
-}
-
-.title {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin: 0;
-}
-
-.total {
-  color: var(--jisho-muted);
-  font-size: 0.85em;
-  font-variant-numeric: tabular-nums;
-}
+/* The title-and-count row is gone: components/BrowseHeader carries both on the breadcrumb row, which
+   is what removes the height difference between this view and the level above it. */
 
 .orderRow {
   display: flex;

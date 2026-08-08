@@ -1,5 +1,11 @@
 import { expect, test } from "../fixtures";
-import { fillSearch, openKanjiResult, screenshotSidebar } from "../webview";
+import {
+  currentCrumb,
+  fillSearch,
+  openBrowseTab,
+  openKanjiResult,
+  screenshotSidebar
+} from "../webview";
 
 /**
  * Light-theme contrast audit.
@@ -90,12 +96,10 @@ test("capture: word-list kana headers in light theme", async ({
   // separate rules — dark lightens, light darkens. A single-theme check would pass while the light
   // variant did nothing, which is exactly what `light-dark()` would have done here (nothing in the
   // webview declares `color-scheme`, so it would resolve to its light branch in every theme).
-  await jisho
-    .getByRole("button", { name: /browse words by category/i })
-    .click();
+  await openBrowseTab(jisho);
   await jisho.getByRole("button", { name: /Browse JLPT level/i }).click();
   await jisho.getByRole("button", { name: /N5, \d+ words/ }).click();
-  await jisho.getByRole("heading", { name: "N5" }).waitFor();
+  await currentCrumb(jisho, "N5").waitFor();
 
   // The band must differ from the rows it separates — that is the whole point of it being a band.
   const distinct = await jisho.locator('[data-row="あ"]').evaluate((header) => {

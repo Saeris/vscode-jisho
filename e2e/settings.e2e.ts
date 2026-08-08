@@ -77,7 +77,15 @@ test("tagLabels=japanese relabels the grammar pills", async () => {
   // collapses the whole stack in one press, unlike Back.
   await frame.getByRole("button", { name: "Back to search" }).click();
   await fillSearch(frame, "食べる");
-  await frame.locator('[role="listbox"] [role="option"]').first().click();
+  // `visible=true` for the same reason the pill lookup below needs it: the tab panels are
+  // force-mounted (#55), so the Kana chart's cells are `role="option"` elements sitting in the DOM
+  // behind the search results. Without this the first match was a hidden kana cell (`data-key="あ"`),
+  // and the click waited out its timeout on an element that can never become visible.
+  await frame
+    .locator('[role="listbox"] [role="option"]')
+    .locator("visible=true")
+    .first()
+    .click();
   await frame.getByRole("button", { name: "Back", exact: true }).waitFor();
   // The DEFAULT would render "ichidan verb" here. Proving the Japanese term shows instead is what
   // confirms the setting travelled the whole path — package.json → host snapshot → bridge →

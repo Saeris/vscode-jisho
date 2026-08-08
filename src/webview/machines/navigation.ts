@@ -108,6 +108,25 @@ export interface NavContext {
    * panel would reopen on Search no matter where the user was.
    */
   tab: Tab;
+  /**
+   * Which group the Vocab/Kanji tab is drilled into, or `undefined` at its group list (#55).
+   *
+   * This ONE piece of a tab's depth is here rather than in component state, and the reason is the
+   * breadcrumb on a pushed word list. That list's trail reads `Vocab › Subject › Computing`, and its
+   * root crumb has to mean "the top of the Vocab tab" — but the tab's own drill level was local to
+   * `BrowseTab`, a SIBLING of the pushed view with no way to reach it. So the crumb could only pop
+   * the stack, landing on the tab still showing `Vocab › Subject`: the root crumb and the group
+   * crumb did the same thing, and neither reached the root.
+   *
+   * Scroll position and list virtualisation stay in component state as before — those are
+   * genuinely private to a panel, and `<Activity>` keeps them alive. This is shared, because a view
+   * outside the root needs to set it.
+   *
+   * Deliberately NOT restored by `hydrateContext`: reopening a collapsed sidebar at the top of the
+   * tree is the spec's decision, and it avoids restoring a path into a category a dictionary update
+   * may have emptied.
+   */
+  browseGroup?: string;
 }
 
 export const freshContext = (): NavContext => ({
@@ -115,7 +134,8 @@ export const freshContext = (): NavContext => ({
   forwardStack: [],
   searchQuery: "",
   selectedSegment: null,
-  tab: "search"
+  tab: "search",
+  browseGroup: undefined
 });
 
 export type NavEvent =
@@ -142,6 +162,11 @@ export type NavEvent =
   | { type: "selectSegment"; index: number | null }
   /** Switch the navigation root's section (#55). Does not navigate, so it pushes no history. */
   | { type: "selectTab"; tab: Tab }
+  /**
+   * Drill the active browse tab into a group, or back to its group list with `undefined` (#55).
+   * Not a navigation — it changes what the ROOT shows, so it pushes nothing and Back is unaffected.
+   */
+  | { type: "selectBrowseGroup"; group?: string }
   /** Jump to the search view with a new query — the tap-through action for cross-references. */
   | { type: "searchFor"; term: string }
   /** Append a character to the query and return to search — the handwriting-pick action. */
@@ -314,8 +339,19 @@ const define = (initial: NavContext, persist: Persist) =>
           event.type === "setSearchQuery" ? event.query : context.searchQuery,
         selectedSegment: () => null
       }),
+      /**
+       * Both search actions also SELECT the search tab (#55).
+       *
+       * Resetting the stack is not on its own enough once the root has sections: a caller that runs
+       * a search from INSIDE the root would land the query on a panel that is not showing, which
+       * reads as an action that did nothing. No caller can reach that today — the editor's "Look Up
+       * Selection" arrives from outside the panel, and the cross-reference and handwriting flows are
+       * only reachable from Search — but "run a search" and "show me the search" belong together,
+       * and splitting them is a trap for the next tab that gains an action.
+       */
       searchFor: assign({
         stack: () => [{ name: "search" } satisfies View],
+        tab: () => "search" as const,
         searchQuery: ({ context, event }) =>
           event.type === "searchFor" ? event.term : context.searchQuery,
         selectedSegment: () => null
@@ -323,6 +359,7 @@ const define = (initial: NavContext, persist: Persist) =>
       appendToSearch: assign({
         // Return to the search view and append the chosen character (handwriting → search flow).
         stack: () => [{ name: "search" } satisfies View],
+        tab: () => "search" as const,
         searchQuery: ({ context, event }) =>
           event.type === "appendToSearch"
             ? context.searchQuery + event.char
@@ -336,6 +373,10 @@ const define = (initial: NavContext, persist: Persist) =>
       selectTab: assign({
         tab: ({ context, event }) =>
           event.type === "selectTab" ? event.tab : context.tab
+      }),
+      selectBrowseGroup: assign({
+        browseGroup: ({ context, event }) =>
+          event.type === "selectBrowseGroup" ? event.group : context.browseGroup
       }),
       /**
        * Write the context out after a navigation.
@@ -387,7 +428,10 @@ const define = (initial: NavContext, persist: Persist) =>
       // Filters the current results in place; it does not navigate, so history is untouched.
       selectSegment: { actions: ["selectSegment", "persist"] },
       // Likewise: the tabs are one view's sections, not stack entries, so switching pushes nothing.
-      selectTab: { actions: ["selectTab", "persist"] }
+      selectTab: { actions: ["selectTab", "persist"] },
+      // Likewise a change to what the root SHOWS, not a navigation — no stack entry, no forward
+      // clear. Persisted only so the write is consistent; `hydrateContext` drops it on restore.
+      selectBrowseGroup: { actions: ["selectBrowseGroup", "persist"] }
     }
   });
 

@@ -1,0 +1,76 @@
+/* Breadcrumb header for the drill-down views (#55). One row: the trail, then the count. */
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px var(--jisho-gap);
+  border-bottom: 1px solid var(--jisho-border);
+}
+
+/*
+ * `list-style: none` is the fix for the stray marks before each crumb, and it is not cosmetic
+ * boilerplate: React Aria renders Breadcrumbs as an <ol>, so the host stylesheet's default decimal
+ * markers were painting "." and "2." over the trail (". Browse2. Subject"). It read as a broken
+ * separator, which is why scoping the old `::after` rule never fixed it — the marks were never ours.
+ * `padding-inline-start: 0` removes the list indent that comes with the same default.
+ */
+.crumbs {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  font-size: 0.9em;
+}
+
+.crumb {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.separator {
+  color: var(--jisho-muted);
+}
+
+.link {
+  color: var(--jisho-link);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link[data-hovered] {
+  text-decoration: underline;
+}
+
+.link[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/*
+ * The current page carries the weight the old <h1> did — this row REPLACES that title, so the
+ * trail's last crumb has to read as the page's name rather than as one more link.
+ */
+.current {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pushed to the right and allowed to keep its width: the trail truncates first, since the count is
+   short and fixed while a category label can be arbitrarily long. */
+.count {
+  flex: none;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}

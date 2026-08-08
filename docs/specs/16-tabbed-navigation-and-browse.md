@@ -36,6 +36,8 @@ None of it goes in the machine. All four tabs stay mounted inside [`<Activity>`]
 
 This is the pattern `SearchResults` already uses — its comment states the argument: "its scroll position, list state, and query subscriptions all survive Back natively." Extending it to four tabs means the machine tracks only `tab`, and breadcrumb depth is ordinary component state inside each tab.
 
+**Amended in build:** the Vocab tab's drill level moved onto the machine as `browseGroup`. Local state could not serve the word list's breadcrumb — a PUSHED view whose root crumb has to reach the top of the tab underneath it, and a sibling component cannot reach a `useState` setter. The symptom was both upward crumbs doing the same thing: from `Vocab › Subject › Computing`, tapping "Vocab" landed on `Vocab › Subject`. Scroll position and list virtualisation stay in component state, which is what `<Activity>` is actually for; this one field is shared because something outside the root sets it. The Kanji tab keeps local state — its list never leaves the tab, so nothing outside needs to reset it. `browseGroup` is deliberately absent from `hydrateContext`, which preserves the reset-on-reopen decision below.
+
 Persisting scroll offsets by hand would be the alternative, and it is worse: offsets are meaningless until virtualised lists have re-fetched and re-measured, so a restored number lands somewhere arbitrary.
 
 **The boundary that still needs the machine.** `<Activity>` preserves state within a document. VS Code **deallocates** a `WebviewView`'s document when the sidebar is collapsed or the user switches activity-bar container (`retainContextWhenHidden` is a `WebviewPanel` option views do not have — microsoft/vscode#152110), and only `setState`/`getState` survives that. So:
@@ -105,6 +107,12 @@ Small, self-contained, no build-pipeline change. The tab needs **one toggle** (H
 
 - **Tabs** — [React Aria Tabs](https://react-aria.adobe.com/Tabs), rendered at the panel's bottom edge. Note React Aria owns roving focus and arrow-key movement between tabs.
 - **Breadcrumbs** — [React Aria Breadcrumbs](https://react-aria.adobe.com/Breadcrumbs) for the Vocab and Kanji drill-down, replacing the current per-level `DetailHeader` back button.
+
+  Shared as `components/BrowseHeader`, and it replaces the level's `<h1>` rather than sitting above it: the last crumb IS the heading, with the count right-aligned on the same row. That keeps the header one row tall at every level, so drilling in no longer shifts the list beneath it.
+
+  The trail's root crumb names **the tab you left** (`Vocab`/`Kanji`), read from `NavContext.tab`. Arriving any other way — a `#tag`, a grammar pill on a word page — is graph traversal with no canonical parent, so it shows ⌂ instead. `DetailHeader` (Back/Home) stays for those views, which is the distinction: a trail answers "where am I in a hierarchy", Back answers "undo my last step".
+
+  **Two React Aria details that cost debugging time.** `Breadcrumbs` renders an `<ol>`, so without `list-style: none` the host stylesheet's decimal markers paint over the trail (this was the ". Browse2. Subject" bug — the marks were never our separator, which is why scoping the `::after` rule never fixed it). And `Link` with `onPress` and no `href` renders a `<span role="link">`, so an `a` selector matches nothing.
 
 ## Build sequence
 

@@ -76,6 +76,8 @@ export const App = (): React.ReactElement => {
       send={send}
       canGoHome={canGoHome(state.context)}
       canGoForward={canGoForward(state.context)}
+      tab={state.context.tab}
+      browseGroup={state.context.browseGroup}
     >
       {/* The navigation ROOT (#55): four sections you switch between, not four views you navigate
           to. It stays mounted inside an <Activity> when a detail view is pushed on top, so scroll

@@ -12,7 +12,11 @@ import type {
   NameResultDto,
   SearchResultDto
 } from "../../shared/messages";
-import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
+import {
+  CLASSIFIER_BY_ID,
+  CLASSIFIER_GROUP_BY_ID
+} from "../../shared/classifiers";
+import { TABS } from "../machines/navigation";
 import {
   gojuonHead,
   gojuonRow,
@@ -23,7 +27,7 @@ import { useNavigate } from "../navigation";
 import { browseQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { JlptBadge } from "../components/JlptBadge";
-import { DetailHeader } from "../components/DetailHeader";
+import { BrowseHeader } from "../components/BrowseHeader";
 import styles from "./WordList.module.css";
 
 /**
@@ -36,8 +40,27 @@ import styles from "./WordList.module.css";
  */
 export const WordList = ({ id }: { id: string }): React.ReactElement => {
   const [order, setOrder] = useState<"gojuon" | "frequency">("gojuon");
-  const { back, openWord, openKanji, openName } = useNavigate();
+  const {
+    back,
+    home,
+    openWord,
+    openKanji,
+    openName,
+    openBrowse,
+    selectBrowseGroup,
+    tab
+  } = useNavigate();
   const classifier = CLASSIFIER_BY_ID.get(id);
+  const group = CLASSIFIER_GROUP_BY_ID.get(id);
+  /**
+   * Whether the trail can name a real parent.
+   *
+   * Only the Vocab and Kanji tabs are browse HIERARCHIES. Reaching this list from Search — a `#tag`,
+   * or a grammar pill on a word page — is graph traversal, so the root crumb becomes ⌂ rather than
+   * claiming the reader came through a section they did not.
+   */
+  const fromTab = tab === "vocab" || tab === "kanji";
+  const tabLabel = TABS.find((t) => t.id === tab)?.label ?? "Home";
   const { data, isPending } = useQuery(browseQuery(id, order));
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -105,15 +128,56 @@ export const WordList = ({ id }: { id: string }): React.ReactElement => {
 
   return (
     <div className={styles.container}>
-      <DetailHeader onBack={back} />
-      <div className={styles.head}>
-        <h1 className={styles.title}>{classifier?.label ?? id}</h1>
-        <span className={styles.total}>
-          {data === undefined
-            ? ""
-            : `${data.total.toLocaleString()} ${isKanjiList ? "kanji" : isNameList ? "names" : "words"}`}
-        </span>
-      </div>
+      {/* One row where there were two: the trail carries the title, and the count sits on the same
+          line. The old `← Back` bar plus a title row made the header taller on this view than on
+          the level above it, so every drill-in shifted the list underneath. See BrowseHeader.
+
+          The root crumb is the TAB the reader left (`Vocab`/`Kanji`), because that is the parent
+          they drilled through. Arriving any other way — a `#tag`, a grammar pill on a word page —
+          is graph traversal with no canonical parent, so it gets ⌂ instead of a tab name that would
+          describe a route not taken.
+
+          Each upward crumb goes where its LABEL says, which needs two different actions when we
+          came from a tab. Popping the stack lands on the tab still drilled into its group — that is
+          the middle crumb's destination, not the root's. The root additionally resets the tab's
+          drill level, which is why that level lives on the machine rather than inside `BrowseTab`
+          (see `NavContext.browseGroup`). Wiring both to the same pop was the reported bug: tapping
+          `Vocab` from `Vocab › Subject › Computing` went one step up instead of to the top. */}
+      <BrowseHeader
+        crumbs={[
+          fromTab
+            ? {
+                label: tabLabel,
+                onPress: () => {
+                  selectBrowseGroup(undefined);
+                  (home ?? back)();
+                }
+              }
+            : {
+                label: "⌂",
+                onPress: home ?? back,
+                ariaLabel: "Back to search"
+              },
+          ...(group === undefined
+            ? []
+            : [
+                {
+                  label: group.label,
+                  // From a tab the group is already open behind this view, so popping reveals it.
+                  // From a `#tag` there is no such tab state, so the tree gets pushed properly.
+                  onPress: fromTab
+                    ? (home ?? back)
+                    : (): void => openBrowse(group.id)
+                }
+              ]),
+          { label: classifier?.label ?? id }
+        ]}
+        count={
+          data === undefined
+            ? undefined
+            : `${data.total.toLocaleString()} ${isKanjiList ? "kanji" : isNameList ? "names" : "words"}`
+        }
+      />
 
       {/* Ordering controls are for WORD lists only. A kanji has no reading to sort gojūon by, so
           offering あ–ん there would be a control that cannot do anything — the list is ordered by

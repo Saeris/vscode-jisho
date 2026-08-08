@@ -280,6 +280,24 @@ export const CLASSIFIER_BY_ID = new Map<string, Classifier>(
 );
 
 /**
+ * Which group a classifier belongs to — the middle crumb of a word list's breadcrumb trail (#55).
+ *
+ * Derived from `CLASSIFIERS` rather than stored on each classifier: the grouping is already
+ * expressed by which list a classifier sits in, and a second copy on every entry could disagree
+ * with the first.
+ */
+export const CLASSIFIER_GROUP_BY_ID = new Map<
+  string,
+  { id: ClassifierGroupId; label: string }
+>(
+  CLASSIFIER_GROUPS.flatMap((group) =>
+    CLASSIFIERS[group.id].map(
+      (c) => [c.id, { id: group.id, label: group.label }] as const
+    )
+  )
+);
+
+/**
  * The classifier that browses a given JMdict tag, if one exists.
  *
  * Lets the grammar pills on a word page link into a filtered search — tapping "godan verb" on 食べる

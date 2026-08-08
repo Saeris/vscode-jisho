@@ -46,6 +46,43 @@ describe("navigationMachine", () => {
     expect(activeView(ctx)).toEqual({ name: "search" });
   });
 
+  it("the browse tab's drill level survives a pushed view and is separately resettable", () => {
+    // WHY (reported bug): a word list's breadcrumb reads `Vocab › Subject › Computing`, and the two
+    // upward crumbs have to do DIFFERENT things. Popping the stack reveals the tab still drilled
+    // into its group — correct for the "Subject" crumb, wrong for "Vocab", which must reach the top.
+    // Both were wired to the same pop, so tapping "Vocab" went one step up. The level lives here
+    // rather than in `BrowseTab`'s local state precisely so a pushed view can reset it: a sibling
+    // component cannot reach a `useState` setter.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectTab", tab: "vocab" });
+    actor.send({ type: "selectBrowseGroup", group: "field" });
+    actor.send({ type: "openWordList", id: "computing" });
+
+    // Drilling into a list must not disturb the level underneath — that is what makes the middle
+    // crumb's plain pop land on the group the reader came from.
+    expect(actor.getSnapshot().context.browseGroup).toBe("field");
+
+    // The root crumb resets the level and then pops, so the tab is showing its GROUP LIST.
+    actor.send({ type: "selectBrowseGroup", group: undefined });
+    actor.send({ type: "back" });
+    const ctx = actor.getSnapshot().context;
+    expect(ctx.browseGroup).toBeUndefined();
+    expect(ctx.tab).toBe("vocab");
+    expect(activeView(ctx)).toEqual({ name: "search" });
+  });
+
+  it("selecting a browse group changes the root without touching history", () => {
+    // WHY: the level is a property of what the ROOT shows, like `tab` — not a view. If it pushed,
+    // Back would walk through browse groups instead of leaving the root, and the tab bar would have
+    // to hide itself mid-root.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectBrowseGroup", group: "jlpt" });
+    const ctx = actor.getSnapshot().context;
+    expect(ctx.browseGroup).toBe("jlpt");
+    expect(ctx.stack).toHaveLength(1);
+    expect(canGoBack(ctx)).toBe(false);
+  });
+
   it("opening a word pushes a detail view and enables back", () => {
     // WHY: tapping a result must navigate *forward* to that word (preserving search beneath), which
     // is what makes returning to the same result list possible.
@@ -186,6 +223,23 @@ describe("navigationMachine", () => {
     const ctx = actor.getSnapshot().context;
     expect(activeView(ctx)).toEqual({ name: "search" });
     expect(ctx.searchQuery).toBe("食う");
+  });
+
+  it("searching from another tab selects the search tab too", () => {
+    // WHY (#55): "run a search" and "show me the search" have to travel together once the root has
+    // sections — otherwise a caller inside the root runs a query onto a panel that is not showing,
+    // which reads as an action that did nothing. No caller can reach that state today (the editor
+    // pushes from outside the panel; the cross-reference and handwriting flows only exist on
+    // Search), so this pins the invariant BEFORE the next tab gains an action, rather than after.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectTab", tab: "kana" });
+    actor.send({ type: "searchFor", term: "ねこ" });
+    expect(actor.getSnapshot().context.tab).toBe("search");
+
+    // Same for the handwriting picker's append, which returns to search the same way.
+    actor.send({ type: "selectTab", tab: "kanji" });
+    actor.send({ type: "appendToSearch", char: "水" });
+    expect(actor.getSnapshot().context.tab).toBe("search");
   });
 
   it("home resets the stack to just search", () => {

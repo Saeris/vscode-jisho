@@ -74,42 +74,6 @@
   color: var(--jisho-muted);
 }
 
-/*
- * Breadcrumb trail for the Vocab tab (#55).
- *
- * Replaces the Back button when the tree is a TAB rather than a pushed view: inside a tab there is
- * no stack to pop, so an arrow would promise navigation that does not exist. The trail names where
- * "up" goes instead, and has room for a third level if the tree ever grows one.
- */
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px var(--jisho-gap);
-  border-bottom: 1px solid var(--jisho-border);
-  font-size: 0.9em;
-}
-
-/*
- * The separator sits between crumbs, so it goes on every LIST ITEM but the last — `.crumbs`'s
- * direct children include React Aria's own wrapper, and matching those put a stray "›" before the
- * first crumb (it rendered as ". Kanji› N5").
- */
-.crumbs li:not(:last-child)::after {
-  content: "›";
-  margin-inline-start: 4px;
-  color: var(--jisho-muted);
-}
-
-.crumbLink {
-  color: var(--jisho-link);
-  cursor: pointer;
-}
-
-.crumbLink[data-hovered] {
-  text-decoration: underline;
-}
-
-.crumbCurrent {
-  color: var(--jisho-muted);
-}
+/* The breadcrumb trail lives in components/BrowseHeader — shared with the word list, which needs
+   the identical row. The rules that used to sit here fought VS Code's default <ol> markers rather
+   than removing them; see that file. */

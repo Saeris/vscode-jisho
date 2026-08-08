@@ -151,10 +151,31 @@ export const fillSearch = async (
 export const searchText = async (frame: FrameLocator): Promise<string> =>
   (await frame.getByRole("searchbox").textContent())?.trim() ?? "";
 
+/**
+ * Put the panel back on an empty search view, from wherever a previous spec left it.
+ *
+ * Two things can be in the way, and both must be undone: a pushed DETAIL view (popped with Home or
+ * Back, per the comment above) and a selected TAB other than Search (#55). One VS Code is shared by
+ * the whole run, so anything left behind here surfaces as an unrelated spec failing on a control it
+ * expected to exist.
+ */
 export const returnToSearch = async (frame: FrameLocator): Promise<void> => {
   const searchbox = frame.getByRole("searchbox");
   const home = frame.getByRole("button", { name: "Back to search" });
   const back = frame.getByRole("button", { name: "Back", exact: true });
+  // The drill-down views replaced their `← Back` bar with a breadcrumb trail (#55), so a word list
+  // has neither of the two buttons above. Its way out is the trail's first crumb.
+  //
+  // `[role="link"]`, not `a`: React Aria's Link renders a `<span role="link">` when it has `onPress`
+  // and no `href`, so an element selector matches NOTHING here (measured).
+  //
+  // `:visible` is load-bearing too. The tab panels are force-mounted, so the Vocab tab's own trail
+  // is STILL IN THE DOM behind a pushed word list — measured: two `aria-current="page"` crumbs at
+  // once, "JLPT level" (hidden tab) and "N5" (the pushed view) — and an unscoped match clicks the
+  // hidden one, which does nothing. Matching by position rather than label is deliberate: the label
+  // varies ("Vocab"/"Kanji" when drilled from a tab, ⌂ on graph arrival), and enumerating them would
+  // break the next time one is added.
+  const crumbHome = frame.locator('ol li [role="link"]:visible').first();
 
   // Short timeouts throughout: on the search view these buttons legitimately do not exist, which is
   // the common case rather than an error, and the whole point of this helper is to not sit waiting.
@@ -171,8 +192,18 @@ export const returnToSearch = async (frame: FrameLocator): Promise<void> => {
   for (let depth = 0; depth < 5; depth++) {
     if (await visible(searchbox)) break;
     if (await visible(home)) await home.click();
+    else if (await visible(crumbHome)) await crumbHome.click();
     else if (await visible(back)) await back.click();
     else break;
+  }
+
+  // Popping the stack is not enough once the root has SECTIONS (#55 step 1). The search box lives on
+  // the Search tab, so a spec that left the panel on Vocab, Kanji or Kana lands here at depth 1 with
+  // nothing to pop and no search box — and because one VS Code is shared across the whole run, every
+  // later test using this fixture then failed on a missing searchbox rather than on its own subject.
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  if (!(await visible(searchbox)) && (await visible(tabs))) {
+    await tabs.getByRole("tab", { name: "Search" }).click();
   }
 
   // Assert the postcondition rather than trusting the clicks. If this fails the message names the
@@ -196,6 +227,57 @@ export const jishoFrame = async (window: Page): Promise<FrameLocator> => {
   await expect(frame.locator("#root")).toBeAttached({ timeout: 30_000 });
   return frame;
 };
+
+/**
+ * Put the panel on the Vocab tab's group list — the entry point to category browsing.
+ *
+ * Replaces the "Browse words by category" button that #54 put on the empty search view and #55 step
+ * 1 removed: browsing is a top-level SECTION now, not somewhere you navigate to from search. Seven
+ * captures opened the tree through that button and broke the moment it went.
+ *
+ * Two things have to be undone first, and the order matters:
+ *
+ *  1. A pushed view (a word list from an earlier spec) HIDES the tab bar, so the tab cannot be
+ *     clicked until the stack is popped. `returnToSearch` already knows every way out.
+ *  2. The tab keeps its own drill level — component state that survives switching away, which is
+ *     the point of force-mounting the panels — so selecting Vocab can land inside a group. Its trail
+ *     root is also labelled "Vocab", so this has to run AFTER the pop or it clicks the pushed view's
+ *     crumb instead and merely pops to the tab, leaving the drill level untouched.
+ */
+export const openBrowseTab = async (frame: FrameLocator): Promise<void> => {
+  await returnToSearch(frame);
+  await frame
+    .getByRole("tablist", { name: "Sections" })
+    .getByRole("tab", { name: "Vocab" })
+    .click();
+
+  // Looping on the POSTCONDITION rather than trusting one conditional click: what a crumb click
+  // does depends on which view is showing, and this has to end at the group list either way.
+  const heading = frame.getByRole("heading", { name: "Browse" });
+  const upToRoot = frame
+    .locator('ol li [role="link"]:visible')
+    .filter({ hasText: "Vocab" });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await heading.isVisible().catch(() => false)) break;
+    if (!(await upToRoot.isVisible().catch(() => false))) break;
+    await upToRoot.click({ force: true });
+  }
+  await expect(heading).toBeVisible();
+};
+
+/**
+ * The breadcrumb crumb naming the page you are on.
+ *
+ * The drill-down views (Vocab, Kanji, a word list) no longer render an `<h1>` — the trail's last
+ * crumb IS the heading, which is what let the header collapse to one row (#55). Specs that waited on
+ * a heading wait on this instead; it carries `aria-current="page"`, so it is addressable without
+ * depending on the trail's depth.
+ */
+export const currentCrumb = (frame: FrameLocator, name: string): Locator =>
+  // `:visible` because the tab panels are force-mounted: a pushed word list leaves the Vocab tab's
+  // own trail in the DOM behind it, so two `aria-current` crumbs can exist at once and an unscoped
+  // match trips Playwright's strict mode (measured — "JLPT level" and "N5" together).
+  frame.locator('[aria-current="page"]:visible').filter({ hasText: name });
 
 /**
  * Search a literal and open its first KANJI result.

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
 import {
+  currentCrumb,
   fillSearch,
   jishoFrame,
   openJishoSidebar,
@@ -70,9 +71,9 @@ test("the Vocab tab drills in and back out by breadcrumb", async () => {
   await tabs.getByRole("tab", { name: "Vocab" }).click();
 
   await frame.getByRole("button", { name: "Browse JLPT level" }).click();
-  await expect(frame.getByRole("link", { name: "Browse" })).toBeVisible();
+  await expect(frame.getByRole("link", { name: "Vocab" })).toBeVisible();
 
-  await frame.getByRole("link", { name: "Browse" }).click();
+  await frame.getByRole("link", { name: "Vocab" }).click();
   await expect(
     frame.getByRole("button", { name: "Browse JLPT level" })
   ).toBeVisible();
@@ -82,7 +83,7 @@ test("the Vocab tab drills in and back out by breadcrumb", async () => {
 const resetVocab = async (
   frame: Awaited<ReturnType<typeof jishoFrame>>
 ): Promise<void> => {
-  const up = frame.getByRole("link", { name: "Browse" });
+  const up = frame.getByRole("link", { name: "Vocab" });
   if (await up.isVisible()) await up.click();
 };
 
@@ -94,12 +95,12 @@ test("a drill level survives leaving the tab and returning", async () => {
   await tabs.getByRole("tab", { name: "Vocab" }).click();
   await resetVocab(frame);
   await frame.getByRole("button", { name: "Browse JLPT level" }).click();
-  await expect(frame.getByRole("link", { name: "Browse" })).toBeVisible();
+  await expect(frame.getByRole("link", { name: "Vocab" })).toBeVisible();
 
   await tabs.getByRole("tab", { name: "Kana" }).click();
   await tabs.getByRole("tab", { name: "Vocab" }).click();
   // Still one level deep, not reset to the group list.
-  await expect(frame.getByRole("link", { name: "Browse" })).toBeVisible();
+  await expect(frame.getByRole("link", { name: "Vocab" })).toBeVisible();
   await resetVocab(frame);
 });
 
@@ -151,6 +152,10 @@ test("the Kanji tab drills into a JLPT level and opens a character", async () =>
 
   await frame.getByRole("button", { name: "Browse N5 kanji" }).click();
   await expect(frame.getByText("79 kanji")).toBeVisible();
+  // The trail replaced this level's heading, so the crumb IS the title — and the root crumb names
+  // the tab, which is what makes "up" mean the group list rather than somewhere in the stack.
+  await expect(currentCrumb(frame, "N5")).toBeVisible();
+  await expect(frame.getByRole("link", { name: "Kanji" })).toBeVisible();
   await vscode!.window.screenshot({
     path: "test-results/shots/27-kanji-n5.png"
   });
@@ -162,4 +167,89 @@ test("the Kanji tab drills into a JLPT level and opens a character", async () =>
   await expect(tabs).toBeHidden();
   await frame.getByRole("button", { name: /back/i }).click();
   await expect(tabs).toBeVisible();
+});
+
+test("the Kana tab switches script with one toggle", async () => {
+  // WHY (#55 step 3): katakana is DERIVED from the hiragana table by codepoint rather than stored,
+  // so the toggle is the only place that derivation is visible to a user. し→シ is the check that
+  // it reaches the rendered cell, not just the helper the unit spec covers.
+  const win = vscode!.window;
+  const frame = await jishoFrame(win);
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  await tabs.getByRole("tab", { name: "Kana" }).click();
+
+  const chart = frame.getByRole("listbox", { name: "Gojūon chart" });
+  await expect(chart.getByRole("option", { name: "し shi" })).toBeVisible();
+  await win.screenshot({ path: "test-results/shots/28-kana-hiragana.png" });
+
+  await frame.getByRole("radio", { name: "Katakana" }).click();
+  await expect(chart.getByRole("option", { name: "シ shi" })).toBeVisible();
+  await expect(chart.getByRole("option", { name: "し shi" })).toBeHidden();
+  await win.screenshot({ path: "test-results/shots/29-kana-katakana.png" });
+
+  // Back to hiragana, so the next test does not inherit the katakana chart.
+  await frame.getByRole("radio", { name: "Hiragana" }).click();
+});
+
+test("tapping a kana opens its stroke order", async () => {
+  // WHY: the tab's only action, and the one part of it a component test cannot settle — the drawing
+  // is fetched from the HOST by filename, so this proves the kana SVGs are actually in the package
+  // and reachable, not just that the view sends the right event. あ is the sharp case: upstream
+  // splits its third stroke into two clipped fragments, so a build that counted pieces instead of
+  // strokes would say 4 here.
+  const win = vscode!.window;
+  const frame = await jishoFrame(win);
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  await tabs.getByRole("tab", { name: "Kana" }).click();
+
+  await frame
+    .getByRole("listbox", { name: "Gojūon chart" })
+    .getByRole("option", { name: "あ a" })
+    .click();
+
+  // A pushed detail view, so the tab bar goes away like it does for a word or kanji.
+  await expect(tabs).toBeHidden();
+  await expect(frame.getByText("3 strokes")).toBeVisible();
+  await win.screenshot({ path: "test-results/shots/30-kana-strokes.png" });
+
+  await frame.getByRole("button", { name: /back/i }).click();
+  await expect(tabs).toBeVisible();
+});
+
+test("a digraph is inert, having no drawing to open", async () => {
+  // WHY: きゃ is two code points and drawings are served by one-code-point filename, so there is
+  // nothing to show. Without the disabled state a tap would push an empty stroke-order page, which
+  // reads as a broken feature rather than an absent one.
+  const frame = await jishoFrame(vscode!.window);
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  await tabs.getByRole("tab", { name: "Kana" }).click();
+
+  // Asserted rather than clicked: Playwright refuses to click a disabled element, so a `.click()`
+  // here would hang for its full timeout and then report a Playwright limitation rather than the
+  // app's behaviour. The disabled state IS the behaviour under test.
+  await expect(
+    frame
+      .getByRole("listbox", { name: "Yōon chart" })
+      .getByRole("option", { name: "きゃ kya" })
+  ).toBeDisabled();
+  await expect(tabs).toBeVisible();
+});
+
+test("the Kana script survives leaving the tab and returning", async () => {
+  // WHY: the script is component state kept alive by force-mounting, exactly like the Vocab tab's
+  // drill level — and it is the ONLY state the Kana tab has, so if force-mounting ever regresses
+  // here the toggle silently resets under the user.
+  const frame = await jishoFrame(vscode!.window);
+  const tabs = frame.getByRole("tablist", { name: "Sections" });
+  await tabs.getByRole("tab", { name: "Kana" }).click();
+  await frame.getByRole("radio", { name: "Katakana" }).click();
+
+  const chart = frame.getByRole("listbox", { name: "Gojūon chart" });
+  await expect(chart.getByRole("option", { name: "シ shi" })).toBeVisible();
+
+  await tabs.getByRole("tab", { name: "Vocab" }).click();
+  await tabs.getByRole("tab", { name: "Kana" }).click();
+  await expect(chart.getByRole("option", { name: "シ shi" })).toBeVisible();
+
+  await frame.getByRole("radio", { name: "Hiragana" }).click();
 });
