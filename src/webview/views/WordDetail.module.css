@@ -242,8 +242,20 @@
    form name on its own line, affirmative and negative side by side under it. The thead is
    visually hidden but kept in the tree so the cells stay labelled. */
 @container (max-width: 379px) {
+  /*
+   * The visually-hidden idiom, PINNED to the top-left.
+   *
+   * Without `top`/`left` an absolutely-positioned box stays at its static position, which for a
+   * thead inside a scrolled table is wherever the table happens to sit — hundreds of pixels below
+   * the fold. It escapes the scroll container (absolute positioning is not clipped by an ancestor's
+   * `overflow` unless that ancestor is the containing block), so it extended the DOCUMENT: measured,
+   * `html.scrollHeight` was 820 against a 808px viewport, and that stray 12px is what made the
+   * webview render a second scrollbar beside VS Code's own.
+   */
   .conjTable thead {
     position: absolute;
+    top: 0;
+    left: 0;
     clip-path: inset(50%);
     width: 1px;
     height: 1px;

@@ -193,14 +193,21 @@ body {
 /*
  * Scrollbars, styled to match VS Code's own.
  *
- * A webview view sits inside a `monaco-scrollable-element` that renders VS Code's scrollbar at the
- * panel's right edge — always present, visible on hover. Ours rendered Chromium's default chunky
- * bar immediately inside it, so a scrolling panel showed TWO bars side by side. Measured, the outer
- * one has nothing to scroll (scrollHeight === clientHeight), so it is the inner one that has to
- * stop competing with it.
+ * The webview renders Chromium's default bar, which is chunky and light next to the host's. Taking
+ * the colours from VS Code's own slider variables makes the panel's scrollbar read as part of the
+ * editor. The track stays transparent because VS Code's does.
  *
- * Matching VS Code's slider colours and its 10px width makes the pair read as one control. The
- * track stays transparent because VS Code's does; a filled track is what made the doubling obvious.
+ * NOT a fix for doubled scrollbars. The panel used to show two, and the cause was a layout bug
+ * rather than styling: a visually-hidden `<thead>` with `position: absolute` and no offsets sat at
+ * its static position far below the fold, extending the DOCUMENT past the viewport
+ * (`html.scrollHeight` 820 against 808) so the webview scrolled as well as its content. Pinning it
+ * to top-left fixed that at the source — see `.conjTable thead` in views/WordDetail.module.css.
+ *
+ * Worth knowing if a second bar ever reappears: a webview's scrollbars "are always visible and
+ * always take up space" (microsoft/vscode-discussions#998), and `overflow: overlay` is NOT a way
+ * out — it is deprecated in Chromium 148 and aliases to `auto`. Measured, only
+ * `scrollbar-width: none` yields a zero gutter. So the answer is always to stop the document
+ * overflowing, not to hide the symptom.
  */
 * {
   scrollbar-width: thin;
