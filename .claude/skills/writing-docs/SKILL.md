@@ -9,14 +9,14 @@ Full rationale and the research behind these rules: [docs/specs/17-documentation
 
 ## Where each thing goes
 
-| Content                                              | File                     |
-| ---------------------------------------------------- | ------------------------ |
+| Content                                               | File                     |
+| ----------------------------------------------------- | ------------------------ |
 | What the extension does, how to use it, settings      | `README.md`              |
 | Building, testing, the data pipeline, how to fix bugs | `CONTRIBUTING.md`        |
 | Full licence notices for bundled data                 | `THIRD_PARTY_NOTICES.md` |
 | Design decisions and their history                    | `docs/specs/`            |
 
-If a section is about *making* the extension rather than *using* it, it belongs in `CONTRIBUTING.md`. The one deliberate exception: a short "Data sources" section stays in the README, because several licences (EDRDG, Arphic PL, LGPL, CC BY) require attribution to travel with the distribution and the listing is the most-read surface.
+If a section is about _making_ the extension rather than _using_ it, it belongs in `CONTRIBUTING.md`. The one deliberate exception: a short "Data sources" section stays in the README, because several licences (EDRDG, Arphic PL, LGPL, CC BY) require attribution to travel with the distribution and the listing is the most-read surface.
 
 ## Voice
 
@@ -56,8 +56,11 @@ Astro's guide says nothing about images. These conventions are ours, taken from 
 
 ```html
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/NAME-dark.png">
-  <img alt="What the screenshot shows" src="docs/images/NAME-light.png">
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="docs/images/NAME-dark.png"
+  />
+  <img alt="What the screenshot shows" src="docs/images/NAME-light.png" />
 </picture>
 ```
 

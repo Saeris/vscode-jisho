@@ -58,6 +58,13 @@ export interface Launched {
   /** The main VS Code workbench window as a Playwright Page. */
   window: Page;
   /**
+   * The throwaway folder VS Code opened as its workspace.
+   *
+   * Exposed for the documentation screenshots, which write fixture files into it so the editor has
+   * realistic Japanese text to hover and highlight. Empty for every other suite.
+   */
+  workspaceDir: string;
+  /**
    * Switch themes in place, so one launch can capture both passes.
    *
    * Rewrites the profile's `settings.json` and waits for the workbench to report the new theme kind.
@@ -198,6 +205,34 @@ const closeChatPanel = async (window: Page): Promise<void> => {
   await auxBar.waitFor({ state: "hidden", timeout: 5_000 });
 };
 
+/**
+ * Dismiss every notification toast currently on screen.
+ *
+ * Most first-run noise is suppressed by settings (see `seedUserData`), but "All installed
+ * extensions are temporarily disabled" is not: it is VS Code reporting the `--disable-extensions`
+ * flag the harness itself passes, so there is no setting that prevents it. It floats over the
+ * bottom-right and lands in every screenshot.
+ *
+ * Exported because the documentation captures need it immediately before the shutter — a toast can
+ * arrive at any point during a long run, so clearing once at launch is not enough.
+ */
+export const clearNotifications = async (window: Page): Promise<void> => {
+  const toasts = window.locator(".notifications-toasts .notification-toast");
+  // Bounded rather than `while`: if a toast keeps reappearing, failing the capture is better than
+  // spinning until the test timeout.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if ((await toasts.count()) === 0) return;
+    // Selected by codicon class, like the chat panel above: the accessible name is localized.
+    const close = toasts
+      .first()
+      .locator(".codicon-notifications-clear")
+      .first();
+    if (!(await close.isVisible().catch(() => false))) return;
+    await close.click();
+    await window.waitForTimeout(120);
+  }
+};
+
 export const launchVSCode = async (
   settings: Record<string, unknown> = {}
 ): Promise<Launched> => {
@@ -294,6 +329,7 @@ export const launchVSCode = async (
     browser,
     window,
     userDataDir,
+    workspaceDir,
     setTheme: async (kind: ThemeKind): Promise<void> => {
       const { name, workbenchClass } = THEMES[kind];
       seedUserData(userDataDir, { ...settings, "workbench.colorTheme": name });

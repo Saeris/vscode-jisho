@@ -40,6 +40,7 @@
     "bench:compare": "vp test bench --run --project bench --compare bench/baseline.json",
     "bench:build": "vp pack --entry bench/entry.ts --format esm --outDir dist --no-dts",
     "e2e": "vp pack && vp build && vp exec playwright test",
+    "docs:shots": "vp pack && vp build && vp exec playwright test e2e/docs",
     "check": "vp check",
     "format": "vp check --fix",
     "test": "vp test --fileParallelism"

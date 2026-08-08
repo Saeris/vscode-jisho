@@ -19,7 +19,20 @@ export default defineConfig({
   //
   // `testIgnore` beats an explicit path argument (verified), so opt in with an env var instead:
   //   PROBE=1 vp exec playwright test e2e/startup-trace.probe.e2e.ts
-  testIgnore: process.env.PROBE === "1" ? [] : "**/*.probe.e2e.ts",
+  //
+  // `*.docs.e2e.ts` files generate the README's screenshots. They are excluded for a different
+  // reason than the probes: they are slow (every scenario is captured twice, once per theme) and
+  // they need the FULL dictionary rather than the common build CI provisions.
+  //
+  // Opting in on the ARGUMENTS rather than an env var, because `testIgnore` beats an explicit path
+  // (verified when the probes were added) and setting an env var portably would mean adding a
+  // cross-env dependency for one flag. `vp run docs:shots` passes the path, and that is the signal.
+  testIgnore: [
+    ...(process.env.PROBE === "1" ? [] : ["**/*.probe.e2e.ts"]),
+    ...(process.argv.some((a) => a.includes("e2e/docs"))
+      ? []
+      : ["**/*.docs.e2e.ts"])
+  ],
   fullyParallel: false,
   workers: 1,
   // The test timeout has to cover a cold VS Code launch (download check, Electron boot, extension
