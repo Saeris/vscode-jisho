@@ -209,65 +209,38 @@ test("capture: browsing by category", async () => {
   });
 });
 
-/**
- * UNFINISHED — the editor hover capture.
- *
- * WHY it is wanted: hovering Japanese in a codebase is the extension's home turf, and the one thing
- * a screenshot shows that prose cannot — a definition arriving without leaving the file.
- *
- * WHY it is skipped: driving VS Code's hover from Playwright is the flakiest thing in this harness,
- * and it resisted several rounds. What was established along the way, so the next attempt does not
- * repeat it:
- *
- *  - Inside a STRING literal, TypeScript's language service owns the position and wins the dwell —
- *    the card said "(property) outOfStock: …" rather than showing the dictionary entry.
- *  - Monaco VIRTUALISES lines: an off-screen one measures 0×0 at (0,0), so the pointer goes to the
- *    window's corner, and `scrollIntoViewIfNeeded` fails with "Element is not attached to the DOM".
- *    Move the cursor (Go to Line) instead of scrolling a locator.
- *  - `hoverEditorWord` indexes characters into the line's FIRST text span, so leading indentation
- *    and syntax-highlighting splits both shift every offset. The fixture now carries an unindented
- *    top-level comment for this reason.
- *  - The card renders its shell before the provider resolves, so a capture can catch "(loading...)".
- *    Assert on the content, not just the card.
- *
- * Even with all of that, the dwell does not reliably produce a card here while the sidebar is open;
- * `smoke.e2e.ts` drives the same helper successfully against an UNTITLED editor, which is the next
- * thing to try. Until it is solved the README uses the panel captures, which all work.
- */
-test.skip("capture: a hover in a source file", async () => {
+test("capture: a hover in a study note", async () => {
+  // WHY: a definition arriving without leaving the file is the one thing a screenshot shows that
+  // prose cannot.
+  //
+  // A MARKDOWN fixture, not a code file. The hover provider registers for ["markdown", "plaintext"]
+  // only (src/extension.ts), so Japanese in a .ts comment gets nothing — which is what several
+  // rounds of failed automation here were actually telling us. Spec 18 covers extending it; until
+  // then, capturing markdown is what the extension honestly does.
   const win = vscode!.window;
   await captureBothThemes(
     vscode!,
     "editor-hover",
     async () => {
-      await openFixture(win, "checkout.ts");
-      // The fixture carries an UNINDENTED top-level `//` comment for exactly this capture, and the
-      // choice is load-bearing twice over. Measured: hovering Japanese inside a STRING literal got
-      // TypeScript's own hover instead — "(property) outOfStock: ..." — because the language
-      // service owns that position and wins the dwell. And `hoverEditorWord` indexes characters
-      // into the line's first text span, so any leading indentation shifts every offset.
-      //
+      await openFixture(win, "reading-notes.md");
       // Near the top of the file, so nothing needs scrolling: Monaco virtualises its lines, and an
       // off-screen one measures 0x0 at (0,0), which puts the pointer in the window's corner.
       const line = win
-        .locator(".view-line", { hasText: "在庫を確認してから決済に進みます" })
+        .locator(".view-line", { hasText: "毎日日本語を勉強します" })
         .first();
       await expect(line).toBeVisible();
-      // Index 3 skips the "// " prefix; the word is the first thing after it.
       const hover = await hoverEditorWord(
         win,
-        "在庫を確認してから決済に進みます",
-        3,
-        18,
-        "在庫"
+        "毎日日本語を勉強します",
+        0,
+        11,
+        "毎日"
       );
-      // Wait for the ENTRY, not merely the card. VS Code renders the hover shell immediately and
-      // fills it in when the provider resolves, so an earlier capture caught "(loading...)" — a
-      // picture of the extension appearing not to work.
+      // Wait for the ENTRY, not merely the card: VS Code renders the hover shell immediately and
+      // fills it in when the provider resolves, so a capture can catch "(loading...)".
       await expect(hover).not.toContainText("loading");
       return hover;
-      // `keepPointer`: the hover card IS the subject here, and parking the pointer dismisses it — the
-      // card then detaches and the screenshot fails on a stale element.
+      // `keepPointer`: the card IS the subject, and parking the pointer dismisses it.
     },
     { keepPointer: true }
   );
