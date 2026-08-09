@@ -1,0 +1,9 @@
+# Blank issues are off so the templates are the default path. `Jisho: Report an Issue` and the
+# panel's crash screen both prefill `bug_report.yml`, and a blank form would let that prefill be
+# bypassed by accident — which is how reports arrive without the environment that makes them
+# reproducible.
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Saeris/vscode-jisho/discussions
+    about: For anything that is not a bug report.

@@ -443,6 +443,31 @@ export interface GetNameRequest {
   id: string;
 }
 
+/**
+ * File a crash report from the webview.
+ *
+ * The stack is sanitized on THIS side before it crosses, so the host never receives the user's
+ * directory layout even in a log. See `shared/diagnostics.ts`.
+ */
+/**
+ * The diagnostic snapshot, for the About view's copy button.
+ *
+ * Collected host-side because most of it is only reachable there (`process.versions`, the OS, the
+ * `.version` sidecar). The webview renders and copies what it is given rather than assembling its
+ * own, so all three report surfaces quote the same fields.
+ */
+export interface GetDiagnosticsRequest {
+  type: "getDiagnostics";
+  requestId: string;
+}
+
+export interface ReportCrashRequest {
+  type: "reportCrash";
+  requestId: string;
+  message: string;
+  stack: string;
+}
+
 /** Open VS Code's Settings UI filtered to this extension's section (the sidebar's ⚙). */
 export interface OpenSettingsRequest {
   type: "openSettings";
@@ -504,6 +529,8 @@ export type Request =
   | GetStrokeSvgRequest
   | GetComponentTreeRequest
   | LookupRadicalsRequest
+  | ReportCrashRequest
+  | GetDiagnosticsRequest
   | GetKanjiPreviewsRequest
   | GetAboutRequest
   | SearchNamesRequest
@@ -623,6 +650,18 @@ export interface SearchNamesResponse {
   names: NameResultDto[];
 }
 
+export interface GetDiagnosticsResponse {
+  type: "getDiagnostics";
+  requestId: string;
+  /** Already rendered as Markdown: the webview copies this verbatim. */
+  markdown: string;
+}
+
+export interface ReportCrashResponse {
+  type: "reportCrash";
+  requestId: string;
+}
+
 export interface OpenSettingsResponse {
   type: "openSettings";
   requestId: string;
@@ -739,6 +778,8 @@ export type Response =
   | GetStrokeSvgResponse
   | GetComponentTreeResponse
   | LookupRadicalsResponse
+  | ReportCrashResponse
+  | GetDiagnosticsResponse
   | GetKanjiPreviewsResponse
   | GetAboutResponse
   | SearchNamesResponse

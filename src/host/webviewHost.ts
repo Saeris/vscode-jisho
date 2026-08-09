@@ -10,6 +10,9 @@ import * as vscode from "vscode";
 import { Dictionary } from "./db";
 import { webviewHtml } from "./webviewHtml";
 import { copyText, openSettings, respond, respondNames } from "./dispatch";
+import { openIssueReport } from "./report";
+import { collectDiagnostics } from "./diagnostics";
+import { diagnosticsMarkdown } from "../shared/diagnostics";
 import {
   ensureDatabase,
   ensureNamesDatabase,
@@ -173,6 +176,22 @@ export class JishoViewProvider
     }
   }
 
+  /**
+   * The dictionary's own metadata for a crash report, or `undefined` when it cannot be read.
+   *
+   * Never throws, deliberately. This is called while filing a report — often BECAUSE something is
+   * broken, and a failure to open the dictionary is exactly the kind of bug being reported. A
+   * reporter that threw here would fail precisely when it is most needed, so an unreadable
+   * dictionary degrades to "unknown" rows in the table rather than to no report at all.
+   */
+  async dictionaryMeta(): Promise<Record<string, string> | undefined> {
+    try {
+      return await (await this.#dict()).getMeta();
+    } catch {
+      return undefined;
+    }
+  }
+
   async #dict(): Promise<Dictionary> {
     // Open once, reuse. If opening fails, clear the cache so a later message can retry.
     this.#dictionary ??= (async (): Promise<Dictionary> => {
@@ -326,6 +345,25 @@ export class JishoViewProvider
 
   /** Route a request to whichever backend serves it. */
   async #dispatch(request: Request): Promise<Response> {
+    // An early return rather than another arm: this one needs the dictionary's metadata, which is
+    // an await the surrounding ternary chain has no room for.
+    if (request.type === "reportCrash") {
+      await openIssueReport(this.#context, {
+        title: `Crash: ${request.message}`,
+        error: { message: request.message, stack: request.stack },
+        meta: await this.dictionaryMeta()
+      });
+      return { type: "reportCrash", requestId: request.requestId };
+    }
+    if (request.type === "getDiagnostics") {
+      return {
+        type: "getDiagnostics",
+        requestId: request.requestId,
+        markdown: diagnosticsMarkdown(
+          await collectDiagnostics(this.#context, await this.dictionaryMeta())
+        )
+      };
+    }
     return request.type === "openSettings"
       ? openSettings(request)
       : request.type === "copyText"

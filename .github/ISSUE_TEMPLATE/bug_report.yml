@@ -1,0 +1,24 @@
+name: Bug report
+description: Something in the extension does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Running **Jisho: Report an Issue** from the Command Palette fills this in with your
+        versions and dictionary details. The panel's crash screen does the same.
+  - type: textarea
+    id: body
+    attributes:
+      label: What happened
+      description: |
+        What you were doing, what you expected, and what happened instead. If you arrived here from
+        the extension, the environment details are already filled in below.
+      value: |
+        ### What happened
+
+        ### Steps to reproduce
+
+        1.
+    validations:
+      required: true

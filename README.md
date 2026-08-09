@@ -363,6 +363,7 @@ Those that act on text need a selection first.
 | **Jisho: Remove Word Spacing**           | Takes them back out                             |
 | **Jisho: Open Settings**                 | Opens Jisho's settings                          |
 | **Jisho: Check for Dictionary Updates**  | Checks for newer dictionary data                |
+| **Jisho: Report an Issue**               | Files a bug report with your setup filled in    |
 
 ## Settings
 

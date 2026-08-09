@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { onHostSettings } from "./bridge";
 import { applySettings } from "./settings";
 import { isSpeechAvailable } from "./speech";
@@ -33,7 +34,12 @@ if (!root) throw new Error("Missing #root element");
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      {/* INSIDE the query provider, not outside it. The boundary's whole purpose is to file a
+          report, which needs the bridge — a boundary wrapped around the providers would catch the
+          crash and then be unable to do the one thing it exists for. */}
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>
 );

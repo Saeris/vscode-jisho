@@ -74,6 +74,10 @@ type WordRequest = Exclude<
   | { type: "getStrokeSvg" }
   | { type: "openSettings" }
   | { type: "copyText" }
+  // Opens a browser and needs the extension context — served in webviewHost for the same reason
+  // the recent-search trio is.
+  | { type: "reportCrash" }
+  | { type: "getDiagnostics" }
   // Backed by globalState, not by a dictionary — served in webviewHost, which owns the context.
   | { type: "getRecentSearches" }
   | { type: "recordRecentSearch" }

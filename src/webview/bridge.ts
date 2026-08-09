@@ -17,6 +17,7 @@ import type {
   HostPush,
   HostSettings,
   GetKanjiPreviewsResponse,
+  GetDiagnosticsResponse,
   LookupRadicalsResponse,
   ClearRecentSearchesResponse,
   GetRecentSearchesResponse,
@@ -230,6 +231,27 @@ export const getName = async (id: string): Promise<GetNameResponse> =>
 /** Ask the host to open VS Code's Settings UI at the Jisho section (the sidebar's ⚙). */
 export const openSettings = async (): Promise<void> => {
   await send({ type: "openSettings", requestId: nextRequestId() });
+};
+
+/**
+ * File a crash report, with the stack already sanitized on this side.
+ *
+ * Sanitized HERE rather than in the host so the user's directory layout never crosses the bridge at
+ * all — it cannot then end up in a host log on its way to being scrubbed.
+ */
+export const getDiagnostics = async (): Promise<GetDiagnosticsResponse> =>
+  request("getDiagnostics", {});
+
+export const reportCrash = async (
+  message: string,
+  stack: string
+): Promise<void> => {
+  await send({
+    type: "reportCrash",
+    requestId: nextRequestId(),
+    message,
+    stack
+  });
 };
 
 /**

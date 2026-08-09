@@ -1,0 +1,53 @@
+/**
+ * Open a prefilled GitHub issue.
+ *
+ * The single exit point for every report, whichever surface raised it: the `Report an Issue`
+ * command, and the webview's crash boundary through the bridge. Both arrive here so the URL budget
+ * and the clipboard fallback are decided in one place. See docs/specs/20-crash-and-issue-reporting.md.
+ */
+import * as vscode from "vscode";
+import { issueBody, issueUrl, type Diagnostics } from "../shared/diagnostics";
+import { collectDiagnostics } from "./diagnostics";
+
+const ISSUES = "https://github.com/Saeris/vscode-jisho/issues/new";
+
+export interface ReportOptions {
+  /** Prefills the issue title. A crash names itself; a manual report leaves the user to say. */
+  title: string;
+  /** Present only for a crash. The stack must already be sanitized by the caller. */
+  error?: { message: string; stack: string };
+  /** The dictionary's metadata, or undefined when the dictionary is the thing that failed. */
+  meta?: Record<string, string>;
+}
+
+/**
+ * Collect, build the URL, and open it.
+ *
+ * When the body does not fit GitHub's prefill ceiling, the report goes to the CLIPBOARD and the
+ * user is told to paste. That is worse UX and strictly better than the alternative — a URL that
+ * silently dropped the stack still looks like a complete report, and a maintainer would never know
+ * the evidence had been trimmed away.
+ */
+export const openIssueReport = async (
+  context: vscode.ExtensionContext,
+  { title, error, meta }: ReportOptions
+): Promise<void> => {
+  let diagnostics: Diagnostics;
+  try {
+    diagnostics = await collectDiagnostics(context, meta);
+  } catch {
+    // Collection itself failed. Reporting something beats reporting nothing, so fall through with
+    // an empty snapshot rather than letting the reporter throw on the way to reporting a crash.
+    diagnostics = { environment: [], dictionary: [], settings: [] };
+  }
+  const report = { diagnostics, error };
+  const { url, overBudget } = issueUrl(ISSUES, title, report);
+
+  if (overBudget) {
+    await vscode.env.clipboard.writeText(issueBody(report));
+    void vscode.window.showInformationMessage(
+      "The report was too long to prefill. It has been copied to your clipboard — paste it into the issue."
+    );
+  }
+  await vscode.env.openExternal(vscode.Uri.parse(url));
+};

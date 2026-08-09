@@ -43,3 +43,11 @@
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* The diagnostics copy button reads as an action, not as the inline glyph the copy button is
+   elsewhere — here it carries a label and is the only control in its section. */
+.copyDiagnostics {
+  padding: 4px 12px;
+  width: auto;
+  font-size: 0.9em;
+}

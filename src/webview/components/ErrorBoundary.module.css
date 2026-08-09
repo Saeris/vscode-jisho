@@ -1,0 +1,69 @@
+/* The crash screen. Deliberately plain: it renders when something has already gone wrong, so it
+   depends on as little of the app's own styling as it can. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--jisho-gap);
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.body {
+  margin: 0;
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.primary,
+.secondary {
+  padding: 4px 12px;
+  border-radius: var(--jisho-radius);
+  border: 1px solid var(--jisho-border);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+/* The way back out is the primary action; reporting is secondary by weight as well as by order. */
+.primary {
+  background: var(--vscode-button-background, var(--jisho-accent));
+  color: var(--vscode-button-foreground, var(--jisho-fg));
+  border-color: transparent;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--jisho-fg);
+}
+
+.primary:hover,
+.secondary:hover {
+  background: var(--jisho-hover-bg);
+}
+
+.primary[data-focus-visible],
+.secondary[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* The raw message, last and quiet. It is for the report, not for the reader. */
+.detail {
+  margin: 0;
+  color: var(--jisho-muted);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8em;
+  overflow-wrap: anywhere;
+}

@@ -28,6 +28,7 @@ import {
   getRecentSearches,
   getStrokeSvg,
   getWord,
+  getDiagnostics,
   getKanjiPreviews,
   lookupRadicals,
   searchNames,
@@ -276,6 +277,19 @@ export const kanjiPreviewsQuery = (
     queryFn: async () => (await getKanjiPreviews(literals)).results,
     enabled: literals.length > 0,
     placeholderData: (previous) => previous
+  });
+
+/**
+ * The diagnostic snapshot, ready to paste. Fetched once per visit: it names versions and a
+ * dictionary revision, none of which change while the panel is open.
+ */
+export const diagnosticsQuery = (): ReturnType<
+  typeof queryOptions<string, Error, string, string[]>
+> =>
+  queryOptions({
+    queryKey: ["diagnostics"],
+    queryFn: async () => (await getDiagnostics()).markdown,
+    staleTime: Infinity
   });
 
 export const aboutQuery = (): ReturnType<

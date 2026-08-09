@@ -9,6 +9,7 @@ import { VIEW_ID } from "./host/hostSettings";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
 import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
+import { openIssueReport } from "./host/report";
 import { configureTokenizer } from "./host/tokenizer";
 import { JishoViewProvider } from "./host/webviewHost";
 import type { HostPush } from "./shared/messages";
@@ -122,6 +123,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "vscode-jisho.checkForDictionaryUpdates",
       async () => checkForDictionaryUpdate(context, { manual: true })
+    ),
+    // Feedback with the environment already filled in. The Marketplace's own "issues" link drops
+    // the user on an empty form and asks them to reconstruct their versions from memory, which is
+    // why most reports arrive unreproducible.
+    vscode.commands.registerCommand("vscode-jisho.reportIssue", async () =>
+      openIssueReport(context, {
+        title: "",
+        meta: await provider.dictionaryMeta()
+      })
     ),
     // Live settings: re-push the snapshot whenever the user edits the Jisho section, and repaint
     // the editors (that's how the highlighting toggle and the palette choice apply live).

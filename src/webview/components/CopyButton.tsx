@@ -30,6 +30,9 @@ export const CopyButton = ({
       onPress={() => void copy(value)}
       aria-label={label}
       data-status={status}
+      // Exposed so a test can assert WHAT would be copied: the clipboard is not readable from the
+      // workbench context, and the value is not otherwise present in the DOM.
+      data-value={value}
     >
       {children ?? <span aria-hidden="true">⧉</span>}
       {/* aria-live so the outcome is announced, not just shown. */}

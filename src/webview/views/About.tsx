@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { aboutQuery } from "../queries";
+import { aboutQuery, diagnosticsQuery } from "../queries";
 import { useNavigate } from "../navigation";
+import { CopyButton } from "../components/CopyButton";
 import { DetailHeader } from "../components/DetailHeader";
 import styles from "./About.module.css";
 
@@ -12,6 +13,7 @@ import styles from "./About.module.css";
 export const About = (): React.ReactElement => {
   const { back } = useNavigate();
   const { data: meta } = useQuery(aboutQuery());
+  const { data: diagnostics } = useQuery(diagnosticsQuery());
 
   return (
     <div className={styles.container}>
@@ -194,6 +196,28 @@ export const About = (): React.ReactElement => {
             </a>{" "}
             (MIT).
           </p>
+        </div>
+
+        <div className={styles.section}>
+          <h2>Diagnostics</h2>
+          <p>
+            Your versions and dictionary details, as a Markdown table. Paste it
+            into a bug report so the problem can be traced to a build.{" "}
+            <strong>Jisho: Report an Issue</strong> fills this in for you
+            automatically.
+          </p>
+          {/* Fetched rather than assembled here: most of the snapshot is only reachable host-side
+              (process versions, the OS, the dictionary's .version sidecar), and all three report
+              surfaces have to quote the same fields. */}
+          {diagnostics ? (
+            <CopyButton
+              value={diagnostics}
+              label="Copy diagnostics as Markdown"
+              className={styles.copyDiagnostics}
+            >
+              Copy diagnostics
+            </CopyButton>
+          ) : null}
         </div>
       </div>
     </div>

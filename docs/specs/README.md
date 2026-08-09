@@ -43,6 +43,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 17  | [The README as a user manual, and self-regenerating screenshots](17-documentation-and-screenshots.md)           | docs        | Specified — voice, structure and constraints settled      |
 | 18  | [Japanese in code files: hover and highlighting beyond Markdown](18-japanese-in-code-files.md)                  | new         | Specified — comments-only, `/* md */` ruled out           |
 | 19  | [Tests that fail when the documentation goes stale](19-documentation-drift-tests.md)                            | docs        | **Implemented** — tiers 1 and 2 shipped; tier 3 is a list |
+| 20  | [Crash reporting and issue filing](20-crash-and-issue-reporting.md)                                             | new         | Specified — one snapshot, three surfaces                  |
 
 Not yet specced: the #32 word-detail layout redesign, and the visual-regression baseline procedure.
 

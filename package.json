@@ -116,6 +116,11 @@
         "category": "Jisho"
       },
       {
+        "command": "vscode-jisho.reportIssue",
+        "category": "Jisho",
+        "title": "Report an Issue"
+      },
+      {
         "command": "vscode-jisho.checkForDictionaryUpdates",
         "title": "Check for Dictionary Updates",
         "category": "Jisho"

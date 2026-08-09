@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { defineConfig, configDefaults } from "vite-plus";
 import type { TestProjectConfiguration } from "vitest/config";
 import { lint, fmt, mergeLint } from "@saeris/configs";
@@ -120,6 +121,35 @@ const benchProject: TestProjectConfiguration = {
   }
 };
 
+/**
+ * The commit this bundle was built from, stamped in at build time.
+ *
+ * Crash reports need to name a BUILD, not just a version: a republished version is otherwise
+ * indistinguishable from the original, and "1.0.0" then covers several different sets of code.
+ * `process.env` is no help at runtime — the packaged extension is a static bundle with no CI
+ * environment around it — so the value has to be baked in here.
+ *
+ * `GITHUB_SHA` in CI, the local checkout otherwise, and `"dev"` when neither is available (a
+ * tarball with no git directory). Never throws: a build must not fail because the commit is
+ * unknowable, and "dev" is an honest answer.
+ */
+const buildCommit = (): string => {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+  } catch {
+    return "dev";
+  }
+};
+
+/** Shared by both bundles, so the host and the webview always report the same build. */
+const BUILD_DEFINE = {
+  __JISHO_COMMIT__: JSON.stringify(buildCommit())
+};
+
 export default defineConfig({
   lint: mergeLint(lint, {
     // Preview benches render a component's variants and screenshot them for visual review — they're
@@ -176,6 +206,7 @@ export default defineConfig({
   // Vite *application* build — separate from the extension-host bundle below.
   // Stable, hash-free output names let extension.ts reference them directly.
   plugins: [...react()],
+  define: BUILD_DEFINE,
   build: {
     // `engines.vscode ^1.123` resolves to exactly one renderer — Chromium 148 — so the browser
     // matrix is a single point and the default (`baseline-widely-available`, i.e. Chrome 111)
@@ -201,6 +232,8 @@ export default defineConfig({
     // so a different target. VSCode 1.123 ships Node 24; `node24` is the floor, not the Node that
     // happens to run the build.
     target: "node24",
+    // The same stamp as the webview above: a report names one build, whichever side raised it.
+    define: BUILD_DEFINE,
     clean: false, // don't wipe dist/webview (built separately by `vp build`)
     format: [`cjs`],
     dts: false,
