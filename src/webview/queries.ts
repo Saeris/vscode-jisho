@@ -28,6 +28,7 @@ import {
   getRecentSearches,
   getStrokeSvg,
   getWord,
+  getKanjiPreviews,
   lookupRadicals,
   searchNames,
   searchWords
@@ -246,6 +247,35 @@ export const radicalQuery = (
     // The selection order doesn't affect the result, so sort for a stable cache key.
     queryKey: ["radicals", [...selected].sort().join("")],
     queryFn: async () => (await lookupRadicals(selected)).result
+  });
+
+/**
+ * Meanings for a set of kanji the webview already has as bare characters.
+ *
+ * The handwriting recognizer runs entirely in the webview and produces literals with nothing
+ * attached, so this is the one kanji list whose rows have to be fetched separately rather than
+ * arriving hydrated. Keyed on the literals themselves, IN ORDER — the order is the recognizer's
+ * ranking, so unlike `radicalQuery` it must not be sorted into a canonical key.
+ *
+ * `placeholderData` keeps the previous candidates on screen while the next set loads: a stroke
+ * lands, the recognizer re-ranks immediately, and clearing the strip to blank for one round trip
+ * reads as a flicker.
+ */
+export const kanjiPreviewsQuery = (
+  literals: string[]
+): ReturnType<
+  typeof queryOptions<
+    KanjiResultDto[],
+    Error,
+    KanjiResultDto[],
+    [string, string]
+  >
+> =>
+  queryOptions({
+    queryKey: ["kanjiPreviews", literals.join("")],
+    queryFn: async () => (await getKanjiPreviews(literals)).results,
+    enabled: literals.length > 0,
+    placeholderData: (previous) => previous
   });
 
 export const aboutQuery = (): ReturnType<

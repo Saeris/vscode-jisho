@@ -7,7 +7,12 @@ import { DisposableStore, SqliteStore } from "./store";
 import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
 import { getMoreExamples, getWord } from "./queries/words";
-import { resolveByLemma, search, searchKanji } from "./queries/search";
+import {
+  kanjiResults,
+  resolveByLemma,
+  search,
+  searchKanji
+} from "./queries/search";
 import {
   browse,
   browseCount,
@@ -201,5 +206,17 @@ export class Dictionary {
 
   async getComponentTree(literal: string): Promise<ComponentTreeDto | null> {
     return getComponentTree(this.#store, literal);
+  }
+
+  /**
+   * Hydrate bare kanji literals into preview rows, in the order given.
+   *
+   * Straight to `kanjiResults`, the same hydrator search, browse and the radical picker use — the
+   * handwriting recognizer produces characters and nothing else, so this is the only thing it needs
+   * from the host, and sharing the hydrator is what keeps a drawn kanji's row identical to a
+   * searched one's.
+   */
+  async getKanjiPreviews(literals: string[]): Promise<KanjiResultDto[]> {
+    return kanjiResults(this.#store, literals);
   }
 }

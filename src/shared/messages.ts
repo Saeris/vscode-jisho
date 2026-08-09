@@ -408,6 +408,19 @@ export interface LookupRadicalsRequest {
   selected: string[];
 }
 
+/**
+ * Hydrate a set of kanji literals into result rows.
+ *
+ * For the handwriting recognizer, whose candidates come from the in-webview recognizer as bare
+ * characters — it never touches the host, so it is the one kanji list with no meanings to show. The
+ * response preserves the order asked for, because that order is the recognizer's ranking.
+ */
+export interface GetKanjiPreviewsRequest {
+  type: "getKanjiPreviews";
+  requestId: string;
+  literals: string[];
+}
+
 /** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
 export interface GetAboutRequest {
   type: "getAbout";
@@ -491,6 +504,7 @@ export type Request =
   | GetStrokeSvgRequest
   | GetComponentTreeRequest
   | LookupRadicalsRequest
+  | GetKanjiPreviewsRequest
   | GetAboutRequest
   | SearchNamesRequest
   | GetNameRequest
@@ -586,6 +600,13 @@ export interface LookupRadicalsResponse {
   type: "lookupRadicals";
   requestId: string;
   result: RadicalLookupDto;
+}
+
+export interface GetKanjiPreviewsResponse {
+  type: "getKanjiPreviews";
+  requestId: string;
+  /** In the order requested. Literals with no Kanjidic entry are omitted rather than nulled. */
+  results: KanjiResultDto[];
 }
 
 export interface GetAboutResponse {
@@ -718,6 +739,7 @@ export type Response =
   | GetStrokeSvgResponse
   | GetComponentTreeResponse
   | LookupRadicalsResponse
+  | GetKanjiPreviewsResponse
   | GetAboutResponse
   | SearchNamesResponse
   | GetNameResponse

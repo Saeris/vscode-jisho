@@ -321,12 +321,18 @@ test("capture: drawing a kanji to find it", async () => {
     //
     // Asserts that SOME candidate appeared rather than naming one: the ranking of a partial drawing
     // is the recognizer's business, and pinning an exact character here would make this capture
-    // fail on a legitimate scoring change rather than on a broken feature. A candidate button's
-    // accessible name is the character itself, so they are matched as single CJK glyphs — the hint
-    // paragraph they replace is not a button, so this cannot pass on an empty strip.
+    // fail on a legitimate scoring change rather than on a broken feature.
+    //
+    // Two assertions, because the tile has two halves that arrive at different times. The character
+    // comes from the in-webview recognizer and is immediate; the meaning is a host round trip. The
+    // capture wants BOTH on screen, so it waits for the strip and then for a label — waiting only
+    // for the character could shoot before any meaning has landed.
     await expect(
-      frame.getByRole("button", { name: /^[一-鿿]$/u }).first()
+      frame.getByRole("button", { name: /^[一-鿿](:|$)/u }).first()
     ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      frame.getByRole("button", { name: /^[一-鿿]: .+/u }).first()
+    ).toBeVisible({ timeout: 10_000 });
     return sidebar(win);
   });
 });

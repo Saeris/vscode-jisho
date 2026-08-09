@@ -68,23 +68,27 @@
   cursor: default;
 }
 
+/* A GRID, for the same reason as the handwriting candidates: `space-around` on a wrapping flex row
+   distributes each row on its own, so a short final row scatters to the container's edges instead of
+   lining up under the rows above. Auto-fit tracks keep every tile in a column. */
 .matches {
   flex: 1 1 45%;
   overflow-y: auto;
   padding: var(--jisho-gap);
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.5em, 1fr));
   gap: 4px;
-  align-content: flex-start;
-  /* Spread each row across the container instead of packing everything to the left. The tiles are a
-     fixed width, so a left-packed grid leaves a ragged gutter down the right-hand side that gets
-     wider the narrower the panel. */
-  justify-content: space-around;
+  align-content: start;
+  justify-items: center;
 }
 
 .hint {
   color: var(--jisho-muted);
   margin: 0;
+  /* The hint shares the matches grid, so without this it would be squeezed into a single 4.5em
+     column instead of reading across the panel. */
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 /* Tiles, matching the Similar kanji grid on the detail page: character over a one-word meaning.

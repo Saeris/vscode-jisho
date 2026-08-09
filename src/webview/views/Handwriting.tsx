@@ -1,7 +1,10 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "react-aria-components";
 import { getStroke } from "perfect-freehand";
 import { DetailHeader } from "../components/DetailHeader";
 import { useNavigate } from "../navigation";
+import { kanjiPreviewsQuery } from "../queries";
 import type { Point } from "../recognizer/types";
 import { useStrokeCapture } from "../useStrokeCapture";
 import styles from "./Handwriting.module.css";
@@ -41,6 +44,15 @@ export const Handwriting = (): React.ReactElement => {
     clear,
     hasStrokes
   } = useStrokeCapture();
+
+  // The recognizer returns bare characters, so the meanings come from the host separately. Kept as
+  // a lookup rather than zipped into the candidate list: the query resolves after the characters
+  // render, and a Map lets each tile pick up its label without re-deriving the pairing.
+  const { data: previews } = useQuery(kanjiPreviewsQuery(candidates));
+  const meanings = useMemo(
+    () => new Map((previews ?? []).map((p) => [p.literal, p.meaningPreview])),
+    [previews]
+  );
 
   return (
     <div className={styles.container}>
@@ -82,9 +94,23 @@ export const Handwriting = (): React.ReactElement => {
                 key={char}
                 className={styles.candidate}
                 onPress={() => appendToSearch(char)}
-                lang="ja"
+                aria-label={
+                  meanings.get(char)
+                    ? `${char}: ${meanings.get(char)}`
+                    : undefined
+                }
               >
-                {char}
+                <span className={styles.candidateLiteral} lang="ja">
+                  {char}
+                </span>
+                {/* The meaning fills in when the host answers; the tile does NOT wait for it. The
+                    recognizer is local and instant, so gating the candidates on a round trip would
+                    trade the one thing this view has — an immediate answer — for a label. */}
+                {meanings.get(char) ? (
+                  <span className={styles.candidateMeaning}>
+                    {meanings.get(char)}
+                  </span>
+                ) : null}
               </Button>
             ))}
           </div>

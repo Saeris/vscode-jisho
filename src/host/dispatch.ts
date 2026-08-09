@@ -204,6 +204,12 @@ export const respond = async (
         requestId: request.requestId,
         result: await dict.lookupRadicals(request.selected)
       };
+    case "getKanjiPreviews":
+      return {
+        type: "getKanjiPreviews",
+        requestId: request.requestId,
+        results: await dict.getKanjiPreviews(request.literals)
+      };
     case "getAbout":
       return {
         type: "getAbout",

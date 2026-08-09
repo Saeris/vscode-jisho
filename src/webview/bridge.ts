@@ -16,6 +16,7 @@ import type {
   GetWordResponse,
   HostPush,
   HostSettings,
+  GetKanjiPreviewsResponse,
   LookupRadicalsResponse,
   ClearRecentSearchesResponse,
   GetRecentSearchesResponse,
@@ -210,6 +211,11 @@ export const getComponentTree = async (
 export const lookupRadicals = async (
   selected: string[]
 ): Promise<LookupRadicalsResponse> => request("lookupRadicals", { selected });
+
+export const getKanjiPreviews = async (
+  literals: string[]
+): Promise<GetKanjiPreviewsResponse> =>
+  request("getKanjiPreviews", { literals });
 
 export const getAbout = async (): Promise<GetAboutResponse> =>
   request("getAbout", {});

@@ -54,27 +54,50 @@
   background: var(--jisho-hover-bg);
 }
 
+/* A GRID, not a wrapping flex row.
+   `space-around` on flex distributes each row independently, so a last row holding two of six tiles
+   pushed them to opposite ends of the panel with a hole between them. Auto-fit columns give every
+   tile the same track whichever row it lands on, so a short final row stays aligned under the one
+   above it. */
 .candidates {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.5em, 1fr));
   gap: 6px;
-  /* Spread across the strip rather than centring, matching the radical picker's match grid: with a
-     full row of candidates, centring and spreading agree, but a short second row reads as a
-     stranded cluster when centred. */
-  justify-content: space-around;
+  justify-items: center;
 }
 
-/* Candidate kanji chips — large enough to read and tap. */
+/* Candidate tiles — character over its meaning, matching the radical picker's matches and the
+   Similar kanji grid on the kanji page. Same width, so the three read as one kind of thing. */
 .candidate {
-  min-width: 44px;
-  padding: 6px 8px;
-  font-size: 1.6em;
-  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 4.5em;
+  padding: 6px 4px;
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
   background: transparent;
   color: var(--jisho-fg);
   cursor: pointer;
+  text-align: center;
+}
+
+.candidateLiteral {
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.candidateMeaning {
+  font-size: 0.72em;
+  line-height: 1.15;
+  color: var(--jisho-muted);
+  /* Clamp to two lines so a long first-meaning can't distort the tile grid. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .candidate:hover {
