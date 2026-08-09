@@ -16,6 +16,9 @@ src/**
 bench/**
 media/**
 !media/jisho.svg
+# The Marketplace icon. `icon` in package.json points at this, so excluding it would ship a manifest
+# referencing a file that is not in the package.
+!media/icon.png
 **/__tests__/**
 **/*.spec.*
 **/*.test.*
@@ -31,6 +34,10 @@ yarn.lock
 CLAUDE.md
 CONTRIBUTING.md
 .claude/**
+# Specs, plans, and the README's screenshots. The Marketplace rewrites the README's relative image
+# paths to the GitHub repo and fetches them from there, so shipping the PNGs inside the .vsix would
+# add weight that nothing ever reads.
+docs/**
 
 # The dictionary DB is delivered by download on first activation, not bundled.
 assets/**
@@ -53,3 +60,16 @@ node_modules/**
 # no entry: it is Node's built-in `node:sqlite`.
 !node_modules/lindera-nodejs/**
 !node_modules/lindera-nodejs-*/**
+
+# Tooling config and test residue. Each of these was found IN a built .vsix rather than reasoned
+# about: `vsce ls` after a package run is the only way to know what actually ships, because a
+# pattern that looks exhaustive above still misses whatever a tool wrote since.
+.mcp.json
+knip.json
+e2e/**
+test-results/**
+.vitest-attachments/**
+.deopt/**
+# Compiled benchmarks. `bench/**` above keeps the sources out; this keeps their build output out
+# too, which is 1.76 MB of code nothing in the extension loads.
+dist/bench/**
