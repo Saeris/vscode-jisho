@@ -50,6 +50,7 @@
     "bench:build": "vp pack --entry bench/entry.ts --format esm --outDir dist --no-dts",
     "e2e": "vp pack && vp build && vp exec playwright test",
     "docs:shots": "vp pack && vp build && vp exec playwright test e2e/docs",
+    "docs:claims": "vp pack && vp build && vp exec playwright test e2e/docs/claims.docs.e2e.ts",
     "check": "vp check",
     "format": "vp check --fix",
     "test": "vp test --fileParallelism"
