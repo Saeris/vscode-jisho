@@ -1,6 +1,6 @@
 {
   "name": "vscode-jisho",
-  "displayName": "Jisho — Japanese Dictionary",
+  "displayName": "Jisho: Offline Japanese Dictionary",
   "version": "0.0.0",
   "description": "An offline Japanese dictionary in your sidebar: vocabulary and kanji search powered by JMdict, Kanjidic, and friends.",
   "categories": [
@@ -68,7 +68,7 @@
       "vscode-jisho": [
         {
           "id": "vscode-jisho.searchView",
-          "name": "Dictionary",
+          "name": "Jisho",
           "type": "webview"
         }
       ]
@@ -126,7 +126,7 @@
         "vscode-jisho.highlighting.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Color Japanese text by part of speech in your Markdown and plain-text files — a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get their own color), making word boundaries visible.\n\nThis covers your own files only. For example sentences inside the Jisho panel, see `#vscode-jisho.appearance.colorExamples#`."
+          "markdownDescription": "Color Japanese text by part of speech in your Markdown and plain-text files. It is a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get their own color), making word boundaries visible.\n\nThis covers your own files only. For example sentences inside the Jisho panel, see `#vscode-jisho.appearance.colorExamples#`."
         },
         "vscode-jisho.hover.enabled": {
           "type": "boolean",
@@ -156,7 +156,7 @@
             "Short English terms: noun, transitive, godan verb.",
             "Japanese grammatical terms: 名詞, 他動詞, 五段動詞."
           ],
-          "markdownDescription": "How to label the grammar tags on a word's page.\n\nJapanese terms are what a textbook or a Japanese dictionary uses, and they are shorter — but only if you already read them. Either way, hovering a tag shows its full description."
+          "markdownDescription": "How to label the grammar tags on a word's page.\n\nJapanese terms are what a textbook or a Japanese dictionary uses, and they are shorter, but only if you already read them. Either way, hovering a tag shows its full description."
         },
         "vscode-jisho.appearance.colorExamples": {
           "type": "boolean",
@@ -175,10 +175,10 @@
           "enumDescriptions": [
             "Nine distinct colors, one per part of speech.",
             "Built for protanopia (reduced sensitivity to red).",
-            "Built for deuteranopia (reduced sensitivity to green) — the most common form.",
-            "Built for tritanopia (reduced sensitivity to blue) — rare."
+            "Built for deuteranopia (reduced sensitivity to green), the most common form.",
+            "Built for tritanopia (reduced sensitivity to blue), which is rare."
           ],
-          "markdownDescription": "Which color palette to use when coloring Japanese by part of speech, in the panel and in the editor.\n\nThe three color-vision palettes are not tinted versions of the standard one — each is built from scratch for how that type of vision actually perceives color, so words stay distinguishable rather than merely legible."
+          "markdownDescription": "Which color palette to use when coloring Japanese by part of speech, in the panel and in the editor.\n\nThe three color-vision palettes are not tinted versions of the standard one. Each is built from scratch for how that type of vision actually perceives color, so words stay distinguishable rather than merely legible."
         },
         "vscode-jisho.strokeOrder.guideStyle": {
           "type": "string",
@@ -196,7 +196,7 @@
         "vscode-jisho.dictionary.autoCheck": {
           "type": "boolean",
           "default": true,
-          "description": "Check once a day whether a newer dictionary is available and offer to update. Updates are never forced — you'll get a dismissible prompt. Run \"Jisho: Check for Dictionary Updates\" any time to check manually."
+          "description": "Check once a day whether a newer dictionary is available and offer to update. Updates are never forced: you'll get a dismissible prompt. Run \"Jisho: Check for Dictionary Updates\" any time to check manually."
         }
       }
     },

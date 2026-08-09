@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📔 Jisho — Japanese Dictionary for VS Code
+# 📔 Jisho: Offline Japanese Dictionary for VS Code
 
 [![CI status][ci_badge]][ci]
 
@@ -48,26 +48,28 @@ Every lookup runs against a local database. There is no network request, no acco
 limit. It is modelled on [Shirabe Jisho][shirabe], a macOS and iOS dictionary.
 
 The dictionary covers about 218,000 words and 10,000 kanji, drawn from [JMdict and
-KANJIDIC][jmdict] — the same data behind most open Japanese dictionaries. See
+KANJIDIC][jmdict], the same data behind most open Japanese dictionaries. See
 [Data sources](#data-sources) for the full list.
 
 ## Install
 
-Install **Jisho — Japanese Dictionary** from the Extensions view in VS Code, or from the
+Install **Jisho: Offline Japanese Dictionary** from the Extensions view in VS Code, or from the
 [Marketplace][marketplace].
 
 Jisho requires **VS Code 1.123 or newer**.
 
-The first time you open the panel, Jisho downloads its dictionary — about 125 MB, which expands to
-around 450 MB on disk — and shows a progress notification while it does. This happens once. After
+The first time you open the panel, Jisho downloads its dictionary. That is about 125 MB, which
+expands to around 450 MB on disk, and a progress notification tracks it. This happens once. After
 that, everything is local.
 
 ## Get started
 
 This walkthrough covers one lookup, start to finish.
 
-1. **Open the panel.** Select the Jisho icon in the activity bar, on the far edge of the window.
-   The **Dictionary** panel opens with the search field focused.
+1. **Open the panel.** Run **View: Show Jisho** from the Command Palette
+   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
+   on macOS). Jisho also adds an icon to the activity bar down the side of the window, though with
+   several extensions installed VS Code may fold it into the **…** overflow menu at the bottom.
 
    <picture>
      <source media="(prefers-color-scheme: dark)" srcset="docs/images/search-toolbar-dark.png" />
@@ -134,27 +136,19 @@ A word's page is arranged so the answer you most likely want is at the top.
   <img alt="The top of the 食べる entry: the reading たべる with a pitch-accent contour drawn above it, the writings 食べる and 喰べる, a common badge, and part-of-speech tags." src="docs/images/word-headword-light.png" />
 </picture>
 
-The line above the reading is its **pitch accent** — where the pitch drops, which is the part of
-Japanese pronunciation that dictionaries usually leave to a number. Select the reading to hear it
-spoken.
+The line above the reading is its **pitch accent**: where the pitch drops, which is the part of
+Japanese pronunciation that dictionaries usually leave to a number.
 
 Tags mark what the word is and how common it is. Select a tag to see every other word that carries
 it.
 
-### Conjugations
-
-Verbs and adjectives get a full conjugation table.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conjugations-dark.png" />
-  <img alt="A conjugation table for 食べる with Form, Affirmative and Negative columns, covering non-past, past, te-form, potential, passive, causative, imperative, volitional and conditional forms." src="docs/images/conjugations-light.png" />
-</picture>
-
-Select a form's name to read what it does and when to use it.
+Beside each reading are two buttons. The 🔊 button speaks the reading aloud, and appears only when
+your system has a Japanese voice installed. The copy button is covered under
+[Copying](#copying) below.
 
 ### Example sentences
 
-A few examples sit inline on the word's page. Select **more examples** for the full set.
+A few examples sit inline under each meaning. Select **more examples** for the full pool.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/more-examples-dark.png" />
@@ -172,8 +166,24 @@ Select the copy button beside a reading to copy the word in whichever form you n
   <img alt="A menu offering to copy 食べる as the word, its reading, romaji, Markdown ruby, or HTML ruby, each with a preview of the result." src="docs/images/copy-as-menu-light.png" />
 </picture>
 
-Each option previews what you will get, including the two furigana markups — Markdown ruby
-(`{食|た}べる`) and HTML (`<ruby>食<rt>た</rt></ruby>べる`).
+Each option previews what you will get, including the two furigana markups, Markdown ruby
+(`{食|た}べる`) and HTML (`<ruby>食<rt>た</rt></ruby>べる`). Markdown ruby needs a renderer that
+understands it; see [Add furigana to a selection](#add-furigana-to-a-selection).
+
+### Conjugations
+
+Below the entry's meanings, verbs and adjectives get a full conjugation table.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conjugations-dark.png" />
+  <img alt="The lower half of the 食べる entry: a link to 20 more examples, an Info section with its JLPT level and WaniKani link, a Kanji section listing 食 and 喰, and a conjugation table with Form, Affirmative and Negative columns." src="docs/images/conjugations-light.png" />
+</picture>
+
+The same view carries two sections above the table. **Info** holds the word's JLPT level and a
+WaniKani link where there is one, and **Kanji** lists the characters the word is written with, each
+opening its own page.
+
+Select a form's name in the table to read what it does and when to use it.
 
 ## Kanji
 
@@ -239,12 +249,12 @@ The four buttons along the bottom of the panel switch between searching and brow
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-vocab-dark.png" />
-  <img alt="The Vocab tab listing browsable categories — result type, JLPT level, common words, language parts, usage, subject, and slang and dialect — each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
+  <img alt="The Vocab tab listing browsable categories (result type, JLPT level, common words, language parts, usage, subject, and slang and dialect), each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
 </picture>
 
-- **Vocab** — by JLPT level, how common a word is, language part, usage, subject, or dialect.
-- **Kanji** — by JLPT level, school grade, or frequency.
-- **Kana** — the gojūon chart.
+- **Vocab**: by JLPT level, how common a word is, language part, usage, subject, or dialect.
+- **Kanji**: by JLPT level, school grade, or frequency.
+- **Kana**: the gojūon chart.
 
 Selecting a category opens its groups.
 
@@ -270,8 +280,8 @@ Kanji browse as a grid instead, each character with its meaning.
   <img alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
 </picture>
 
-The **Kana** tab is a chart of hiragana and katakana. Selecting a kana opens its stroke order —
-these are single syllables rather than words, so they do not search.
+The **Kana** tab is a chart of hiragana and katakana. Selecting a kana opens its stroke order,
+because these are single syllables rather than words and there is nothing to look up.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kana-chart-dark.png" />
@@ -292,7 +302,7 @@ Point at a Japanese word to see what it means.
   <img alt="A hover card over the word 今日 in a Markdown file, showing its reading きょう, the meaning today, part-of-speech tags, an example sentence, and a link reading Open in Jisho." src="docs/images/editor-hover-light.png" />
 </picture>
 
-The card gives you the reading, the meaning, and — for a conjugated word — how it was formed.
+The card gives you the reading, the meaning, and, for a conjugated word, how it was formed.
 **Open in Jisho** takes you to the full entry.
 
 To turn hovers off, set `vscode-jisho.hover.enabled` to `false`.
@@ -310,7 +320,7 @@ boundaries, with verbs, nouns, particles and auxiliaries each in their own color
 This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`.
 
 Three alternative palettes are available for protanopia, deuteranopia and tritanopia. They are not
-tinted versions of the standard palette — each one re-picks its colors to stay distinguishable. Set
+tinted versions of the standard palette. Each one re-picks its colors to stay distinguishable. Set
 `vscode-jisho.appearance.palette` to choose one.
 
 ### Add furigana to a selection
@@ -323,6 +333,21 @@ Furigana are the small kana printed above kanji to give their reading.
 </picture>
 
 Select some text and run **Jisho: Add Furigana (ふりがな)**. **Jisho: Remove Furigana** undoes it.
+
+The markup is `{漢字|かんじ}`: the word, a pipe, then its reading. Markdown has no ruby syntax of
+its own, so a plain renderer prints those braces literally. To render them as furigana, add a ruby
+plugin to whatever builds your Markdown:
+
+| Your setup           | Plugin                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| markdown-it          | [`@mirrordown/mdit-ruby`](https://github.com/mirrordown/mirrordown/tree/main/packages/mdit-ruby) |
+| remark, unified, MDX | [`@mirrordown/remd-ruby`](https://github.com/mirrordown/mirrordown/tree/main/packages/remd-ruby) |
+
+Both come from [Mirrordown][mirrordown], a collection of Markdown plugins for the markdown-it and
+remark ecosystems.
+
+VS Code's own Markdown preview does not understand the syntax yet, so the braces show there as
+written.
 
 ## Commands
 
@@ -360,7 +385,7 @@ Reach these through **Jisho: Open Settings**, or the gear button in the panel.
 
 ### The panel is empty, or says the dictionary is unavailable
 
-The dictionary downloads on first use. If that download failed — most often a dropped connection —
+The dictionary downloads on first use. If that download failed, most often because of a dropped connection,
 run **Jisho: Check for Dictionary Updates** to try again.
 
 ### Hovers do nothing in my code file
@@ -403,14 +428,14 @@ Jisho is built on open dictionary projects whose licences require attribution. F
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), and the About view in the panel carries the same
 credits.
 
-- **[JMdict / EDICT][jmdict]** and **[JMnedict][jmnedict]** — dictionary and name data, © [EDRDG][edrdg], under the [EDRDG Licence][edrdg-license].
-- **[KANJIDIC2][kanjidic]** and **[KRADFILE / RADKFILE][kradfile]** — kanji data and radical decompositions, © EDRDG.
-- **[JLPT vocabulary levels][tanos-jlpt]** — © [Jonathan Waller][tanos-jlpt], under [CC BY-SA 4.0][cc-by-sa].
-- **[Pitch accent][kanjium]** — © Uros O., under [CC BY-SA 4.0][cc-by-sa].
-- **[Kanji confusion data][yencken]** — © [Lars Yencken][yencken], under [CC BY 3.0][cc-by-3].
-- **[Example sentences][tatoeba]** — from [Tatoeba][tatoeba], under [CC BY 2.0 FR][cc-by-fr].
-- **[AnimCJK][animcjk]** — stroke-order drawings, © FM&SH, under the [Arphic Public License][apl] (kanji) and [LGPL v3][lgpl] (kana).
-- **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]** — handwriting recognition and drawing, MIT.
+- **[JMdict / EDICT][jmdict]** and **[JMnedict][jmnedict]**: dictionary and name data, © [EDRDG][edrdg], under the [EDRDG Licence][edrdg-license].
+- **[KANJIDIC2][kanjidic]** and **[KRADFILE / RADKFILE][kradfile]**: kanji data and radical decompositions, © EDRDG.
+- **[JLPT vocabulary levels][tanos-jlpt]**: © [Jonathan Waller][tanos-jlpt], under [CC BY-SA 4.0][cc-by-sa].
+- **[Pitch accent][kanjium]**: © Uros O., under [CC BY-SA 4.0][cc-by-sa].
+- **[Kanji confusion data][yencken]**: © [Lars Yencken][yencken], under [CC BY 3.0][cc-by-3].
+- **[Example sentences][tatoeba]**: from [Tatoeba][tatoeba], under [CC BY 2.0 FR][cc-by-fr].
+- **[AnimCJK][animcjk]**: stroke-order drawings, © FM&SH, under the [Arphic Public License][apl] (kanji) and [LGPL v3][lgpl] (kana).
+- **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]**: handwriting recognition and drawing, MIT.
 
 ## Contributing
 
@@ -420,12 +445,13 @@ Building the extension, running its tests, and refreshing the dictionary data ar
 ## License
 
 Extension source released under the [MIT license][license] © [Drake Costa][personal-website].
-Bundled dictionary data remains under its respective upstream licences — see
+Bundled dictionary data remains under its respective upstream licences. See
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
 [ci_badge]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml/badge.svg
 [ci]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml
 [marketplace]: https://marketplace.visualstudio.com/items?itemName=Saeris.vscode-jisho
+[mirrordown]: https://github.com/mirrordown/mirrordown
 [shirabe]: https://ricoapps.com/
 [jmdict]: http://www.edrdg.org/jmdict/j_jmdict.html
 [edrdg]: https://www.edrdg.org/
