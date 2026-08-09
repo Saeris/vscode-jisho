@@ -335,19 +335,18 @@ Furigana are the small kana printed above kanji to give their reading.
 Select some text and run **Jisho: Add Furigana (ふりがな)**. **Jisho: Remove Furigana** undoes it.
 
 The markup is `{漢字|かんじ}`: the word, a pipe, then its reading. Markdown has no ruby syntax of
-its own, so a plain renderer prints those braces literally. To render them as furigana, add a ruby
-plugin to whatever builds your Markdown:
+its own, so a plain renderer prints those braces literally. To see them as furigana instead, add a
+ruby plugin wherever your Markdown is rendered:
 
-| Your setup           | Plugin                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| markdown-it          | [`@mirrordown/mdit-ruby`](https://github.com/mirrordown/mirrordown/tree/main/packages/mdit-ruby) |
-| remark, unified, MDX | [`@mirrordown/remd-ruby`](https://github.com/mirrordown/mirrordown/tree/main/packages/remd-ruby) |
+| Where                      | Add                                                       |
+| -------------------------- | --------------------------------------------------------- |
+| VS Code's Markdown preview | [Markdown DenDen Furigana][denden-furigana], an extension |
+| markdown-it                | [`@mirrordown/mdit-ruby`][mdit-ruby]                      |
+| remark, unified, MDX       | [`@mirrordown/remd-ruby`][remd-ruby]                      |
 
-Both come from [Mirrordown][mirrordown], a collection of Markdown plugins for the markdown-it and
-remark ecosystems.
-
-VS Code's own Markdown preview does not understand the syntax yet, so the braces show there as
-written.
+All three come from [Mirrordown][mirrordown], a suite of Markdown syntax extensions for the
+markdown-it and unified ecosystems. The VS Code extension is `@mirrordown/mdit-ruby` wired into the
+built-in preview, so what you see there matches what your site build produces.
 
 ## Commands
 
@@ -452,6 +451,9 @@ Bundled dictionary data remains under its respective upstream licences. See
 [ci]: https://github.com/Saeris/vscode-jisho/actions/workflows/ci.yml
 [marketplace]: https://marketplace.visualstudio.com/items?itemName=Saeris.vscode-jisho
 [mirrordown]: https://github.com/mirrordown/mirrordown
+[denden-furigana]: https://marketplace.visualstudio.com/items?itemName=saeris.markdown-denden-furigana
+[mdit-ruby]: https://github.com/mirrordown/mirrordown/tree/main/packages/mdit-ruby
+[remd-ruby]: https://github.com/mirrordown/mirrordown/tree/main/packages/remd-ruby
 [shirabe]: https://ricoapps.com/
 [jmdict]: http://www.edrdg.org/jmdict/j_jmdict.html
 [edrdg]: https://www.edrdg.org/
