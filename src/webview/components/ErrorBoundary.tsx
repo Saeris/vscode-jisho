@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "react-aria-components";
 import { reportCrash } from "../bridge";
 import { sanitizeStack } from "../../shared/diagnostics";
+import { lastRejection } from "../lastRejection";
 import styles from "./ErrorBoundary.module.css";
 
 /**
@@ -41,7 +42,17 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return;
     // Sanitized before it leaves this side. `error.stack` includes the message on line 0 in V8, so
     // the message is passed separately and the stack is scrubbed of the user's paths.
-    void reportCrash(error.message, sanitizeStack(error.stack ?? ""));
+    // A preceding unhandled rejection is often the actual cause — the render crash is what the
+    // broken state produced a beat later. Appended rather than sent separately so it travels in the
+    // same sanitized block.
+    const preceding = lastRejection();
+    const stack = sanitizeStack(error.stack ?? "");
+    void reportCrash(
+      error.message,
+      preceding === undefined
+        ? stack
+        : `${stack}\n\nPreceded by an unhandled rejection: ${preceding}`
+    );
   };
 
   #reset = (): void => {

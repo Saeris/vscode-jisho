@@ -465,7 +465,14 @@ export interface ReportCrashRequest {
   type: "reportCrash";
   requestId: string;
   message: string;
-  stack: string;
+  /**
+   * Sanitized on the WEBVIEW side, and absent for a non-crash report.
+   *
+   * A failed query rejects with a stack describing the bridge's own plumbing rather than the cause,
+   * so including it would put noise in the issue where the useful signal is the message plus the
+   * diagnostics.
+   */
+  stack?: string;
 }
 
 /** Open VS Code's Settings UI filtered to this extension's section (the sidebar's ⚙). */

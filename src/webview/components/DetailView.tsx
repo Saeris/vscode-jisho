@@ -1,5 +1,6 @@
 import { useNavigate } from "../navigation";
 import { DetailHeader } from "./DetailHeader";
+import { ErrorState } from "./ErrorState";
 import styles from "./DetailView.module.css";
 
 /**
@@ -25,6 +26,12 @@ interface DetailViewProps<T> {
    * examples. Distinct from an error: the request worked, the answer is empty.
    */
   empty?: string;
+  /**
+   * What this view was loading, for the issue title a failed report files: "the word page", "stroke
+   * order". Defaults to something generic rather than being required, so no caller is forced to
+   * invent one.
+   */
+  context?: string;
   /** Whether `data` counts as empty. Defaults to treating only `null` as empty. */
   isEmpty?: (data: NonNullable<T>) => boolean;
   /**
@@ -48,6 +55,7 @@ interface DetailViewProps<T> {
 export const DetailView = <T,>({
   query,
   empty = "Not found.",
+  context = "loading this page",
   isEmpty,
   above,
   children
@@ -67,7 +75,11 @@ export const DetailView = <T,>({
         {isPending ? (
           <p>Loading…</p>
         ) : isError ? (
-          <p>{error instanceof Error ? error.message : "Failed to load."}</p>
+          <ErrorState
+            error={error}
+            context={context}
+            fallback="Failed to load."
+          />
         ) : blank ? (
           <p className={styles.empty}>{empty}</p>
         ) : (

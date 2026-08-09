@@ -1,0 +1,38 @@
+/* A failed request. Quieter than the crash screen — this replaces a section, not the whole panel. */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--jisho-gap) 0;
+}
+
+.message {
+  margin: 0;
+  color: var(--jisho-fg);
+}
+
+.reassurance {
+  margin: 0;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+}
+
+/* A link rather than a button shape: reporting is offered here, not urged. The crash screen's
+   button weight would over-dramatise a word that failed to load. */
+.report {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--jisho-link);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.report[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}

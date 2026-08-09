@@ -32,6 +32,8 @@ const words: SearchResultDto[] = [
 // acquireVsCodeApi at load, which exists only inside a real VS Code webview.
 vi.mock("../../bridge", () => ({
   openSettings: vi.fn<() => Promise<void>>(async () => undefined),
+  // `ErrorState` reports through the bridge, and the results list renders it on a failed query.
+  reportCrash: vi.fn<() => Promise<void>>(async () => undefined),
   // The recent-search history round-trips through the host; these stubs keep it inert so these
   // tests stay about the results list.
   recordRecentSearch: vi.fn<() => Promise<{ recent: [] }>>(async () => ({

@@ -98,7 +98,9 @@ Placement is at the **root, inside the providers**, so a crash in any view is ca
 
 ### What it cannot catch
 
-Worth stating so the coverage is not overestimated. React boundaries do not catch errors in event handlers, async code, or the host process. A `postMessage` failure, a query rejection, or a host-side throw all pass through it untouched. Those surface as VS Code error notifications today, and routing them into the same reporter is a reasonable follow-up — but it is not this spec, and the boundary is not a general error handler.
+Worth stating so the coverage is not overestimated. React boundaries do not catch errors in event handlers, async code, or the host process. A `postMessage` failure, a query rejection, or a host-side throw all pass through it untouched.
+
+~~Those surface as VS Code error notifications today~~ — **this was wrong**, and [spec 21](./21-error-reporting-coverage.md) corrects it. `showErrorMessage` is called nowhere in this extension. A query rejection is rendered as a message by `DetailView` or `SearchResults`, and a rejection with no query attached is silent. The gap is not that errors are invisible; it is that a visible error has nothing to click. Spec 21 covers that.
 
 ## Host command
 

@@ -16,6 +16,7 @@ import { RecentSearches } from "../components/RecentSearches";
 import { SegmentBar } from "../components/SegmentBar";
 import { openSettings, recordRecentSearch } from "../bridge";
 import { useNavigate } from "../navigation";
+import { ErrorState } from "../components/ErrorState";
 import styles from "./SearchResults.module.css";
 
 interface SearchResultsProps {
@@ -518,8 +519,9 @@ const renderStatus = ({
   // and this is a plain function. `SearchResults` renders <RecentSearches /> instead.
   if (query.trim() === "") return null;
   if (isError) {
-    const message = error instanceof Error ? error.message : "Search failed.";
-    return <p className={styles.status}>{message}</p>;
+    return (
+      <ErrorState error={error} context="searching" fallback="Search failed." />
+    );
   }
   if (isFetching && count === undefined) {
     return <p className={styles.status}>Searching…</p>;

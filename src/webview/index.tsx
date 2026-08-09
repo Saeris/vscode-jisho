@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { onHostSettings } from "./bridge";
+import { recordRejections } from "./lastRejection";
 import { applySettings } from "./settings";
 import { isSpeechAvailable } from "./speech";
 import "./styles/theme.css";
@@ -15,6 +16,10 @@ import "./styles/posCategory.css";
 // wait at startup instead of on the first Play/Speak click removes OUR share of TTS latency (the
 // OS speech engine's own spin-up remains).
 void isSpeechAvailable();
+
+// A rejection with no query attached is otherwise completely silent. Recorded, not reported —
+// see lastRejection.ts for why prompting on every one would make the reporter noise.
+recordRejections();
 
 // Settings arrive as host pushes (initial snapshot on ready, again on every Settings-UI edit) and
 // land as CSS variables — no re-render involved.

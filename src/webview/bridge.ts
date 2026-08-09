@@ -244,7 +244,7 @@ export const getDiagnostics = async (): Promise<GetDiagnosticsResponse> =>
 
 export const reportCrash = async (
   message: string,
-  stack: string
+  stack?: string
 ): Promise<void> => {
   await send({
     type: "reportCrash",

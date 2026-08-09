@@ -9,12 +9,29 @@ import { VIEW_ID } from "./host/hostSettings";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
 import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
-import { openIssueReport } from "./host/report";
+import { openIssueReport, showReportableError } from "./host/report";
 import { configureTokenizer } from "./host/tokenizer";
 import { JishoViewProvider } from "./host/webviewHost";
 import type { HostPush } from "./shared/messages";
 
+/**
+ * Activation, wrapped.
+ *
+ * A throw here leaves VS Code showing its own "cannot activate" notice — generic, and with nothing
+ * to click. It is also the worst case to be unreportable from: the extension is completely unusable,
+ * there is no panel to report from, and every other pathway spec 20 built is unreachable. So this is
+ * the one place a report is worth interrupting for.
+ */
 export function activate(context: vscode.ExtensionContext): void {
+  try {
+    activateJisho(context);
+  } catch (err) {
+    log().error(`activation failed: ${String(err)}`);
+    void showReportableError(context, "Jisho failed to start.", err);
+  }
+}
+
+function activateJisho(context: vscode.ExtensionContext): void {
   // The zero point for every duration below. Activation itself is cheap by design — the costly
   // resources load lazily — so this line plus the first "provision"/"open" timings show whether a
   // slow first search was the database, the tokenizer, or neither.

@@ -6,7 +6,12 @@
  * and the clipboard fallback are decided in one place. See docs/specs/20-crash-and-issue-reporting.md.
  */
 import * as vscode from "vscode";
-import { issueBody, issueUrl, type Diagnostics } from "../shared/diagnostics";
+import {
+  issueBody,
+  issueUrl,
+  sanitizeStack,
+  type Diagnostics
+} from "../shared/diagnostics";
 import { collectDiagnostics } from "./diagnostics";
 
 const ISSUES = "https://github.com/Saeris/vscode-jisho/issues/new";
@@ -50,4 +55,33 @@ export const openIssueReport = async (
     );
   }
   await vscode.env.openExternal(vscode.Uri.parse(url));
+};
+
+/**
+ * Show an error notification that can be reported.
+ *
+ * The single place `showErrorMessage` is called, so an error the user sees is never a dead end —
+ * the principle spec 21 is built on. Introduced with one caller (activation) rather than left for
+ * later, because the value is in it being the only door.
+ */
+export const showReportableError = async (
+  context: vscode.ExtensionContext,
+  message: string,
+  error: unknown
+): Promise<void> => {
+  const detail = error instanceof Error ? error.message : String(error);
+  const choice = await vscode.window.showErrorMessage(
+    `${message} ${detail}`,
+    "Report this problem"
+  );
+  if (choice === undefined) return;
+  await openIssueReport(context, {
+    title: `${message} ${detail}`,
+    // The stack is worth having here in a way it is not for a query rejection: a host throw's stack
+    // names OUR code, not the bridge's plumbing.
+    error:
+      error instanceof Error
+        ? { message: detail, stack: sanitizeStack(error.stack ?? "") }
+        : undefined
+  });
 };

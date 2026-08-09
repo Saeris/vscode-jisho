@@ -350,7 +350,7 @@ export class JishoViewProvider
     if (request.type === "reportCrash") {
       await openIssueReport(this.#context, {
         title: `Crash: ${request.message}`,
-        error: { message: request.message, stack: request.stack },
+        error: { message: request.message, stack: request.stack ?? "" },
         meta: await this.dictionaryMeta()
       });
       return { type: "reportCrash", requestId: request.requestId };
