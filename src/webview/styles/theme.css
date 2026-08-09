@@ -174,11 +174,36 @@ body {
 
 /*
  * English prose: `pretty` prevents a heading or paragraph ending in a single stranded word (an
- * orphan). Deliberately NOT applied to `:lang(ja)` — Japanese body text is set solid (ベタ組み) and
- * the guide advises against wrap tuning on Japanese paragraphs.
+ * orphan).
  */
 :where(p):lang(en) {
-  text-wrap: pretty;
+  text-wrap-style: pretty;
+}
+
+/*
+ * Japanese runs get `pretty` too — a deliberate reversal of the earlier "no wrap tuning on Japanese
+ * paragraphs" rule, on evidence.
+ *
+ * That advice is about BODY COPY set solid (ベタ組み), where balancing a long paragraph produces odd
+ * ragged gaps. It does not describe what this UI actually renders: two- and three-line example
+ * sentences in a narrow sidebar, which is the case `pretty` exists for. Observed there, the default
+ * `auto` left a lone 。 wrapped onto a line of its own (「…に着きます」 + 「。」), which
+ * `line-break: strict` cannot prevent — 禁則処理 stops a line STARTING with closing punctuation only
+ * when there is a break opportunity to move; with the break already taken the terminator dangles.
+ *
+ * `pretty` rather than `balance`: `balance` equalises line lengths across the whole run, which is
+ * right for a heading of a few words and wrong for a sentence — it reflows lines that were fine to
+ * even out the last one. `pretty` only tunes the end of the run, which is where the dangle is.
+ *
+ * Applied by `lang`, not by element, because the sentences are `<span lang="ja">` inside list items
+ * rather than paragraphs — which is exactly why the `:where(p)` rule above never reached them.
+ *
+ * The LONGHAND, deliberately. `text-wrap: pretty` is a shorthand that also resets `text-wrap-mode`,
+ * so it would silently overwrite a `nowrap` set elsewhere; `text-wrap-style` changes only how the
+ * lines are balanced, which is the whole of what is wanted here.
+ */
+:where(span, p, li, td):lang(ja) {
+  text-wrap-style: pretty;
 }
 
 #root {
