@@ -19,22 +19,39 @@ conjugation without leaving your editor.
 <details>
 <summary>Contents</summary>
 
-- [What Jisho is](#what-jisho-is)
-- [Install](#install)
-- [Get started](#get-started)
-- [Searching](#searching)
-- [Reading a word](#reading-a-word)
-- [Kanji](#kanji)
-- [Finding a character you cannot type](#finding-a-character-you-cannot-type)
-- [Browsing](#browsing)
-- [Working in the editor](#working-in-the-editor)
-- [Commands](#commands)
-- [Settings](#settings)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
-- [Data sources](#data-sources)
-- [Contributing](#contributing)
-- [License](#license)
+- [📔 Jisho: Offline Japanese Dictionary for VS Code](#-jisho-offline-japanese-dictionary-for-vs-code)
+  - [What Jisho is](#what-jisho-is)
+  - [Install](#install)
+  - [Get started](#get-started)
+  - [Searching](#searching)
+    - [Conjugated words](#conjugated-words)
+    - [Whole sentences](#whole-sentences)
+    - [Names](#names)
+  - [Reading a word](#reading-a-word)
+    - [Example sentences](#example-sentences)
+    - [Copying](#copying)
+    - [Conjugations](#conjugations)
+  - [Kanji](#kanji)
+    - [Stroke order](#stroke-order)
+  - [Finding a character you cannot type](#finding-a-character-you-cannot-type)
+    - [By its radicals](#by-its-radicals)
+    - [By drawing it](#by-drawing-it)
+  - [Browsing](#browsing)
+  - [Working in the editor](#working-in-the-editor)
+    - [Hover for a definition](#hover-for-a-definition)
+    - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
+    - [Add furigana to a selection](#add-furigana-to-a-selection)
+  - [Commands](#commands)
+  - [Settings](#settings)
+  - [Troubleshooting](#troubleshooting)
+    - [The panel is empty, or says the dictionary is unavailable](#the-panel-is-empty-or-says-the-dictionary-is-unavailable)
+    - [Hovers do nothing in my code file](#hovers-do-nothing-in-my-code-file)
+    - [A word is not found, or the wrong word comes back](#a-word-is-not-found-or-the-wrong-word-comes-back)
+    - [The panel's text is too small or too large](#the-panels-text-is-too-small-or-too-large)
+  - [FAQ](#faq)
+  - [Data sources](#data-sources)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 </details>
 
@@ -66,30 +83,36 @@ that, everything is local.
 
 This walkthrough covers one lookup, start to finish.
 
-1. **Open the panel.** Run **View: Show Jisho** from the Command Palette
-   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
-   on macOS). Jisho also adds an icon to the activity bar down the side of the window, though with
-   several extensions installed VS Code may fold it into the **…** overflow menu at the bottom.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/search-toolbar-dark.png" />
+  <img align="right" alt="The Jisho search field containing the text toshokan, with results for 図書館 below it, and four icon buttons to the right of the field." src="docs/images/search-toolbar-light.png" />
+</picture>
 
-   <picture>
-     <source media="(prefers-color-scheme: dark)" srcset="docs/images/search-toolbar-dark.png" />
-     <img alt="The Jisho search field containing the text toshokan, with results for 図書館 below it, and four icon buttons to the right of the field." src="docs/images/search-toolbar-light.png" />
-   </picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/word-page-dark.png" />
+  <img align="right" alt="The word page for 食べる, showing its reading with a pitch-accent contour, tags, numbered meanings, and example sentences." src="docs/images/word-page-light.png" />
+</picture>
 
-2. **Type what you are looking for.** Japanese, romaji, or English all work. The screenshot above
-   shows `toshokan` finding 図書館.
+<div align="left">
 
-3. **Select a result** to open its page. Every entry gives you readings, meanings grouped by part
-   of speech, and example sentences.
+**1. Open the panel.** Run **View: Show Jisho** from the Command Palette
+(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on
+macOS). Jisho also adds an icon to the activity bar, though with several extensions installed VS
+Code may fold it into the **…** overflow menu.
 
-   <picture>
-     <source media="(prefers-color-scheme: dark)" srcset="docs/images/word-page-dark.png" />
-     <img alt="The word page for 食べる, showing its reading with a pitch-accent contour, tags, numbered meanings, and example sentences." src="docs/images/word-page-light.png" />
-   </picture>
+**2. Type what you are looking for.** Japanese, romaji, or English all work — here `toshokan` finds
+図書館.
 
-4. **Select any Japanese word in an example** to jump to its entry. Use **← Back** to return.
+**3. Select a result** to open its page. Every entry gives you its readings, meanings grouped by
+part of speech, and example sentences.
+
+**4. Select any Japanese word in an example** to jump to its entry, and **← Back** to return.
 
 That is the whole loop: search, read, follow a link, go back.
+
+</div>
+
+<br clear="both" />
 
 ## Searching
 
@@ -148,14 +171,21 @@ your system has a Japanese voice installed. The copy button is covered under
 
 ### Example sentences
 
-A few examples sit inline under each meaning. Select **more examples** for the full pool.
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/more-examples-dark.png" />
-  <img alt="A page of example sentences for 食べる, each with furigana above the kanji and an English translation below." src="docs/images/more-examples-light.png" />
+  <img align="right" width="42%" alt="A page of example sentences for 食べる, each with furigana above the kanji and an English translation below." src="docs/images/more-examples-light.png" />
 </picture>
 
-Every sentence has furigana over its kanji, and every word in it is a link to its own entry.
+A few examples sit inline under each meaning. Select **more examples** for the full pool.
+
+Every sentence has furigana over its kanji, so a word you cannot yet read is still pronounceable.
+Each is paired with an English translation.
+
+Every Japanese word in a sentence is a link to its own entry, which makes the examples a way to
+read outward from a word rather than a list to skim. Following one and coming back with **← Back**
+is the loop the panel is built around.
+
+<br clear="right" />
 
 ### Copying
 
@@ -172,18 +202,23 @@ understands it; see [Add furigana to a selection](#add-furigana-to-a-selection).
 
 ### Conjugations
 
-Below the entry's meanings, verbs and adjectives get a full conjugation table.
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/conjugations-dark.png" />
-  <img alt="The lower half of the 食べる entry: a link to 20 more examples, an Info section with its JLPT level and WaniKani link, a Kanji section listing 食 and 喰, and a conjugation table with Form, Affirmative and Negative columns." src="docs/images/conjugations-light.png" />
+  <img align="right" width="42%" alt="The lower half of the 食べる entry: a link to 20 more examples, an Info section with its JLPT level and WaniKani link, a Kanji section listing 食 and 喰, and a conjugation table with Form, Affirmative and Negative columns." src="docs/images/conjugations-light.png" />
 </picture>
 
+Below the entry's meanings, verbs and adjectives get a full conjugation table: non-past and past,
+plain and polite, te-form, potential, passive, causative, imperative, volitional, the two
+conditionals, and the desire form.
+
+Select a form's name to read what it does and when to use it — which is the part a table alone does
+not tell you.
+
 The same view carries two sections above the table. **Info** holds the word's JLPT level and a
-WaniKani link where there is one, and **Kanji** lists the characters the word is written with, each
+WaniKani link where there is one. **Kanji** lists the characters the word is written with, each
 opening its own page.
 
-Select a form's name in the table to read what it does and when to use it.
+<br clear="right" />
 
 ## Kanji
 
@@ -197,21 +232,21 @@ lists it in its own **Kanji** section, below the words.
 
 Selecting a character opens a page for the character itself.
 
-<!-- Floated: `align` must sit on the <img> ITSELF. Verified on the rendered page — `align` on a
-     wrapping <picture> is preserved by GitHub's sanitizer but has no layout effect, so the image
-     rendered full-width with the text below it. That is why the three floated screenshots drop
-     their <picture> dark/light pair: the float and the theme swap are mutually exclusive here.
-     A deliberate trade on the tallest panel shots, where a full-width image is mostly empty space
-     either side. If the Marketplace's sanitizer (undocumented) strips `align`, these degrade to the
-     same full-width block every other image uses. -->
-<img align="right" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-page-dark.png" />
+  <img align="right" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
+</picture>
 
-A kanji page carries its meanings and readings, how many strokes it takes, what grade it is taught
-in, the components it is built from, and the characters that look like it.
+The badges along the top are the character's measurements: how many strokes it takes, the school
+grade it is taught in, its JLPT level, and how common it is in written Japanese.
+
+Below them come the readings. **On** readings are borrowed from Chinese and usually appear in
+compounds; **kun** readings are native Japanese and usually stand alone. **Nanori** are the readings
+a character takes in names, which often match neither.
 
 **Parts** lists the components the character is built from, each opening its own page. **Similar
-kanji** lists the characters most likely to be confused with it, the ones that differ by a stroke or
-a radical. **Words** lists vocabulary written with it, most common first.
+kanji** lists the ones most likely to be confused with it — characters that differ by a stroke or a
+single radical. **Words** lists vocabulary written with it, most common first.
 
 <br clear="right" />
 
@@ -233,11 +268,17 @@ Two ways in, for when you can see a character but have no way to enter it.
 
 ### By its radicals
 
-<img align="right" width="42%" alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/radical-picker-dark.png" />
+  <img align="right" width="42%" alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
+</picture>
 
 Select the **部** button beside the search field, then pick components you can see in the character.
-Radicals that cannot appear alongside your selection grey out as you go, so a combination that
-matches nothing is never offered.
+Radicals are grouped by how many strokes they take, so a component you can count is quick to find.
+
+As you select, radicals that cannot appear alongside your choices grey out. A combination that would
+match nothing is never offered, so you can keep adding components until the list is short enough to
+scan.
 
 Matches appear underneath, each tile showing the character with a short meaning. Selecting one opens
 its kanji page.
@@ -246,20 +287,19 @@ its kanji page.
 
 ### By drawing it
 
-<!-- EXPERIMENT 4 (remove once confirmed): `align` on the <img> INSIDE the <picture>, keeping both
-     <source> elements. This is the combination the previous three missed — the float lives on the
-     element that actually renders, while <picture> still performs the theme swap around it. If the
-     text wraps here, it resolves the trade outright and every floated screenshot keeps its pair. -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
   <img align="right" width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
 </picture>
 
 Select the pencil button and draw the character. Stroke order and stroke count do not matter, and
-you do not have to finish.
+you do not have to finish — the screenshot shows four strokes of a character that takes six.
 
-Candidates update after every stroke and are labelled with their meanings, so a near-miss is easy to
-spot. Select one to add it to your search.
+Candidates update after every stroke, each labelled with its meaning so a near-miss is easy to
+spot. Drawing part of 年 turns up 牛, 午 and 手 alongside it, which is the point: you do not have to
+know a character to find it, only to see it.
+
+Select one to add it to your search.
 
 <br clear="right" />
 
@@ -267,46 +307,72 @@ spot. Select one to add it to your search.
 
 The four buttons along the bottom of the panel switch between searching and browsing.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-vocab-dark.png" />
-  <img alt="The Vocab tab listing browsable categories (result type, JLPT level, common words, language parts, usage, subject, and slang and dialect), each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
-</picture>
-
 - **Vocab**: by JLPT level, how common a word is, language part, usage, subject, or dialect.
 - **Kanji**: by JLPT level, school grade, or frequency.
 - **Kana**: the gojūon chart.
 
-Selecting a category opens its groups.
+Browsing is two steps: a category opens its groups, and a group opens its list. The counts beside
+each row are live, so a category tells you how much is behind it before you commit to opening it.
+
+<!-- The two steps of the drill-down, side by side rather than stacked: they are the same screen at
+     two depths, and the pairing is the point. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-vocab-dark.png" />
+  <img align="left" width="42%" alt="The Vocab tab listing browsable categories (result type, JLPT level, common words, language parts, usage, subject, and slang and dialect), each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
+</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-categories-dark.png" />
-  <img alt="The JLPT level category opened, listing N5 through N1 with a word count beside each, above a note that the levels are an unofficial estimate." src="docs/images/browse-categories-light.png" />
+  <img align="right" width="42%" alt="The JLPT level category opened, listing N5 through N1 with a word count beside each, above a note that the levels are an unofficial estimate." src="docs/images/browse-categories-light.png" />
 </picture>
+
+<br clear="both" />
 
 Selecting a group opens its word list.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-word-list-dark.png" />
-  <img alt="A word list for JLPT N2 with a breadcrumb reading Vocab, JLPT level, N2, a total count, and a kana rail down the side for jumping through the list." src="docs/images/browse-word-list-light.png" />
+  <img align="right" width="42%" alt="A word list for JLPT N2 with a breadcrumb reading Vocab, JLPT level, N2, a total count, and a kana rail down the side for jumping through the list." src="docs/images/browse-word-list-light.png" />
 </picture>
 
-Lists sort by frequency or in gojūon order. In gojūon order, the rail down the side jumps you to a
-kana.
+The breadcrumb across the top tracks where you are, and every step in it is a link back.
+
+Lists open in gojūon order (**あ–ん**), which is the order kana are taught and the one to reach for
+when you know roughly how a word sounds. The rail down the side jumps you to a kana, so a
+1,700-word list stays navigable. Switch to **By frequency** for the most common words first.
+
+<br clear="right" />
 
 Kanji browse as a grid instead, each character with its meaning.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-browse-list-dark.png" />
-  <img alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
+  <img align="left" width="42%" alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
 </picture>
 
-The **Kana** tab is a chart of hiragana and katakana. Selecting a kana opens its stroke order,
-because these are single syllables rather than words and there is nothing to look up.
+The grid fits far more on screen than a list would, which suits browsing a level or a school grade
+where you are looking for what you do not recognise rather than for one particular character.
+
+Each tile carries a short meaning under the character, so the set is scannable without opening
+anything. Selecting a tile opens that character's page.
+
+<br clear="left" />
+
+The **Kana** tab is a chart of hiragana and katakana.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kana-chart-dark.png" />
-  <img alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
+  <img align="right" width="42%" alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
 </picture>
+
+The chart is laid out in gojūon order — rows by consonant, columns by vowel — which is the order
+kana are taught and the order every list in the panel sorts by.
+
+Selecting a kana opens its stroke order rather than searching: a single syllable is not a word, so
+there is nothing to look up. Obsolete kana (ゐ, ゑ) are dimmed rather than hidden, since they still
+turn up in older text.
+
+<br clear="right" />
 
 ## Working in the editor
 
