@@ -51,7 +51,27 @@ jobs:
       # The E2E asserts real dictionary results (searching 食べる returns "to eat"), so it needs a
       # real database — the extension resolves assets/jisho.db directly under
       # --extensionDevelopmentPath rather than downloading one.
+      #
+      # Cached on the inputs that decide its CONTENTS: the schema, the build script, and the SQL.
+      # Measured at 35s, against a 69s test run, so it was a third of this job for a database that
+      # is byte-identical whenever those files are unchanged. A key miss rebuilds as before.
+      #
+      # The key deliberately does NOT cover upstream JMdict, which the build fetches at `latest` and
+      # which moves on its own. So a cache hit can serve a database built from older upstream data —
+      # acceptable here because these tests assert BEHAVIOUR (食べる resolves, a particle is tagged),
+      # not that the corpus is current. The release path rebuilds from scratch and is where upstream
+      # freshness actually matters.
+      - name: Cache the dictionary database
+        id: db-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            assets/jisho.db
+            assets/jisho.db.version
+          key: jisho-db-common-${{ hashFiles('src/shared/schema.ts', 'scripts/build-data.ts', 'src/data/**') }}
+
       - name: Build the dictionary database
+        if: steps.db-cache.outputs.cache-hit != 'true'
         run: vp run build:data
 
       - name: Build the extension and webview

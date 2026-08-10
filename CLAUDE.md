@@ -78,6 +78,15 @@ Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 - Applies to code comments, markdown files, commit messages and GitHun Issue/PR bodies
 - If you encounter hard-wrapped prose, you have permission to clean it up
 
+## Rule 14 - Speak in plain terms
+
+- Use ASD-STE100 aka Simplified Technical English in your writing and responses
+- Follow Zinsser's four principles of quality writing:
+  - **Clarity**: Clear writing is the product of clear thinking. If a sentence is muddled or confusing, it means the underlying idea is not yet fully understood by the writer.
+  - **Simplicity**: Avoid jargon, bloated phrasing, and pompous language. Strip every sentence down to its cleanest components and use plain, straightforward words.
+  - **Brevity**: Every word must earn its place. Ruthlessly cut clutter, redundant adverbs, and unnecessary modifiers that do no useful work.
+  - **Humanity**: Let your personality and voice show. Write with warmth, honesty, and a conversational tone rather than hiding behind a cold, robotic corporate or academic facade.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

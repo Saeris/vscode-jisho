@@ -1482,17 +1482,19 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   writeFileSync(`${OUT_DB}.version`, version, "utf8");
   console.log(`\nWrote ${OUT_DB} — ${total} entries (${VARIANT}).`);
 
-  // The full variant is delivered via the dictionary-latest GitHub Release: emit the zstd-compressed
-  // asset, its sha256, and the version string the downloader compares against its sidecar.
-  if (FULL) {
-    console.log("Compressing release asset…");
-    const zstPath = await writeReleaseAsset(
-      OUT_DB,
-      join(dirname(OUT_DB), "jisho-full.db"),
-      version
-    );
-    console.log(`Wrote ${zstPath} (+ .sha256, .version)`);
-  }
+  // Both variants are published to the dictionary-latest release: the zstd-compressed asset, its
+  // sha256, and the version string the downloader compares against its sidecar.
+  //
+  // FULL is what users download on first run. COMMON is published for contributors and CI — it is
+  // the variant the test suites run against, and downloading it beats spending five minutes of a
+  // dev setup (or a CI job) rebuilding a database whose inputs have not changed.
+  console.log("Compressing release asset…");
+  const zstPath = await writeReleaseAsset(
+    OUT_DB,
+    join(dirname(OUT_DB), FULL ? "jisho-full.db" : "jisho-common.db"),
+    version
+  );
+  console.log(`Wrote ${zstPath} (+ .sha256, .version)`);
 };
 
 // A prepared statement, as returned by the (async) `prepare` once awaited.

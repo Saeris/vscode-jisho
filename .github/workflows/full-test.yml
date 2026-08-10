@@ -42,7 +42,20 @@ jobs:
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 
+      # Same cache as e2e.yml, same key — the two jobs build the identical database, so whichever
+      # runs first populates it for the other. See that file for why upstream JMdict is left out of
+      # the key.
+      - name: Cache the dictionary database
+        id: db-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            assets/jisho.db
+            assets/jisho.db.version
+          key: jisho-db-common-${{ hashFiles('src/shared/schema.ts', 'scripts/build-data.ts', 'src/data/**') }}
+
       - name: Build the dictionary database
+        if: steps.db-cache.outputs.cache-hit != 'true'
         run: vp run build:data
 
       # NamesDictionary's only coverage is names.spec, which skips without this. --no-archive drops
