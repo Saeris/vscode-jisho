@@ -246,29 +246,22 @@ its kanji page.
 
 ### By drawing it
 
-<!-- EXPERIMENT 3 (remove once compared): experiment 2 showed `align="right"` on a <p> wrapping the
-     <picture> right-ALIGNS the block but does not float it — the text landed below. This adds
-     `align="left"` on the prose paragraphs beside it, on the theory that two aligned blocks sit
-     side by side. If the text ends up next to the image, this is the form to adopt everywhere: it
-     is the only one that keeps the dark/light <picture> pair AND recovers the horizontal space. -->
-<p align="right">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
-    <img width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
-  </picture>
-</p>
+<!-- EXPERIMENT 4 (remove once confirmed): `align` on the <img> INSIDE the <picture>, keeping both
+     <source> elements. This is the combination the previous three missed — the float lives on the
+     element that actually renders, while <picture> still performs the theme swap around it. If the
+     text wraps here, it resolves the trade outright and every floated screenshot keeps its pair. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
+  <img align="right" width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
+</picture>
 
-<p align="left" width="52%">
 Select the pencil button and draw the character. Stroke order and stroke count do not matter, and
 you do not have to finish.
-</p>
 
-<p align="left" width="52%">
 Candidates update after every stroke and are labelled with their meanings, so a near-miss is easy to
 spot. Select one to add it to your search.
-</p>
 
-<br clear="both" />
+<br clear="right" />
 
 ## Browsing
 
