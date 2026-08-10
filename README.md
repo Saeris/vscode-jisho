@@ -246,12 +246,11 @@ its kanji page.
 
 ### By drawing it
 
-<!-- EXPERIMENT 2 (remove once compared): `align` on a <p> WRAPPING the <picture>, which is a
-     different structure from experiment 1 — that put `align` on the <picture> itself and rendered
-     full-width. If the text below wraps beside this image, the float and the dark/light pair are
-     compatible after all and the other two sections should adopt this form. If the text sits
-     BELOW it (the block is merely right-aligned, which is what `align` on a <p> is documented to
-     do), then `align` on the <img> is the only form that floats and this reverts. -->
+<!-- EXPERIMENT 3 (remove once compared): experiment 2 showed `align="right"` on a <p> wrapping the
+     <picture> right-ALIGNS the block but does not float it — the text landed below. This adds
+     `align="left"` on the prose paragraphs beside it, on the theory that two aligned blocks sit
+     side by side. If the text ends up next to the image, this is the form to adopt everywhere: it
+     is the only one that keeps the dark/light <picture> pair AND recovers the horizontal space. -->
 <p align="right">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
@@ -259,13 +258,17 @@ its kanji page.
   </picture>
 </p>
 
+<p align="left" width="52%">
 Select the pencil button and draw the character. Stroke order and stroke count do not matter, and
 you do not have to finish.
+</p>
 
+<p align="left" width="52%">
 Candidates update after every stroke and are labelled with their meanings, so a near-miss is easy to
 spot. Select one to add it to your search.
+</p>
 
-<br clear="right" />
+<br clear="both" />
 
 ## Browsing
 
