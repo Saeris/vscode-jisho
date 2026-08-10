@@ -197,13 +197,13 @@ lists it in its own **Kanji** section, below the words.
 
 Selecting a character opens a page for the character itself.
 
-<!-- Floated with `align` on the <img> itself, which is what makes text wrap beside it: an
-     `align="right"` WRAPPER (<p>, <div>) only right-aligns the block and leaves the text below.
-     That costs the <picture> dark/light pair for this one image, since the float has to live on the
-     <img>. A deliberate trade on the tallest screenshots, where a full-width panel shot is mostly
-     empty space either side. GitHub's sanitizer allows `align` on any permitted element; the
-     Marketplace's is undocumented, and if it strips the attribute this degrades to the same
-     full-width block every other image uses. -->
+<!-- Floated: `align` must sit on the <img> ITSELF. Verified on the rendered page — `align` on a
+     wrapping <picture> is preserved by GitHub's sanitizer but has no layout effect, so the image
+     rendered full-width with the text below it. That is why the three floated screenshots drop
+     their <picture> dark/light pair: the float and the theme swap are mutually exclusive here.
+     A deliberate trade on the tallest panel shots, where a full-width image is mostly empty space
+     either side. If the Marketplace's sanitizer (undocumented) strips `align`, these degrade to the
+     same full-width block every other image uses. -->
 <img align="right" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
 
 A kanji page carries its meanings and readings, how many strokes it takes, what grade it is taught
@@ -246,15 +246,18 @@ its kanji page.
 
 ### By drawing it
 
-<!-- EXPERIMENT (remove after checking the rendered page): `align` on a <picture> rather than on
-     the <img> inside it. GitHub's sanitizer allows `align` on any permitted element and allows
-     <picture>/<source>/srcset, so this MAY float while keeping the dark/light pair — which the
-     sibling <img align> form above cannot. Compare this section against "By its radicals" on the
-     rendered README: if the text wraps beside this image too, every float can keep its theme pair. -->
-<picture align="right" width="42%">
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
-  <img width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
-</picture>
+<!-- EXPERIMENT 2 (remove once compared): `align` on a <p> WRAPPING the <picture>, which is a
+     different structure from experiment 1 — that put `align` on the <picture> itself and rendered
+     full-width. If the text below wraps beside this image, the float and the dark/light pair are
+     compatible after all and the other two sections should adopt this form. If the text sits
+     BELOW it (the block is merely right-aligned, which is what `align` on a <p> is documented to
+     do), then `align` on the <img> is the only form that floats and this reverts. -->
+<p align="right">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
+    <img width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
+  </picture>
+</p>
 
 Select the pencil button and draw the character. Stroke order and stroke count do not matter, and
 you do not have to finish.
