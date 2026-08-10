@@ -197,13 +197,23 @@ lists it in its own **Kanji** section, below the words.
 
 Selecting a character opens a page for the character itself.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-page-dark.png" />
-  <img alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
-</picture>
+<!-- Floated with `align` on the <img> itself, which is what makes text wrap beside it: an
+     `align="right"` WRAPPER (<p>, <div>) only right-aligns the block and leaves the text below.
+     That costs the <picture> dark/light pair for this one image, since the float has to live on the
+     <img>. A deliberate trade on the tallest screenshots, where a full-width panel shot is mostly
+     empty space either side. GitHub's sanitizer allows `align` on any permitted element; the
+     Marketplace's is undocumented, and if it strips the attribute this degrades to the same
+     full-width block every other image uses. -->
+<img align="right" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
 
 A kanji page carries its meanings and readings, how many strokes it takes, what grade it is taught
 in, the components it is built from, and the characters that look like it.
+
+**Parts** lists the components the character is built from, each opening its own page. **Similar
+kanji** lists the characters most likely to be confused with it, the ones that differ by a stroke or
+a radical. **Words** lists vocabulary written with it, most common first.
+
+<br clear="right" />
 
 ### Stroke order
 
@@ -223,25 +233,36 @@ Two ways in, for when you can see a character but have no way to enter it.
 
 ### By its radicals
 
-Select the **部** button beside the search field, then pick components you can see in the character.
-Radicals that cannot appear alongside your selection grey out as you go.
+<img align="right" width="42%" alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/radical-picker-dark.png" />
-  <img alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
-</picture>
+Select the **部** button beside the search field, then pick components you can see in the character.
+Radicals that cannot appear alongside your selection grey out as you go, so a combination that
+matches nothing is never offered.
+
+Matches appear underneath, each tile showing the character with a short meaning. Selecting one opens
+its kanji page.
+
+<br clear="right" />
 
 ### By drawing it
+
+<!-- EXPERIMENT (remove after checking the rendered page): `align` on a <picture> rather than on
+     the <img> inside it. GitHub's sanitizer allows `align` on any permitted element and allows
+     <picture>/<source>/srcset, so this MAY float while keeping the dark/light pair — which the
+     sibling <img align> form above cannot. Compare this section against "By its radicals" on the
+     rendered README: if the text wraps beside this image too, every float can keep its theme pair. -->
+<picture align="right" width="42%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
+  <img width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
+</picture>
 
 Select the pencil button and draw the character. Stroke order and stroke count do not matter, and
 you do not have to finish.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
-  <img alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
-</picture>
+Candidates update after every stroke and are labelled with their meanings, so a near-miss is easy to
+spot. Select one to add it to your search.
 
-Candidates update after every stroke. Select one to add it to your search.
+<br clear="right" />
 
 ## Browsing
 
