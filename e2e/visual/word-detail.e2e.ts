@@ -98,34 +98,33 @@ test("example sentences balance their last line rather than dangling punctuation
   const sentences = jisho.locator("[lang='ja']").filter({ hasText: "。" });
   await sentences.first().waitFor();
 
-  // Two halves, and BOTH are needed. Asserting only that the layout changes when the property is
-  // toggled passes even with the stylesheet rule deleted, because the toggle sets the value itself —
-  // verified by deleting the rule and watching the test still pass.
   const measured = await sentences.evaluateAll((nodes: HTMLElement[]) =>
     nodes.slice(0, 10).map((node) => {
-      // Height is the honest line-count proxy: ruby fragments each emit their own client rect, so
-      // counting rects counts glyph runs rather than lines.
-      const height = (): number =>
-        Math.round(node.getBoundingClientRect().height);
-      node.style.textWrapStyle = "auto";
-      const auto = height();
-      node.style.textWrapStyle = "pretty";
-      const pretty = height();
-      node.style.textWrapStyle = "";
-      return { inherited: getComputedStyle(node).textWrapStyle, auto, pretty };
+      const style = getComputedStyle(node);
+      return {
+        wrapStyle: style.textWrapStyle,
+        // The shorthand `text-wrap: pretty` also RESETS `text-wrap-mode`, so a regression to it
+        // would still report `pretty` above while silently clobbering a `nowrap` set elsewhere.
+        wrapMode: style.textWrapMode,
+        display: style.display
+      };
     })
   );
 
-  // 1. The stylesheet actually gives these elements `pretty` — this is what a deleted or
-  //    wrongly-scoped rule breaks, and what a shorthand `text-wrap` regression would still satisfy
-  //    while clobbering `text-wrap-mode`.
-  expect(measured.map((m) => m.inherited)).not.toContain("auto");
-  expect(measured[0]?.inherited).toBe("pretty");
+  // Every sentence, not just the first: the rule is scoped by `lang`, and a change that narrowed it
+  // to some elements would leave the others behind while this still passed on a sample of one.
+  expect(measured.length).toBeGreaterThan(0);
+  expect(measured.map((m) => m.wrapStyle)).not.toContain("auto");
+  expect(measured.map((m) => m.wrapMode)).not.toContain("nowrap");
 
-  // 2. And `pretty` is not a silent no-op here. It applies to the block that lays out the lines, so
-  //    on an inline container it computes correctly and does nothing; this is what would catch that.
+  // `text-wrap-style` applies to the block that lays out the lines, so on an INLINE container it
+  // computes correctly and does nothing at all. The sentence spans are flex items (blockified),
+  // which is what makes the rule take effect — assert that rather than a layout measurement.
   //
-  // Across the pool rather than on one sentence: `pretty` is conservative by design and only moves a
-  // line where there is a dangle to fix, so most sentences legitimately measure the same either way.
-  expect(measured.filter((m) => m.auto !== m.pretty).length).toBeGreaterThan(0);
+  // An earlier version measured whether a sentence actually reflowed under `pretty`. It passed
+  // locally and failed on CI, because `pretty` only moves a line where there is a dangle to fix and
+  // whether one exists depends on where the text wraps — which depends on the font, which differs
+  // between a Windows machine and a Linux runner. Chromium's line-breaking is Chromium's to test;
+  // ours is that the rule reaches these elements in a form that can take effect.
+  expect(measured.map((m) => m.display)).not.toContain("inline");
 });

@@ -8,8 +8,20 @@
  */
 import type { FrameLocator } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { returnToSearch } from "./webview";
 
 test.describe.configure({ mode: "serial" });
+
+/**
+ * Leave the panel on search, which is where every other suite expects to find it.
+ *
+ * These tests open the About view and the fixture shares ONE VS Code across files, so without this
+ * the next suite inherits a panel showing attribution — which is exactly how `smoke.e2e.ts` failed
+ * on CI with "searchbox not found" while passing in isolation locally.
+ */
+test.afterAll(async ({ jisho }) => {
+  await returnToSearch(jisho);
+});
 
 /**
  * The diagnostics the About view would copy.
