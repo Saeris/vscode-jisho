@@ -170,3 +170,4 @@ bench/baseline.json
 # deoptkit's LSP feed is a transient artifact of the last run; .deopt/baselines/ IS committed, since
 # structural findings are properties of the code rather than of the machine (see bench/README.md).
 .deopt/findings.json
+.release-check/

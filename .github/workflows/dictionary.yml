@@ -40,6 +40,14 @@ jobs:
           node-version: "lts"
           cache: true
 
+      # The data build TOKENIZES (the user dictionary is generated from JMdict), so it needs the
+      # compiled IPADIC at assets/lindera-ipadic. Missing it fails with "Dictionary path does not
+      # exist", which is how this workflow broke on 2026-08-03 and stayed broken through the schema
+      # bump to v6 — leaving the published dictionary at a schema the extension would reject. The
+      # e2e and full-test workflows provision it the same way; this one had been the odd one out.
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
       # Word DB (~218k entries) → assets/jisho.db + the jisho-full.db.zst trio (.zst, .sha256,
       # .version). Then the names DB (~743k JMnedict entries) → its own jisho-names.db.zst trio.
       - name: Build full word dictionary

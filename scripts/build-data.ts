@@ -1470,7 +1470,15 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   // Emit a tiny version sidecar so `ensureDatabase` can detect a newer build (or a variant
   // switch) and refresh the copy it caches in globalStorage — without having to open (and lock)
   // the database to read its meta.
-  const version = `${VARIANT} ${dict.dictDate} ${builtAt}`;
+  // The SCHEMA is part of the identity, not just the date. Two things depend on it:
+  //
+  //  - `check-data-release.ts` reads this sidecar off the published release to refuse an extension
+  //    release whose schema the artifact does not match. That check did not exist when the data
+  //    workflow silently broke on 2026-08-03, which left the published dictionary at schema 5 while
+  //    the extension moved to 6 — every first install would have failed on a schema mismatch.
+  //  - `ensureDatabase` compares this string opaquely, so a schema change now forces a refresh of a
+  //    cached copy that would otherwise be kept for having the same date.
+  const version = `${VARIANT} schema${SCHEMA_VERSION} ${dict.dictDate} ${builtAt}`;
   writeFileSync(`${OUT_DB}.version`, version, "utf8");
   console.log(`\nWrote ${OUT_DB} — ${total} entries (${VARIANT}).`);
 
