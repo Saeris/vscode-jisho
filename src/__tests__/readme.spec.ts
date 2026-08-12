@@ -171,6 +171,24 @@ describe("rEADME screenshots", () => {
     expect(floated.filter((tag) => !/\swidth="/.test(tag))).toEqual([]);
   });
 
+  it("sizes images that share a row", () => {
+    // WHY: the browse drill-down puts three panel captures side by side in one centred block. At
+    // their natural 410px each they overflow the column and wrap, which loses the left-to-right
+    // reading the arrangement exists to convey — so each needs an explicit width.
+    //
+    // Scoped to multi-image blocks rather than to every centred image: a lone landscape crop (the
+    // 835px editor shots) fits the column on its own and needs no width.
+    const rows = [
+      ...readme.matchAll(/<(?:div|p) align="center">([\s\S]*?)<\/(?:div|p)>/g)
+    ]
+      .map((m) => m[1])
+      .filter((block) => (block.match(/<img /g) ?? []).length > 1);
+    for (const row of rows) {
+      const imgs = [...row.matchAll(/<img[^>]*>/g)].map((m) => m[0]);
+      expect(imgs.filter((tag) => !/\swidth="/.test(tag))).toEqual([]);
+    }
+  });
+
   it("clears every float it opens", () => {
     // WHY: an uncleared float bleeds into the NEXT section, which is a layout break that shows up
     // nowhere near the markup that caused it. Walked in document order so a clear only closes a

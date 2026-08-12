@@ -40,8 +40,8 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
     - [Kanji](#kanji)
     - [Kana](#kana)
   - [Working in the editor](#working-in-the-editor)
-    - [Hover for a definition](#hover-for-a-definition)
     - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
+    - [Hover for a definition](#hover-for-a-definition)
     - [Add furigana to a selection](#add-furigana-to-a-selection)
   - [Commands](#commands)
   - [Settings](#settings)
@@ -278,19 +278,26 @@ Select one to add it to your search.
 
 ## Browsing
 
-### Vocabulary
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-vocab-dark.png" />
-  <img align="left" width="43%" hspace="8" alt="The Vocab tab listing browsable categories (result type, JLPT level, common words, language parts, usage, subject, and slang and dialect), each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-categories-dark.png" />
-  <img align="right" width="43%" hspace="8" alt="The JLPT level category opened, listing N5 through N1 with a word count beside each, above a note that the levels are an unofficial estimate." src="docs/images/browse-categories-light.png" />
-</picture>
-
-<br clear="right" />
+<div align="center">
+  <span>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-vocab-dark.png" />
+      <img width="28%" hspace="8" alt="The Vocab tab listing browsable categories (result type, JLPT level, common words, language parts, usage, subject, and slang and dialect), each with the number of groups it contains." src="docs/images/browse-vocab-light.png" />
+    </picture>
+  </span>
+  <span>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-categories-dark.png" />
+      <img width="28%" hspace="8" alt="The JLPT level category opened, listing N5 through N1 with a word count beside each, above a note that the levels are an unofficial estimate." src="docs/images/browse-categories-light.png" />
+    </picture>
+  </span>
+  <span>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-word-list-dark.png" />
+      <img width="28%" hspace="8" alt="A word list for JLPT N2 with a breadcrumb reading Vocab, JLPT level, N2, a total count, and a kana rail down the side for jumping through the list." src="docs/images/browse-word-list-light.png" />
+    </picture>
+  </span>
+</div>
 
 The four buttons along the bottom of the panel switch between searching and browsing.
 
@@ -298,24 +305,19 @@ The four buttons along the bottom of the panel switch between searching and brow
 - **Kanji**: by JLPT level, school grade, or frequency.
 - **Kana**: the gojūon chart.
 
-Browsing is two steps: a category opens its groups, and a group opens its list. The counts beside each row are live, so a category tells you how much is behind it before you commit to opening it.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/browse-word-list-dark.png" />
-  <img align="right" width="42%" alt="A word list for JLPT N2 with a breadcrumb reading Vocab, JLPT level, N2, a total count, and a kana rail down the side for jumping through the list." src="docs/images/browse-word-list-light.png" />
-</picture>
-
-Selecting a group opens its word list.
+Browsing is two steps, shown above from left to right: a category opens its groups, and a group opens its list. The counts beside each row are live, so a category tells you how much is behind it before you commit to opening it.
 
 The breadcrumb across the top tracks where you are, and every step in it is a link back.
 
-Lists open in gojūon order (**あ–ん**), which is the order kana are taught and the one to reach for when you know roughly how a word sounds. The rail down the side jumps you to a kana, so a 1,700-word list stays navigable. Switch to **By frequency** for the most common words first.
+### Vocabulary
 
-<br clear="right" /><br />
+Vocabulary lists open in gojūon order (**あ–ん**), which is the order kana are taught and the one to reach for when you know roughly how a word sounds. The rail down the side jumps you to a kana, so a 1,700-word list stays navigable. Switch to **By frequency** for the most common words first.
+
+Selecting an entry will open that word's page.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-browse-list-dark.png" />
-  <img align="left" width="42%" alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
+  <img align="right" width="42%" alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
 </picture>
 
 ### Kanji
@@ -324,13 +326,15 @@ Kanji browse as a grid instead, each character with its meaning.
 
 The grid fits far more on screen than a list would, which suits browsing a level or a school grade where you are looking for what you do not recognise rather than for one particular character.
 
-Each tile carries a short meaning under the character, so the set is scannable without opening anything. Selecting a tile opens that character's page.
+Each tile carries a short meaning under the character, so the set is scannable without opening anything.
 
-<br clear="left" /><br />
+Selecting a tile opens that character's page.
+
+<br clear="right" /><br />
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kana-chart-dark.png" />
-  <img align="right" width="42%" alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
+  <img align="left" width="42%" alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
 </picture>
 
 ### Kana
@@ -341,36 +345,23 @@ The chart is laid out in gojūon order — rows by consonant, columns by vowel �
 
 Selecting a kana opens its stroke order rather than searching: a single syllable is not a word, so there is nothing to look up. Obsolete kana (ゐ, ゑ) are dimmed rather than hidden, since they still turn up in older text.
 
-<br clear="right" />
+<br clear="left" />
 
 ## Working in the editor
 
-Jisho also works on the file you have open. These features apply to **Markdown and plain-text
-files**.
-
-### Hover for a definition
-
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/editor-hover-dark.png" />
-  <img alt="A hover card over the word 今日 in a Markdown file, showing its reading きょう, the meaning today, part-of-speech tags, an example sentence, and a link reading Open in Jisho." src="docs/images/editor-hover-light.png" />
-</picture>
-</p>
-
-Point at a Japanese word to see what it means.
-
-The card gives you the reading, the meaning, and, for a conjugated word, how it was formed. **Open in Jisho** takes you to the full entry.
-
-To turn hovers off, set `vscode-jisho.hover.enabled` to `false`.
+Jisho also works on the file you have open. These features apply to **Markdown and plain-text files**.
 
 ### Color Japanese by part of speech
 
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/pos-highlighting-dark.png" />
-  <img alt="A Markdown file of Japanese study notes with each word colored by its part of speech, making the word boundaries visible in text that has no spaces." src="docs/images/pos-highlighting-light.png" />
-</picture>
-</p>
+<div align="center">
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/pos-highlighting-dark.png" />
+      <img alt="A Markdown file of Japanese study notes with each word colored by its part of speech, making the word boundaries visible in text that has no spaces." src="docs/images/pos-highlighting-light.png" />
+    </picture>
+    <figcaption><small><em>Jisho provides parts of speech "syntax highlighting" to aid in reading Japanese text.</em></small></figcaption>
+  </figure>
+</div>
 
 Japanese does not put spaces between words. Turning on part-of-speech coloring gives you the word boundaries, with verbs, nouns, particles and auxiliaries each in their own color.
 
@@ -378,16 +369,33 @@ This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`.
 
 Three alternative palettes are available for protanopia, deuteranopia and tritanopia. They are not tinted versions of the standard palette. Each one re-picks its colors to stay distinguishable. Set `vscode-jisho.appearance.palette` to choose one.
 
+### Hover for a definition
+
+<div align="center">
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/editor-hover-dark.png" />
+      <img alt="A hover card over the word 今日 in a Markdown file, showing its reading きょう, the meaning today, part-of-speech tags, an example sentence, and a link reading Open in Jisho." src="docs/images/editor-hover-light.png" />
+    </picture>
+    <figcaption><small><em>Point at a Japanese word to see what it means.</em></small></figcaption>
+  </figure>
+</div>
+
+Hover cards give you the reading, the meaning, and, for a conjugated word, how it was formed. **Open in Jisho** takes you to the full entry.
+
+To turn hovers off, set `vscode-jisho.hover.enabled` to `false`.
+
 ### Add furigana to a selection
 
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/add-furigana-dark.png" />
-  <img alt="A Markdown file where every kanji word now carries its reading in Markdown ruby markup, for example 読書 written as an opening brace, 読書, a pipe, どくしょ, and a closing brace." src="docs/images/add-furigana-light.png" />
-</picture>
-</p>
-
-Furigana are the small kana printed above kanji to give their reading.
+<div align="center">
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/add-furigana-dark.png" />
+      <img alt="A Markdown file where every kanji word now carries its reading in Markdown ruby markup, for example 読書 written as an opening brace, 読書, a pipe, どくしょ, and a closing brace." src="docs/images/add-furigana-light.png" />
+    </picture>
+    <figcaption><small><em>Furigana are the small kana printed above kanji to give their reading.</em></small></figcaption>
+  </figure>
+</div>
 
 Select some text and run **Jisho: Add Furigana (ふりがな)**. **Jisho: Remove Furigana** undoes it.
 
