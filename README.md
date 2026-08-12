@@ -85,7 +85,7 @@ This walkthrough covers one lookup, start to finish.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/search-results-dark.png" />
-  <img align="right" width="42%" alt="The Jisho panel with 図書館 in the search field and a list of results below it: 図書館 itself, then 図書館員, 図書館学, 図書館長 and other compounds, each with its reading and meaning, and a Kanji section beneath." src="docs/images/search-results-light.png" />
+  <img align="right" width="42%" alt="The Jisho panel with a search term in the field and its results below: each entry's writing, reading, tags and meaning, with a Kanji section beneath listing the characters that matched." src="docs/images/search-results-light.png" />
 </picture>
 
 **1. Open the panel.** Run **View: Show Jisho** from the Command Palette
