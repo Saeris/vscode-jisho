@@ -357,28 +357,6 @@ test("capture: the word page", async () => {
   });
 });
 
-test("capture: the headword and its tags", async () => {
-  // A CROP of the top of the entry: reading, pitch contour, writings, and the tag pills. The prose
-  // labels these individually, and a whole-panel shot makes each one small.
-  const win = vscode!.window;
-  await captureBothThemes(vscode!, "word-headword", async () => {
-    const frame = await jishoFrame(win);
-    await returnToSearch(frame);
-    await fillSearch(frame, "食べる");
-    await frame.getByRole("option").first().click();
-    // Cropped from the BACK control down to the tag row, rather than from the reading itself: the
-    // reading is rendered as pitch-contour markup rather than a plain text node, so matching it by
-    // text picks up the conjugated forms further down the page instead.
-    const top = frame.getByRole("button", { name: /back/i }).first();
-    const tag = frame.getByRole("button", { name: /ichidan verb/i }).first();
-    await expect(top).toBeVisible();
-    await expect(tag).toBeVisible();
-    // A panel-width SLICE, not the union of those two boxes: cropping tight to them gave a 94px
-    // sliver that clipped the pitch contour and cut the tag pills mid-word.
-    return sliceOfPanel(win, [top, tag]);
-  });
-});
-
 test("capture: the conjugation table", async () => {
   // Scrolled to the TOP of the panel, not merely into view: `scrollIntoViewIfNeeded` stops as soon
   // as the heading is technically visible, which left the earlier capture showing the heading at
