@@ -176,13 +176,18 @@ test("capture: the search box and its tools", async () => {
 });
 
 test("capture: searching a word", async () => {
+  // 図書館 rather than 食べる, which has two entries and left two thirds of the panel empty — this
+  // is the README's first look at a result list, so it should show a list. 図書館 fills it
+  // (図書館員, 図書館学, 図書館長 …) while still leading with the plain word.
   const win = vscode!.window;
   await captureBothThemes(vscode!, "search-results", async () => {
     const frame = await jishoFrame(win);
     await returnToSearch(frame);
-    await fillSearch(frame, "食べる");
-    // Assert the ranking the README claims: 食べる leads, not a rarer eat-verb.
-    await expect(frame.getByRole("option").first()).toContainText("食べる");
+    await fillSearch(frame, "図書館");
+    // Assert the ranking the README claims: the plain word leads, not a longer compound.
+    await expect(frame.getByRole("option").first()).toContainText("図書館");
+    // Enough rows to fill the list, which is the reason this term was chosen.
+    await expect(frame.getByRole("option").nth(5)).toBeVisible();
     return sidebar(win);
   });
 });

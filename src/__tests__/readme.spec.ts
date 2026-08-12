@@ -143,6 +143,56 @@ describe("rEADME screenshots", () => {
     expect(broken).toEqual([]);
   });
 
+  it("gives every <picture> block a dark source", () => {
+    // WHY: a `<picture>` that lost its `<source>` serves the LIGHT image to a dark-theme reader. It
+    // still displays, so nothing looks broken and the regression survives review.
+    const blocks = [...readme.matchAll(/<picture>([\s\S]*?)<\/picture>/g)].map(
+      (m) => m[1]
+    );
+    expect(blocks.length).toBeGreaterThan(0);
+    const missing = blocks.filter(
+      (b) =>
+        !b.includes("prefers-color-scheme: dark") || !b.includes("-dark.png")
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("floats only images that carry their own width", () => {
+    // WHY: `align` without `width` does not scale the image — it floats it at its natural size,
+    // which for a 410px panel capture overruns the column and gets clipped rather than fitted.
+    // Established on the rendered page while working out the float markup, so this pins it.
+    //
+    // (`align` must sit on the <img> itself, not on a wrapping <picture> or <p>: the wrapper forms
+    // are preserved by GitHub's sanitizer but produce no float at all.)
+    const floated = [
+      ...readme.matchAll(/<img[^>]*align="(?:left|right)"[^>]*>/g)
+    ].map((m) => m[0]);
+    expect(floated.length).toBeGreaterThan(0);
+    expect(floated.filter((tag) => !/\swidth="/.test(tag))).toEqual([]);
+  });
+
+  it("clears every float it opens", () => {
+    // WHY: an uncleared float bleeds into the NEXT section, which is a layout break that shows up
+    // nowhere near the markup that caused it. Walked in document order so a clear only closes a
+    // float that is actually open.
+    const events = [
+      ...[...readme.matchAll(/<img[^>]*align="(left|right)"/g)].map(
+        (m) => [m.index, "float", m[1]] as const
+      ),
+      ...[...readme.matchAll(/<br clear="(left|right|both)" ?\/>/g)].map(
+        (m) => [m.index, "clear", m[1]] as const
+      )
+    ].sort((a, b) => a[0] - b[0]);
+
+    let open: string[] = [];
+    for (const [, kind, side] of events) {
+      if (kind === "float") open.push(side);
+      else if (side === "both") open = [];
+      else open = open.filter((s) => s !== side);
+    }
+    expect(open).toEqual([]);
+  });
+
   it("has both themes for every scenario it shows", () => {
     // WHY: the `<picture>` blocks pair a dark `<source>` with a light `<img>`. A half-generated
     // pair means GitHub's dark readers get a broken image while light readers see nothing wrong,
