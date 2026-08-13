@@ -1,5 +1,12 @@
 # Changelog
 
+
+## 0.1.1
+<sub>2026-08-13</sub>
+
+-  *(patch)*
+  Fixes the first publish, which the Marketplace rejected: two of the stroke-order drawings, named after the characters they draw, collided during upload. Inside the published package they are now named by codepoint instead.
+
 ## 0.1.0
 <sub>2026-08-13</sub>
 
