@@ -8,6 +8,18 @@ interface NavigationTabsProps {
   onSelect: (tab: TabId) => void;
   /** One panel per tab, keyed by id. */
   panels: Record<TabId, React.ReactNode>;
+  /**
+   * Collapse the panels but keep the bar, for when a pushed view is showing beneath it.
+   *
+   * A word list opened from the Vocab tab is a real pushed view, rendered as a SIBLING of this
+   * component — deliberately, because `browseGroup` exists to fix the breadcrumb that arrangement
+   * broke. So the bar has to stay while its own panels get out of the way, rather than the list
+   * moving inside a panel.
+   *
+   * The panels stay MOUNTED (`shouldForceMount` is what makes a tab remember where you were);
+   * only their layout box collapses.
+   */
+  panelsHidden?: boolean;
 }
 
 /**
@@ -30,10 +42,16 @@ interface NavigationTabsProps {
 export const NavigationTabs = ({
   selected,
   onSelect,
-  panels
+  panels,
+  panelsHidden = false
 }: NavigationTabsProps): React.ReactElement => (
   <Tabs
     className={styles.tabs}
+    // Collapsed: the element gives up its full height so the pushed view rendered beside it fills
+    // the panel, leaving only the bar. Without this the bar floats to the TOP — it sits at the
+    // bottom only because the panels fill the space above it.
+    data-collapsed={panelsHidden || undefined}
+    data-tabs=""
     selectedKey={selected}
     // React Aria's key type is `string | number`; the ids come from `TABS`, so this only ever
     // narrows a value we put there ourselves — but check rather than assert.
@@ -42,7 +60,13 @@ export const NavigationTabs = ({
     }}
   >
     {TABS.map((t) => (
-      <TabPanel key={t.id} id={t.id} className={styles.panel} shouldForceMount>
+      <TabPanel
+        key={t.id}
+        id={t.id}
+        className={styles.panel}
+        data-collapsed={panelsHidden || undefined}
+        shouldForceMount
+      >
         {panels[t.id]}
       </TabPanel>
     ))}

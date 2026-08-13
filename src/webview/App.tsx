@@ -7,6 +7,7 @@ import {
   activeView,
   canGoForward,
   canGoHome,
+  showsTabs,
   navigationMachineFrom
 } from "./machines/navigation";
 import { NavigationTabs } from "./components/NavigationTabs";
@@ -87,10 +88,13 @@ export const App = (): React.ReactElement => {
 
           The bar is deliberately absent above depth 1: on a word or kanji page the tabs are
           irrelevant chrome, and Home is the way back to whichever one you left. */}
-      <Activity mode={view.name === "search" ? "visible" : "hidden"}>
+      <Activity mode={showsTabs(state.context) ? "visible" : "hidden"}>
         <NavigationTabs
           selected={state.context.tab}
           onSelect={(tab) => send({ type: "selectTab", tab })}
+          // A word list opened from the Vocab tab keeps the bar but not the panels: it renders as a
+          // sibling below, so both would otherwise claim the same space.
+          panelsHidden={view.name === "wordList"}
           panels={{
             search: (
               <SearchResults

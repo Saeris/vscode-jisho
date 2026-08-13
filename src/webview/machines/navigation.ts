@@ -549,3 +549,21 @@ export const canGoForward = (context: NavContext): boolean =>
  */
 export const canGoHome = (context: NavContext): boolean =>
   context.stack.length > 2;
+
+/**
+ * Whether the navigation root's tab bar should stay visible under the current view.
+ *
+ * The root itself always shows it. A `wordList` opened straight from the Vocab tab does too, even
+ * though it is a pushed view: it is the second step of browsing (category → group → list), and
+ * hiding the tabs there made the Vocab tab the only browse section that lost its chrome mid-task —
+ * Kanji and Kana keep theirs because they drill down in local state rather than by pushing.
+ *
+ * Depth is what separates the two cases. From the Vocab tab the list sits directly on the root
+ * (depth 2); reached from a tag pill on a word page, or from a `#tag` typed into search, it sits
+ * deeper — and there the tabs would be the irrelevant chrome the root comment describes.
+ */
+export const showsTabs = (context: NavContext): boolean => {
+  const view = activeView(context);
+  if (view.name === "search") return true;
+  return view.name === "wordList" && context.stack.length === 2;
+};

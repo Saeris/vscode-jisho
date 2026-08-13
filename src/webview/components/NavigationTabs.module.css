@@ -68,3 +68,25 @@
   outline: 1px solid var(--jisho-focus);
   outline-offset: -1px;
 }
+
+/*
+ * Collapsed: a pushed view is rendered as a SIBLING of this component (deliberately — see
+ * `browseGroup` in the navigation machine), so the bar has to stay while everything else gets out
+ * of the way.
+ *
+ * Both halves are needed. The panels lose their box but stay mounted, since `shouldForceMount` is
+ * what makes a tab remember where you were. And the container gives up `height: 100%`, or the bar
+ * floats to the top of the panel — it sits at the bottom only because the panels fill the space
+ * above it. `order` keeps the bar last in the flex column either way.
+ */
+.tabs[data-collapsed] {
+  height: auto;
+  flex: 0 0 auto;
+  /* Last in the root's flex column, so the bar stays at the bottom edge where it always sits. The
+     pushed view precedes it in the DOM but takes the space above it. */
+  order: 2;
+}
+
+.panel[data-collapsed] {
+  display: none;
+}

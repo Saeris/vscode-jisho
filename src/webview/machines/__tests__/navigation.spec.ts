@@ -5,6 +5,7 @@ import {
   canGoBack,
   canGoForward,
   canGoHome,
+  showsTabs,
   hydrateContext,
   navigationMachine,
   navigationMachineFrom
@@ -509,6 +510,38 @@ describe("navigationMachineFrom", () => {
       literal: "水"
     });
     expect(actor.getSnapshot().context.searchQuery).toBe("みず");
+  });
+
+  it("keeps the tab bar on a word list opened from the Vocab tab", () => {
+    // WHY: browsing is category → group → list, and the Vocab tab was the only section that lost
+    // its tab bar partway through. Kanji and Kana keep theirs because they drill down in local
+    // state; Vocab pushes a real view, and the bar was hidden for every pushed view alike.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "selectTab", tab: "vocab" });
+    actor.send({ type: "openWordList", id: "computing" });
+    expect(showsTabs(actor.getSnapshot().context)).toBe(true);
+  });
+
+  it("hides the tab bar on a word list reached from a word page", () => {
+    // WHY: the same view, arrived at differently. A tag pill on a word page also opens a word list,
+    // and there the tabs ARE the irrelevant chrome the root comment describes — you are two levels
+    // into a lookup, not browsing. Depth is what tells the two apart, so this is the case that
+    // stops the fix above from simply un-hiding the bar everywhere.
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "w1" });
+    actor.send({ type: "openWordList", id: "computing" });
+    expect(showsTabs(actor.getSnapshot().context)).toBe(false);
+  });
+
+  it("keeps the tab bar on the root itself", () => {
+    const actor = createActor(navigationMachine).start();
+    expect(showsTabs(actor.getSnapshot().context)).toBe(true);
+  });
+
+  it("hides the tab bar on a detail view", () => {
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "openWord", id: "w1" });
+    expect(showsTabs(actor.getSnapshot().context)).toBe(false);
   });
 
   it("starts fresh when nothing was persisted", () => {
