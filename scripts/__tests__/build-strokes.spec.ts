@@ -302,6 +302,30 @@ describe("shipped stroke SVG filenames", () => {
     expect(collisions).toEqual([]);
   });
 
+  it("every shipped drawing has an ASCII name available for packaging", () => {
+    // WHY: the 0.1.0 publish was rejected — "Item has already been added. Key in dictionary:
+    // 'extension/assets/kana-svgs/….svg'" — because the Marketplace keys .vsix entries in a
+    // case-insensitive .NET dictionary and two distinct kana folded onto one key there.
+    //
+    // The fix keeps the readable literal names on disk (greppable, which is why they exist) and
+    // renames to the decimal codepoint only inside the .vsix — `package-platforms.ts` stages the
+    // rename and restores it. That transform is only sound if every filename IS a single character
+    // whose codepoint can name it, so this asserts the precondition rather than the output: a
+    // drawing that slipped in under a two-character name would silently keep its non-ASCII name in
+    // the bundle and reintroduce the collision.
+    for (const dir of ["kanji-svgs", "kana-svgs"]) {
+      const names = readdirSync(join(process.cwd(), "assets", dir)).filter(
+        (f) => f.endsWith(".svg")
+      );
+      expect(names.length).toBeGreaterThan(0);
+      const unnameable = names.filter((n) => {
+        const literal = n.slice(0, -".svg".length);
+        return Array.from(literal).length !== 1;
+      });
+      expect(unnameable).toEqual([]);
+    }
+  });
+
   it("resolves a compatibility codepoint to the unified drawing", () => {
     // WHY: dropping the compat files must not strand the 37 compat literals Kanjidic carries — the
     // host normalizes so they land on the unified drawing. Codepoints are built by escape, never

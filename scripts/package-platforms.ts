@@ -20,8 +20,9 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
+  readdirSync,
+  renameSync,
   rmSync,
   writeFileSync
 } from "node:fs";
@@ -133,6 +134,47 @@ const fetchPlatformPackage = async (
   untarTo(dest, new Uint8Array(await res.arrayBuffer()));
 };
 
+/**
+ * The stroke-SVG directories, whose filenames are the characters they draw.
+ *
+ * Readable on disk — `assets/kanji-svgs/水.svg` is greppable and obvious — and NOT shippable. The
+ * 0.1.0 publish was rejected by the Marketplace with "Item has already been added. Key in
+ * dictionary: 'extension/assets/kana-svgs/….svg'": its ingestion keys entries in a
+ * case-insensitive .NET dictionary, and two distinct kana folded onto one key there.
+ *
+ * The fold is not reproducible locally — `vsce package` emits correct UTF-8 entry names with no
+ * duplicates under NFC, NFKC or case folding — so this does not try to find the offending pairs. It
+ * removes the possibility: inside the .vsix every drawing is named by its decimal codepoint, which
+ * is pure ASCII and cannot collide under any normalization, case fold or filesystem encoding.
+ * (Decimal because that is what upstream AnimCJK serves, so the shipped name matches its source.)
+ *
+ * Renamed only for packaging, then restored — `#strokeSvg` derives the same codepoint name when it
+ * reads, so the extension resolves the shipped files while the repository keeps its readable ones.
+ */
+const SVG_DIRS = ["kanji-svgs", "kana-svgs"] as const;
+
+/** Rename every drawing to `<codepoint>.svg`, returning the moves so they can be undone. */
+const toCodepointNames = (): Array<{ from: string; to: string }> => {
+  const moves: Array<{ from: string; to: string }> = [];
+  for (const dirName of SVG_DIRS) {
+    const dir = join(root, "assets", dirName);
+    if (!existsSync(dir)) continue;
+    for (const entry of readdirSync(dir)) {
+      if (!entry.endsWith(".svg")) continue;
+      const literal = entry.slice(0, -".svg".length);
+      const codepoint = literal.codePointAt(0);
+      // Already numeric, or not a single character: leave it alone rather than guess.
+      if (codepoint === undefined || /^[0-9]+$/u.test(literal)) continue;
+      if (Array.from(literal).length !== 1) continue;
+      const from = join(dir, entry);
+      const to = join(dir, `${codepoint}.svg`);
+      renameSync(from, to);
+      moves.push({ from, to });
+    }
+  }
+  return moves;
+};
+
 const vsce = (target: string, outFile: string): void => {
   execFileSync(
     "vp",
@@ -186,6 +228,10 @@ const main = async (): Promise<void> => {
   // each .vsix contains exactly one platform binary per dep.
   rmSync(BACKUP_DIR, { recursive: true, force: true });
   mkdirSync(BACKUP_DIR, { recursive: true });
+
+  // Stage the stroke drawings under ASCII names for the duration of packaging. Inside the try so a
+  // failed target cannot leave the working tree renamed; see `toCodepointNames` for why.
+  let svgMoves: Array<{ from: string; to: string }> = [];
   for (const { dep } of deps) {
     const platformPkgs = new Set(Object.values(dep.pkgFor));
     const slot = backupSlot(dep.name);
@@ -202,6 +248,10 @@ const main = async (): Promise<void> => {
   mkdirSync(OUT_DIR, { recursive: true });
 
   try {
+    svgMoves = toCodepointNames();
+    console.log(
+      `  staged ${svgMoves.length} stroke SVGs under codepoint names`
+    );
     for (const target of TARGETS) {
       console.log(`\n── ${target} ──`);
       // Install exactly this target's binary for every native dep.
@@ -222,6 +272,8 @@ const main = async (): Promise<void> => {
       }
     }
   } finally {
+    // Put the readable SVG filenames back, whatever happened.
+    for (const { from, to } of svgMoves) renameSync(to, from);
     // Restore whatever was installed before we started, per dep.
     for (const { dep } of deps) {
       const slot = backupSlot(dep.name);

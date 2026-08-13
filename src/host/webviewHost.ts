@@ -428,16 +428,29 @@ export class JishoViewProvider
     const literal = request.literal.normalize("NFC");
     // The literal names a file, so insist on exactly one code point before touching the filesystem.
     if (Array.from(literal).length === 1) {
+      // TWO candidate names, because the drawings are stored under different names in the two places
+      // this code runs:
+      //
+      //  - In the repo (F5 development) they keep their readable literal names — `水.svg` is what a
+      //    contributor greps for.
+      //  - In the .vsix they are renamed to their decimal codepoint by package-platforms.ts, because
+      //    the Marketplace rejected non-ASCII entry names as duplicate dictionary keys.
+      //
+      // Codepoint first: that is what ships, so the packaged extension finds its file on the first
+      // try and the literal is only reached during development.
+      const names = [`${literal.codePointAt(0)}.svg`, `${literal}.svg`];
       // Two directories because the two sets carry different licences (Arphic PL vs LGPL — see
       // build-strokes.ts). A literal belongs to exactly one of them, so trying both in turn keeps
       // that split invisible to callers rather than making every caller classify the character.
-      for (const dir of ["kanji-svgs", "kana-svgs"]) {
+      for (const [dir, name] of ["kanji-svgs", "kana-svgs"].flatMap((d) =>
+        names.map((n) => [d, n] as const)
+      )) {
         try {
           const uri = vscode.Uri.joinPath(
             this.#context.extensionUri,
             "assets",
             dir,
-            `${literal}.svg`
+            name
           );
           svg = new TextDecoder().decode(
             await vscode.workspace.fs.readFile(uri)
