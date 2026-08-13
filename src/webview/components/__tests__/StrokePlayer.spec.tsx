@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
-import svg from "../../../../assets/kanji-svgs/近.svg?raw";
+import svg from "../../../../assets/kanji-svgs/36817.svg?raw";
 import { MS_PER_STROKE, StrokePlayer } from "../StrokePlayer";
 
 /**

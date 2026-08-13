@@ -284,22 +284,27 @@ describe("kana stroke SVGs", () => {
 });
 
 describe("shipped stroke SVG filenames", () => {
-  const dir = join(process.cwd(), "assets", "kanji-svgs");
+  const dirs = ["kanji-svgs", "kana-svgs"].map((d) =>
+    join(process.cwd(), "assets", d)
+  );
 
-  it("never ships two literals that a normalizing filesystem sees as one file", () => {
-    // WHY: the FILESYSTEM decides which names are distinct. macOS folds a CJK Compatibility
-    // Ideograph onto the unified codepoint it decomposes to, so shipping both means one silently
-    // overwrites the other: an unclean checkout, and ~59 kanji drawn with the WRONG glyph.
-    // Vacuous on macOS (the files cannot coexist to be seen); it bites on CI and Windows, which is
-    // where they get generated. Prevention lives in build-strokes.ts.
-    const names = readdirSync(dir).filter((f) => f.endsWith(".svg"));
-    const byNormalized = new Map<string, string[]>();
-    for (const name of names) {
-      const key = name.normalize("NFC");
-      byNormalized.set(key, [...(byNormalized.get(key) ?? []), name]);
+  it("names every drawing by its codepoint, so no filename is non-ASCII", () => {
+    // WHY: the filename used to BE the character, which is far easier to read while developing and
+    // broke in two environments that neither Windows nor Linux can reproduce.
+    //
+    //  - macOS reported all 146 kana drawings as modified after a fresh clone: HFS+/APFS normalize
+    //    to a decomposed form that git does not.
+    //  - The Marketplace rejected the 0.1.0 upload outright — "Item has already been added. Key in
+    //    dictionary: 'extension/assets/kana-svgs/….svg'" — a case-insensitive .NET dictionary
+    //    folding two distinct kana onto one key.
+    //
+    // Digits cannot collide under any normalization, case fold or filesystem encoding, which is why
+    // this asserts the SHAPE of every name rather than hunting for the specific pairs that folded.
+    for (const dir of dirs) {
+      const names = readdirSync(dir).filter((f) => f.endsWith(".svg"));
+      expect(names.length).toBeGreaterThan(0);
+      expect(names.filter((n) => !/^[0-9]+\.svg$/u.test(n))).toEqual([]);
     }
-    const collisions = [...byNormalized.values()].filter((v) => v.length > 1);
-    expect(collisions).toEqual([]);
   });
 
   it("resolves a compatibility codepoint to the unified drawing", () => {
@@ -309,10 +314,10 @@ describe("shipped stroke SVG filenames", () => {
     const compat = String.fromCodePoint(0xfa47); // CJK COMPATIBILITY IDEOGRAPH-FA47
     const unified = String.fromCodePoint(0x6f22); // 漢
     expect(compat.normalize("NFC")).toBe(unified);
-    expect(existsSync(join(dir, `${unified}.svg`))).toBe(true);
-    // readdir, not existsSync: a normalizing filesystem RESOLVES the compat name to the
-    // unified file, so an existence check would pass on macOS and fail on Windows. The stored
-    // name is what we care about, and only the directory listing reports it faithfully.
-    expect(readdirSync(dir)).not.toContain(`${compat}.svg`);
+    // The unified drawing ships under ITS codepoint; the compat one has no file of its own, and the
+    // host folds onto the unified name before it reads. Both are plain numbers now, so this is a
+    // straight existence check rather than the readdir dance the literal names needed.
+    expect(existsSync(join(dirs[0], `28450.svg`))).toBe(true);
+    expect(existsSync(join(dirs[0], `64071.svg`))).toBe(false);
   });
 });

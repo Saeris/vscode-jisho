@@ -24,6 +24,7 @@ import { NamesDictionary } from "./names";
 import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
 import { CLASSIFIER_BY_ID } from "../shared/classifiers";
+import { strokeSvgName } from "../shared/strokeSvgName";
 import type {
   BrowseRequest,
   ClearRecentSearchesRequest,
@@ -426,8 +427,10 @@ export class JishoViewProvider
     // see build-strokes.ts), so fold compat codepoints onto it rather than 404 the 37 Kanjidic
     // literals that use them.
     const literal = request.literal.normalize("NFC");
-    // The literal names a file, so insist on exactly one code point before touching the filesystem.
-    if (Array.from(literal).length === 1) {
+    // Files are named by codepoint (see `strokeSvgName`), which also rejects anything that is not a
+    // single character — a digraph has no drawing and must not become a filesystem probe.
+    const name = strokeSvgName(literal);
+    if (name !== undefined) {
       // Two directories because the two sets carry different licences (Arphic PL vs LGPL — see
       // build-strokes.ts). A literal belongs to exactly one of them, so trying both in turn keeps
       // that split invisible to callers rather than making every caller classify the character.
@@ -437,7 +440,7 @@ export class JishoViewProvider
             this.#context.extensionUri,
             "assets",
             dir,
-            `${literal}.svg`
+            `${name}.svg`
           );
           svg = new TextDecoder().decode(
             await vscode.workspace.fs.readFile(uri)

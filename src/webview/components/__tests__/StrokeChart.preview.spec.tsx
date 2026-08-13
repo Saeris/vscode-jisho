@@ -2,7 +2,7 @@ import { describe, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "@testing-library/react";
 // ?raw, not readFileSync: this runs in a real Chromium, so the SVG has to come through the bundler.
-import svg from "../../../../assets/kanji-svgs/近.svg?raw";
+import svg from "../../../../assets/kanji-svgs/36817.svg?raw";
 import { StrokeChart } from "../StrokeChart";
 import { StrokePlayer } from "../StrokePlayer";
 
