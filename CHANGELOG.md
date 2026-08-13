@@ -2,6 +2,15 @@
 
 
 
+
+## 0.1.3
+<sub>2026-08-13</sub>
+
+- [#5](https://github.com/Saeris/vscode-jisho/pull/5)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Fixes the prefilled bug report opening with `%23%23%23` where its `###` headings belong, which left reporters writing around a broken template. VS Code re-encoded the report while opening it; the URL is now handed over in a form it leaves alone.
+- [#5](https://github.com/Saeris/vscode-jisho/pull/5)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Fixes Cmd+A not selecting the query in the search box on macOS, so retyping over a search no longer means deleting it a character at a time. The search box now handles Select All itself instead of relying on a default that VS Code claims first.
+
 ## 0.1.2
 <sub>2026-08-13</sub>
 
