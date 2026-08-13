@@ -10,7 +10,10 @@ import {
   TokenInput,
   TokenFieldValue
 } from "react-aria-components";
-import { tokenFieldPositionToDOMRange } from "react-aria-components/TokenField";
+import {
+  setTokenFieldSelection,
+  tokenFieldPositionToDOMRange
+} from "react-aria-components/TokenField";
 import type { TokenFieldSegment } from "react-aria-components/TokenField";
 import {
   findClassifier,
@@ -153,6 +156,40 @@ export const TagSearchField = ({
   };
 
   /**
+   * Select All, which the platform does NOT give this field for free.
+   *
+   * The box is a contenteditable `TokenField` (#27), not an `<input>`, so the browser has no
+   * select-all to apply to it — nothing happens, and on macOS the press instead reads as VS Code's
+   * own "Select All". Reported as issue #4; Ctrl+A on Windows and Linux is the same press.
+   *
+   * VS Code's webview host special-cases exactly Cmd/Ctrl+C, V and X in its keydown handler and
+   * forwards everything else to the workbench verbatim (`pre/index.html`, `isCopyPasteOrCut`), which
+   * is why copy and paste work in this field and A alone does not. That forwarding is unconditional
+   * — it does not consult `defaultPrevented` — so `preventDefault` here is NOT what saves us. What
+   * saves us is order: our handler runs first and leaves a real selection behind.
+   *
+   * The selection goes through React Aria's own `setTokenFieldSelection` rather than
+   * `document.execCommand("selectAll")` or a hand-built `Range`, so the tokens stay atomic and the
+   * field's internal caret bookkeeping is updated with it.
+   */
+  const selectAll = (e: React.KeyboardEvent): void => {
+    const el = boxRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const { segments } = value;
+    const last = segments.length - 1;
+    setTokenFieldSelection(
+      el,
+      { index: 0, offset: 0 },
+      // The end of the final segment. An empty field has no segments at all, in which case the
+      // start position is already the end and the call is a no-op.
+      last < 0
+        ? { index: 0, offset: 0 }
+        : { index: last, offset: segments[last].text.length }
+    );
+  };
+
+  /**
    * Guard against React Aria delivering one keydown twice.
    *
    * `useTokenField` routes `onKeyDown` through `useKeyboard`, and a single press arrives as two
@@ -274,6 +311,12 @@ export const TagSearchField = ({
           className={styles.field}
           autoFocus
           onKeyDown={(e) => {
+            // Select All. Idempotent, so it runs without the `once` guard — a doubled delivery just
+            // selects the same range twice.
+            if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+              selectAll(e);
+              return;
+            }
             // Enter on a lone tag opens its list — the keyboard shortcut for browsing to it. Only
             // when the menu is CLOSED; with it open, Autocomplete's Enter commits the highlighted
             // suggestion, and the two must not collide.

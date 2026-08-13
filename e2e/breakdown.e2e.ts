@@ -40,6 +40,39 @@ test("typing a sentence leaves the query exactly as typed", async () => {
   expect(await searchText(frame)).toBe(SENTENCE);
 });
 
+test("select-all covers the whole query, so typing over it replaces everything", async () => {
+  // WHY (issue #4): Cmd+A did nothing in the search box on macOS. The box is a contenteditable
+  // TokenField, and Chromium's native select-all is what makes Ctrl+A work on Windows and Linux —
+  // but on macOS the Cmd chord reaches VS Code's workbench first and runs ITS "Select All" instead,
+  // leaving the field untouched. So the field has to handle the press itself.
+  //
+  // This test cannot reproduce the macOS-only interception on a Windows or Linux runner: the native
+  // default already covers it there, and it passed before the handler existed. What it CAN pin is
+  // that our handler produces a correct full-width selection on every platform, which is the half
+  // that would regress silently if someone removed it as dead code.
+  const win = vscode!.window;
+  const frame = await jishoFrame(win);
+
+  await fillSearch(frame, SENTENCE);
+  expect(await searchText(frame)).toBe(SENTENCE);
+
+  const box = frame.getByRole("searchbox");
+  await box.click();
+  await box.press("ControlOrMeta+a");
+
+  // The DOM selection spans the whole query, not merely a collapsed caret. Read directly rather
+  // than inferred from typing: overwriting proves the selection was non-empty, not that it reached
+  // both ends.
+  const selected = await box.evaluate(
+    (el) => el.ownerDocument.getSelection()?.toString() ?? ""
+  );
+  expect(selected).toBe(SENTENCE);
+
+  // And the consequence the user actually reported: one character replaces the lot.
+  await box.pressSequentially("水");
+  expect(await searchText(frame)).toBe("水");
+});
+
 test("the breakdown bar filters in place instead of replacing the query", async () => {
   // WHY (#16): the whole point is that the sentence SURVIVES the tap. The old behaviour overwrote
   // the box with the chip's lemma, which is what made chip-to-chip movement impossible.

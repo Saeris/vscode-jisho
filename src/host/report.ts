@@ -54,7 +54,35 @@ export const openIssueReport = async (
       "The report was too long to prefill. It has been copied to your clipboard — paste it into the issue."
     );
   }
-  await vscode.env.openExternal(vscode.Uri.parse(url));
+  await openUrl(url);
+};
+
+/**
+ * Hand `openExternal` the URL as a STRING, never as a parsed `Uri`.
+ *
+ * `Uri.parse` DECODES the query into its components, so `%23` (an escaped `#`, which must stay
+ * escaped or it would truncate the body at the first heading) is stored as a raw `#`. `toString()`
+ * then re-encodes it per-character — and the result reaches GitHub as literal `%23%23%23` text
+ * where the body's `###` headings should be. Reported against 0.1.2 as issue #4.
+ *
+ * `openExternal` accepts a string at runtime and keeps it verbatim when parsing it round-trips
+ * unchanged ("called with string and no transformation happened -> keep string", mainThreadWindow),
+ * which is exactly our case. The cast is needed only because `@types/vscode` narrows the parameter
+ * to `Uri` — see [microsoft/vscode#85930](https://github.com/microsoft/vscode/issues/85930), the
+ * still-open request to widen it to `URL`.
+ *
+ * This is the established workaround, not a local trick: the same string cast is what a VS Code
+ * contributor arrived at in
+ * [#135949](https://github.com/microsoft/vscode/issues/135949#issuecomment-989333270) after first
+ * reaching for the `open` package — which is a dependency to solve what one cast solves. Passing a
+ * `Uri` built by `Uri.from` does NOT work either; `from` decodes its components too.
+ */
+const openUrl = async (url: string): Promise<void> => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const open = vscode.env.openExternal as (
+    target: string | vscode.Uri
+  ) => Thenable<boolean>;
+  await open(url);
 };
 
 /**
