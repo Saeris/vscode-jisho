@@ -1,6 +1,13 @@
 # Changelog
 
 
+
+## 0.1.2
+<sub>2026-08-13</sub>
+
+-  *(patch)*
+  Fixes updating the dictionary on Windows, which failed with "EPERM: operation not permitted" after downloading. The extension now releases the database before swapping the new one into place.
+
 ## 0.1.1
 <sub>2026-08-13</sub>
 
