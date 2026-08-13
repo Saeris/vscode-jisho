@@ -146,6 +146,56 @@ describe("dictionaryUpdate", () => {
       expect(downloadMock).not.toHaveBeenCalled();
     });
 
+    it("closes the databases BEFORE downloading, so the swap can succeed", async () => {
+      // WHY: this is the Windows publish bug. `downloadDatabase` writes a `.part` and renames it
+      // into place, and Windows refuses to rename onto an OPEN file — so with the dictionary still
+      // held open the update failed with "EPERM: operation not permitted" every time, after a
+      // successful download and a verified checksum. POSIX replaces an open file happily, which is
+      // why it only ever showed up on Windows and why a unit test is the practical way to pin it.
+      //
+      // ORDER is the assertion, not merely that close was called: closing after the download would
+      // be just as broken, and a call-count check would pass.
+      // Records order alongside the DEFAULT behaviour rather than replacing it: the default writes
+      // the file that later assertions (and the names-DB branch) depend on, and `mockClear` in
+      // `beforeEach` would not put a replaced implementation back.
+      const order: string[] = [];
+      downloadMock.mockImplementation(async (dest: string) => {
+        order.push(`download:${dest}`);
+        files.set(dest, "downloaded");
+        return "remote";
+      });
+      files.set(CACHED_VERSION, "full 2026-07-01");
+      state.infoResponse = "Update";
+      try {
+        await checkForDictionaryUpdate(context, {
+          manual: false,
+          closeDatabases: async () => {
+            order.push("close");
+          }
+        });
+        expect(order[0]).toBe("close");
+        expect(order.filter((o) => o.startsWith("download"))).not.toHaveLength(
+          0
+        );
+      } finally {
+        // `mockClear` in `beforeEach` resets calls, not the implementation, so this has to put the
+        // default back itself or every later test inherits the recorder.
+        downloadMock.mockImplementation(async (dest: string) => {
+          files.set(dest, "downloaded");
+          return "remote";
+        });
+      }
+    });
+
+    it("still updates when no close callback is supplied", async () => {
+      // WHY: the callback is optional so the update path stays callable without a provider. A
+      // required parameter would make this module depend on the webview host to do its job.
+      files.set(CACHED_VERSION, "full 2026-07-01");
+      state.infoResponse = "Update";
+      await checkForDictionaryUpdate(context, { manual: false });
+      expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
+    });
+
     it("throttles the automatic check to once per 24h", async () => {
       // WHY: an activation-frequency network check is wasteful; the throttle makes it daily. A check
       // that ran an hour ago must not fetch again.

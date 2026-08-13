@@ -68,7 +68,10 @@ function activateJisho(context: vscode.ExtensionContext): void {
   const housekeeping = setTimeout(() => {
     void (async (): Promise<void> => {
       await sweepDictionaryStorage(context);
-      await checkForDictionaryUpdate(context, { manual: false });
+      await checkForDictionaryUpdate(context, {
+        manual: false,
+        closeDatabases: async () => provider.closeDatabases()
+      });
     })();
   }, 3000);
   housekeeping.unref();
@@ -139,7 +142,11 @@ function activateJisho(context: vscode.ExtensionContext): void {
     // and reports "up to date" rather than staying silent.
     vscode.commands.registerCommand(
       "vscode-jisho.checkForDictionaryUpdates",
-      async () => checkForDictionaryUpdate(context, { manual: true })
+      async () =>
+        checkForDictionaryUpdate(context, {
+          manual: true,
+          closeDatabases: async () => provider.closeDatabases()
+        })
     ),
     // Feedback with the environment already filled in. The Marketplace's own "issues" link drops
     // the user on an empty form and asks them to reconstruct their versions from memory, which is

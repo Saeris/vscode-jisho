@@ -189,6 +189,18 @@ describe("rEADME screenshots", () => {
     }
   });
 
+  it("gives every floated image horizontal spacing", () => {
+    // WHY: observed on the published listing. The Marketplace applies no margin of its own, so text
+    // runs flush against a floated image — and `style` is stripped by its sanitizer, which leaves
+    // the `hspace` attribute as the only way to add the gap. GitHub renders it too, so one
+    // attribute serves both surfaces.
+    const floated = [
+      ...readme.matchAll(/<img[^>]*align="(?:left|right)"[^>]*>/g)
+    ].map((m) => m[0]);
+    expect(floated.length).toBeGreaterThan(0);
+    expect(floated.filter((tag) => !/\shspace="/.test(tag))).toEqual([]);
+  });
+
   it("clears every float it opens", () => {
     // WHY: an uncleared float bleeds into the NEXT section, which is a layout break that shows up
     // nowhere near the markup that caused it. Walked in document order so a clear only closes a

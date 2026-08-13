@@ -80,7 +80,7 @@ The first time you open the panel, Jisho downloads its dictionary. That is about
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/search-results-dark.png" />
-  <img align="right" width="42%" alt="The Jisho panel with 図書館 in the search field and a full list of results below it: 図書館 itself, then 図書館員, 図書館学, 図書館長 and other compounds, each with its reading and meaning, and a Kanji section beneath." src="docs/images/search-results-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The Jisho panel with 図書館 in the search field and a full list of results below it: 図書館 itself, then 図書館員, 図書館学, 図書館長 and other compounds, each with its reading and meaning, and a Kanji section beneath." src="docs/images/search-results-light.png" />
 </picture>
 
 This walkthrough covers one lookup, start to finish.
@@ -130,7 +130,7 @@ Personal and place names come from a separate database, so a name in your text r
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/sentence-breakdown-dark.png" />
-  <img align="right" width="42%" alt="A sentence broken into labelled words along the top of the panel, with full and partial matches listed below." src="docs/images/sentence-breakdown-light.png" />
+  <img align="right" hspace="12" width="42%" alt="A sentence broken into labelled words along the top of the panel, with full and partial matches listed below." src="docs/images/sentence-breakdown-light.png" />
 </picture>
 
 ### Whole sentences
@@ -147,7 +147,7 @@ The bar separates the sentence's **full match** from its **partial matches**, so
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/word-page-dark.png" />
-  <img align="right" width="42%" alt="The word page for 食べる, showing its reading with a pitch-accent contour, tags, numbered meanings, and example sentences." src="docs/images/word-page-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The word page for 食べる, showing its reading with a pitch-accent contour, tags, numbered meanings, and example sentences." src="docs/images/word-page-light.png" />
 </picture>
 
 A word's page is arranged so the answer you most likely want is at the top: the reading and its writings first, then the meanings, then everything you might want after that.
@@ -166,7 +166,7 @@ Beside each reading are two buttons. The 🔊 button speaks the reading aloud, a
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/more-examples-dark.png" />
-  <img align="left" width="42%" alt="A page of example sentences for 食べる, each with furigana above the kanji and an English translation below." src="docs/images/more-examples-light.png" />
+  <img align="left" hspace="12" width="42%" alt="A page of example sentences for 食べる, each with furigana above the kanji and an English translation below." src="docs/images/more-examples-light.png" />
 </picture>
 
 ### Example sentences
@@ -181,7 +181,7 @@ Every Japanese word in a sentence is a link to its own entry, which makes the ex
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/copy-as-menu-dark.png" />
-  <img align="right" width="42%" alt="A menu offering to copy 食べる as the word, its reading, romaji, Markdown ruby, or HTML ruby, each with a preview of the result." src="docs/images/copy-as-menu-light.png" />
+  <img align="right" hspace="12" width="42%" alt="A menu offering to copy 食べる as the word, its reading, romaji, Markdown ruby, or HTML ruby, each with a preview of the result." src="docs/images/copy-as-menu-light.png" />
 </picture>
 
 ### Copying
@@ -194,7 +194,7 @@ Each option previews what you will get, including the two furigana markups, Mark
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/conjugations-dark.png" />
-  <img align="left" width="42%" alt="The lower half of the 食べる entry: a link to 20 more examples, an Info section with its JLPT level and WaniKani link, a Kanji section listing 食 and 喰, and a conjugation table with Form, Affirmative and Negative columns." src="docs/images/conjugations-light.png" />
+  <img align="left" hspace="12" width="42%" alt="The lower half of the 食べる entry: a link to 20 more examples, an Info section with its JLPT level and WaniKani link, a Kanji section listing 食 and 喰, and a conjugation table with Form, Affirmative and Negative columns." src="docs/images/conjugations-light.png" />
 </picture>
 
 ### Conjugations
@@ -211,7 +211,7 @@ The same view carries two sections above the table. **Info** holds the word's JL
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-page-dark.png" />
-  <img align="right" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The kanji page for 水: the character large at the top with badges for stroke count, school grade, JLPT level and frequency; its meaning and on, kun and nanori readings; links to stroke order and a component tree; and sections for its parts, similar-looking kanji, and words that contain it." src="docs/images/kanji-page-light.png" />
 </picture>
 
 Kanji are results in their own right, not only parts of words. A search that matches a character lists it in its own **Kanji** section, below the words.
@@ -228,7 +228,7 @@ Below them come the readings. **On** readings are borrowed from Chinese and usua
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/stroke-order-dark.png" />
-  <img align="left" width="42%" alt="A stroke-order player part-way through drawing a character, with a numbered green start marker, a dashed direction arrow, and a scrubber below reading stroke 2 of 4." src="docs/images/stroke-order-light.png" />
+  <img align="left" hspace="12" width="42%" alt="A stroke-order player part-way through drawing a character, with a numbered green start marker, a dashed direction arrow, and a scrubber below reading stroke 2 of 4." src="docs/images/stroke-order-light.png" />
 </picture>
 
 ### Stroke order
@@ -247,7 +247,7 @@ Two ways in, for when you can see a character but have no way to enter it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/radical-picker-dark.png" />
-  <img align="right" width="42%" alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The radical picker with 目 and 貝 selected, unavailable radicals greyed out, and matching kanji listed below as tiles showing each character with its meaning." src="docs/images/radical-picker-light.png" />
 </picture>
 
 ### By its radicals
@@ -263,7 +263,7 @@ Matches appear underneath, each tile showing the character with a short meaning.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/handwriting-dark.png" />
-  <img align="left" width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
+  <img align="left" hspace="12" width="42%" alt="A partly-drawn character on the handwriting canvas, with candidate kanji below it including 牛, 午 and 手, each labelled with its meaning." src="docs/images/handwriting-light.png" />
 </picture>
 
 ### By drawing it
@@ -317,7 +317,7 @@ Selecting an entry will open that word's page.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kanji-browse-list-dark.png" />
-  <img align="right" width="42%" alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
+  <img align="right" hspace="12" width="42%" alt="A grid of the 79 JLPT N5 kanji, each tile showing the character above a short meaning." src="docs/images/kanji-browse-list-light.png" />
 </picture>
 
 ### Kanji
@@ -334,7 +334,7 @@ Selecting a tile opens that character's page.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kana-chart-dark.png" />
-  <img align="left" width="42%" alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
+  <img align="left" hspace="12" width="42%" alt="The gojūon chart of hiragana, arranged in rows by consonant, with a toggle for switching to katakana." src="docs/images/kana-chart-light.png" />
 </picture>
 
 ### Kana

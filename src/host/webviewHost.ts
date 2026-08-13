@@ -464,6 +464,33 @@ export class JishoViewProvider
     return { type: "getStrokeSvg", requestId: request.requestId, svg };
   }
 
+  /**
+   * Close both database handles so the files can be replaced, then forget them.
+   *
+   * Windows refuses to `rename` onto an open file (EPERM), so the dictionary update — which
+   * downloads to a `.part` and swaps it into place — could never complete once anything had opened
+   * the DB. That is every session by the time a user runs the command, so the update failed with
+   * "operation not permitted" every time on Windows while succeeding on macOS and Linux, where an
+   * open file can be replaced out from under its reader.
+   *
+   * Clearing the cached promises is what makes reopening free: `#dict()` and `#namesDict()` are
+   * open-once-retry-on-failure, so the next request opens the NEW file with no reconnection logic.
+   */
+  async closeDatabases(): Promise<void> {
+    for (const opened of [this.#dictionary, this.#names]) {
+      if (opened) {
+        try {
+          await (await opened).close();
+        } catch {
+          // A handle that cannot be closed is one the swap will fail on anyway; the update reports
+          // that failure itself, and throwing here would lose the other handle's close.
+        }
+      }
+    }
+    this.#dictionary = undefined;
+    this.#names = undefined;
+  }
+
   async dispose(): Promise<void> {
     for (const opened of [this.#dictionary, this.#names]) {
       if (opened) {

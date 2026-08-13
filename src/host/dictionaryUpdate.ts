@@ -44,7 +44,10 @@ const hasBundledDb = async (
  */
 export const checkForDictionaryUpdate = async (
   context: vscode.ExtensionContext,
-  { manual }: { manual: boolean }
+  {
+    manual,
+    closeDatabases
+  }: { manual: boolean; closeDatabases?: () => Promise<void> }
 ): Promise<void> => {
   // Dev backend refreshes from assets/ — nothing to check against the release.
   if (await hasBundledDb(context)) {
@@ -99,7 +102,7 @@ export const checkForDictionaryUpdate = async (
     "Never"
   );
   if (choice === "Update") {
-    await updateDictionary(context);
+    await updateDictionary(context, closeDatabases);
   } else if (choice === "Never") {
     await vscode.workspace
       .getConfiguration()
@@ -115,7 +118,18 @@ export const checkForDictionaryUpdate = async (
  * lazy, on first names search).
  */
 export const updateDictionary = async (
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  /**
+   * Release the open database handles before the swap.
+   *
+   * Windows refuses to `rename` onto an open file, so without this the update fails with "EPERM:
+   * operation not permitted" every time — the download succeeds, the checksum verifies, and the
+   * final swap cannot happen. POSIX replaces an open file happily, which is why this only ever
+   * showed up on Windows.
+   *
+   * Optional so the update path stays callable without a provider (its own tests do exactly that).
+   */
+  closeDatabases?: () => Promise<void>
 ): Promise<void> => {
   const storageDir = context.globalStorageUri;
   const target = vscode.Uri.joinPath(storageDir, DB_NAME);
@@ -135,6 +149,9 @@ export const updateDictionary = async (
           message: `${Math.floor((received / total) * 100)}%`
         });
       };
+      // Close BEFORE the first download: `downloadDatabase` renames into place at the end of each
+      // call, so a handle still open on the word DB fails the swap even if the names DB is fine.
+      await closeDatabases?.();
       await downloadDatabase(target.fsPath, onProgress, DATA_RELEASE_BASE);
       if (namesProvisioned) {
         await downloadDatabase(
