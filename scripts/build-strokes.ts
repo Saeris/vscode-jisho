@@ -734,10 +734,8 @@ const main = async (): Promise<void> => {
         parsed?.parts ?? null,
         isKana ? "kana" : "kanji"
       );
-      // Named by CODEPOINT, which is also how upstream serves them — see `strokeSvgName` for the
-      // two environments a literal filename broke in. `#strokeSvg` derives the same name to read.
       writeFileSync(
-        join(isKana ? KANA_OUT_DIR : OUT_DIR, `${codepoint}.svg`),
+        join(isKana ? KANA_OUT_DIR : OUT_DIR, `${literal}.svg`),
         svg,
         "utf8"
       );
