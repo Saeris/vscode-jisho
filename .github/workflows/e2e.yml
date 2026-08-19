@@ -98,3 +98,73 @@ jobs:
           name: e2e-failure-artifacts
           path: test-results/
           retention-days: 7
+
+  # macOS, for the suites that CANNOT be verified anywhere else.
+  #
+  # #4 (Cmd+A selects nothing) and #7 (Cmd+V pastes nothing) were both macOS-only, and both were
+  # shipped to users because the Windows and Linux dev loop cannot reproduce them: the native
+  # behaviour still works there, so the tests pass with the fix REMOVED. That is stated in those
+  # tests' own comments, and it is the gap this job closes.
+  #
+  # Deliberately NOT the whole suite. A macOS runner costs 10x a Linux one, and everything except
+  # the platform-specific clipboard and selection behaviour is already covered above. If a third
+  # macOS-only bug turns up, add its spec here rather than widening this to `playwright test`.
+  e2e-macos:
+    name: End-to-end (macOS clipboard and selection)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24.15"
+          cache: true
+
+      - name: Read the pinned VS Code version
+        id: vscode
+        run: |
+          version=$(grep -oE 'VSCODE_VERSION = "[^"]+"' e2e/launch.ts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache VS Code
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: ${{ runner.os }}-vscode-${{ steps.vscode.outputs.version }}
+
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
+      - name: Provision the oniguruma WASM
+        run: vp run build:onig-wasm
+
+      - name: Cache the dictionary database
+        id: db-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            assets/jisho.db
+            assets/jisho.db.version
+          key: jisho-db-common-${{ hashFiles('src/shared/schema.ts', 'scripts/build-data.ts', 'src/data/**') }}
+
+      - name: Build the dictionary database
+        if: steps.db-cache.outputs.cache-hit != 'true'
+        run: vp run build:data
+
+      - name: Build the extension and webview
+        run: vp pack && vp build
+
+      # No xvfb: macOS runners have a real window server, so VS Code draws without help.
+      #
+      # `breakdown` is included for its select-all and paste cases, which are #4 and #7 seen from
+      # the other side. It carries other cases too, and running them twice is cheaper than splitting
+      # the file to avoid it.
+      - name: Run the clipboard and selection suites
+        run: vp exec playwright test e2e/clipboard.e2e.ts e2e/breakdown.e2e.ts
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-macos-failure-artifacts
+          path: test-results/
+          retention-days: 7
