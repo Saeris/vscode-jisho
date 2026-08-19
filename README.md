@@ -413,17 +413,18 @@ All three come from [Mirrordown][mirrordown], a suite of Markdown syntax extensi
 
 Run these from the Command Palette, or from the **Jisho** submenu in the editor's right-click menu. Those that act on text need a selection first.
 
-| Command                                  | What it does                                    |
-| ---------------------------------------- | ----------------------------------------------- |
-| **Jisho: Look Up Selection**             | Searches the selected text in the panel         |
-| **Jisho: Speak Selection**               | Reads the selected Japanese aloud               |
-| **Jisho: Add Furigana (ふりがな)**       | Adds readings above the kanji, as Markdown ruby |
-| **Jisho: Remove Furigana**               | Strips that markup back out                     |
-| **Jisho: Add Word Spacing (分かち書き)** | Puts spaces between words                       |
-| **Jisho: Remove Word Spacing**           | Takes them back out                             |
-| **Jisho: Open Settings**                 | Opens Jisho's settings                          |
-| **Jisho: Check for Dictionary Updates**  | Checks for newer dictionary data                |
-| **Jisho: Report an Issue**               | Files a bug report with your setup filled in    |
+| Command                                        | What it does                                    |
+| ---------------------------------------------- | ----------------------------------------------- |
+| **Jisho: Look Up Selection**                   | Searches the selected text in the panel         |
+| **Jisho: Speak Selection**                     | Reads the selected Japanese aloud               |
+| **Jisho: Add Furigana (ふりがな)**             | Adds readings above the kanji, as Markdown ruby |
+| **Jisho: Remove Furigana**                     | Strips that markup back out                     |
+| **Jisho: Add Word Spacing (分かち書き)**       | Puts spaces between words                       |
+| **Jisho: Remove Word Spacing**                 | Takes them back out                             |
+| **Jisho: Toggle Parts of Speech Highlighting** | Turns the part-of-speech colors on or off       |
+| **Jisho: Open Settings**                       | Opens Jisho's settings                          |
+| **Jisho: Check for Dictionary Updates**        | Checks for newer dictionary data                |
+| **Jisho: Report an Issue**                     | Files a bug report with your setup filled in    |
 
 ## Settings
 

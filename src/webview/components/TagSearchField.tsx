@@ -21,6 +21,11 @@ import {
   type Classifier
 } from "../../shared/classifiers";
 import { TagSearchValue, textOf, tokensOf } from "./TagSearchValue";
+import {
+  editingChord,
+  insertAsPaste,
+  readClipboardText
+} from "./webviewShortcuts";
 import styles from "./TagSearchField.module.css";
 
 interface TagSearchFieldProps {
@@ -156,52 +161,67 @@ export const TagSearchField = ({
   };
 
   /**
-   * Select All, which the platform does NOT give this field for free.
-   *
-   * The box is a contenteditable `TokenField` (#27), not an `<input>`, so the browser has no
-   * select-all to apply to it — nothing happens, and on macOS the press instead reads as VS Code's
-   * own "Select All". Reported as issue #4; Ctrl+A on Windows and Linux is the same press.
-   *
-   * VS Code's webview host special-cases exactly Cmd/Ctrl+C, V and X in its keydown handler and
-   * forwards everything else to the workbench verbatim (`pre/index.html`, `isCopyPasteOrCut`), which
-   * is why copy and paste work in this field and A alone does not. That forwarding is unconditional
-   * — it does not consult `defaultPrevented` — so `preventDefault` here is NOT what saves us. What
-   * saves us is order: our handler runs first and leaves a real selection behind.
-   *
-   * The selection goes through React Aria's own `setTokenFieldSelection` rather than
-   * `document.execCommand("selectAll")` or a hand-built `Range`, so the tokens stay atomic and the
-   * field's internal caret bookkeeping is updated with it.
-   */
-  const selectAll = (e: React.KeyboardEvent): void => {
-    const el = boxRef.current;
-    if (!el) return;
-    e.preventDefault();
-    const { segments } = value;
-    const last = segments.length - 1;
-    setTokenFieldSelection(
-      el,
-      { index: 0, offset: 0 },
-      // The end of the final segment. An empty field has no segments at all, in which case the
-      // start position is already the end and the call is a no-op.
-      last < 0
-        ? { index: 0, offset: 0 }
-        : { index: last, offset: segments[last].text.length }
-    );
-  };
-
-  /**
    * Guard against React Aria delivering one keydown twice.
    *
    * `useTokenField` routes `onKeyDown` through `useKeyboard`, and a single press arrives as two
    * identical events — same key, same `repeat: false`, same native event object. Nothing in the
    * event data distinguishes them and neither `preventDefault` nor `stopPropagation` helps, since
    * both deliveries originate inside the library. Remembering the native event is what makes the
-   * one action here that is NOT idempotent — opening a category — fire once.
+   * actions that are NOT idempotent — opening a category, and inserting a paste — fire once.
    */
   const handledKey = useRef<Event | null>(null);
   const once = (e: React.KeyboardEvent): boolean => {
     if (handledKey.current === e.nativeEvent) return false;
     handledKey.current = e.nativeEvent;
+    return true;
+  };
+
+  /**
+   * Select All and Paste, neither of which a webview delivers to this field.
+   *
+   * The why is one story and lives in `webviewShortcuts.ts`; the short version is that VS Code
+   * suppresses an editing chord's browser default and then fails to replace it, so #4 (Cmd+A) and
+   * #7 (Cmd+V) are the same bug seen through two keys.
+   *
+   * Select All goes through React Aria's own `setTokenFieldSelection` rather than
+   * `execCommand("selectAll")` or a hand-built `Range`, so the tokens stay atomic and the field's
+   * internal caret bookkeeping moves with it. Paste is re-delivered as the `beforeinput` the field
+   * already knows how to apply — see `insertAsPaste`.
+   */
+  const runChord = (e: React.KeyboardEvent): boolean => {
+    const el = boxRef.current;
+    if (!el) return false;
+    const chord = editingChord(e.nativeEvent);
+    if (chord === undefined) return false;
+
+    if (chord === "selectAll") {
+      e.preventDefault();
+      const { segments } = value;
+      const last = segments.length - 1;
+      setTokenFieldSelection(
+        el,
+        { index: 0, offset: 0 },
+        // The end of the final segment. An empty field has no segments, in which case the start
+        // position is already the end and the call is a no-op.
+        last < 0
+          ? { index: 0, offset: 0 }
+          : { index: last, offset: segments[last].text.length }
+      );
+      return true;
+    }
+
+    // Paste. `preventDefault` goes first and unconditionally: where the native paste DOES still
+    // work (Windows, Linux), letting it run alongside ours would insert the clipboard twice, and
+    // suppressing it after the await would be too late. Everything below re-creates what was
+    // suppressed.
+    e.preventDefault();
+    // `once` matters here in a way it does not for Select All: React Aria delivers each keydown
+    // twice, and selecting the same range twice is harmless while inserting twice is the bug.
+    if (!once(e)) return true;
+    void (async (): Promise<void> => {
+      const text = await readClipboardText();
+      if (text !== undefined) insertAsPaste(el, text);
+    })();
     return true;
   };
 
@@ -311,12 +331,10 @@ export const TagSearchField = ({
           className={styles.field}
           autoFocus
           onKeyDown={(e) => {
-            // Select All. Idempotent, so it runs without the `once` guard — a doubled delivery just
-            // selects the same range twice.
-            if ((e.metaKey || e.ctrlKey) && e.key === "a") {
-              selectAll(e);
-              return;
-            }
+            // Clipboard and selection chords the webview does not deliver (#4, #7). Select All is
+            // idempotent under React Aria's doubled delivery; paste is guarded by `once` inside
+            // `runChord`, since inserting twice is exactly the failure to avoid.
+            if (runChord(e)) return;
             // Enter on a lone tag opens its list — the keyboard shortcut for browsing to it. Only
             // when the menu is CLOSED; with it open, Autocomplete's Enter commits the highlighted
             // suggestion, and the two must not collide.

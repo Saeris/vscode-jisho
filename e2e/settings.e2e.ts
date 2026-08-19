@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { launchVSCode, type Launched } from "./launch";
-import { fillSearch, jishoFrame, openJishoSidebar } from "./webview";
+import {
+  fillSearch,
+  jishoFrame,
+  openJishoSidebar,
+  runCommand
+} from "./webview";
 
 /**
  * The settings pipeline end-to-end: a launch with every Jisho setting overridden in the seeded
@@ -219,4 +224,60 @@ test("highlighting.enabled colors Japanese by part of speech", async () => {
 
   // Reference shot for the POS-coloring design iteration (BACKLOG #38).
   await win.screenshot({ path: "test-results/shots/03-pos-highlighting.png" });
+});
+
+test("Toggle Parts of Speech Highlighting turns the colors off and back on", async () => {
+  // WHY: colour is help while you read a passage and noise while you edit it, so this is the
+  // setting most worth flipping mid-task.
+  //
+  // The round trip is the point. A command that only ever wrote `false` would pass a one-way check
+  // while being useless as a toggle, and the second half is what catches a write that landed in the
+  // wrong configuration scope: the override would keep winning and the colours would never return.
+  //
+  // Types its own sentence rather than reusing the previous test's. These cases share one VS Code
+  // (serial mode), so leaning on a sibling's leftover state makes this fail whenever it runs alone
+  // — which is exactly how anyone debugging it would run it.
+  const win = app().window;
+  const SENTENCE = "私は面白いお話をゆっくり読みました。";
+  await win
+    .locator(".editor-group-container")
+    .first()
+    .click({ position: { x: 200, y: 200 } });
+  await win.keyboard.press("ControlOrMeta+n");
+  await win.locator(".editor-group-container .monaco-editor").first().waitFor();
+  await win.keyboard.type(SENTENCE);
+  const line = win.locator(".view-line", { hasText: SENTENCE }).first();
+  await line.waitFor();
+
+  /** Distinct non-greyscale colours on the line — the palette, ignoring the theme's foreground. */
+  const paletteColours = async (): Promise<number> =>
+    line.evaluate((el) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return 0;
+      const seen = new Set<string>();
+      for (const span of el.querySelectorAll("span")) {
+        if (span.textContent.trim() === "") continue;
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = getComputedStyle(span).color;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        // Greyscale is the theme's own foreground, not one of ours.
+        if (Math.max(r, g, b) - Math.min(r, g, b) < 10) continue;
+        seen.add(`${r},${g},${b}`);
+      }
+      return seen.size;
+    });
+
+  const toggle = async (): Promise<void> =>
+    runCommand(win, "Toggle Parts of Speech Highlighting");
+
+  await expect.poll(paletteColours, { timeout: 15_000 }).toBeGreaterThan(0);
+
+  await toggle();
+  // Off: the palette is gone entirely, not merely reduced.
+  await expect.poll(paletteColours, { timeout: 15_000 }).toBe(0);
+
+  await toggle();
+  await expect.poll(paletteColours, { timeout: 15_000 }).toBeGreaterThan(0);
 });

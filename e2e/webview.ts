@@ -296,3 +296,34 @@ export const openKanjiResult = async (
     .first()
     .click();
 };
+
+/**
+ * Run a Jisho command through the palette. Focus must already be outside the webview.
+ *
+ * Opened with F1 and, if that does not take, the Ctrl/Cmd+Shift+P chord. Both are stock bindings
+ * and each has been seen to work where the other did not — F1 across the smoke suite, the chord in
+ * `settings.e2e.ts`, whose seeded profile leaves F1 doing nothing. Rather than pick one and have
+ * the suites disagree, this tries both and reports what it saw.
+ *
+ * Waiting for the matching ROW before Enter is what stops the press racing the filter and running
+ * whichever command happened to be highlighted first.
+ */
+export const runCommand = async (win: Page, name: string): Promise<void> => {
+  const palette = win.locator(".quick-input-widget");
+  await win.keyboard.press("F1");
+  try {
+    await palette.waitFor({ timeout: 2000 });
+  } catch {
+    await win.keyboard.press("ControlOrMeta+Shift+P");
+    await palette.waitFor({ timeout: 5000 });
+  }
+  await win.keyboard.type(`Jisho: ${name}`);
+  await win
+    .locator(".quick-input-list .monaco-list-row", { hasText: name })
+    .first()
+    .waitFor();
+  await win.keyboard.press("Enter");
+  // The palette closing is the signal the command actually RAN. Without it the assertions that
+  // follow can poll against a UI that has not been asked to change yet.
+  await palette.waitFor({ state: "hidden" });
+};

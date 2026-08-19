@@ -86,6 +86,11 @@
         "category": "Jisho"
       },
       {
+        "command": "vscode-jisho.toggleHighlighting",
+        "title": "Toggle Parts of Speech Highlighting",
+        "category": "Jisho"
+      },
+      {
         "command": "vscode-jisho.openSettings",
         "title": "Open Settings",
         "category": "Jisho"

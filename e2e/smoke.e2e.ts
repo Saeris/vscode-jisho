@@ -6,6 +6,7 @@ import {
   jishoFrame,
   openJishoSidebar,
   returnToSearch,
+  runCommand,
   searchText
 } from "./webview";
 
@@ -285,18 +286,6 @@ test("hovering an auxiliary shows its grammar note alone, not the word definitio
     path: "test-results/shots/02c-hover-auxiliary.png"
   });
 });
-
-/** Run a Jisho command through the palette. Focus must already be outside the webview. */
-const runCommand = async (win: Page, name: string): Promise<void> => {
-  await win.keyboard.press("F1");
-  await win.locator(".quick-input-widget").waitFor();
-  await win.keyboard.type(`Jisho: ${name}`);
-  await win
-    .locator(".quick-input-list .monaco-list-row", { hasText: name })
-    .first()
-    .waitFor();
-  await win.keyboard.press("Enter");
-};
 
 /** A fresh untitled editor holding `text`, with focus in it and everything selected. */
 const editorWith = async (win: Page, text: string): Promise<void> => {
