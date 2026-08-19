@@ -202,7 +202,7 @@ Each option previews what you will get, including the two furigana markups, Mark
 
 Below the entry's meanings, verbs and adjectives get a full conjugation table: non-past and past, plain and polite, te-form, potential, passive, causative, imperative, volitional, the two conditionals, and the desire form.
 
-Select a form's name to read what it does and when to use it — which is the part a table alone does not tell you.
+Select a form's name to read what it does and when to use it, which is the part a table alone does not tell you.
 
 The same view carries two sections above the table. **Info** holds the word's JLPT level and a WaniKani link where there is one. **Kanji** lists the characters the word is written with, each opening its own page.
 
@@ -223,7 +223,7 @@ The badges along the top are the character's measurements: how many strokes it t
 
 Below them come the readings. **On** readings are borrowed from Chinese and usually appear in compounds; **kun** readings are native Japanese and usually stand alone. **Nanori** are the readings a character takes in names, which often match neither.
 
-**Parts** lists the components the character is built from, each opening its own page. **Similar kanji** lists the ones most likely to be confused with it — characters that differ by a stroke or a single radical. **Words** lists vocabulary written with it, most common first.
+**Parts** lists the components the character is built from, each opening its own page. **Similar kanji** lists the ones most likely to be confused with it: characters that differ by a stroke or a single radical. **Words** lists vocabulary written with it, most common first.
 
 <br clear="right" /><br/>
 
@@ -269,7 +269,7 @@ Matches appear underneath, each tile showing the character with a short meaning.
 
 ### By drawing it
 
-Select the pencil button and draw the character. Stroke order and stroke count do not matter, and you do not have to finish — the screenshot shows four strokes of a character that takes six.
+Select the pencil button and draw the character. Stroke order and stroke count do not matter, and you do not have to finish. The screenshot shows four strokes of a character that takes six.
 
 Candidates update after every stroke, each labelled with its meaning so a near-miss is easy to spot. Drawing part of 年 turns up 牛, 午 and 手 alongside it, which is the point: you do not have to know a character to find it, only to see it.
 
@@ -342,7 +342,7 @@ Selecting a tile opens that character's page.
 
 The **Kana** tab is a chart of hiragana and katakana.
 
-The chart is laid out in gojūon order — rows by consonant, columns by vowel — which is the order kana are taught and the order every list in the panel sorts by.
+The chart is laid out in gojūon order, rows by consonant and columns by vowel, which is the order kana are taught and the order every list in the panel sorts by.
 
 Selecting a kana opens its stroke order rather than searching: a single syllable is not a word, so there is nothing to look up. Obsolete kana (ゐ, ゑ) are dimmed rather than hidden, since they still turn up in older text.
 
@@ -366,7 +366,7 @@ Jisho also works on the file you have open. Hovers apply to **Markdown and plain
 
 Japanese does not put spaces between words. Turning on part-of-speech coloring gives you the word boundaries, with verbs, nouns, particles and auxiliaries each in their own color.
 
-This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`.
+This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`, or run **Jisho: Toggle Parts of Speech Highlighting** from the Command Palette. Coloring helps while you read a passage and gets in the way while you edit one, so it is worth a shortcut.
 
 Three alternative palettes are available for protanopia, deuteranopia and tritanopia. They are not tinted versions of the standard palette. Each one re-picks its colors to stay distinguishable. Set `vscode-jisho.appearance.palette` to choose one.
 
@@ -384,7 +384,7 @@ Three alternative palettes are available for protanopia, deuteranopia and tritan
 
 Set `vscode-jisho.highlighting.codeComments` and the same coloring applies to the comments in your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, and Python docstrings count as comments.
 
-**Comments only.** Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works the way you would expect — bold, lists and links are all read through — and a fenced code block is skipped along with everything else that is code.
+**Comments only.** Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works the way you would expect, with bold, lists and links all read through, and a fenced code block is skipped along with everything else that is code.
 
 Comment boundaries come from the same grammar your editor uses for syntax highlighting, so a `//` inside a template literal is correctly not a comment.
 
@@ -472,7 +472,7 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
 
-Part-of-speech coloring is covered though — see [Color Japanese in code comments](#color-japanese-in-code-comments).
+Part-of-speech coloring is covered though. See [Color Japanese in code comments](#color-japanese-in-code-comments).
 
 ### A word is not found, or the wrong word comes back
 
