@@ -59,6 +59,14 @@ jobs:
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 
+      # The regex engine behind comment highlighting (spec 18). `vscode-oniguruma` ships the .wasm
+      # but does not embed it, so bundling the JS does not bring it along — it is copied into
+      # assets/ and read at runtime like the tokenizer dictionary and the stroke SVGs. Gitignored,
+      # so a runner has nothing until this runs, and without it the feature degrades silently to
+      # "no comments" rather than failing loudly.
+      - name: Provision the oniguruma WASM
+        run: vp run build:onig-wasm
+
       # Bumpy runs the per-package build/publish commands from package.json's `bumpy` block:
       # package-platforms.ts builds one .vsix per target (each with its matching lindera-nodejs
       # native binary), then publish-vsix.ts publishes every target to the Marketplace + Open VSX.

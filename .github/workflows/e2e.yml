@@ -48,6 +48,14 @@ jobs:
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 
+      # The regex engine behind comment highlighting (spec 18). `vscode-oniguruma` ships the .wasm
+      # but does not embed it, so bundling the JS does not bring it along — it is copied into
+      # assets/ and read at runtime like the tokenizer dictionary and the stroke SVGs. Gitignored,
+      # so a runner has nothing until this runs, and without it the feature degrades silently to
+      # "no comments" rather than failing loudly.
+      - name: Provision the oniguruma WASM
+        run: vp run build:onig-wasm
+
       # The E2E asserts real dictionary results (searching 食べる returns "to eat"), so it needs a
       # real database — the extension resolves assets/jisho.db directly under
       # --extensionDevelopmentPath rather than downloading one.

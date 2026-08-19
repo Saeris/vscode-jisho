@@ -51,6 +51,11 @@ assets/**
 # …and the compiled IPADIC tokenizer dictionary IS bundled (loaded by path at runtime; ~55 MB,
 # compresses small in the .vsix zip). See docs/specs/14.
 !assets/lindera-ipadic/**
+# …and the oniguruma WASM, which is the regex engine behind comment highlighting (spec 18).
+# `vscode-oniguruma` ships it but does not embed it, so bundling the JS does not bring it along:
+# it is read at runtime through `workspace.fs`, the same delivery path as the SVGs above, which is
+# also what makes it work in the web extension host. ~460 KB.
+!assets/onig.wasm
 
 # Exclude node_modules by default, but the neverBundle'd runtime packages must ship in the
 # .vsix — they are loaded from node_modules at runtime (Turso's native addon, Lindera's .node).

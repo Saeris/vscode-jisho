@@ -221,6 +221,15 @@ const main = async (): Promise<void> => {
       "assets/lindera-ipadic/ is missing — run `vp run build:tokenizer-dict` before packaging."
     );
   }
+  // Same failure shape for the regex engine behind comment highlighting: the .wasm is gitignored
+  // and provisioned, so a package built without it ships a feature that degrades silently to "no
+  // comments". Silently is the problem — it looks like the feature is off rather than broken, and
+  // that is exactly how it reached a CI runner unnoticed.
+  if (!existsSync(join(root, "assets", "onig.wasm"))) {
+    throw new Error(
+      "assets/onig.wasm is missing — run `vp run build:onig-wasm` before packaging."
+    );
+  }
   const manifest = readJson(join(root, "package.json"));
   const deps = resolveDeps();
 
