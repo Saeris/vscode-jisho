@@ -453,7 +453,9 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
 
-Part-of-speech coloring goes one step further: set `vscode-jisho.highlighting.codeComments` and it colors Japanese in the **comments** of your JavaScript and TypeScript files. Comments only — strings and identifiers are left alone, so the coloring never changes how the code itself reads.
+Part-of-speech coloring goes one step further: set `vscode-jisho.highlighting.codeComments` and it colors Japanese in the **comments** of your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, along with Python's docstrings.
+
+Comments only — strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works as you would expect, and fenced code blocks are skipped along with everything else that is code.
 
 ### A word is not found, or the wrong word comes back
 

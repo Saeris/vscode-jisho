@@ -37,3 +37,21 @@ export const submitOrder = (order: Order, available: number): string => {
   }
   return MESSAGES.confirmed;
 };
+
+/**
+ * Markdown inside a doc comment, which is what JSDoc actually contains in the wild.
+ *
+ * **在庫**を確認します。`注文` を確定します。
+ *
+ * - 決済に進みます
+ * - [注文](./order.md) を参照。
+ *
+ * ```ts
+ * const 変数 = "在庫";
+ * ```
+ *
+ * 送信します。
+ */
+export const notifyCustomer = (order: Order): void => {
+  void order;
+};

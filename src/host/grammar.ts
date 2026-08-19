@@ -50,17 +50,6 @@ export interface CommentSpan {
 }
 
 /**
- * The `scopeName` of a language's grammar, e.g. `source.ts`, and where its file lives.
- *
- * Built by scanning what the editor has installed rather than from a table of our own, so this
- * follows the user's extensions instead of needing to be kept in step with them.
- */
-interface GrammarSource {
-  scopeName: string;
-  uri: vscode.Uri;
-}
-
-/**
  * Every grammar the running editor contributes, indexed by `languageId`.
  *
  * Reading another extension's `packageJSON` is a documented-but-informal path, so every field is
@@ -82,42 +71,61 @@ const contributedGrammars = (manifest: unknown): unknown[] => {
   return Array.isArray(grammars) ? grammars : [];
 };
 
-/** One `contributes.grammars` entry, when it has the three fields we need. */
+/**
+ * One `contributes.grammars` entry, when it names a scope and a file.
+ *
+ * `language` is OPTIONAL here, and that is the point. A grammar with no language is not selectable
+ * by us — but it is very often the one that does the actual work: VS Code's `html` extension
+ * contributes `text.html.derivative` for the language and `text.html.basic` with no language at
+ * all, and the derivative is a near-empty shim whose rules are all `include: text.html.basic#…`.
+ * Indexing only language grammars left that include unresolvable, so an HTML file tokenized to
+ * nothing and no comment was ever found.
+ */
 const asGrammarEntry = (
   entry: unknown
-): { language: string; scopeName: string; path: string } | undefined => {
+): { language?: string; scopeName: string; path: string } | undefined => {
   if (typeof entry !== "object" || entry === null) return undefined;
   const { language, scopeName, path } = entry as {
     language?: unknown;
     scopeName?: unknown;
     path?: unknown;
   };
-  return typeof language === "string" &&
-    typeof scopeName === "string" &&
-    typeof path === "string"
+  if (typeof scopeName !== "string" || typeof path !== "string")
+    return undefined;
+  return typeof language === "string"
     ? { language, scopeName, path }
-    : undefined;
+    : { scopeName, path };
 };
 
-const discoverGrammars = (): Map<string, GrammarSource> => {
-  const found = new Map<string, GrammarSource>();
+/**
+ * Every grammar the running editor contributes, in two indexes.
+ *
+ * `byLanguage` answers "which scope do I tokenize a .py file with"; `byScope` answers "where is the
+ * file for scope X", and must hold EVERY grammar rather than only the selectable ones — a language
+ * grammar routinely `include`s scopes that are contributed without a `language` of their own, and
+ * the engine asks us for those by name while it loads.
+ */
+interface GrammarIndex {
+  byLanguage: Map<string, string>;
+  byScope: Map<string, vscode.Uri>;
+}
+
+const discoverGrammars = (): GrammarIndex => {
+  const byLanguage = new Map<string, string>();
+  const byScope = new Map<string, vscode.Uri>();
   for (const extension of vscode.extensions.all) {
-    const contributed = contributedGrammars(extension.packageJSON);
-    for (const entry of contributed) {
-      // An injection grammar (JSDoc, regex) has a `scopeName` and no `language`. Those are loaded
-      // by the engine on demand, not selected by us, so only language grammars are indexed here.
+    for (const entry of contributedGrammars(extension.packageJSON)) {
       const grammar = asGrammarEntry(entry);
       if (!grammar) continue;
-      // First contribution wins: a user's language extension is not allowed to silently displace
-      // the built-in grammar for a language we have already resolved.
-      if (found.has(grammar.language)) continue;
-      found.set(grammar.language, {
-        scopeName: grammar.scopeName,
-        uri: vscode.Uri.joinPath(extension.extensionUri, grammar.path)
-      });
+      const uri = vscode.Uri.joinPath(extension.extensionUri, grammar.path);
+      // First contribution wins in both maps: a later extension is not allowed to silently
+      // displace a grammar already resolved for the same language or scope.
+      if (!byScope.has(grammar.scopeName)) byScope.set(grammar.scopeName, uri);
+      if (grammar.language !== undefined && !byLanguage.has(grammar.language))
+        byLanguage.set(grammar.language, grammar.scopeName);
     }
   }
-  return found;
+  return { byLanguage, byScope };
 };
 
 /**
@@ -129,7 +137,7 @@ const discoverGrammars = (): Map<string, GrammarSource> => {
  */
 export class CommentScopes implements vscode.Disposable {
   #registry: Registry | undefined;
-  #sources: Map<string, GrammarSource> | undefined;
+  #sources: GrammarIndex | undefined;
   /** Resolved grammars, and the languages that have been tried and failed (cached as `null`). */
   readonly #grammars = new Map<string, Promise<IGrammar | null>>();
   #wasm: Promise<boolean> | undefined;
@@ -139,7 +147,7 @@ export class CommentScopes implements vscode.Disposable {
   /** Whether a language has a grammar at all, without loading it. Cheap enough to call per pass. */
   supports(languageId: string): boolean {
     this.#sources ??= discoverGrammars();
-    return this.#sources.has(languageId);
+    return this.#sources.byLanguage.has(languageId);
   }
 
   /**
@@ -165,14 +173,22 @@ export class CommentScopes implements vscode.Disposable {
 
     try {
       let stack = stackAt(document, grammar, from);
+      // Seeded from the top of the file for the same reason as the rule stack: a viewport that
+      // begins INSIDE a fenced block has no way to know that from its first line alone.
+      let fenced = fencedAt(document, from);
       const spans: CommentSpan[][] = [];
       for (let line = from; line <= to; line++) {
-        const result = grammar.tokenizeLine(document.lineAt(line).text, stack);
+        const text = document.lineAt(line).text;
+        const result = grammar.tokenizeLine(text, stack);
         stack = result.ruleStack;
+        const fence = isFence(text);
+        // A fence line is itself excluded, and so is everything between a pair of them.
+        const inside = fenced || fence;
+        if (fence) fenced = !fenced;
         // Pushed unconditionally, INCLUDING the empty result for a line with no comment: the
         // caller maps `spans[i]` back to line `from + i`, so skipping a line here would shift every
         // later span onto the wrong one.
-        spans.push(mergeSpans(result.tokens));
+        spans.push(inside ? [] : mergeSpans(result.tokens));
       }
       return spans;
     } catch (err) {
@@ -188,8 +204,8 @@ export class CommentScopes implements vscode.Disposable {
 
     const resolving = (async (): Promise<IGrammar | null> => {
       this.#sources ??= discoverGrammars();
-      const source = this.#sources.get(languageId);
-      if (!source) return null;
+      const scopeName = this.#sources.byLanguage.get(languageId);
+      if (scopeName === undefined) return null;
       if (!(await this.#loadWasm())) return null;
       try {
         this.#registry ??= new Registry({
@@ -197,7 +213,7 @@ export class CommentScopes implements vscode.Disposable {
           loadGrammar: async (scope): Promise<IRawGrammar | null> =>
             this.#rawGrammar(scope)
         });
-        return await this.#registry.loadGrammar(source.scopeName);
+        return await this.#registry.loadGrammar(scopeName);
       } catch (err) {
         log().warn(`grammar load failed for ${languageId}: ${String(err)}`);
         return null;
@@ -210,20 +226,15 @@ export class CommentScopes implements vscode.Disposable {
   /** Read and parse one grammar file, by scope name. Used for the language AND its includes. */
   async #rawGrammar(scopeName: string): Promise<IRawGrammar | null> {
     this.#sources ??= discoverGrammars();
-    for (const source of this.#sources.values()) {
-      if (source.scopeName !== scopeName) continue;
-      try {
-        const bytes = await vscode.workspace.fs.readFile(source.uri);
-        return parseRawGrammar(
-          new TextDecoder().decode(bytes),
-          source.uri.path
-        );
-      } catch (err) {
-        log().warn(`grammar read failed for ${scopeName}: ${String(err)}`);
-        return null;
-      }
+    const uri = this.#sources.byScope.get(scopeName);
+    if (!uri) return null;
+    try {
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      return parseRawGrammar(new TextDecoder().decode(bytes), uri.path);
+    } catch (err) {
+      log().warn(`grammar read failed for ${scopeName}: ${String(err)}`);
+      return null;
     }
-    return null;
   }
 
   /**
@@ -279,6 +290,52 @@ const stackAt = (
 };
 
 /**
+ * A fenced code block's delimiter, inside a doc comment.
+ *
+ * ```` * ```ts ```` and ```` * ``` ```` both match, as does the bare form in a `#`-comment language.
+ * The leading comment furniture (`*`, `//`, `#`) is skipped before looking, since a fence inside a
+ * JSDoc block is indented behind it.
+ */
+const FENCE = /^\s*(?:[*]|\/\/|#|--)?\s*(?:```|~~~)/u;
+
+const isFence = (line: string): boolean => FENCE.test(line);
+
+/**
+ * Whether `line` sits inside a fenced code block, by counting fences above it.
+ *
+ * The grammar cannot answer this. Measured: every line of a ```` ``` ```` block inside a JSDoc
+ * comment — the fences, the code, the prose around it — is uniformly
+ * `comment.block.documentation.ts`, because TextMate does not descend into Markdown nested in a
+ * doc comment. So the state is ours to track, and it has to be recovered the same way the rule
+ * stack is: from the top.
+ */
+const fencedAt = (document: vscode.TextDocument, line: number): boolean => {
+  let fenced = false;
+  for (let above = 0; above < line; above++)
+    if (isFence(document.lineAt(above).text)) fenced = !fenced;
+  return fenced;
+};
+
+/**
+ * Whether a TextMate scope names prose written for a human reader.
+ *
+ * `comment` is a prefix match, which is how scope selectors work: it covers
+ * `comment.line.double-slash.ts`, `comment.block.documentation.ts`, `comment.line.number-sign.python`
+ * and every other language's variants without a table of our own. Verified against the grammars VS
+ * Code ships for HTML, CSS, Python, PHP and Rust — line comments, block comments and multi-line
+ * blocks all resolve, and string literals in every one of them do not.
+ *
+ * A Python DOCSTRING is the one case the prefix misses. TextMate scopes it as
+ * `string.quoted.docstring.multi.python` rather than as a comment, because it is syntactically a
+ * string — but it is a docstring precisely BECAUSE of where it sits, and the grammar has already
+ * made that judgement for us. Excluding it would leave Python's most common form of prose
+ * uncovered, so `docstring` is matched too. An ordinary Python string is `string.quoted.single`,
+ * which this does not match, so the comments-only boundary still holds.
+ */
+const isProseScope = (scope: string): boolean =>
+  scope.startsWith("comment") || scope.includes("docstring");
+
+/**
  * The comment tokens of one line, merged into as few spans as possible.
  *
  * A grammar emits `//` and its text as separate tokens, and a JSDoc line arrives in several more.
@@ -295,9 +352,7 @@ const mergeSpans = (
 ): CommentSpan[] => {
   const spans: CommentSpan[] = [];
   for (const token of tokens) {
-    // `comment` covers `comment.line.double-slash.ts`, `comment.block.documentation.ts` and the
-    // rest; matching the prefix is how TextMate scope selectors work.
-    if (!token.scopes.some((scope) => scope.startsWith("comment"))) continue;
+    if (!token.scopes.some(isProseScope)) continue;
     const last = spans.at(-1);
     if (last && last.end === token.startIndex) last.end = token.endIndex;
     else spans.push({ start: token.startIndex, end: token.endIndex });

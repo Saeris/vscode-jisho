@@ -38,13 +38,25 @@ export const PROSE_LANGUAGES = ["markdown", "plaintext"];
  * Prose plus code: a code file contributes nothing unless the editor has a grammar for it, so this
  * list is about which documents are WATCHED, and `commentGate` decides what within them is
  * eligible. `codeComments.enabled` gates the code half — see `readCodeComments`.
+ *
+ * An explicit list rather than "every language with a grammar", which would be a one-word change.
+ * Each entry here is one whose comment handling has been VERIFIED against the grammar VS Code ships
+ * (see `e2e/code-comments.e2e.ts` and the `isProseScope` note) — line comments, block comments
+ * spanning lines, and string literals correctly left alone. Python needed a widened predicate to
+ * cover docstrings, which is exactly the kind of per-language surprise a blanket opt-in would have
+ * shipped unnoticed. Adding a language is cheap; adding it untested is not.
  */
 export const DECORATED_LANGUAGES = [
   ...PROSE_LANGUAGES,
   "typescript",
   "typescriptreact",
   "javascript",
-  "javascriptreact"
+  "javascriptreact",
+  "html",
+  "css",
+  "python",
+  "php",
+  "rust"
 ];
 
 /**

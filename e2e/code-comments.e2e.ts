@@ -142,6 +142,38 @@ test("a JSDoc comment is coloured too", async () => {
     .toBeGreaterThanOrEqual(8);
 });
 
+test("markdown inside a doc comment is coloured through its formatting", async () => {
+  // WHY: JSDoc is Markdown in practice — bold, inline code, lists and links all appear in real doc
+  // comments. The emphasis markers are stripped for ANALYSIS (`stripRuby`), so `**在庫**を確認します`
+  // must read as one Japanese run rather than three fragments; a decorator that tokenized around
+  // the asterisks would split 在庫 from its particle and mislabel both.
+  await expect
+    .poll(async () => decoratedSpans("を確認します。`注文`"), {
+      timeout: 20_000
+    })
+    .toBeGreaterThanOrEqual(6);
+
+  // A list item, which is the other shape doc-comment prose takes.
+  await expect
+    .poll(async () => decoratedSpans("決済に進みます"), { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(4);
+});
+
+test("a fenced code block inside a doc comment is left alone", async () => {
+  // WHY: a fence holds CODE, and colouring code is the thing this feature exists not to do — the
+  // same principle that excludes string literals. The grammar is no help here: measured, every line
+  // of a fenced block inside JSDoc is uniformly `comment.block.documentation.ts`, fences included,
+  // because TextMate does not descend into Markdown nested in a doc comment. So the fence state is
+  // tracked by hand, and this is what proves it.
+  await app().window.waitForTimeout(2000);
+  expect(await decoratedSpans('const 変数 = "在庫"')).toBe(0);
+
+  // And the fence CLOSES: prose after it is coloured again, which a one-way flag would miss.
+  await expect
+    .poll(async () => decoratedSpans("送信します"), { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(2);
+});
+
 test("Japanese in a string literal is left alone", async () => {
   // WHY: the boundary, and the half a delimiter table would get wrong. `outOfStock` holds a
   // Japanese sentence that the tokenizer would happily segment — colouring it would change how the

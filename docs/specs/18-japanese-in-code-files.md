@@ -87,6 +87,18 @@ The one genuine risk is that grammar discovery reads another extension's `packag
 
 **Recommendation: (1), gated by a setting**, with (2) NOT kept as a fallback — a second code path that is wrong on template literals would produce inconsistent behaviour that is harder to explain than a language simply not being covered.
 
+### What running it across five more languages found
+
+TextMate does abstract most of this: one `comment` scope prefix matches `//`, `#`, `/* */` and `<!-- -->` alike, with no delimiter table on our side, and string literals are excluded everywhere for free. But "most" was worth checking, and checking found three things a JS-only test could not have.
+
+**Python docstrings are not comments.** A `"""…"""` is scoped `string.quoted.docstring.multi.python`, not `comment`, so the prefix alone left Python's most common form of prose uncovered. The scope still separates it cleanly from an ordinary `string.quoted.single`, so `isProseScope` matches `docstring` explicitly and the comments-only boundary holds. Worth noting what this buys: a docstring and a plain string are the same thing to a lexer — what distinguishes them is POSITION, which the grammar has already worked out.
+
+**A language grammar can be a shim.** VS Code's `html` extension contributes `text.html.derivative` for the language and `text.html.basic` with no `language` field at all; the derivative is nearly empty and delegates through `include: text.html.basic#…`. Indexing only language grammars left that include unresolvable, so HTML tokenized to nothing and no comment was ever found. Discovery now keeps two maps — languages to scopes, and **every** scope to its file.
+
+**The grammar does not descend into Markdown inside a doc comment.** Every line of a fenced block in JSDoc — the fences, the code, the prose either side — is uniformly `comment.block.documentation.ts`. Markdown emphasis is already handled by `stripRuby`, so **bold**, `code`, lists, links and tables all tokenize correctly; a fenced block holds CODE, though, and is excluded by tracking the fence state ourselves, seeded from the top of the file the same way the rule stack is.
+
+Verified end to end for JS/TS, HTML, CSS, Python, PHP and Rust: comment coloured, string literal untouched.
+
 ## Scope and open questions for the implementer
 
 - Which languages? A curated list is predictable but needs maintenance; `"*"` with comment detection is broader but appears everywhere. **Ask the user.**
