@@ -76,7 +76,12 @@ test.describe.configure({ mode: "serial" });
 let vscode: Launched | undefined;
 
 /** The fixture files, copied into the throwaway workspace so the editor has something to open. */
-const FIXTURES = ["grammar-notes.md", "checkout.ts", "reading-notes.md"];
+const FIXTURES = [
+  "grammar-notes.md",
+  "checkout.ts",
+  "reading-notes.md",
+  "translated-docs.md"
+];
 
 /**
  * A REQUESTED window size, so the full-app captures do not inherit whatever geometry the developer's
@@ -106,10 +111,14 @@ test.beforeAll(async () => {
   vscode = await launchVSCode(
     {
       "workbench.sideBar.location": "left",
+      // The minimap is editor chrome that no capture is about, and it intrudes on the right edge of
+      // every cropped editor shot — a strip of unreadable coloured noise beside the subject.
+      "editor.minimap.enabled": false,
       // Part-of-speech colouring is OFF by default, but it is a headline feature and the editor
       // captures are where it shows. Turning it on here documents what it looks like rather than
-      // what the defaults are.
-      "vscode-jisho.highlighting.enabled": true
+      // what the defaults are. Same for the code-comment half.
+      "vscode-jisho.highlighting.enabled": true,
+      "vscode-jisho.highlighting.codeComments": true
     },
     { windowSize: WINDOW }
   );
@@ -667,16 +676,79 @@ test("capture: furigana added to a study note", async () => {
   await expect(win.locator(".tab.dirty")).toHaveCount(0);
 });
 
+test("capture: part-of-speech colouring in code comments", async () => {
+  // WHY: the prose capture cannot show this. The whole point of the code-comment feature is the
+  // BOUNDARY — the comment is coloured and the string literal beside it is not — and that is only
+  // legible in a shot containing both. `checkout.ts` holds them a few lines apart.
+  const win = vscode!.window;
+  await captureBothThemes(vscode!, "pos-highlighting-code", async () => {
+    await openFixture(win, "checkout.ts");
+    // Assert the boundary BEFORE capturing, which is what makes this a drift alarm rather than a
+    // screenshot script: if the feature ever starts colouring string literals, this fails instead
+    // of quietly producing a picture of the bug.
+    const comment = win
+      .locator(".view-line")
+      .filter({ hasText: "在庫を確認してから決済に進みます" })
+      .first();
+    await expect(comment).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          comment.evaluate(
+            (el) =>
+              el.querySelectorAll('[class*="TextEditorDecorationType"]').length
+          ),
+        { timeout: 20_000 }
+      )
+      .toBeGreaterThanOrEqual(8);
+    const literal = win
+      .locator(".view-line")
+      .filter({ hasText: "申し訳ありませんが" })
+      .first();
+    await expect(literal).toBeVisible();
+    expect(
+      await literal.evaluate(
+        (el) =>
+          el.querySelectorAll('[class*="TextEditorDecorationType"]').length
+      )
+    ).toBe(0);
+    // Cropped to the SPAN between the two lines the picture is about, not to every line in the
+    // file. Handing `cropAround` all of them produced a 36-line image whose point was buried, and
+    // which included the fixture's English scaffolding comments — notes to a test author, not
+    // something a reader should be shown. The union of these two boxes is exactly the region where
+    // a coloured comment and an uncoloured string literal sit together.
+    // Anchored at the JSDoc block rather than at `comment`: the two lines directly BELOW that one
+    // are the fixture's English scaffolding (notes to a test author about hover offsets), and a
+    // crop starting there would put them in the picture.
+    const top = win
+      .locator(".view-line")
+      .filter({ hasText: "注文処理のユーティリティ" })
+      .first();
+    await expect(top).toBeVisible();
+    return cropAround(win, [top, literal], 16);
+  });
+});
+
 test("capture: the editor and the panel together", async () => {
   // WHY: the README needs one shot showing WHERE this lives — a file open, the panel beside it,
   // both showing Japanese. Every other capture is one half or the other.
+  //
+  // The file is this project's own README translated into Japanese, which does more work than the
+  // study-notes fixture it replaced. A hero image should show the reader THEMSELVES: someone
+  // reading technical documentation in a language they are still learning is the case this
+  // extension is for, and it is a more universal one than keeping vocabulary notes.
   const win = vscode!.window;
   await captureBothThemes(vscode!, "overview", async () => {
     const frame = await jishoFrame(win);
     await returnToSearch(frame);
-    await fillSearch(frame, "図書館");
+    await fillSearch(frame, "辞書");
     await expect(frame.getByRole("option").first()).toBeVisible();
-    await openFixture(win, "reading-notes.md");
+    await openFixture(win, "translated-docs.md");
+    // The colouring must have landed before the shot, or the hero shows the feature switched off —
+    // the same race the prose-colouring capture documents.
+    await expect(
+      win.locator(".view-line span[class*='TextEditorDecorationType']").first()
+    ).toBeVisible({ timeout: 20_000 });
     return workbenchRegion(win);
   });
 });

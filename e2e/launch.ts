@@ -307,11 +307,24 @@ export interface LaunchOptions {
    * be sized for embedding rather than cropped to fit afterwards.
    */
   windowSize?: { width: number; height: number };
+  /**
+   * Load VS Code's BUILT-IN extensions as well as ours.
+   *
+   * Off by default, and deliberately: `--disable-extensions` is what keeps a run reproducible, so
+   * nothing the developer happens to have installed can change a result.
+   *
+   * The one feature that cannot be tested under it is comment highlighting (spec 18). Grammars are
+   * contributed BY extensions — `typescript-basics` ships `source.ts` — so the flag leaves VS Code
+   * with no grammar for any language, our `discoverGrammars()` correctly finds nothing, and the
+   * feature degrades to "no comments" exactly as designed. Measured: every line renders as `mtk1`,
+   * the default token class, rather than the `mtk21` a loaded grammar produces.
+   */
+  builtinExtensions?: boolean;
 }
 
 export const launchVSCode = async (
   settings: Record<string, unknown> = {},
-  { windowSize }: LaunchOptions = {}
+  { windowSize, builtinExtensions = false }: LaunchOptions = {}
 ): Promise<Launched> => {
   await assertPortFree();
   const executablePath = await downloadAndUnzipVSCode(VSCODE_VERSION);
@@ -349,7 +362,9 @@ export const launchVSCode = async (
       "--no-cached-data",
       "--disable-workspace-trust",
       "--disable-gpu-sandbox",
-      "--disable-extensions", // load only OUR extension via the dev path
+      // Load only OUR extension via the dev path. Opted out of by the suites that need VS Code's
+      // own grammars — see `builtinExtensions`.
+      ...(builtinExtensions ? [] : ["--disable-extensions"]),
       "--no-sandbox",
       // Chromium's own switch, applied when the window is CREATED. This is the only lever that
       // works here: Electron does not expose CDP's `Browser.setWindowBounds` over an attached

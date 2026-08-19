@@ -171,3 +171,6 @@ bench/baseline.json
 # structural findings are properties of the code rather than of the machine (see bench/README.md).
 .deopt/findings.json
 .release-check/
+
+# Provisioned from node_modules by `vp run build:onig-wasm` — a build artifact, not source.
+/assets/onig.wasm

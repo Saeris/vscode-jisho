@@ -53,11 +53,51 @@ So a `/* md */` hint makes an editor _paint_ the literal as Markdown while `docu
 
 Two approaches, in preference order:
 
-1. **Ask the tokenizer nothing; ask the grammar.** VS Code does not expose TextMate scopes to extensions ([microsoft/vscode#580](https://github.com/microsoft/vscode/issues/580) is the long-standing request). The workaround the ecosystem uses is [vscode-textmate](https://github.com/microsoft/vscode-textmate) directly — running the grammar in-process — which means shipping and maintaining grammar resolution. Heavy.
+1. **Ask the tokenizer nothing; ask the grammar.** VS Code does not expose TextMate scopes to extensions ([microsoft/vscode#580](https://github.com/microsoft/vscode/issues/580) is the long-standing request). The workaround the ecosystem uses is [vscode-textmate](https://github.com/microsoft/vscode-textmate) directly — running the grammar in-process — which means shipping and maintaining grammar resolution.
 
 2. **Detect comment syntax per language.** A small table of line/block comment delimiters (`//`, `#`, `--`, `/* */`, `<!-- -->`, `"""`), applied to the line under the cursor. Crude, and wrong inside a string containing `//` — but the failure mode is a hover that offers a definition for Japanese text that is genuinely there, which is benign. This is what the existing `stripRuby` machinery already does in spirit: work on the line, not the AST.
 
-**Recommendation: (2), gated by a setting.** The existing `hover.enabled` covers markdown/plaintext; a separate `hover.codeComments` (default off) avoids changing behaviour for anyone who did not ask for it, and avoids the extension appearing in every language's hover stack by default.
+### Revised 2026-08-19: (1), on measurement
+
+This section originally recommended **(2)**, calling (1) "heavy" — an estimate, not a measurement. Building a proof against VS Code's own shipped TypeScript grammar reversed it on every axis that mattered.
+
+**Correctness.** The cases (2) gets wrong are not exotic; they are ordinary TypeScript:
+
+| Line                                | (1) TextMate      | (2) delimiter table         |
+| ----------------------------------- | ----------------- | --------------------------- |
+| `// これはコメントです`             | comment           | comment                     |
+| `const msg = "こんにちは"; // 挨拶` | only `// 挨拶`    | only `// 挨拶`              |
+| `` `テンプレート ${x} // ここ` ``   | **not** a comment | **wrongly** a comment       |
+| `/* 複数行の` … `コメント */`       | both lines        | needs its own state machine |
+| `/** JSDoc: 図書館へ行きます */`    | comment           | comment                     |
+
+The template-literal row is the decisive one. Getting it right by hand needs `${}` nesting tracking — a parallel implementation of something the grammar already does, and precisely the bespoke maintenance this feature does not want to own.
+
+**Cost, measured rather than assumed.** `vscode-textmate` 9.3.2 is 95 KB; `vscode-oniguruma` 2.0.1 is 507 KB (mostly the WASM). Tokenizing real TypeScript source: **0.069 ms per line — 8.3 ms for a 120-line screenful**, against a repaint path already debounced 150 ms. Startup is 36 ms for the WASM plus 6 ms for a grammar, both lazy and paid only when a matching file is opened.
+
+**Grammar resolution is not ours to maintain.** Grammars are discovered at runtime from the editor the user is already running: `vscode.extensions.all` → `packageJSON.contributes.grammars` → `extensionUri`. Verified present in a stock install — `source.ts`, `source.js`, and the `.tsx`/`.jsx` variants. Nothing is bundled, and a language the user has installed comes with its own grammar, so Python, Go and Rust follow from the same plumbing rather than from a growing delimiter table.
+
+**It survives M8 (web extension).** The concern that this ties us to the desktop host does not hold, and this was checked rather than assumed:
+
+- `vscode.workspace.fs` + `extensionUri` **work in web** — already established in [spec 06](06-web-extension.md) for the stroke SVGs. Reading a grammar is the same operation on the same API.
+- Neither library imports a single Node builtin (`fs`, `path`, `crypto`, …): both are pure computation over strings.
+- `oniguruma.loadWASM` accepts a `Response`, a browser-first input. These libraries are what VS Code itself runs in the browser to highlight vscode.dev.
+
+The one genuine risk is that grammar discovery reads another extension's `packageJSON` — a documented-but-informal path. A missing or unparseable grammar must degrade to "no highlighting in that language", never throw.
+
+**Recommendation: (1), gated by a setting**, with (2) NOT kept as a fallback — a second code path that is wrong on template literals would produce inconsistent behaviour that is harder to explain than a language simply not being covered.
+
+### What running it across five more languages found
+
+TextMate does abstract most of this: one `comment` scope prefix matches `//`, `#`, `/* */` and `<!-- -->` alike, with no delimiter table on our side, and string literals are excluded everywhere for free. But "most" was worth checking, and checking found three things a JS-only test could not have.
+
+**Python docstrings are not comments.** A `"""…"""` is scoped `string.quoted.docstring.multi.python`, not `comment`, so the prefix alone left Python's most common form of prose uncovered. The scope still separates it cleanly from an ordinary `string.quoted.single`, so `isProseScope` matches `docstring` explicitly and the comments-only boundary holds. Worth noting what this buys: a docstring and a plain string are the same thing to a lexer — what distinguishes them is POSITION, which the grammar has already worked out.
+
+**A language grammar can be a shim.** VS Code's `html` extension contributes `text.html.derivative` for the language and `text.html.basic` with no `language` field at all; the derivative is nearly empty and delegates through `include: text.html.basic#…`. Indexing only language grammars left that include unresolvable, so HTML tokenized to nothing and no comment was ever found. Discovery now keeps two maps — languages to scopes, and **every** scope to its file.
+
+**The grammar does not descend into Markdown inside a doc comment.** Every line of a fenced block in JSDoc — the fences, the code, the prose either side — is uniformly `comment.block.documentation.ts`. Markdown emphasis is already handled by `stripRuby`, so **bold**, `code`, lists, links and tables all tokenize correctly; a fenced block holds CODE, though, and is excluded by tracking the fence state ourselves, seeded from the top of the file the same way the rule stack is.
+
+Verified end to end for JS/TS, HTML, CSS, Python, PHP and Rust: comment coloured, string literal untouched.
 
 ## Scope and open questions for the implementer
 

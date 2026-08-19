@@ -41,6 +41,7 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
     - [Kana](#kana)
   - [Working in the editor](#working-in-the-editor)
     - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
+    - [Color Japanese in code comments](#color-japanese-in-code-comments)
     - [Hover for a definition](#hover-for-a-definition)
     - [Add furigana to a selection](#add-furigana-to-a-selection)
   - [Commands](#commands)
@@ -201,7 +202,7 @@ Each option previews what you will get, including the two furigana markups, Mark
 
 Below the entry's meanings, verbs and adjectives get a full conjugation table: non-past and past, plain and polite, te-form, potential, passive, causative, imperative, volitional, the two conditionals, and the desire form.
 
-Select a form's name to read what it does and when to use it — which is the part a table alone does not tell you.
+Select a form's name to read what it does and when to use it, which is the part a table alone does not tell you.
 
 The same view carries two sections above the table. **Info** holds the word's JLPT level and a WaniKani link where there is one. **Kanji** lists the characters the word is written with, each opening its own page.
 
@@ -222,7 +223,7 @@ The badges along the top are the character's measurements: how many strokes it t
 
 Below them come the readings. **On** readings are borrowed from Chinese and usually appear in compounds; **kun** readings are native Japanese and usually stand alone. **Nanori** are the readings a character takes in names, which often match neither.
 
-**Parts** lists the components the character is built from, each opening its own page. **Similar kanji** lists the ones most likely to be confused with it — characters that differ by a stroke or a single radical. **Words** lists vocabulary written with it, most common first.
+**Parts** lists the components the character is built from, each opening its own page. **Similar kanji** lists the ones most likely to be confused with it: characters that differ by a stroke or a single radical. **Words** lists vocabulary written with it, most common first.
 
 <br clear="right" /><br/>
 
@@ -268,7 +269,7 @@ Matches appear underneath, each tile showing the character with a short meaning.
 
 ### By drawing it
 
-Select the pencil button and draw the character. Stroke order and stroke count do not matter, and you do not have to finish — the screenshot shows four strokes of a character that takes six.
+Select the pencil button and draw the character. Stroke order and stroke count do not matter, and you do not have to finish. The screenshot shows four strokes of a character that takes six.
 
 Candidates update after every stroke, each labelled with its meaning so a near-miss is easy to spot. Drawing part of 年 turns up 牛, 午 and 手 alongside it, which is the point: you do not have to know a character to find it, only to see it.
 
@@ -341,7 +342,7 @@ Selecting a tile opens that character's page.
 
 The **Kana** tab is a chart of hiragana and katakana.
 
-The chart is laid out in gojūon order — rows by consonant, columns by vowel — which is the order kana are taught and the order every list in the panel sorts by.
+The chart is laid out in gojūon order, rows by consonant and columns by vowel, which is the order kana are taught and the order every list in the panel sorts by.
 
 Selecting a kana opens its stroke order rather than searching: a single syllable is not a word, so there is nothing to look up. Obsolete kana (ゐ, ゑ) are dimmed rather than hidden, since they still turn up in older text.
 
@@ -349,7 +350,7 @@ Selecting a kana opens its stroke order rather than searching: a single syllable
 
 ## Working in the editor
 
-Jisho also works on the file you have open. These features apply to **Markdown and plain-text files**.
+Jisho also works on the file you have open. Hovers apply to **Markdown and plain-text files**; part-of-speech coloring goes further and can color the **comments in your code** as well.
 
 ### Color Japanese by part of speech
 
@@ -365,9 +366,27 @@ Jisho also works on the file you have open. These features apply to **Markdown a
 
 Japanese does not put spaces between words. Turning on part-of-speech coloring gives you the word boundaries, with verbs, nouns, particles and auxiliaries each in their own color.
 
-This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`.
+This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`, or run **Jisho: Toggle Parts of Speech Highlighting** from the Command Palette. Coloring helps while you read a passage and gets in the way while you edit one, so it is worth a shortcut.
 
 Three alternative palettes are available for protanopia, deuteranopia and tritanopia. They are not tinted versions of the standard palette. Each one re-picks its colors to stay distinguishable. Set `vscode-jisho.appearance.palette` to choose one.
+
+### Color Japanese in code comments
+
+<div align="center">
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/pos-highlighting-code-dark.png" />
+      <img alt="A TypeScript file where the Japanese in the comments is colored by part of speech, while the Japanese inside a string literal a few lines below is left in the theme's own color." src="docs/images/pos-highlighting-code-light.png" />
+    </picture>
+    <figcaption><small><em>Comments are colored. The string literal below them is not.</em></small></figcaption>
+  </figure>
+</div>
+
+Set `vscode-jisho.highlighting.codeComments` and the same coloring applies to the comments in your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, and Python docstrings count as comments.
+
+**Comments only.** Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works the way you would expect, with bold, lists and links all read through, and a fenced code block is skipped along with everything else that is code.
+
+Comment boundaries come from the same grammar your editor uses for syntax highlighting, so a `//` inside a template literal is correctly not a comment.
 
 ### Hover for a definition
 
@@ -430,17 +449,18 @@ Run these from the Command Palette, or from the **Jisho** submenu in the editor'
 
 Reach these through **Jisho: Open Settings**, or the gear button in the panel.
 
-| Setting                                 | Default    | What it controls                                                      |
-| --------------------------------------- | ---------- | --------------------------------------------------------------------- |
-| `vscode-jisho.hover.enabled`            | `true`     | Dictionary hovers over Japanese in Markdown and plain-text files      |
-| `vscode-jisho.highlighting.enabled`     | `false`    | Part-of-speech coloring in those same files                           |
-| `vscode-jisho.grammar.enabled`          | `true`     | Grammar explanations in hovers and the conjugation table              |
-| `vscode-jisho.appearance.textScale`     | `1.08`     | Text size in the panel, as a multiplier over VS Code's font size      |
-| `vscode-jisho.appearance.tagLabels`     | `english`  | Whether grammar tags read in English or Japanese                      |
-| `vscode-jisho.appearance.colorExamples` | `true`     | Part-of-speech coloring inside the panel's example sentences          |
-| `vscode-jisho.appearance.palette`       | `standard` | Which color palette to use, including three color-vision alternatives |
-| `vscode-jisho.strokeOrder.guideStyle`   | `offset`   | Whether stroke guides trace the stroke or sit clear of it             |
-| `vscode-jisho.dictionary.autoCheck`     | `true`     | Whether to check daily for newer dictionary data                      |
+| Setting                                  | Default    | What it controls                                                      |
+| ---------------------------------------- | ---------- | --------------------------------------------------------------------- |
+| `vscode-jisho.hover.enabled`             | `true`     | Dictionary hovers over Japanese in Markdown and plain-text files      |
+| `vscode-jisho.highlighting.enabled`      | `false`    | Part-of-speech coloring in those same files                           |
+| `vscode-jisho.highlighting.codeComments` | `false`    | Extends that coloring to comments in JavaScript and TypeScript files  |
+| `vscode-jisho.grammar.enabled`           | `true`     | Grammar explanations in hovers and the conjugation table              |
+| `vscode-jisho.appearance.textScale`      | `1.08`     | Text size in the panel, as a multiplier over VS Code's font size      |
+| `vscode-jisho.appearance.tagLabels`      | `english`  | Whether grammar tags read in English or Japanese                      |
+| `vscode-jisho.appearance.colorExamples`  | `true`     | Part-of-speech coloring inside the panel's example sentences          |
+| `vscode-jisho.appearance.palette`        | `standard` | Which color palette to use, including three color-vision alternatives |
+| `vscode-jisho.strokeOrder.guideStyle`    | `offset`   | Whether stroke guides trace the stroke or sit clear of it             |
+| `vscode-jisho.dictionary.autoCheck`      | `true`     | Whether to check daily for newer dictionary data                      |
 
 ## Troubleshooting
 
@@ -450,7 +470,9 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 ### Hovers do nothing in my code file
 
-Hovers and part-of-speech coloring apply to Markdown and plain-text files only. Japanese in a `.ts`, `.py` or `.go` file is not covered yet.
+Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
+
+Part-of-speech coloring is covered though. See [Color Japanese in code comments](#color-japanese-in-code-comments).
 
 ### A word is not found, or the wrong word comes back
 
