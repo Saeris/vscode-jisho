@@ -66,26 +66,39 @@ test.beforeAll(async () => {
  * keystrokes die outright when focus sits inside a webview — which it does after opening our panel.
  */
 const openFixture = async (win: Launched["window"]): Promise<void> => {
-  await win.locator(".editor-group-container").first().click();
-  await win.keyboard.press("ControlOrMeta+P");
-  await win.keyboard.type(FIXTURE);
-  // `force`, because the row resolves and reports `focused` while Playwright still judges it
-  // unactionable — the picker animates in, and a strict actionability check waits out the whole
-  // timeout on an element that is already the selected one. Waiting for it first keeps the click
-  // from racing the filter, which is the failure a bare Enter produces.
   const row = win
     .locator(".quick-input-list .monaco-list-row")
     .filter({ hasText: FIXTURE })
     .first();
-  await row.waitFor({ state: "attached" });
-  await row.click({ force: true });
-  // The fixture's OWN text, not just editor chrome: `.monaco-editor` exists for the welcome tab and
-  // the settings editor too, so waiting on it can be satisfied by a pane that never got the file.
-  await win
-    .locator(".view-line")
-    .filter({ hasText: "注文処理" })
-    .first()
-    .waitFor({ timeout: 20_000 });
+
+  // Retried as a whole. Quick Open searches an index built asynchronously, so the first file a
+  // suite opens can be typed before the index knows about it — and the row then never arrives,
+  // however long the wait. Reopening the picker re-runs the search against a warmer index.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await win.locator(".editor-group-container").first().click();
+    await win.keyboard.press("ControlOrMeta+P");
+    await win.keyboard.type(FIXTURE);
+    try {
+      // `force`, because the row resolves and reports `focused` while Playwright still judges it
+      // unactionable — the picker animates in, and a strict actionability check waits out the whole
+      // timeout on an element that is already the selected one. Waiting for it first keeps the
+      // click from racing the filter, which is the failure a bare Enter produces.
+      await row.waitFor({ state: "attached", timeout: 5000 });
+      await row.click({ force: true });
+      // The fixture's OWN text, not just editor chrome: `.monaco-editor` exists for the welcome tab
+      // and the settings editor too, so waiting on it can be satisfied by a pane that never got the
+      // file.
+      await win
+        .locator(".view-line")
+        .filter({ hasText: "注文処理" })
+        .first()
+        .waitFor({ timeout: 20_000 });
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      await win.keyboard.press("Escape");
+    }
+  }
 };
 
 test.afterAll(async () => {
@@ -122,9 +135,14 @@ test("a line comment is coloured by part of speech", async () => {
   // て/から/決済/に/進み/ます — spanning noun, particle, verb and auxiliary, and each gets its own
   // decorated span. Nine or more allows for the tokenizer merging a boundary without letting a
   // near-empty result pass.
+  //
+  // A longer timeout than the cases below, because this is the FIRST decoration pass of the run and
+  // it pays two one-off costs the others do not: the tokenizer loading its 12MB IPADIC dictionary,
+  // and the grammar loading its oniguruma WASM. Both are lazy by design. 20s was enough locally and
+  // not on the Linux CI runner with a cold disk, where this returned 0 and the suite failed.
   await expect
     .poll(async () => decoratedSpans("在庫を確認してから決済に進みます"), {
-      timeout: 20_000
+      timeout: 60_000
     })
     .toBeGreaterThanOrEqual(9);
 });

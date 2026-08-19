@@ -66,25 +66,44 @@ test.afterAll(async () => {
   await vscode?.close();
 });
 
-/** Open a fixture by name, and wait for its text to be on screen. */
+/**
+ * Open a fixture by name, and wait for its text to be on screen.
+ *
+ * Retried as a whole rather than waiting longer on the row. Quick Open searches a workspace index
+ * that is built asynchronously, so the FIRST file a suite opens can be typed before the index knows
+ * about it — and when that happens the row never arrives at all, however long the wait. Reopening
+ * the picker re-runs the search against an index that has since caught up. Measured on the Linux CI
+ * runner, where `notes.py` (the first file this suite opens) timed out at 10s while every later
+ * file resolved instantly.
+ */
 const open = async (file: string): Promise<void> => {
   const win = app().window;
-  await win.locator(".editor-group-container").first().click();
-  await win.keyboard.press("ControlOrMeta+P");
-  await win.keyboard.type(file);
-  // Clicked after an `attached` wait, not Entered: the row reports `focused` while Playwright still
-  // judges it unactionable, and a bare Enter races the picker's filtering.
   const row = win
     .locator(".quick-input-list .monaco-list-row")
     .filter({ hasText: file })
     .first();
-  await row.waitFor({ state: "attached" });
-  await row.click({ force: true });
-  await win
-    .locator(".view-line")
-    .filter({ hasText: STRING_TEXT })
-    .first()
-    .waitFor({ timeout: 20_000 });
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await win.locator(".editor-group-container").first().click();
+    await win.keyboard.press("ControlOrMeta+P");
+    await win.keyboard.type(file);
+    try {
+      // `attached`, and clicked rather than Entered: the row reports `focused` while Playwright
+      // still judges it unactionable, and a bare Enter races the picker's filtering.
+      await row.waitFor({ state: "attached", timeout: 5000 });
+      await row.click({ force: true });
+      await win
+        .locator(".view-line")
+        .filter({ hasText: STRING_TEXT })
+        .first()
+        .waitFor({ timeout: 20_000 });
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      // Dismiss the picker before retrying, or the next Ctrl+P types into the open one.
+      await win.keyboard.press("Escape");
+    }
+  }
 };
 
 /**
@@ -110,8 +129,12 @@ for (const { file, comment } of LANGUAGES) {
     await open(file);
 
     // The comment segments into ten morphemes, so this is a real colouring rather than one span.
+    //
+    // Generous, because the first file in this suite pays the tokenizer's 12MB dictionary load and
+    // the grammar's WASM load, both lazy and both one-off. Measured as enough headroom for a cold
+    // Linux CI runner, where the tighter 20s bound returned 0.
     await expect
-      .poll(async () => decoratedSpans(comment), { timeout: 20_000 })
+      .poll(async () => decoratedSpans(comment), { timeout: 60_000 })
       .toBeGreaterThanOrEqual(8);
 
     // The boundary. Asserted after the poll above, so a pass has demonstrably run on this file and

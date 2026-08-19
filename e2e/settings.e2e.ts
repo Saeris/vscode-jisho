@@ -249,35 +249,30 @@ test("Toggle Parts of Speech Highlighting turns the colors off and back on", asy
   const line = win.locator(".view-line", { hasText: SENTENCE }).first();
   await line.waitFor();
 
-  /** Distinct non-greyscale colours on the line — the palette, ignoring the theme's foreground. */
-  const paletteColours = async (): Promise<number> =>
-    line.evaluate((el) => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return 0;
-      const seen = new Set<string>();
-      for (const span of el.querySelectorAll("span")) {
-        if (span.textContent.trim() === "") continue;
-        ctx.clearRect(0, 0, 1, 1);
-        ctx.fillStyle = getComputedStyle(span).color;
-        ctx.fillRect(0, 0, 1, 1);
-        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        // Greyscale is the theme's own foreground, not one of ours.
-        if (Math.max(r, g, b) - Math.min(r, g, b) < 10) continue;
-        seen.add(`${r},${g},${b}`);
-      }
-      return seen.size;
-    });
+  /**
+   * How many decorations OF OURS are on the line.
+   *
+   * Counted by the `ced-…TextEditorDecorationType…` class VS Code stamps on a decorated range, not
+   * by reading colours. Colour was the first approach and it is ENVIRONMENT-DEPENDENT: the "is this
+   * greyscale" test that isolates our palette from the theme's foreground passed on Windows and
+   * failed on the Linux CI runner, which rendered one span just off-grey and made an uncoloured
+   * line look coloured. The class exists only where an extension painted, so it needs no threshold
+   * and cannot drift with font rendering.
+   */
+  const decoratedSpans = async (): Promise<number> =>
+    line.evaluate(
+      (el) => el.querySelectorAll('[class*="TextEditorDecorationType"]').length
+    );
 
   const toggle = async (): Promise<void> =>
     runCommand(win, "Toggle Parts of Speech Highlighting");
 
-  await expect.poll(paletteColours, { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(decoratedSpans, { timeout: 15_000 }).toBeGreaterThan(0);
 
   await toggle();
   // Off: the palette is gone entirely, not merely reduced.
-  await expect.poll(paletteColours, { timeout: 15_000 }).toBe(0);
+  await expect.poll(decoratedSpans, { timeout: 15_000 }).toBe(0);
 
   await toggle();
-  await expect.poll(paletteColours, { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(decoratedSpans, { timeout: 15_000 }).toBeGreaterThan(0);
 });
