@@ -6,6 +6,7 @@ import {
 import { targetWord, transformEditorText } from "./host/editorCommands";
 import { addFurigana, removeFurigana } from "./host/furigana";
 import { VIEW_ID, toggleHighlighting } from "./host/hostSettings";
+import { CommentScopes } from "./host/grammar";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
 import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
@@ -78,8 +79,13 @@ function activateJisho(context: vscode.ExtensionContext): void {
   context.subscriptions.push({ dispose: () => clearTimeout(housekeeping) });
   // Part-of-speech colouring in the editor. Decorations rather than semantic tokens: only
   // decorations can carry our nine-category palette (see host/posDecorations.ts).
-  const posDecorator = new PosDecorator();
-  context.subscriptions.push(posDecorator);
+  //
+  // `CommentScopes` is the grammar runner behind comment-only colouring in code files (spec 18).
+  // Constructed eagerly but does NOTHING until a code file is coloured: no WASM, no grammar read,
+  // no extension scan.
+  const commentScopes = new CommentScopes(context.extensionUri);
+  const posDecorator = new PosDecorator(commentScopes);
+  context.subscriptions.push(posDecorator, commentScopes);
   posDecorator.refreshAll();
   // Search wants the dictionary form (食べました → 食べる finds the entry); speech wants the form
   // as written, since reading back a lemma would say a word the user didn't write.

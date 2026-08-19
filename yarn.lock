@@ -6410,10 +6410,26 @@ __metadata:
     vite: "npm:@voidzero-dev/vite-plus-core@latest"
     vite-plus: "npm:latest"
     vitest: "npm:@voidzero-dev/vite-plus-test@latest"
+    vscode-oniguruma: "npm:^2.0.1"
+    vscode-textmate: "npm:^9.3.2"
     wanakana: "npm:^5.3.1"
     xstate: "npm:^5.32.5"
   languageName: unknown
   linkType: soft
+
+"vscode-oniguruma@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "vscode-oniguruma@npm:2.0.1"
+  checksum: 10/781b8f3630a11bd4e37ab8cd5f220ea18339ab51b6f58ea1c68822ed0c690586631b5e307e46741a65e09a1c1e7b0ac91ccc27c9e5604542d3395b5256cb23bb
+  languageName: node
+  linkType: hard
+
+"vscode-textmate@npm:^9.3.2":
+  version: 9.3.2
+  resolution: "vscode-textmate@npm:9.3.2"
+  checksum: 10/bd3d851c1c164e0fa267b24dd6a9ad6b84c4fe09c4834bde9294f05713c8553974c3ac27a35b25a9de759c304e9134cf2c98cde5493b7f1ecd7486d2eb0ad05a
+  languageName: node
+  linkType: hard
 
 "wanakana@npm:^5.3.1":
   version: 5.3.1

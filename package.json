@@ -40,6 +40,7 @@
     "build:icon": "vp exec node scripts/build-icon.ts",
     "build:strokes": "vp exec node scripts/build-strokes.ts",
     "build:tokenizer-dict": "vp exec node scripts/build-tokenizer-dict.ts",
+    "build:onig-wasm": "vp exec node scripts/build-onig-wasm.ts",
     "build:fts-extension": "vp exec node scripts/build-fts-extension.ts",
     "build:pos-css": "vp exec node scripts/gen-pos-css.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
@@ -138,6 +139,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Color Japanese text by part of speech in your Markdown and plain-text files. It is a syntax highlighter for prose (verbs, nouns, particles, and auxiliaries each get their own color), making word boundaries visible.\n\nThis covers your own files only. For example sentences inside the Jisho panel, see `#vscode-jisho.appearance.colorExamples#`."
+        },
+        "vscode-jisho.highlighting.codeComments": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Color Japanese in the comments of your JavaScript and TypeScript files, using the same palette as `#vscode-jisho.highlighting.enabled#`.\n\nComments only. Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Requires `#vscode-jisho.highlighting.enabled#` to be on."
         },
         "vscode-jisho.hover.enabled": {
           "type": "boolean",
@@ -304,6 +310,8 @@
     "react": "^19.2.8",
     "react-aria-components": "^1.20.0",
     "react-dom": "^19.2.8",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2",
     "xstate": "^5.32.5"
   }
 }

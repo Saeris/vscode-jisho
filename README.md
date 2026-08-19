@@ -430,17 +430,18 @@ Run these from the Command Palette, or from the **Jisho** submenu in the editor'
 
 Reach these through **Jisho: Open Settings**, or the gear button in the panel.
 
-| Setting                                 | Default    | What it controls                                                      |
-| --------------------------------------- | ---------- | --------------------------------------------------------------------- |
-| `vscode-jisho.hover.enabled`            | `true`     | Dictionary hovers over Japanese in Markdown and plain-text files      |
-| `vscode-jisho.highlighting.enabled`     | `false`    | Part-of-speech coloring in those same files                           |
-| `vscode-jisho.grammar.enabled`          | `true`     | Grammar explanations in hovers and the conjugation table              |
-| `vscode-jisho.appearance.textScale`     | `1.08`     | Text size in the panel, as a multiplier over VS Code's font size      |
-| `vscode-jisho.appearance.tagLabels`     | `english`  | Whether grammar tags read in English or Japanese                      |
-| `vscode-jisho.appearance.colorExamples` | `true`     | Part-of-speech coloring inside the panel's example sentences          |
-| `vscode-jisho.appearance.palette`       | `standard` | Which color palette to use, including three color-vision alternatives |
-| `vscode-jisho.strokeOrder.guideStyle`   | `offset`   | Whether stroke guides trace the stroke or sit clear of it             |
-| `vscode-jisho.dictionary.autoCheck`     | `true`     | Whether to check daily for newer dictionary data                      |
+| Setting                                  | Default    | What it controls                                                      |
+| ---------------------------------------- | ---------- | --------------------------------------------------------------------- |
+| `vscode-jisho.hover.enabled`             | `true`     | Dictionary hovers over Japanese in Markdown and plain-text files      |
+| `vscode-jisho.highlighting.enabled`      | `false`    | Part-of-speech coloring in those same files                           |
+| `vscode-jisho.highlighting.codeComments` | `false`    | Extends that coloring to comments in JavaScript and TypeScript files  |
+| `vscode-jisho.grammar.enabled`           | `true`     | Grammar explanations in hovers and the conjugation table              |
+| `vscode-jisho.appearance.textScale`      | `1.08`     | Text size in the panel, as a multiplier over VS Code's font size      |
+| `vscode-jisho.appearance.tagLabels`      | `english`  | Whether grammar tags read in English or Japanese                      |
+| `vscode-jisho.appearance.colorExamples`  | `true`     | Part-of-speech coloring inside the panel's example sentences          |
+| `vscode-jisho.appearance.palette`        | `standard` | Which color palette to use, including three color-vision alternatives |
+| `vscode-jisho.strokeOrder.guideStyle`    | `offset`   | Whether stroke guides trace the stroke or sit clear of it             |
+| `vscode-jisho.dictionary.autoCheck`      | `true`     | Whether to check daily for newer dictionary data                      |
 
 ## Troubleshooting
 
@@ -450,7 +451,9 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 ### Hovers do nothing in my code file
 
-Hovers and part-of-speech coloring apply to Markdown and plain-text files only. Japanese in a `.ts`, `.py` or `.go` file is not covered yet.
+Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
+
+Part-of-speech coloring goes one step further: set `vscode-jisho.highlighting.codeComments` and it colors Japanese in the **comments** of your JavaScript and TypeScript files. Comments only — strings and identifiers are left alone, so the coloring never changes how the code itself reads.
 
 ### A word is not found, or the wrong word comes back
 

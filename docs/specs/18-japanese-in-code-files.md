@@ -53,11 +53,39 @@ So a `/* md */` hint makes an editor _paint_ the literal as Markdown while `docu
 
 Two approaches, in preference order:
 
-1. **Ask the tokenizer nothing; ask the grammar.** VS Code does not expose TextMate scopes to extensions ([microsoft/vscode#580](https://github.com/microsoft/vscode/issues/580) is the long-standing request). The workaround the ecosystem uses is [vscode-textmate](https://github.com/microsoft/vscode-textmate) directly — running the grammar in-process — which means shipping and maintaining grammar resolution. Heavy.
+1. **Ask the tokenizer nothing; ask the grammar.** VS Code does not expose TextMate scopes to extensions ([microsoft/vscode#580](https://github.com/microsoft/vscode/issues/580) is the long-standing request). The workaround the ecosystem uses is [vscode-textmate](https://github.com/microsoft/vscode-textmate) directly — running the grammar in-process — which means shipping and maintaining grammar resolution.
 
 2. **Detect comment syntax per language.** A small table of line/block comment delimiters (`//`, `#`, `--`, `/* */`, `<!-- -->`, `"""`), applied to the line under the cursor. Crude, and wrong inside a string containing `//` — but the failure mode is a hover that offers a definition for Japanese text that is genuinely there, which is benign. This is what the existing `stripRuby` machinery already does in spirit: work on the line, not the AST.
 
-**Recommendation: (2), gated by a setting.** The existing `hover.enabled` covers markdown/plaintext; a separate `hover.codeComments` (default off) avoids changing behaviour for anyone who did not ask for it, and avoids the extension appearing in every language's hover stack by default.
+### Revised 2026-08-19: (1), on measurement
+
+This section originally recommended **(2)**, calling (1) "heavy" — an estimate, not a measurement. Building a proof against VS Code's own shipped TypeScript grammar reversed it on every axis that mattered.
+
+**Correctness.** The cases (2) gets wrong are not exotic; they are ordinary TypeScript:
+
+| Line                                | (1) TextMate      | (2) delimiter table         |
+| ----------------------------------- | ----------------- | --------------------------- |
+| `// これはコメントです`             | comment           | comment                     |
+| `const msg = "こんにちは"; // 挨拶` | only `// 挨拶`    | only `// 挨拶`              |
+| `` `テンプレート ${x} // ここ` ``   | **not** a comment | **wrongly** a comment       |
+| `/* 複数行の` … `コメント */`       | both lines        | needs its own state machine |
+| `/** JSDoc: 図書館へ行きます */`    | comment           | comment                     |
+
+The template-literal row is the decisive one. Getting it right by hand needs `${}` nesting tracking — a parallel implementation of something the grammar already does, and precisely the bespoke maintenance this feature does not want to own.
+
+**Cost, measured rather than assumed.** `vscode-textmate` 9.3.2 is 95 KB; `vscode-oniguruma` 2.0.1 is 507 KB (mostly the WASM). Tokenizing real TypeScript source: **0.069 ms per line — 8.3 ms for a 120-line screenful**, against a repaint path already debounced 150 ms. Startup is 36 ms for the WASM plus 6 ms for a grammar, both lazy and paid only when a matching file is opened.
+
+**Grammar resolution is not ours to maintain.** Grammars are discovered at runtime from the editor the user is already running: `vscode.extensions.all` → `packageJSON.contributes.grammars` → `extensionUri`. Verified present in a stock install — `source.ts`, `source.js`, and the `.tsx`/`.jsx` variants. Nothing is bundled, and a language the user has installed comes with its own grammar, so Python, Go and Rust follow from the same plumbing rather than from a growing delimiter table.
+
+**It survives M8 (web extension).** The concern that this ties us to the desktop host does not hold, and this was checked rather than assumed:
+
+- `vscode.workspace.fs` + `extensionUri` **work in web** — already established in [spec 06](06-web-extension.md) for the stroke SVGs. Reading a grammar is the same operation on the same API.
+- Neither library imports a single Node builtin (`fs`, `path`, `crypto`, …): both are pure computation over strings.
+- `oniguruma.loadWASM` accepts a `Response`, a browser-first input. These libraries are what VS Code itself runs in the browser to highlight vscode.dev.
+
+The one genuine risk is that grammar discovery reads another extension's `packageJSON` — a documented-but-informal path. A missing or unparseable grammar must degrade to "no highlighting in that language", never throw.
+
+**Recommendation: (1), gated by a setting**, with (2) NOT kept as a fallback — a second code path that is wrong on template literals would produce inconsistent behaviour that is harder to explain than a language simply not being covered.
 
 ## Scope and open questions for the implementer
 
