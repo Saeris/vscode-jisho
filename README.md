@@ -41,6 +41,7 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
     - [Kana](#kana)
   - [Working in the editor](#working-in-the-editor)
     - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
+    - [Color Japanese in code comments](#color-japanese-in-code-comments)
     - [Hover for a definition](#hover-for-a-definition)
     - [Add furigana to a selection](#add-furigana-to-a-selection)
   - [Commands](#commands)
@@ -349,7 +350,7 @@ Selecting a kana opens its stroke order rather than searching: a single syllable
 
 ## Working in the editor
 
-Jisho also works on the file you have open. These features apply to **Markdown and plain-text files**.
+Jisho also works on the file you have open. Hovers apply to **Markdown and plain-text files**; part-of-speech coloring goes further and can color the **comments in your code** as well.
 
 ### Color Japanese by part of speech
 
@@ -368,6 +369,24 @@ Japanese does not put spaces between words. Turning on part-of-speech coloring g
 This is off by default. Turn it on with `vscode-jisho.highlighting.enabled`.
 
 Three alternative palettes are available for protanopia, deuteranopia and tritanopia. They are not tinted versions of the standard palette. Each one re-picks its colors to stay distinguishable. Set `vscode-jisho.appearance.palette` to choose one.
+
+### Color Japanese in code comments
+
+<div align="center">
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/pos-highlighting-code-dark.png" />
+      <img alt="A TypeScript file where the Japanese in the comments is colored by part of speech, while the Japanese inside a string literal a few lines below is left in the theme's own color." src="docs/images/pos-highlighting-code-light.png" />
+    </picture>
+    <figcaption><small><em>Comments are colored. The string literal below them is not.</em></small></figcaption>
+  </figure>
+</div>
+
+Set `vscode-jisho.highlighting.codeComments` and the same coloring applies to the comments in your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, and Python docstrings count as comments.
+
+**Comments only.** Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works the way you would expect — bold, lists and links are all read through — and a fenced code block is skipped along with everything else that is code.
+
+Comment boundaries come from the same grammar your editor uses for syntax highlighting, so a `//` inside a template literal is correctly not a comment.
 
 ### Hover for a definition
 
@@ -453,9 +472,7 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
 
-Part-of-speech coloring goes one step further: set `vscode-jisho.highlighting.codeComments` and it colors Japanese in the **comments** of your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, along with Python's docstrings.
-
-Comments only — strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works as you would expect, and fenced code blocks are skipped along with everything else that is code.
+Part-of-speech coloring is covered though — see [Color Japanese in code comments](#color-japanese-in-code-comments).
 
 ### A word is not found, or the wrong word comes back
 

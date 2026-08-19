@@ -5,8 +5,6 @@
  */
 
 // 在庫を確認してから決済に進みます
-// ^ A top-level comment, unindented and outside any string, so the documentation screenshot can
-//   hover a known character offset and get the dictionary's hover rather than TypeScript's.
 
 interface Order {
   /** 商品コード */

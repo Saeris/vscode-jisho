@@ -9,11 +9,17 @@ screenshot, and a long file makes the capture depend on scroll position.
 
 ## The files
 
-| File               | Scenario                                     | Source                     |
-| ------------------ | -------------------------------------------- | -------------------------- |
-| `grammar-notes.md` | Reading a grammar guide with furigana markup | Adapted — see below        |
-| `checkout.ts`      | Reading a codebase with Japanese comments    | Original, written for this |
-| `reading-notes.md` | Keeping study notes in Japanese              | Original, written for this |
+| File                 | Scenario                                     | Source                     |
+| -------------------- | -------------------------------------------- | -------------------------- |
+| `grammar-notes.md`   | Reading a grammar guide with furigana markup | Adapted — see below        |
+| `checkout.ts`        | Reading a codebase with Japanese comments    | Original, written for this |
+| `reading-notes.md`   | Keeping study notes in Japanese              | Original, written for this |
+| `translated-docs.md` | Reading technical documentation in Japanese  | Original — see below       |
+| `notes.py`           | Comment highlighting: Python, with docstring | Original, written for this |
+| `notes.css`          | Comment highlighting: CSS                    | Original, written for this |
+| `notes.html`         | Comment highlighting: HTML                   | Original, written for this |
+| `notes.php`          | Comment highlighting: PHP                    | Original, written for this |
+| `notes.rs`           | Comment highlighting: Rust                   | Original, written for this |
 
 ## Sources and licences
 
@@ -23,8 +29,27 @@ a port of **Tae Kim's Guide to Learning Japanese**, used under
 explanation of を and に are from that guide; the file is trimmed and its custom markup simplified to
 the `{漢字|かんじ}` ruby syntax this extension understands.
 
-**`checkout.ts`** and **`reading-notes.md`** are original, written for these screenshots. No
-licensing constraint.
+**`checkout.ts`**, **`reading-notes.md`** and the five `notes.*` files are original, written for
+these screenshots. No licensing constraint.
+
+**`translated-docs.md`** is this project's own README translated into Japanese — literally, sentence
+for sentence, rather than paraphrased. That matters: a paraphrase drifts from the English it claims
+to mirror, and this file is the first step toward a translated README, so any drift would have to be
+undone later. It stops after the search table, which is about as much as fills the editor pane. Original in the sense that matters — it is our text, so there is no licensing constraint
+— and it earns its place by being the scenario itself: a developer reading technical documentation
+in a language they are still learning is exactly who this extension is for. It is also a deliberate
+first step toward a translated README, which is a larger job because it needs review rather than
+just writing.
+
+**`checkout.ts`'s first line comment is deliberately top-level and unindented**, sitting outside any
+string, so a hover capture can aim at a known character offset and get the dictionary's hover rather
+than TypeScript's. That used to be recorded as an English comment in the file itself, which then
+appeared in the code-comment screenshot — a note to a test author, shown to a reader. It lives here
+instead.
+
+The five `notes.*` files each hold the same two lines — one comment with Japanese, one string
+literal with the same Japanese — so the comment/string boundary is asserted identically across every
+language. They back `e2e/code-comments-languages.e2e.ts` rather than a screenshot.
 
 ## Adding a fixture
 
