@@ -5,7 +5,7 @@ import {
 } from "./host/dictionaryUpdate";
 import { targetWord, transformEditorText } from "./host/editorCommands";
 import { addFurigana, removeFurigana } from "./host/furigana";
-import { VIEW_ID } from "./host/hostSettings";
+import { VIEW_ID, toggleHighlighting } from "./host/hostSettings";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
 import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
@@ -130,6 +130,23 @@ function activateJisho(context: vscode.ExtensionContext): void {
           language: "plaintext"
         });
         await vscode.window.showTextDocument(doc, { preview: false });
+      }
+    ),
+    // The highlighting setting as a one-press toggle. It is the setting most worth flipping mid-task
+    // — colour is help while you read a passage and noise while you edit it — and the Settings UI is
+    // four actions away from a keyboard the user already has their hands on.
+    vscode.commands.registerCommand(
+      "vscode-jisho.toggleHighlighting",
+      async () => {
+        const enabled = await toggleHighlighting();
+        // Confirmed in the status bar, not a notification: the result is often invisible (no
+        // Japanese in the open file, or none on screen), so a toggle with no feedback reads as a
+        // command that did nothing — but a modal-ish popup for a reversible display preference the
+        // user may flip repeatedly would be worse than the silence.
+        vscode.window.setStatusBarMessage(
+          `Jisho: parts of speech highlighting ${enabled ? "on" : "off"}`,
+          3000
+        );
       }
     ),
     vscode.commands.registerCommand("vscode-jisho.openSettings", () => {

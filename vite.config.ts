@@ -39,7 +39,10 @@ const NOT_BENCH = "bench/**";
  */
 const BROWSER_ONLY = [
   // `patterns.ts` decodes with `Uint8Array.fromBase64` (Chromium 148 / Node 25+).
-  "src/webview/recognizer/__tests__/recognize.spec.ts"
+  "src/webview/recognizer/__tests__/recognize.spec.ts",
+  // `webviewShortcuts.ts` builds an `InputEvent` carrying a `DataTransfer` — both DOM constructors,
+  // and the point of the module is that a REAL element consumes the event it dispatches.
+  "src/webview/components/__tests__/webviewShortcuts.spec.ts"
 ];
 
 /**
