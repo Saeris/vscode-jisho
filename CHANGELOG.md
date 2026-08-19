@@ -3,6 +3,19 @@
 
 
 
+
+## 0.2.0
+<sub>2026-08-19</sub>
+
+- [#8](https://github.com/Saeris/vscode-jisho/pull/8)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  Adds **Jisho: Toggle Parts of Speech Highlighting**, which turns the editor colors on or off from the Command Palette. Highlighting helps while you read a passage and gets in the way while you edit one, and it was previously four actions away in the Settings UI.
+- [#9](https://github.com/Saeris/vscode-jisho/pull/9)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  Adds part-of-speech coloring inside the comments of your code, behind the new `vscode-jisho.highlighting.codeComments` setting. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, including Python's docstrings and the Markdown people write inside doc comments.
+
+  Comments only — strings and identifiers are left alone, so the coloring never changes how the code itself reads. Comment boundaries come from the editor's own grammar, so `// inside a template literal` is correctly not a comment, and a fenced code block inside a doc comment is skipped like any other code.
+- [#8](https://github.com/Saeris/vscode-jisho/pull/8)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Fixes pasting into the search box doing nothing on macOS. VS Code blocks a webview's own paste and then re-runs it through an API Electron has removed, so the search box now reads the clipboard and inserts the text itself.
+
 ## 0.1.3
 <sub>2026-08-13</sub>
 
