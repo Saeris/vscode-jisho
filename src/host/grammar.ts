@@ -169,6 +169,9 @@ export class CommentScopes implements vscode.Disposable {
       for (let line = from; line <= to; line++) {
         const result = grammar.tokenizeLine(document.lineAt(line).text, stack);
         stack = result.ruleStack;
+        // Pushed unconditionally, INCLUDING the empty result for a line with no comment: the
+        // caller maps `spans[i]` back to line `from + i`, so skipping a line here would shift every
+        // later span onto the wrong one.
         spans.push(mergeSpans(result.tokens));
       }
       return spans;
