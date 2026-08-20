@@ -245,7 +245,17 @@ export class CommentScopes implements vscode.Disposable {
     const resolving = (async (): Promise<IGrammar | null> => {
       this.#sources ??= discoverGrammars();
       const scopeName = this.#sources.byLanguage.get(languageId);
-      if (scopeName === undefined) return null;
+      // Every `return null` below is logged. This feature's failure mode is SILENCE — it degrades
+      // to "no comments", which is indistinguishable from the setting being off, so a user seeing
+      // nothing has no way to tell which. A CSS report we could not reproduce is what made that
+      // cost concrete: there was no line in the log to ask for.
+      if (scopeName === undefined) {
+        log().warn(
+          `no grammar contributed for language "${languageId}" — comment features are off for it ` +
+            `(${this.#sources.byLanguage.size} languages known)`
+        );
+        return null;
+      }
       if (!(await this.#loadWasm())) return null;
       try {
         this.#registry ??= new Registry({
@@ -253,7 +263,19 @@ export class CommentScopes implements vscode.Disposable {
           loadGrammar: async (scope): Promise<IRawGrammar | null> =>
             this.#rawGrammar(scope)
         });
-        return await this.#registry.loadGrammar(scopeName);
+        const grammar = await this.#registry.loadGrammar(scopeName);
+        if (!grammar) {
+          // `loadGrammar` resolves to null rather than throwing when an INCLUDE cannot be
+          // satisfied, so this is the quietest failure of the four and the one most likely to
+          // depend on which extensions a user has installed.
+          log().warn(
+            `grammar "${scopeName}" for "${languageId}" resolved to nothing — an include it needs ` +
+              `is probably missing`
+          );
+          return null;
+        }
+        log().info(`grammar ready for "${languageId}" (${scopeName})`);
+        return grammar;
       } catch (err) {
         log().warn(`grammar load failed for ${languageId}: ${String(err)}`);
         return null;
