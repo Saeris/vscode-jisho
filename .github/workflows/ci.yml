@@ -74,4 +74,10 @@ jobs:
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 
+      # The host bundle, so `scripts/__tests__/packaging.spec.ts` has something to inspect. That
+      # spec checks the bundle requires nothing the extension host cannot resolve — the failure that
+      # shipped 0.2.0 unable to activate — and it can only ask that question of a built artifact.
+      - name: Build the extension host bundle
+        run: vp run build:onig-wasm && vp pack
+
       - run: vp test

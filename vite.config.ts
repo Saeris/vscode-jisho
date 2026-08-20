@@ -248,7 +248,7 @@ export default defineConfig({
       // unbundled in node_modules.
       // (The database needs no entry here: `node:sqlite` is a built-in module.)
       neverBundle: ["vscode", /lindera-nodejs/],
-      alwaysBundle: []
+      alwaysBundle: ["vscode-textmate", "vscode-oniguruma"]
     }
   },
   // ── Testing (Vitest) ────────────────────────────────────────────────
