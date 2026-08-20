@@ -14,6 +14,7 @@
 import { link, unlink } from "node:fs/promises";
 import * as vscode from "vscode";
 import { downloadDatabase } from "./download";
+import { log } from "./log";
 
 const DB_NAME = "jisho.db";
 const VERSION_NAME = "jisho.db.version";
@@ -38,15 +39,33 @@ const VERSION_NAME = "jisho.db.version";
 const linkOrCopy = async (from: vscode.Uri, to: vscode.Uri): Promise<void> => {
   // Remove any existing entry first: `link()` fails on an existing destination, and a stale link
   // (or a copy from before this change) is exactly what we are replacing.
+  //
+  // Whether this SUCCEEDED matters, and used to be discarded. If the unlink worked and the link
+  // then failed, the destination is gone — so a caller told "keep using the existing copy" would
+  // be pointed at a file that no longer exists. `copy` with `overwrite` can restore it, which is
+  // why the fallback runs even when linking failed for a reason copying will share.
+  let removed = false;
   try {
     await unlink(to.fsPath);
+    removed = true;
   } catch {
-    // Not present, or not removable — `link` below will report the real problem.
+    // Not present, or held open by another process — `link` below reports the real problem.
   }
   try {
     await link(from.fsPath, to.fsPath);
-  } catch {
-    await vscode.workspace.fs.copy(from, to, { overwrite: true });
+  } catch (linkError) {
+    try {
+      await vscode.workspace.fs.copy(from, to, { overwrite: true });
+    } catch (copyError) {
+      // Both failed. Say which state we left behind, because it decides whether the caller can
+      // fall back: with the old file deleted there is nothing to serve.
+      throw removed
+        ? new Error(
+            `could not replace the dictionary and the previous copy was removed: ${String(copyError)}`,
+            { cause: copyError }
+          )
+        : (copyError ?? linkError);
+    }
   }
 };
 
@@ -73,12 +92,32 @@ export const ensureDatabase = async (
   if (await exists(bundled)) {
     const wantVersion = await readText(bundledVersion);
     const haveVersion = await readText(targetVersion);
-    if (!(await exists(target)) || wantVersion !== haveVersion) {
-      await linkOrCopy(bundled, target);
-      if (wantVersion !== undefined) {
-        await vscode.workspace.fs.writeFile(
-          targetVersion,
-          Buffer.from(wantVersion, "utf8")
+    const havePrevious = await exists(target);
+    if (!havePrevious || wantVersion !== haveVersion) {
+      try {
+        await linkOrCopy(bundled, target);
+        if (wantVersion !== undefined) {
+          await vscode.workspace.fs.writeFile(
+            targetVersion,
+            Buffer.from(wantVersion, "utf8")
+          );
+        }
+      } catch (err) {
+        // Re-linking failed. If there is NO database this is fatal and the error must reach the
+        // caller — but when one is already there, refusing to serve it is strictly worse than
+        // serving a stale one.
+        //
+        // Windows makes this ordinary rather than exotic: an open file cannot be unlinked or
+        // overwritten, so a second window, a debug host, or this extension's own previous
+        // activation holding the DB turns a routine re-link into
+        // `EBUSY: resource busy or locked, unlink '…jisho.db'`. That threw out of `ensureDatabase`,
+        // rejected `#dict()`, and every dictionary lookup went quiet — while grammar notes, which
+        // read in-memory tables and never touch the database, kept working. A user sees hovers that
+        // half-work and no reason why.
+        if (!havePrevious) throw err;
+        log().warn(
+          `could not refresh the dictionary (${String(err)}); using the existing copy. ` +
+            `On Windows this usually means another VS Code window has it open.`
         );
       }
     }

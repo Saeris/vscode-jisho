@@ -19,6 +19,7 @@ import {
   namesDatabaseExists
 } from "./ensureDatabase";
 import { provideHover } from "./hoverProvider";
+import type { CommentScopes } from "./grammar";
 import { mark, timed } from "./log";
 import { NamesDictionary } from "./names";
 import { clearRecent, readRecent, recordRecent } from "./recentSearches";
@@ -36,7 +37,13 @@ import type {
   Response,
   WebviewReady
 } from "../shared/messages";
-import { currentSettings, grammarEnabled, VIEW_ID } from "./hostSettings";
+import {
+  codeCommentsEnabled,
+  currentSettings,
+  grammarEnabled,
+  isProse,
+  VIEW_ID
+} from "./hostSettings";
 
 /** The three requests backed by `globalState` rather than by a dictionary. */
 type RecentRequest =
@@ -123,8 +130,18 @@ export class JishoViewProvider
   async hover(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
+    scopes?: CommentScopes
   ): Promise<vscode.Hover | undefined> {
+    // In a CODE file, answer only inside a comment. Two gates, and both matter: the setting is
+    // opt-in, and the grammar decides what a comment is — so a string literal or an identifier
+    // never gets a dictionary hover, and TypeScript's own hover is never competed with there.
+    if (!isProse(document.languageId)) {
+      if (!codeCommentsEnabled()) return undefined;
+      if (!scopes) return undefined;
+      if (!(await scopes.isComment(document, position))) return undefined;
+      if (token.isCancellationRequested) return undefined;
+    }
     return provideHover(document, position, token, {
       hoverEnabled: () =>
         vscode.workspace

@@ -13,6 +13,11 @@
  */
 import * as vscode from "vscode";
 import type { CommentScopes, CommentSpan } from "./grammar";
+import {
+  SUPPORTED_LANGUAGES,
+  codeCommentsEnabled,
+  isProse
+} from "./hostSettings";
 import { japaneseRuns, stripRuby } from "./hover";
 import { hasKanji } from "../shared/japanese";
 import { segment } from "./tokenizer";
@@ -24,42 +29,6 @@ import {
 } from "../shared/posPalette";
 
 /**
- * Languages that are prose end to end, where every line is the subject.
- *
- * Everything else is a CODE file: still decorated, but only inside its comments, and only when a
- * grammar can be resolved for it (spec 18). The distinction is what stops a Japanese identifier or
- * a string literal being coloured as prose.
- */
-export const PROSE_LANGUAGES = ["markdown", "plaintext"];
-
-/**
- * Languages the decorator will paint at all.
- *
- * Prose plus code: a code file contributes nothing unless the editor has a grammar for it, so this
- * list is about which documents are WATCHED, and `commentGate` decides what within them is
- * eligible. `codeComments.enabled` gates the code half — see `readCodeComments`.
- *
- * An explicit list rather than "every language with a grammar", which would be a one-word change.
- * Each entry here is one whose comment handling has been VERIFIED against the grammar VS Code ships
- * (see `e2e/code-comments.e2e.ts` and the `isProseScope` note) — line comments, block comments
- * spanning lines, and string literals correctly left alone. Python needed a widened predicate to
- * cover docstrings, which is exactly the kind of per-language surprise a blanket opt-in would have
- * shipped unnoticed. Adding a language is cheap; adding it untested is not.
- */
-export const DECORATED_LANGUAGES = [
-  ...PROSE_LANGUAGES,
-  "typescript",
-  "typescriptreact",
-  "javascript",
-  "javascriptreact",
-  "html",
-  "css",
-  "python",
-  "php",
-  "rust"
-];
-
-/**
  * How long typing must pause before the colouring repaints. Long enough to sit between keystrokes
  * at any realistic typing speed — including kana input, where one character is several keystrokes —
  * and short enough that the repaint reads as part of stopping rather than as a lag.
@@ -67,7 +36,7 @@ export const DECORATED_LANGUAGES = [
 const REFRESH_DELAY_MS = 150;
 
 const isDecorated = (document: vscode.TextDocument): boolean =>
-  DECORATED_LANGUAGES.includes(document.languageId);
+  SUPPORTED_LANGUAGES.includes(document.languageId);
 
 /**
  * One decoration type per category, holding BOTH ground variants.
@@ -206,7 +175,7 @@ const commentGate = async (
   lines: ReadonlySet<number>,
   scopes: CommentScopes | undefined
 ): Promise<Map<number, CommentSpan[]> | undefined> => {
-  if (PROSE_LANGUAGES.includes(document.languageId)) return undefined;
+  if (isProse(document.languageId)) return undefined;
   if (!scopes || lines.size === 0) return new Map();
 
   // One contiguous block, because a grammar is stateful: a line's meaning depends on every line
@@ -255,7 +224,7 @@ export class PosDecorator {
   constructor(scopes?: CommentScopes) {
     this.#paletteId = readPalette();
     this.#enabled = readEnabled();
-    this.#codeComments = readCodeComments();
+    this.#codeComments = codeCommentsEnabled();
     this.#decorations = createDecorations(this.#paletteId);
     this.#scopes = scopes;
   }
@@ -295,7 +264,7 @@ export class PosDecorator {
     const paletteChanged = nextPalette !== this.#paletteId;
     this.#paletteId = nextPalette;
     this.#enabled = nextEnabled;
-    this.#codeComments = readCodeComments();
+    this.#codeComments = codeCommentsEnabled();
     if (paletteChanged) {
       this.#disposeDecorations();
       this.#decorations = createDecorations(nextPalette);
@@ -321,8 +290,8 @@ export class PosDecorator {
     }
     // A code file needs the separate opt-in AND a grammar. Cleared rather than left alone, so
     // turning the setting off removes colouring that is already on screen.
-    const isProse = PROSE_LANGUAGES.includes(editor.document.languageId);
-    if (!isProse && !this.#codeComments) {
+    const prose = isProse(editor.document.languageId);
+    if (!prose && !this.#codeComments) {
       this.#clear(editor);
       return;
     }
@@ -338,7 +307,7 @@ export class PosDecorator {
     const ranges = await computeRanges(
       editor,
       superseded,
-      isProse ? undefined : this.#scopes
+      prose ? undefined : this.#scopes
     );
     if (ranges === undefined || superseded()) return;
 
@@ -378,18 +347,6 @@ const readEnabled = (): boolean =>
   vscode.workspace
     .getConfiguration("vscode-jisho")
     .get<boolean>("highlighting.enabled", false);
-
-/**
- * Whether Japanese in CODE comments is coloured. Off by default.
- *
- * Separate from `highlighting.enabled` deliberately: that setting is about prose files someone
- * opened to read, while this one changes how their source code looks. Someone who wants coloured
- * study notes has not thereby asked for colour in every `.ts` file they open.
- */
-const readCodeComments = (): boolean =>
-  vscode.workspace
-    .getConfiguration("vscode-jisho")
-    .get<boolean>("highlighting.codeComments", false);
 
 const readPalette = (): PaletteId =>
   vscode.workspace

@@ -382,7 +382,9 @@ Three alternative palettes are available for protanopia, deuteranopia and tritan
   </figure>
 </div>
 
-Set `vscode-jisho.highlighting.codeComments` and the same coloring applies to the comments in your code. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, and Python docstrings count as comments.
+Set `vscode-jisho.highlighting.codeComments` and the editor features extend into the comments in your code: coloring **and** hovers both. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, and Python docstrings count as comments.
+
+There is a command for it too: **Jisho: Toggle Japanese in Code Comments**.
 
 **Comments only.** Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Markdown inside a doc comment works the way you would expect, with bold, lists and links all read through, and a fenced code block is skipped along with everything else that is code.
 
@@ -470,7 +472,7 @@ The dictionary downloads on first use. If that download failed, most often becau
 
 ### Hovers do nothing in my code file
 
-Hovers apply to Markdown and plain-text files only. Japanese in a `.py` or `.go` file is not covered yet.
+Hovers apply to Markdown and plain-text files, and to the comments of the code files listed under [Color Japanese in code comments](#color-japanese-in-code-comments) once `vscode-jisho.highlighting.codeComments` is on. A language outside that list, such as Go, is not covered yet.
 
 Part-of-speech coloring is covered though. See [Color Japanese in code comments](#color-japanese-in-code-comments).
 
