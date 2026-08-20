@@ -12,9 +12,9 @@
  *     Release with a progress notification, sha256-verified (see `download.ts`).
  */
 import { link, unlink } from "node:fs/promises";
-import { log } from "./log";
 import * as vscode from "vscode";
 import { downloadDatabase } from "./download";
+import { log } from "./log";
 
 const DB_NAME = "jisho.db";
 const VERSION_NAME = "jisho.db.version";
