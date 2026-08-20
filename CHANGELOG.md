@@ -5,6 +5,17 @@
 
 
 
+
+## 0.3.0
+<sub>2026-08-20</sub>
+
+- [#12](https://github.com/Saeris/vscode-jisho/pull/12)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  Dictionary hovers now work in code comments, not just the coloring. Turn on `vscode-jisho.highlighting.codeComments` and hovering a Japanese word in a comment gives you its reading and meanings, the same as in a Markdown file. Comments only, so hovering a string literal still leaves your language server to answer.
+
+  Adds **Jisho: Toggle Japanese in Code Comments** to the Command Palette, so both features can be flipped without opening settings.
+- [#12](https://github.com/Saeris/vscode-jisho/pull/12)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Fixes the dictionary going quiet when another VS Code window has it open. On Windows the refresh would fail with "EBUSY: resource busy or locked", and every word lookup silently stopped working while grammar notes kept going. Jisho now keeps using the copy it already has and says so in its log.
+
 ## 0.2.1
 <sub>2026-08-20</sub>
 
