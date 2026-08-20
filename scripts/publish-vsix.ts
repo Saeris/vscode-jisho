@@ -132,10 +132,21 @@ const lastLine = (text: string): string => {
   return parts.at(-1) ?? "publish failed";
 };
 
-/** Carries vsce's output, so the caller can tell WHY a publish failed. */
+/**
+ * Carries vsce's output, so the caller can tell WHY a publish failed.
+ *
+ * The field is assigned in the body rather than declared as a parameter property
+ * (`constructor(readonly output: string)`). Node runs this file with type STRIPPING, which erases
+ * annotations without evaluating them, and a parameter property is the one TypeScript form that
+ * needs real emit — it fails at runtime with ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX while typechecking
+ * perfectly. That shipped once, in the release that was meant to fix releases.
+ */
 class PublishError extends Error {
-  constructor(readonly output: string) {
+  readonly output: string;
+
+  constructor(output: string) {
     super(lastLine(output));
+    this.output = output;
   }
 }
 
