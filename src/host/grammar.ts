@@ -110,16 +110,36 @@ interface GrammarIndex {
   byScope: Map<string, vscode.Uri>;
 }
 
+/**
+ * Whether an extension ships WITH VS Code rather than being installed by the user.
+ *
+ * Built-ins win a contested scope name. That is not a preference for Microsoft's grammars — it is
+ * that a scope name is not owned by whoever registers it first, and `extensions.all` enumerates
+ * user extensions BEFORE built-ins. Measured on a real install: `csstools.postcss` contributes
+ * `scopeName: "source.css"` for its own `postcss` language, so first-wins resolved the `css`
+ * LANGUAGE to postcss's grammar file. It happened to tokenize comments the same way, so nothing
+ * broke — but a language resolving to a different extension's grammar is wrong on its own terms,
+ * and the next collision might not be so lucky.
+ */
+const isBuiltin = (extension: vscode.Extension<unknown>): boolean =>
+  extension.id.startsWith("vscode.") ||
+  extension.extensionUri.path.includes("/resources/app/extensions/");
+
 const discoverGrammars = (): GrammarIndex => {
   const byLanguage = new Map<string, string>();
   const byScope = new Map<string, vscode.Uri>();
-  for (const extension of vscode.extensions.all) {
+  // Built-ins first, so a user extension cannot claim a scope or a language they already define.
+  // Within each pass the first contribution still wins, which settles collisions between two user
+  // extensions the same way VS Code's own ordering would.
+  const ordered = [
+    ...vscode.extensions.all.filter(isBuiltin),
+    ...vscode.extensions.all.filter((e) => !isBuiltin(e))
+  ];
+  for (const extension of ordered) {
     for (const entry of contributedGrammars(extension.packageJSON)) {
       const grammar = asGrammarEntry(entry);
       if (!grammar) continue;
       const uri = vscode.Uri.joinPath(extension.extensionUri, grammar.path);
-      // First contribution wins in both maps: a later extension is not allowed to silently
-      // displace a grammar already resolved for the same language or scope.
       if (!byScope.has(grammar.scopeName)) byScope.set(grammar.scopeName, uri);
       if (grammar.language !== undefined && !byLanguage.has(grammar.language))
         byLanguage.set(grammar.language, grammar.scopeName);
@@ -144,10 +164,30 @@ export class CommentScopes implements vscode.Disposable {
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
-  /** Whether a language has a grammar at all, without loading it. Cheap enough to call per pass. */
-  supports(languageId: string): boolean {
-    this.#sources ??= discoverGrammars();
-    return this.#sources.byLanguage.has(languageId);
+  /**
+   * Whether one POSITION sits inside a comment.
+   *
+   * The hover's question, where the decorator asks for whole lines. Both go through the same
+   * tokenizing path, so a `//` inside a template literal is not a comment for either — the two
+   * features cannot disagree about what a comment is, which they would if the hover had its own
+   * notion.
+   *
+   * False whenever the answer is not knowable: no grammar for this language, an unreadable grammar,
+   * a failed WASM load. The hover then does nothing, which is what it did before this existed.
+   */
+  async isComment(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): Promise<boolean> {
+    const [spans] = await this.commentSpans(
+      document,
+      position.line,
+      position.line
+    );
+    return (spans ?? []).some(
+      (span) =>
+        position.character >= span.start && position.character < span.end
+    );
   }
 
   /**

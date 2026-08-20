@@ -92,6 +92,11 @@
         "category": "Jisho"
       },
       {
+        "command": "vscode-jisho.toggleCodeComments",
+        "title": "Toggle Japanese in Code Comments",
+        "category": "Jisho"
+      },
+      {
         "command": "vscode-jisho.openSettings",
         "title": "Open Settings",
         "category": "Jisho"
@@ -143,12 +148,12 @@
         "vscode-jisho.highlighting.codeComments": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Color Japanese in the comments of your JavaScript and TypeScript files, using the same palette as `#vscode-jisho.highlighting.enabled#`.\n\nComments only. Strings and identifiers are left alone, so the coloring never changes how the code itself reads. Requires `#vscode-jisho.highlighting.enabled#` to be on."
+          "markdownDescription": "Extend the editor features into the comments of your code: part-of-speech coloring and dictionary hovers both. JavaScript, TypeScript, HTML, CSS, Python, PHP and Rust are covered, including Python docstrings.\n\nComments only. Strings and identifiers are left alone, so nothing changes about how the code itself reads. Coloring also requires `#vscode-jisho.highlighting.enabled#`."
         },
         "vscode-jisho.hover.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show a dictionary hover (reading, meanings, conjugation breakdown) over Japanese text in Markdown and plain-text files."
+          "markdownDescription": "Show a dictionary hover (reading, meanings, conjugation breakdown) over Japanese text in Markdown and plain-text files.\n\nTo extend hovers into code comments as well, see `#vscode-jisho.highlighting.codeComments#`."
         },
         "vscode-jisho.grammar.enabled": {
           "type": "boolean",

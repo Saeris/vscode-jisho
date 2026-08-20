@@ -5,10 +5,15 @@ import {
 } from "./host/dictionaryUpdate";
 import { targetWord, transformEditorText } from "./host/editorCommands";
 import { addFurigana, removeFurigana } from "./host/furigana";
-import { VIEW_ID, toggleHighlighting } from "./host/hostSettings";
+import {
+  SUPPORTED_LANGUAGES,
+  VIEW_ID,
+  toggleCodeComments,
+  toggleHighlighting
+} from "./host/hostSettings";
 import { CommentScopes } from "./host/grammar";
 import { beginTrace, endTrace, formatTrace, log } from "./host/log";
-import { DECORATED_LANGUAGES, PosDecorator } from "./host/posDecorations";
+import { PosDecorator } from "./host/posDecorations";
 import { addSpacing, removeSpacing } from "./host/spacing";
 import { openIssueReport, showReportableError } from "./host/report";
 import { configureTokenizer } from "./host/tokenizer";
@@ -155,6 +160,19 @@ function activateJisho(context: vscode.ExtensionContext): void {
         );
       }
     ),
+    // The code-comment half, as its own toggle. Separate from the one above because they answer
+    // different questions: that one is "colour my prose", this is "reach into my source files".
+    // Someone reading a Japanese codebase wants this on and may not want their Markdown coloured.
+    vscode.commands.registerCommand(
+      "vscode-jisho.toggleCodeComments",
+      async () => {
+        const enabled = await toggleCodeComments();
+        vscode.window.setStatusBarMessage(
+          `Jisho: Japanese in code comments ${enabled ? "on" : "off"}`,
+          3000
+        );
+      }
+    ),
     vscode.commands.registerCommand("vscode-jisho.openSettings", () => {
       void vscode.commands.executeCommand(
         "workbench.action.openSettings",
@@ -192,7 +210,7 @@ function activateJisho(context: vscode.ExtensionContext): void {
     // the text changed, a different editor became visible, the user scrolled to text we had not
     // painted yet, or a document was opened into an already-visible editor.
     vscode.workspace.onDidChangeTextDocument((event) => {
-      if (!DECORATED_LANGUAGES.includes(event.document.languageId)) return;
+      if (!SUPPORTED_LANGUAGES.includes(event.document.languageId)) return;
       for (const editor of vscode.window.visibleTextEditors) {
         // Debounced: mid-word colouring is churn, and the pass is a tokenizer call per visible line.
         // The other three triggers stay immediate — see `refreshSoon`.
@@ -206,9 +224,17 @@ function activateJisho(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
       void posDecorator.refresh(event.textEditor);
     }),
-    vscode.languages.registerHoverProvider(["markdown", "plaintext"], {
+    // Prose AND code. The hover used to be registered for markdown/plaintext only, which is why it
+    // did nothing in a code file even after the COLOURING learned to read comments — the two
+    // features had separate language lists and only one of them was updated. They now share
+    // `SUPPORTED_LANGUAGES`, so a language cannot be covered by one and not the other.
+    //
+    // Registering for a code language does not mean answering in one: `provideHover` returns
+    // undefined outside a comment, so TypeScript's own hover is never competed with over a string
+    // literal or an identifier.
+    vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, {
       provideHover: async (document, position, token) =>
-        provider.hover(document, position, token)
+        provider.hover(document, position, token, commentScopes)
     }),
     provider
   );
