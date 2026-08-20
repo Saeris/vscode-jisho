@@ -4,6 +4,13 @@
 
 
 
+
+## 0.2.1
+<sub>2026-08-20</sub>
+
+-  *(patch)*
+  Fixes 0.2.0 failing to start with "Cannot find module 'vscode-textmate'". The comment-highlighting libraries were loaded from disk instead of being built into the extension, so nothing worked at all. If you installed 0.2.0, this restores it.
+
 ## 0.2.0
 <sub>2026-08-19</sub>
 
