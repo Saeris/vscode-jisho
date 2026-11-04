@@ -115,13 +115,11 @@ export const wholeWholeDistance: DistanceMetric = (p1, p2) => {
 // oxlint-disable-next-line unicorn/no-new-array
 const allocMap = (n: number): StrokeMap => new Array<number>(n).fill(-1);
 
-/** Greedy initial N-stroke map: assign each shorter-pattern stroke to its nearest free longer one. */
-const initStrokeMap = (
-  p1: Pattern,
-  p2: Pattern,
-  metric: DistanceMetric
-): StrokeMap => {
-  const [k1, k2, n, m] = largerAndSize(p1, p2);
+/**
+ * Greedy initial N-stroke map: assign each shorter-pattern stroke to its nearest free longer one.
+ * `dist[j * m + i]` holds the distance between longer stroke `j` and shorter stroke `i`.
+ */
+const seedMap = (dist: Float64Array, n: number, m: number): StrokeMap => {
   const map: StrokeMap = allocMap(n);
   const taken = new Uint8Array(n);
   for (let i = 0; i < m; i++) {
@@ -129,7 +127,7 @@ const initStrokeMap = (
     let minJ = -1;
     for (let j = 0; j < n; j++) {
       if (taken[j] === 0) {
-        const d = metric(k1[j], k2[i]);
+        const d = dist[j * m + i];
         if (d < minDist) {
           minDist = d;
           minJ = j;
@@ -148,24 +146,22 @@ const initStrokeMap = (
  * Refine the N-stroke map by iterative improvement (3 passes): for each assigned stroke, try swapping
  * or reassigning to reduce total distance. Mirrors the reference's L=3 hill-climb.
  */
-export const getMap = (
-  p1: Pattern,
-  p2: Pattern,
-  metric: DistanceMetric
+const refineMap = (
+  dist: Float64Array,
+  n: number,
+  m: number,
+  map: StrokeMap
 ): StrokeMap => {
-  const [k1, k2] = largerAndSize(p1, p2);
-  const map = initStrokeMap(p1, p2, metric);
-  const L = 3;
-  for (let l = 0; l < L; l++) {
-    for (let i = 0; i < map.length; i++) {
+  for (let l = 0; l < 3; l++) {
+    for (let i = 0; i < n; i++) {
       if (map[i] === -1) continue;
-      let dii = metric(k1[i], k2[map[i]]);
-      for (let j = 0; j < map.length; j++) {
+      let dii = dist[i * m + map[i]];
+      for (let j = 0; j < n; j++) {
         if (map[i] === -1) break; // map[i] may have been cleared within this inner loop
         if (map[j] !== -1) {
-          const djj = metric(k1[j], k2[map[j]]);
-          const dij = metric(k1[j], k2[map[i]]);
-          const dji = metric(k1[i], k2[map[j]]);
+          const djj = dist[j * m + map[j]];
+          const dij = dist[j * m + map[i]];
+          const dji = dist[i * m + map[j]];
           if (dji + dij < dii + djj) {
             const mapj = map[j];
             map[j] = map[i];
@@ -173,7 +169,7 @@ export const getMap = (
             dii = dij;
           }
         } else {
-          const dij = metric(k1[j], k2[map[i]]);
+          const dij = dist[j * m + map[i]];
           if (dij < dii) {
             map[j] = map[i];
             map[i] = -1;
@@ -187,15 +183,40 @@ export const getMap = (
 };
 
 /**
- * `getMap` specialised for `endPointDistance`, reading precomputed endpoints.
- *
- * Identical algorithm to `getMap` — same greedy seed, same 3-pass hill-climb, same comparisons in
- * the same order — but every `metric(k1[x], k2[y])` becomes flat Float64Array arithmetic instead of
- * a call that re-walks stroke → point → coordinate. This is the coarse pass's inner loop, and it
- * dominates recognition (~840k metric evaluations for one worst-case character).
- *
- * The generic `getMap` stays for the fine pass, which uses a different metric that genuinely needs
- * whole strokes.
+ * Every (longer, shorter) stroke pair's distance is computed once into this buffer before the
+ * search: the seed reads each pair once, but the three hill-climb passes read each pair several
+ * times more, and profiling put about 40% of a recognition in the metric alone when each read was
+ * an evaluation. Reused across calls because recognition is synchronous and the coarse pass runs
+ * hundreds of times per stroke drawn.
+ */
+let pairDistances = new Float64Array(0);
+
+const pairBuffer = (n: number, m: number): Float64Array => {
+  if (pairDistances.length < n * m) pairDistances = new Float64Array(n * m);
+  return pairDistances;
+};
+
+/**
+ * The one-to-one N-stroke map between two patterns under `metric`: greedy seed, then the 3-pass
+ * hill-climb. The fine pass uses it with a metric that needs whole strokes.
+ */
+export const getMap = (
+  p1: Pattern,
+  p2: Pattern,
+  metric: DistanceMetric
+): StrokeMap => {
+  const [k1, k2, n, m] = largerAndSize(p1, p2);
+  const dist = pairBuffer(n, m);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < m; i++) dist[j * m + i] = metric(k1[j], k2[i]);
+  }
+  return refineMap(dist, n, m, seedMap(dist, n, m));
+};
+
+/**
+ * `getMap` specialised for `endPointDistance`, reading precomputed endpoints (see `endPointsOf`).
+ * This is the coarse pass's inner loop, and every distance becomes flat Float64Array arithmetic
+ * instead of a call that re-walks stroke → point → coordinate.
  */
 export const getMapEndPoints = (
   a: EndPoints,
@@ -209,55 +230,12 @@ export const getMapEndPoints = (
   const k2 = swap ? a : b;
   const n = swap ? bLength : aLength;
   const m = swap ? aLength : bLength;
-
-  const map: StrokeMap = allocMap(n);
-  const taken = new Uint8Array(n);
-  for (let i = 0; i < m; i++) {
-    let minDist = Number.POSITIVE_INFINITY;
-    let minJ = -1;
-    for (let j = 0; j < n; j++) {
-      if (taken[j] === 0) {
-        const d = endPointDistanceAt(k1, j, k2, i);
-        if (d < minDist) {
-          minDist = d;
-          minJ = j;
-        }
-      }
-    }
-    if (minJ !== -1) {
-      taken[minJ] = 1;
-      map[minJ] = i;
-    }
+  const dist = pairBuffer(n, m);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < m; i++)
+      dist[j * m + i] = endPointDistanceAt(k1, j, k2, i);
   }
-
-  for (let l = 0; l < 3; l++) {
-    for (let i = 0; i < n; i++) {
-      if (map[i] === -1) continue;
-      let dii = endPointDistanceAt(k1, i, k2, map[i]);
-      for (let j = 0; j < n; j++) {
-        if (map[i] === -1) break; // map[i] may have been cleared within this inner loop
-        if (map[j] !== -1) {
-          const djj = endPointDistanceAt(k1, j, k2, map[j]);
-          const dij = endPointDistanceAt(k1, j, k2, map[i]);
-          const dji = endPointDistanceAt(k1, i, k2, map[j]);
-          if (dji + dij < dii + djj) {
-            const mapj = map[j];
-            map[j] = map[i];
-            map[i] = mapj;
-            dii = dij;
-          }
-        } else {
-          const dij = endPointDistanceAt(k1, j, k2, map[i]);
-          if (dij < dii) {
-            map[j] = map[i];
-            map[i] = -1;
-            dii = dij;
-          }
-        }
-      }
-    }
-  }
-  return map;
+  return refineMap(dist, n, m, seedMap(dist, n, m));
 };
 
 const concatStrokes = (pattern: Pattern, from: number, to: number): Stroke => {
