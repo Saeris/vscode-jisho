@@ -60,6 +60,9 @@ export const toCss = (color) => {
  * quantisation), so prefer it. Gamut-mapped by reducing CHROMA — preserving L and H — rather than
  * clipping channels, which would shift hue.
  */
+/** Clamp to the 0-1 range both callers below need. */
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
 export const toRgbFallback = (color, gamut = GAMUT) => {
   const [r, g, b] = color
     .clone()
@@ -109,8 +112,6 @@ export const CVD_PREVALENCE = {
   tritan: 0.0003
 };
 export const VIEWS = ["normal", "deutan", "protan", "tritan"];
-
-const clamp01 = (x) => Math.min(1, Math.max(0, x));
 
 /**
  * CVD simulation. The Brettel–Viénot–Mollon matrices are defined on LINEAR RGB, so we convert to

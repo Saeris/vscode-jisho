@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { screen } from "@testing-library/react";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { DetailView } from "../DetailView";

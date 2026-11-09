@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { GOJUON_ROWS, searchFold } from "../kana";
 import { inScript, KANA_CHART, toKatakana, type KanaCell } from "../kana-chart";
 

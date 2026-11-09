@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { hasKanji, isKanjiChar, isKanjiForReading } from "../japanese";
 
 describe("kanji predicates", () => {

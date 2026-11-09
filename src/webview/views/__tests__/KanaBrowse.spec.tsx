@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { KanaBrowse } from "../KanaBrowse";

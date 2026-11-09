@@ -21,7 +21,7 @@ jobs:
 
       # The Node VSCode's extension host runs (see ci.yml). This suite drives a real VSCode, so the
       # host bundle it builds has to target that runtime.
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "24.15"
           cache: true
@@ -127,7 +127,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "24.15"
           cache: true

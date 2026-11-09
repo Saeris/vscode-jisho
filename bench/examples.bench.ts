@@ -33,7 +33,8 @@
  * Compare:  vp run bench:compare
  */
 import { readFileSync } from "node:fs";
-import { bench, describe } from "vitest";
+import { it, describe } from "vite-plus/test";
+import { against, baselineFor } from "./baseline";
 import { exampleText, parseExampleMarkup } from "../src/shared/exampleLinks";
 import { wordHoverMarkdown, type WordHover } from "../src/shared/hoverHtml";
 
@@ -73,40 +74,125 @@ const hoverFor = (jaFurigana: string, en: string): WordHover => ({
 describe("example markup", () => {
   // The headline numbers: what one user interaction costs, on a distribution-faithful sample.
   const hoverNext = cursor(mix);
-  bench("hover: 1 sentence through the whole markdown body", () => {
-    const jaFurigana = hoverNext();
-    sink += wordHoverMarkdown(
-      hoverFor(jaFurigana, "Please be careful.")
-    ).length;
+  it("hover: 1 sentence through the whole markdown body", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "examples-hover-1-sentence-through-the-whole-markdown-body",
+      bench(
+        "hover: 1 sentence through the whole markdown body",
+        baselineFor(
+          "examples-hover-1-sentence-through-the-whole-markdown-body"
+        ),
+        () => {
+          const jaFurigana = hoverNext();
+          sink += wordHoverMarkdown(
+            hoverFor(jaFurigana, "Please be careful.")
+          ).length;
+        }
+      )
+    );
   });
 
   const pageNext = cursor(mix);
-  bench("word page: 6 inline examples parsed for render", () => {
-    for (let i = 0; i < 6; i++) sink += parseExampleMarkup(pageNext()).length;
+  it("word page: 6 inline examples parsed for render", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "examples-word-page-6-inline-examples-parsed-for-render",
+      bench(
+        "word page: 6 inline examples parsed for render",
+        baselineFor("examples-word-page-6-inline-examples-parsed-for-render"),
+        () => {
+          for (let i = 0; i < 6; i++)
+            sink += parseExampleMarkup(pageNext()).length;
+        }
+      )
+    );
   });
 
   const poolNext = cursor(mix);
-  bench("more-examples page: 20 pooled examples parsed", () => {
-    for (let i = 0; i < 20; i++) sink += parseExampleMarkup(poolNext()).length;
+  it("more-examples page: 20 pooled examples parsed", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "examples-more-examples-page-20-pooled-examples-parsed",
+      bench(
+        "more-examples page: 20 pooled examples parsed",
+        baselineFor("examples-more-examples-page-20-pooled-examples-parsed"),
+        () => {
+          for (let i = 0; i < 20; i++)
+            sink += parseExampleMarkup(poolNext()).length;
+        }
+      )
+    );
   });
 
   // The two layers isolated, so a change can be attributed. `exampleText` is `parseExampleMarkup`
   // plus a ruby strip, so the gap between these two IS the strip's cost.
   const parseNext = cursor(mix);
-  bench("parse only: 1 sentence (link layer)", () => {
-    sink += parseExampleMarkup(parseNext()).length;
+  it("parse only: 1 sentence (link layer)", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "examples-parse-only-1-sentence-link-layer",
+      bench(
+        "parse only: 1 sentence (link layer)",
+        baselineFor("examples-parse-only-1-sentence-link-layer"),
+        () => {
+          sink += parseExampleMarkup(parseNext()).length;
+        }
+      )
+    );
   });
 
   const textNext = cursor(mix);
-  bench("exampleText: 1 sentence (both layers stripped)", () => {
-    sink += exampleText(textNext()).length;
+  it("exampleText: 1 sentence (both layers stripped)", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "examples-exampletext-1-sentence-both-layers-stripped",
+      bench(
+        "exampleText: 1 sentence (both layers stripped)",
+        baselineFor("examples-exampletext-1-sentence-both-layers-stripped"),
+        () => {
+          sink += exampleText(textNext()).length;
+        }
+      )
+    );
   });
 
   // The tail: ~22 links in one sentence. Guards against a change that is fine at the median and
   // quadratic at the top of the range.
   const worstNext = cursor(worst);
-  bench("worst: 1 sentence at the top of the link range", () => {
-    sink += parseExampleMarkup(worstNext()).length;
+  it("worst: 1 sentence at the top of the link range", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "examples-worst-1-sentence-at-the-top-of-the-link-range",
+      bench(
+        "worst: 1 sentence at the top of the link range",
+        baselineFor("examples-worst-1-sentence-at-the-top-of-the-link-range"),
+        () => {
+          sink += parseExampleMarkup(worstNext()).length;
+        }
+      )
+    );
   });
 });
 

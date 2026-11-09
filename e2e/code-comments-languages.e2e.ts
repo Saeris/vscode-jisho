@@ -7,7 +7,7 @@ import { openJishoSidebar } from "./webview";
 /**
  * The same comment/string boundary, across languages that are not JavaScript.
  *
- * TextMate does abstract most of this — a `comment` scope prefix matches `//`, `#`, `/* *​/` and
+ * TextMate does abstract most of this — a `comment` scope prefix matches `//`, `#`, `/* *\/` and
  * `<!-- -->` alike, with no table of delimiters on our side. But "most" was worth checking rather
  * than assuming, and checking found a real exception: a Python DOCSTRING is scoped
  * `string.quoted.docstring`, NOT `comment`, so the prefix alone would have left Python's most

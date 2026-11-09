@@ -105,7 +105,7 @@ export const PitchAccent = ({
             key={i}
             className={styles.mora}
             data-mora={m.high ? "high" : "low"}
-            style={{ gridColumn: i + 1 } as React.CSSProperties}
+            style={{ gridColumn: i + 1 }}
           >
             {m.mora}
           </span>

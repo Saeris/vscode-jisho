@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vite-plus/test";
 
 // The bridge touches browser globals at import time (`acquireVsCodeApi`, `window`). Stub them
 // before importing the module, and reset modules between tests so its internal pending-map is

@@ -17,7 +17,7 @@
  * it, which for these scripts means publishing to the Marketplace or rebuilding a database. This
  * covers the forms that actually bite; it is a tripwire, not a compiler.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 

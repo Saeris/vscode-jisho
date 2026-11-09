@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig, configDefaults } from "vite-plus";
-import type { TestProjectConfiguration } from "vitest/config";
+import type { TestProjectConfiguration } from "vite-plus";
 import { lint, fmt, mergeLint } from "@saeris/configs";
 import react from "@vitejs/plugin-react";
 import { playwright } from "vite-plus/test/browser/providers/playwright";
@@ -63,6 +63,11 @@ const unitProject: TestProjectConfiguration = {
     // `scripts/` too: the data-build transforms are pure functions and belong at this layer.
     include: ["src/**/*.{test,spec}.ts", "scripts/**/*.{test,spec}.ts"],
     exclude: [...configDefaults.exclude, NOT_BENCH, ...BROWSER_ONLY],
+    // Vitest v5 gives EVERY project a bench variant, and a variant resolves `benchmark.include`
+    // on its own — the project's `exclude` above does not constrain it. Left unset it defaults to
+    // `**/*.bench.*`, so this project would claim bench/ in bench mode despite NOT_BENCH. Empty
+    // means "this project contributes no benchmarks", which is the truth: they all live in `bench`.
+    benchmark: { include: [] },
     environment: "node"
   }
 };
@@ -90,6 +95,11 @@ const componentProject: TestProjectConfiguration = {
     // Everything that renders, plus the `BROWSER_ONLY` logic specs whose code needs a browser API.
     include: ["src/**/*.{test,spec}.tsx", ...BROWSER_ONLY],
     exclude: [...configDefaults.exclude, NOT_BENCH],
+    // See the unit project: a bench variant resolves `benchmark.include` independently of
+    // `exclude`. Unset, this project pulled `bench/**` into a CHROMIUM tab — including the
+    // `*.bench.mjs` deoptkit workloads, which are not Vitest suites and failed on an unresolvable
+    // `deoptkit/harness` import.
+    benchmark: { include: [] },
     browser: {
       enabled: true,
       provider: playwright(),
@@ -113,13 +123,30 @@ const componentProject: TestProjectConfiguration = {
 const benchProject: TestProjectConfiguration = {
   test: {
     name: "bench",
-    // `include` is deliberately EMPTY: these files contain benches, not tests, so a plain
-    // `vp test` (what CI runs) must not try to collect them — it would fail with "No test suite
-    // found". Only `benchmark.include` claims them, which `vp test bench` reads.
+    /**
+     * `include` stays EMPTY, and under Vitest v5 that matters more than it used to.
+     *
+     * A bench is now a `test()` carrying a `bench` fixture, so these files ARE collectable tests.
+     * Naming them here makes a plain `vp test` (what CI runs) pick them up and fail 23 times with
+     * "Cannot use the `bench` test-context fixture within a regular test run" — Vitest refuses to
+     * measure outside bench mode, deliberately, because benchmarks are flaky under a test runner.
+     *
+     * `benchmark.include` below is what claims these files, and only in bench mode.
+     *
+     * Only `.ts`: the sibling `*.bench.mjs` files are deoptkit PROFILING workloads, run under V8
+     * logging flags rather than by Vitest — they export no Vitest suite at all.
+     */
     include: [],
-    // Only .ts: the sibling `*.bench.mjs` files are deoptkit PROFILING workloads, run under V8
-    // logging flags rather than by Vitest — they export no Vitest suite at all.
-    benchmark: { include: ["bench/**/*.bench.ts"] },
+    /**
+     * `enabled` is what makes `vp run bench` find this project at all.
+     *
+     * In bench mode Vitest keeps only the projects that opt in —
+     * `projects.filter((p) => p.config.benchmark.enabled)` — and that filter runs BEFORE the
+     * `--project bench` name filter. Without this the run failed with "No projects matched the
+     * filter \"bench\"" while `vp test list` happily reported `[bench]`, which is a confusing pair
+     * of answers to get from one config.
+     */
+    benchmark: { enabled: true, include: ["bench/**/*.bench.ts"] },
     environment: "node"
   }
 };
@@ -165,7 +192,12 @@ export default defineConfig({
     // `Cannot read properties of undefined` in the browser project instead of as a type error.
     overrides: [
       {
-        files: ["src/**/*.preview.spec.tsx"],
+        // Throughput benchmarks joined this list in Vitest v5. A bench used to be its own
+        // construct; it is now a `test()` carrying a `bench` fixture, so every benchmark reads to
+        // the rule as a test that forgot to assert. It did not forget — a bench MEASURES, and the
+        // numbers are the output. Adding a token `expect` to 23 benchmarks to satisfy a rule would
+        // be worse than scoping the rule.
+        files: ["src/**/*.preview.spec.tsx", "bench/**/*.bench.ts"],
         rules: { "vitest/expect-expect": "off" }
       },
       {
@@ -242,6 +274,10 @@ export default defineConfig({
     dts: false,
     outDir: `./dist`,
     deps: {
+      // tsdown <0.23 compatibility: resolve external dependency subpaths.
+      // Remove to preserve subpath imports as written (the new default).
+      // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
+      resolveDepSubpath: true,
       // `vscode` is provided by the host at runtime — never bundle it.
       // `lindera-nodejs` loads a platform-specific .node addon by package name at
       // runtime, so it and the `lindera-nodejs-*` platform packages must stay
@@ -254,6 +290,18 @@ export default defineConfig({
   // ── Testing (Vitest) ────────────────────────────────────────────────
   // See the project definitions above for why this is split three ways.
   test: {
+    // Vitest v4 compatibility: preserve mock call history.
+    // Remove after tests no longer rely on calls from setup or earlier tests.
+    // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
+    clearMocks: false,
+    //
+    // `sharedViteServer: false` was the OTHER compatibility setting `vp migrate` added here, and it
+    // is deliberately absent: it broke 72 tests. The projects above carry no `plugins` of their own
+    // and inherit the top-level `react()` (see the note beside them), so giving each its own Vite
+    // server left the component project with a second copy of React — every render died on
+    // "Cannot read properties of null (reading 'useContext')". v5's shared server is what this
+    // config already assumed.
     name: manifest.name,
     globals: true,
     passWithNoTests: true,

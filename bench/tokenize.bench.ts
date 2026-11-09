@@ -19,7 +19,8 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { bench, describe } from "vitest";
+import { describe, it } from "vite-plus/test";
+import { against, baselineFor } from "./baseline";
 import { segment } from "../src/host/tokenizer";
 import { japaneseRuns, stripRuby } from "../src/host/hover";
 
@@ -41,43 +42,72 @@ describe("tokenize", () => {
   // stable mean without making `vp run bench` take minutes — the point is a before/after delta on
   // heavy load, not a tight ops/sec; a few samples of a 4s workload resolve a real change well past
   // noise.
-  const heavy = {
-    warmupIterations: 1,
-    iterations: 5,
-    setup: async () => void (await warm)
+  // Tinybench handles warmup on its own in v5, so `warmupIterations` is gone; `setup` became the
+  // per-bench `beforeEach` hook. The iteration count stays: these cases are ~4s each, and a handful
+  // of samples is what keeps `vp run bench` to seconds rather than minutes.
+  const heavy = { iterations: 5 };
+  const warmFirst = {
+    beforeEach: async (): Promise<void> => void (await warm)
   };
 
   // Whole document, tokenized line by line.
-  bench(
-    "tokenize 吾輩は猫である (~2,255 lines, line by line)",
-    async () => {
-      for (const line of corpus) await segment(line);
-    },
-    heavy
-  );
+  it("tokenize 吾輩は猫である (~2,255 lines, line by line)", async ({
+    bench
+  }) => {
+    await against(
+      bench,
+      expect,
+      "tokenize-document",
+      bench(
+        "tokenize 吾輩は猫である (~2,255 lines, line by line)",
+        { ...warmFirst, ...baselineFor("tokenize-document") },
+        async () => {
+          for (const line of corpus) await segment(line);
+        }
+      ),
+      heavy
+    );
+  });
 
   // The full highlighting walk: what provideSemanticTokens does per line — strip ruby/markdown, find
   // Japanese runs, tokenize each. Measures the detection overhead ON TOP of tokenization.
-  bench(
-    "highlight walk 吾輩は猫である (strip + runs + tokenize)",
-    async () => {
-      for (const line of corpus) {
-        const stripped = stripRuby(line, "drop");
-        for (const run of japaneseRuns(stripped.text)) {
-          if (HAS_KANJI.test(run.text)) await segment(run.text);
+  it("highlight walk 吾輩は猫である (strip + runs + tokenize)", async ({
+    bench
+  }) => {
+    await against(
+      bench,
+      expect,
+      "highlight-walk",
+      bench(
+        "highlight walk 吾輩は猫である (strip + runs + tokenize)",
+        { ...warmFirst, ...baselineFor("highlight-walk") },
+        async () => {
+          for (const line of corpus) {
+            const stripped = stripRuby(line, "drop");
+            for (const run of japaneseRuns(stripped.text)) {
+              if (HAS_KANJI.test(run.text)) await segment(run.text);
+            }
+          }
         }
-      }
-    },
-    heavy
-  );
+      ),
+      heavy
+    );
+  });
 
   // A single representative sentence, to isolate per-call cost from whole-document iteration.
   const sentence = "吾輩は猫である。名前はまだ無い。";
-  bench(
-    "tokenize one sentence",
-    async () => {
-      await segment(sentence);
-    },
-    { setup: async () => void (await warm) }
-  );
+  it("tokenize one sentence", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "tokenize-sentence",
+      bench(
+        "tokenize one sentence",
+        { ...warmFirst, ...baselineFor("tokenize-sentence") },
+        async () => {
+          await segment(sentence);
+        }
+      )
+    );
+  });
 });

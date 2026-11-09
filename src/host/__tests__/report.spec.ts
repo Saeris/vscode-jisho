@@ -9,7 +9,7 @@
  * stub that returned the string unchanged would pass whether or not the bug is present, which is
  * the failure mode that let this ship in the first place.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const opened: unknown[] = [];
 

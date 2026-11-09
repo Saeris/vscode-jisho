@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { cleanup, render, screen } from "@testing-library/react";
 import { PitchAccent } from "../PitchAccent";
 

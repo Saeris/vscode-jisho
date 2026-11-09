@@ -15,7 +15,7 @@
  * same bundle this reads in milliseconds. The .vsix adds only the file-inclusion question, which
  * `package-platforms.ts` already guards for the assets it ships.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join } from "node:path";

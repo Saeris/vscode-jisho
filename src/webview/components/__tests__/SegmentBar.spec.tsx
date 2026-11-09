@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { SegmentBar } from "../SegmentBar";
 import type { SegmentDto } from "../../../shared/messages";

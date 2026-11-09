@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { euclid, extractFeatures, momentNormalize } from "../geometry";
 import type { Pattern, Point } from "../types";
 

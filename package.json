@@ -45,9 +45,9 @@
     "build:pos-css": "vp exec node scripts/gen-pos-css.ts",
     "build:data:full": "vp exec node scripts/build-data.ts --full",
     "build:data:names": "vp exec node scripts/build-data.ts --names",
-    "bench": "vp test bench --run --project bench",
-    "bench:save": "vp test bench --run --project bench --outputJson bench/baseline.json",
-    "bench:compare": "vp test bench --run --project bench --compare bench/baseline.json",
+    "bench": "vp test bench --run",
+    "bench:save": "vp exec node scripts/bench-baseline.ts",
+    "bench:compare": "vp test bench --run",
     "bench:build": "vp pack --entry bench/entry.ts --format esm --outDir dist --no-dts",
     "e2e": "vp run build:onig-wasm && vp pack && vp build && vp exec playwright test",
     "docs:shots": "vp run build:onig-wasm && vp pack && vp build && vp exec playwright test e2e/docs",
@@ -278,7 +278,8 @@
     "@types/vscode": "1.120.0",
     "@varlock/bumpy": "^1.18.1",
     "@vitejs/plugin-react": "^6.0.5",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/browser-playwright": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "3.9.2",
     "deoptkit": "^0.1.0",
@@ -288,20 +289,20 @@
     "typescript": "7.0.2",
     "typescript-plugin-css-modules": "^5.2.0",
     "unbzip2-stream": "^1.4.3",
-    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vite-plus": "latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
     "wanakana": "^5.3.1"
   },
   "resolutions": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.5.0",
+    "vitest": "5.1.0"
   },
   "engines": {
     "node": ">=24.15",
     "vscode": "^1.123.0"
   },
-  "packageManager": "yarn@4.18.0",
+  "packageManager": "yarn@4.18.1",
   "bumpy": {
     "buildCommand": "vp pack && vp build && vp exec node scripts/package-platforms.ts",
     "publishCommand": "vp exec node scripts/publish-vsix.ts",
