@@ -200,7 +200,7 @@ interface BrowseResult {
  * `staleTime: Infinity` — these change only when the dictionary itself is replaced, so refetching
  * them on every visit to the tree would be ~90 COUNT queries for an answer that cannot have moved.
  */
-/** Category counts, and the names dictionary's state — see `BrowseCountsResponse`. */
+/** Category counts, and the names dictionary's state — see `Protocol["browseCounts"]`. */
 interface BrowseCounts {
   counts: Record<string, number>;
   namesAvailable: boolean;

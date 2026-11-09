@@ -315,207 +315,6 @@ export interface NameDetailDto {
 
 // ── Request / Response protocol ───────────────────────────────────────────────
 
-export interface SearchRequest {
-  type: "search";
-  requestId: string;
-  query: string;
-}
-
-export interface GetWordRequest {
-  type: "getWord";
-  requestId: string;
-  id: string;
-}
-
-/** The fuller Tatoeba example pool for a word (F1 "more examples" page). */
-export interface GetMoreExamplesRequest {
-  type: "getMoreExamples";
-  requestId: string;
-  id: string;
-}
-
-/** One classifier's words, for the browse list (#54) and `#tag` search (#27). */
-export interface BrowseRequest {
-  type: "browse";
-  requestId: string;
-  /** A `Classifier.id` — the same token the `#tag` syntax accepts. */
-  id: string;
-  order: "frequency" | "gojuon";
-}
-
-/**
- * One kanji browse list (#55) — a JLPT level, a school grade, or the frequency-ranked set.
- *
- * Its own request rather than a `browse` with a different id: kanji lists are a SEPARATE taxonomy
- * from the word classifiers (they filter characters, not words), and sending a `KanjiListId` where
- * a `Classifier.id` is expected would blur the boundary that keeps a kanji-only filter out of
- * `#tag` search, where it could never match.
- */
-export interface KanjiListRequest {
-  type: "kanjiList";
-  requestId: string;
-  /** A `KanjiListId` from shared/classifiers. */
-  id: string;
-}
-
-export interface KanjiListResponse {
-  type: "kanjiList";
-  requestId: string;
-  /** Empty when the id is unknown — a truthful answer rather than an error. */
-  kanji: KanjiResultDto[];
-}
-
-/**
- * Word counts for every classifier, so the browse tree can show how big each category is.
- *
- * One request for all of them rather than one per category: the tree renders ~90 counts at once,
- * and 90 round trips over the webview bridge to fill in numbers would be visibly slow.
- */
-export interface BrowseCountsRequest {
-  type: "browseCounts";
-  requestId: string;
-  /**
-   * Classifier ids already applied. Counts are then how many words would REMAIN if each candidate
-   * were added — which is what lets the tag autocomplete hide combinations that narrow to zero.
-   * Omitted (or empty) gives each category's own size, which is what the browse tree shows.
-   */
-  applied?: string[];
-}
-
-export interface GetKanjiRequest {
-  type: "getKanji";
-  requestId: string;
-  literal: string;
-}
-
-/** Stroke-order animation SVG for a kanji (kanji detail's stroke player). */
-export interface GetStrokeSvgRequest {
-  type: "getStrokeSvg";
-  requestId: string;
-  literal: string;
-}
-
-export interface GetComponentTreeRequest {
-  type: "getComponentTree";
-  requestId: string;
-  literal: string;
-}
-
-/** Radical picker: the current selection (empty = show all radicals, no matches). */
-export interface LookupRadicalsRequest {
-  type: "lookupRadicals";
-  requestId: string;
-  selected: string[];
-}
-
-/**
- * Hydrate a set of kanji literals into result rows.
- *
- * For the handwriting recognizer, whose candidates come from the in-webview recognizer as bare
- * characters — it never touches the host, so it is the one kanji list with no meanings to show. The
- * response preserves the order asked for, because that order is the recognizer's ranking.
- */
-export interface GetKanjiPreviewsRequest {
-  type: "getKanjiPreviews";
-  requestId: string;
-  literals: string[];
-}
-
-/** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
-export interface GetAboutRequest {
-  type: "getAbout";
-  requestId: string;
-}
-
-/**
- * Name search against the optional JMnedict database. Separate from `search` because the names DB
- * is a lazy, opt-in download provisioned only on first use — the word/kanji search never waits on it.
- */
-export interface SearchNamesRequest {
-  type: "searchNames";
-  requestId: string;
-  query: string;
-}
-
-export interface GetNameRequest {
-  type: "getName";
-  requestId: string;
-  id: string;
-}
-
-/**
- * File a crash report from the webview.
- *
- * The stack is sanitized on THIS side before it crosses, so the host never receives the user's
- * directory layout even in a log. See `shared/diagnostics.ts`.
- */
-/**
- * The diagnostic snapshot, for the About view's copy button.
- *
- * Collected host-side because most of it is only reachable there (`process.versions`, the OS, the
- * `.version` sidecar). The webview renders and copies what it is given rather than assembling its
- * own, so all three report surfaces quote the same fields.
- */
-/** Install the names dictionary: the user accepted the offer. Downloads it with a progress notice. */
-export interface InstallNamesRequest {
-  type: "installNames";
-  requestId: string;
-}
-
-/**
- * Act on the dictionary from the panel: the recovery each failure needs.
- *   - `retry`: try to download or open it again (offline, or any other failure).
- *   - `update`: run the dictionary update check (an older schema).
- *   - `updateJisho`: open Jisho's page in the Extensions view (a newer schema needs a newer Jisho).
- */
-export interface DictionaryActionRequest {
-  type: "dictionaryAction";
-  requestId: string;
-  action: "retry" | "update" | "updateJisho";
-}
-
-/** The user declined the names offer under search results. Remembered across windows. */
-export interface DeclineNamesRequest {
-  type: "declineNames";
-  requestId: string;
-}
-
-export interface GetDiagnosticsRequest {
-  type: "getDiagnostics";
-  requestId: string;
-}
-
-export interface ReportCrashRequest {
-  type: "reportCrash";
-  requestId: string;
-  message: string;
-  /**
-   * Sanitized on the WEBVIEW side, and absent for a non-crash report.
-   *
-   * A failed query rejects with a stack describing the bridge's own plumbing rather than the cause,
-   * so including it would put noise in the issue where the useful signal is the message plus the
-   * diagnostics.
-   */
-  stack?: string;
-}
-
-/** Open VS Code's Settings UI filtered to this extension's section (the sidebar's ⚙). */
-export interface OpenSettingsRequest {
-  type: "openSettings";
-  requestId: string;
-}
-
-/**
- * Put text on the system clipboard. Routed through the host because a webview's
- * `navigator.clipboard` needs transient user activation and can be refused outright — the
- * extension host's clipboard API has neither constraint.
- */
-export interface CopyTextRequest {
-  type: "copyText";
-  requestId: string;
-  text: string;
-}
-
 /** One remembered lookup, for the empty search view's history (#17). */
 export interface RecentSearchDto {
   /** The text to re-run when tapped. */
@@ -526,236 +325,287 @@ export interface RecentSearchDto {
   at: number;
 }
 
-/** Read the recent-search history. */
-export interface GetRecentSearchesRequest {
-  type: "getRecentSearches";
-  requestId: string;
-}
-
-/**
- * Record a lookup. Sent when the user OPENS a result, not as they type — the query text changes on
- * every keystroke, so recording that would remember every prefix of every search.
- */
-export interface RecordRecentSearchRequest {
-  type: "recordRecentSearch";
-  requestId: string;
-  query: string;
-  headword: string;
-}
-
-/** Forget the history. */
-export interface ClearRecentSearchesRequest {
-  type: "clearRecentSearches";
-  requestId: string;
-}
-
-export type Request =
-  | SearchRequest
-  | GetWordRequest
-  | GetMoreExamplesRequest
-  | BrowseRequest
-  | KanjiListRequest
-  | BrowseCountsRequest
-  | GetKanjiRequest
-  | GetStrokeSvgRequest
-  | GetComponentTreeRequest
-  | LookupRadicalsRequest
-  | ReportCrashRequest
-  | GetDiagnosticsRequest
-  | GetKanjiPreviewsRequest
-  | GetAboutRequest
-  | SearchNamesRequest
-  | GetNameRequest
-  | InstallNamesRequest
-  | DeclineNamesRequest
-  | DictionaryActionRequest
-  | OpenSettingsRequest
-  | CopyTextRequest
-  | GetRecentSearchesRequest
-  | RecordRecentSearchRequest
-  | ClearRecentSearchesRequest;
-
-export interface SearchResponse {
-  type: "search";
-  requestId: string;
-  results: SearchResultDto[];
-  /** Kanji matching the query, shown as a separate section. */
-  kanji: KanjiResultDto[];
-  /**
-   * Morphological breakdown of the query — present only when a Japanese query tokenized into more
-   * than one content segment. The UI shows these as tappable chips; tapping re-searches a
-   * segment's lemma. Empty for single-word, English, or romaji queries.
-   */
-  segments: SegmentDto[];
-}
-
-export interface GetWordResponse {
-  type: "getWord";
-  requestId: string;
-  /** `null` when the id is unknown. */
-  word: WordDetailDto | null;
-}
-
-export interface GetMoreExamplesResponse {
-  type: "getMoreExamples";
-  requestId: string;
-  /** `null` when the word has no pooled examples. */
-  examples: MoreExamplesDto | null;
-}
-
-export interface BrowseResponse {
-  type: "browse";
-  requestId: string;
-  /** Empty when the classifier has no words in this build — a truthful answer, not an error. */
-  results: SearchResultDto[];
-  /**
-   * Kanji rows, for `#kanji`. A result-type classifier selects a KIND of result, so its list is
-   * characters rather than words — these are separate arrays rather than a union because the view
-   * renders each with a different component, and every other classifier fills only `results`.
-   */
-  kanji: KanjiResultDto[];
-  /** Name rows, for `#name`/`#place`. Empty unless one of those tags opened the list. */
-  names: NameResultDto[];
-  /** The whole category's size, which `results` may be capped below. */
-  total: number;
-}
-
-export interface BrowseCountsResponse {
-  type: "browseCounts";
-  requestId: string;
-  /** `Classifier.id` → word count. Absent ids have no words. */
-  counts: Record<string, number>;
-  /**
-   * Whether the names dictionary is provisioned.
-   *
-   * `#name`/`#place` are hidden when it is not: they are backed by a separate ~400MB opt-in
-   * download, and a suggestion that cannot return anything is worse than one that is absent.
-   * Reported here rather than in the settings snapshot because it changes when a DOWNLOAD
-   * completes, not when configuration does.
-   */
-  namesAvailable: boolean;
-  /**
-   * Whether to offer the names dictionary: it is not installed, and the user has not declined it.
-   *
-   * Names are OPT-IN. Nothing provisions them except the user accepting this offer (or installing
-   * from About) — they used to download on the first search of anything, 84 MB and ~400 MB on disk,
-   * while the README promised "if you use name lookups" (audit I-0).
-   */
-  namesOffered: boolean;
-}
-
-export interface GetKanjiResponse {
-  type: "getKanji";
-  requestId: string;
-  /** `null` when the literal isn't in Kanjidic. */
-  kanji: KanjiDetailDto | null;
-}
-
-export interface GetStrokeSvgResponse {
-  type: "getStrokeSvg";
-  requestId: string;
-  /** Raw SVG markup, or `null` when no stroke animation exists for the literal. */
-  svg: string | null;
-}
-
-export interface GetComponentTreeResponse {
-  type: "getComponentTree";
-  requestId: string;
-  /** The recursive tree, or `null` when the kanji has no meaningful decomposition. */
-  tree: ComponentTreeDto | null;
-}
-
-export interface LookupRadicalsResponse {
-  type: "lookupRadicals";
-  requestId: string;
-  result: RadicalLookupDto;
-}
-
-export interface GetKanjiPreviewsResponse {
-  type: "getKanjiPreviews";
-  requestId: string;
-  /** In the order requested. Literals with no Kanjidic entry are omitted rather than nulled. */
-  results: KanjiResultDto[];
-}
-
-export interface GetAboutResponse {
-  type: "getAbout";
-  requestId: string;
-  /** Key/value provenance from the DB `meta` table (source, dictDate, license, wordCount, …). */
-  meta: Record<string, string>;
-}
-
-export interface SearchNamesResponse {
-  type: "searchNames";
-  requestId: string;
-  /** Empty when the query has no name matches, or the names DB isn't available yet. */
-  names: NameResultDto[];
-}
-
-export interface GetDiagnosticsResponse {
-  type: "getDiagnostics";
-  requestId: string;
-  /** Already rendered as Markdown: the webview copies this verbatim. */
-  markdown: string;
-}
-
-export interface ReportCrashResponse {
-  type: "reportCrash";
-  requestId: string;
-}
-
-export interface OpenSettingsResponse {
-  type: "openSettings";
-  requestId: string;
-}
-
-export interface CopyTextResponse {
-  type: "copyText";
-  requestId: string;
-}
-
-/**
- * The history, most-recent-first.
- *
- * One interface, three response types — the bridge correlates a reply by matching `type` against
- * the REQUEST's type, so a shared `"recentSearches"` type would fail that check on every call.
- * Every variant carries the full list, so a record or a clear updates the UI with no refetch.
- */
-interface RecentSearchesPayload {
-  requestId: string;
+/** The recent-search history, most-recent-first. Every recent-search request answers with it. */
+interface RecentSearches {
   recent: RecentSearchDto[];
 }
-export interface GetRecentSearchesResponse extends RecentSearchesPayload {
-  type: "getRecentSearches";
-}
-export interface RecordRecentSearchResponse extends RecentSearchesPayload {
-  type: "recordRecentSearch";
-}
-export interface ClearRecentSearchesResponse extends RecentSearchesPayload {
-  type: "clearRecentSearches";
+
+/**
+ * Every request the webview makes, and what the host answers — each described ONCE.
+ *
+ * `request` is what the webview sends besides `type` and `requestId`; `response` is what the host
+ * answers besides those two. The `Request` and `Response` unions, the bridge's `request()` and the
+ * host's `Handlers` table are all derived from this.
+ *
+ * A request type used to be described in five places — a request interface, a response interface,
+ * two union lists and a bridge function, plus the host's routing — and nothing tied an answer to its
+ * request: the host could answer `search` with a `getWord` shape, and only a runtime check in the
+ * webview would notice (audit I-3). Now a new request is one entry here and one handler, and a
+ * mismatched answer does not compile.
+ */
+export interface Protocol {
+  search: {
+    request: { query: string };
+    response: {
+      results: SearchResultDto[];
+      /** Kanji matching the query, shown as a separate section. */
+      kanji: KanjiResultDto[];
+      /**
+       * Morphological breakdown of the query — present only when a Japanese query tokenized into
+       * more than one content segment. The UI shows these as tappable chips; tapping re-searches a
+       * segment's lemma. Empty for single-word, English, or romaji queries.
+       */
+      segments: SegmentDto[];
+    };
+  };
+  getWord: {
+    request: { id: string };
+    /** `null` when the id is unknown. */
+    response: { word: WordDetailDto | null };
+  };
+  /** The fuller Tatoeba example pool for a word (F1 "more examples" page). */
+  getMoreExamples: {
+    request: { id: string };
+    /** `null` when the word has no pooled examples. */
+    response: { examples: MoreExamplesDto | null };
+  };
+  /** One classifier's words, for the browse list (#54) and `#tag` search (#27). */
+  browse: {
+    request: {
+      /** A `Classifier.id` — the same token the `#tag` syntax accepts. */
+      id: string;
+      order: "frequency" | "gojuon";
+    };
+    response: {
+      /** Empty when the classifier has no words in this build — a truthful answer, not an error. */
+      results: SearchResultDto[];
+      /**
+       * Kanji rows, for `#kanji`. A result-type classifier selects a KIND of result, so its list is
+       * characters rather than words — these are separate arrays rather than a union because the
+       * view renders each with a different component, and every other classifier fills only
+       * `results`.
+       */
+      kanji: KanjiResultDto[];
+      /** Name rows, for `#name`/`#place`. Empty unless one of those tags opened the list. */
+      names: NameResultDto[];
+      /** The whole category's size, which `results` may be capped below. */
+      total: number;
+    };
+  };
+  /**
+   * One kanji browse list (#55) — a JLPT level, a school grade, or the frequency-ranked set.
+   *
+   * Its own request rather than a `browse` with a different id: kanji lists are a SEPARATE taxonomy
+   * from the word classifiers (they filter characters, not words), and sending a `KanjiListId` where
+   * a `Classifier.id` is expected would blur the boundary that keeps a kanji-only filter out of
+   * `#tag` search, where it could never match.
+   */
+  kanjiList: {
+    request: {
+      /** A `KanjiListId` from shared/classifiers. */
+      id: string;
+    };
+    /** Empty when the id is unknown — a truthful answer rather than an error. */
+    response: { kanji: KanjiResultDto[] };
+  };
+  /**
+   * Word counts for every classifier, so the browse tree can show how big each category is.
+   *
+   * One request for all of them rather than one per category: the tree renders ~90 counts at once,
+   * and 90 round trips over the webview bridge to fill in numbers would be visibly slow.
+   */
+  browseCounts: {
+    request: {
+      /**
+       * Classifier ids already applied. Counts are then how many words would REMAIN if each
+       * candidate were added — which is what lets the tag autocomplete hide combinations that narrow
+       * to zero. Omitted (or empty) gives each category's own size, which is what the browse tree
+       * shows.
+       */
+      applied?: string[];
+    };
+    response: {
+      /** `Classifier.id` → word count. Absent ids have no words. */
+      counts: Record<string, number>;
+      /**
+       * Whether the names dictionary is provisioned.
+       *
+       * `#name`/`#place` are hidden when it is not: they are backed by a separate ~400MB opt-in
+       * download, and a suggestion that cannot return anything is worse than one that is absent.
+       * Reported here rather than in the settings snapshot because it changes when a DOWNLOAD
+       * completes, not when configuration does.
+       */
+      namesAvailable: boolean;
+      /**
+       * Whether to offer the names dictionary: it is not installed, and the user has not declined
+       * it.
+       *
+       * Names are OPT-IN. Nothing provisions them except the user accepting this offer (or
+       * installing from About) — they used to download on the first search of anything, 84 MB and
+       * ~400 MB on disk, while the README promised "if you use name lookups" (audit I-0).
+       */
+      namesOffered: boolean;
+    };
+  };
+  getKanji: {
+    request: { literal: string };
+    /** `null` when the literal isn't in Kanjidic. */
+    response: { kanji: KanjiDetailDto | null };
+  };
+  /** Stroke-order animation SVG for a kanji (kanji detail's stroke player). */
+  getStrokeSvg: {
+    request: { literal: string };
+    /** Raw SVG markup, or `null` when no stroke animation exists for the literal. */
+    response: { svg: string | null };
+  };
+  getComponentTree: {
+    request: { literal: string };
+    /** The recursive tree, or `null` when the kanji has no meaningful decomposition. */
+    response: { tree: ComponentTreeDto | null };
+  };
+  /** Radical picker: the current selection (empty = show all radicals, no matches). */
+  lookupRadicals: {
+    request: { selected: string[] };
+    response: { result: RadicalLookupDto };
+  };
+  /**
+   * Hydrate a set of kanji literals into result rows.
+   *
+   * For the handwriting recognizer, whose candidates come from the in-webview recognizer as bare
+   * characters — it never touches the host, so it is the one kanji list with no meanings to show.
+   * The response preserves the order asked for, because that order is the recognizer's ranking.
+   */
+  getKanjiPreviews: {
+    request: { literals: string[] };
+    /** In the order requested. Literals with no Kanjidic entry are omitted rather than nulled. */
+    response: { results: KanjiResultDto[] };
+  };
+  /** Dictionary provenance/attribution for the About view, from the DB's `meta` table. */
+  getAbout: {
+    request: Empty;
+    /** Key/value provenance from the DB `meta` table (source, dictDate, license, wordCount, …). */
+    response: { meta: Record<string, string> };
+  };
+  /**
+   * Name search against the optional JMnedict database. Separate from `search` because the names DB
+   * is a separate, opt-in download — the word/kanji search never waits on it.
+   */
+  searchNames: {
+    request: { query: string };
+    /** Empty when the query has no name matches, or the names DB isn't installed. */
+    response: { names: NameResultDto[] };
+  };
+  getName: {
+    request: { id: string };
+    /** `null` when the id is unknown. */
+    response: { name: NameDetailDto | null };
+  };
+  /** Install the names dictionary: the user accepted the offer. Downloads it with a progress notice. */
+  installNames: { request: Empty; response: Empty };
+  /** The user declined the names offer under search results. Remembered across windows. */
+  declineNames: { request: Empty; response: Empty };
+  /**
+   * Act on the dictionary from the panel: the recovery each failure needs.
+   *   - `retry`: try to download or open it again (offline, or any other failure).
+   *   - `update`: run the dictionary update check (an older schema).
+   *   - `updateJisho`: open Jisho's page in the Extensions view (a newer schema needs a newer Jisho).
+   */
+  dictionaryAction: {
+    request: { action: "retry" | "update" | "updateJisho" };
+    response: Empty;
+  };
+  /**
+   * File a crash report from the webview.
+   *
+   * The stack is sanitized on THIS side before it crosses, so the host never receives the user's
+   * directory layout even in a log. See `shared/diagnostics.ts`.
+   */
+  reportCrash: {
+    request: {
+      message: string;
+      /**
+       * Sanitized on the WEBVIEW side, and absent for a non-crash report.
+       *
+       * A failed query rejects with a stack describing the bridge's own plumbing rather than the
+       * cause, so including it would put noise in the issue where the useful signal is the message
+       * plus the diagnostics.
+       */
+      stack?: string;
+    };
+    response: Empty;
+  };
+  /**
+   * The diagnostic snapshot, for the About view's copy button.
+   *
+   * Collected host-side because most of it is only reachable there (`process.versions`, the OS, the
+   * `.version` sidecar). The webview renders and copies what it is given rather than assembling its
+   * own, so all three report surfaces quote the same fields.
+   */
+  getDiagnostics: {
+    request: Empty;
+    /** Already rendered as Markdown: the webview copies this verbatim. */
+    response: { markdown: string };
+  };
+  /** Open VS Code's Settings UI filtered to this extension's section (the sidebar's ⚙). */
+  openSettings: { request: Empty; response: Empty };
+  /**
+   * Put text on the system clipboard. Routed through the host because a webview's
+   * `navigator.clipboard` needs transient user activation and can be refused outright — the
+   * extension host's clipboard API has neither constraint.
+   */
+  copyText: { request: { text: string }; response: Empty };
+  /** Read the recent-search history. */
+  getRecentSearches: { request: Empty; response: RecentSearches };
+  /**
+   * Record a lookup. Sent when the user OPENS a result, not as they type — the query text changes on
+   * every keystroke, so recording that would remember every prefix of every search. Answers with the
+   * full list, so the UI updates with no refetch.
+   */
+  recordRecentSearch: {
+    request: { query: string; headword: string };
+    response: RecentSearches;
+  };
+  /** Forget the history. Answers with the (empty) list, like the other two. */
+  clearRecentSearches: { request: Empty; response: RecentSearches };
 }
 
-export interface GetNameResponse {
-  type: "getName";
-  requestId: string;
-  /** `null` when the id is unknown. */
-  name: NameDetailDto | null;
-}
+/** A request or answer with nothing besides `type` and `requestId`. */
+type Empty = Record<never, never>;
 
-export interface DictionaryActionResponse {
-  type: "dictionaryAction";
-  requestId: string;
-}
+/** A request's `type`. */
+export type RequestType = keyof Protocol;
 
-export interface InstallNamesResponse {
-  type: "installNames";
+/** The request of one type, as it crosses the bridge. */
+export type RequestOf<T extends RequestType> = {
+  type: T;
   requestId: string;
-}
+} & Protocol[T]["request"];
 
-export interface DeclineNamesResponse {
-  type: "declineNames";
+/** The answer to one request type, as it crosses the bridge. */
+export type ResponseOf<T extends RequestType> = {
+  type: T;
   requestId: string;
-}
+} & Protocol[T]["response"];
+
+/** Any request. */
+export type Request = { [T in RequestType]: RequestOf<T> }[RequestType];
+
+/**
+ * What the host's handler for a request returns: the answer's own fields. `type` and `requestId` are
+ * added for it, so a handler cannot label its answer as another request's.
+ */
+export type Answer<T extends RequestType> = Protocol[T]["response"];
+
+/**
+ * One handler per request type: the host's whole surface, checked against the protocol.
+ *
+ * A mapped type, so each handler is tied to its own request: the `search` handler receives a
+ * `search` request and must return a `search` answer. A protocol entry with no handler, or a handler
+ * whose answer is another request's shape, does not compile.
+ */
+export type Handlers = {
+  [T in RequestType]: (request: RequestOf<T>) => Promise<Answer<T>>;
+};
 
 export interface ErrorResponse {
   type: "error";
@@ -869,29 +719,7 @@ export interface HostSettings {
   };
 }
 
+/** Any answer — including the error a failed request gets instead of its own. */
 export type Response =
-  | SearchResponse
-  | GetWordResponse
-  | GetMoreExamplesResponse
-  | BrowseResponse
-  | KanjiListResponse
-  | BrowseCountsResponse
-  | GetKanjiResponse
-  | GetStrokeSvgResponse
-  | GetComponentTreeResponse
-  | LookupRadicalsResponse
-  | ReportCrashResponse
-  | GetDiagnosticsResponse
-  | GetKanjiPreviewsResponse
-  | GetAboutResponse
-  | SearchNamesResponse
-  | GetNameResponse
-  | InstallNamesResponse
-  | DeclineNamesResponse
-  | DictionaryActionResponse
-  | OpenSettingsResponse
-  | CopyTextResponse
-  | GetRecentSearchesResponse
-  | RecordRecentSearchResponse
-  | ClearRecentSearchesResponse
+  | { [T in RequestType]: ResponseOf<T> }[RequestType]
   | ErrorResponse;

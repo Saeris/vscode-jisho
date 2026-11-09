@@ -10,7 +10,13 @@ import { rename } from "node:fs/promises";
 import * as vscode from "vscode";
 import type { Dictionary } from "./db";
 import { webviewHtml } from "./webviewHtml";
-import { copyText, openSettings, respond, respondNames } from "./dispatch";
+import {
+  answer,
+  copyText,
+  namesHandlers,
+  openSettings,
+  wordHandlers
+} from "./dispatch";
 import { openIssueReport } from "./report";
 import { collectDiagnostics } from "./diagnostics";
 import { diagnosticsMarkdown } from "../shared/diagnostics";
@@ -31,15 +37,13 @@ import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
 import { CLASSIFIER_BY_ID } from "../shared/classifiers";
 import type {
-  BrowseRequest,
+  Answer,
   DictionaryStatusPush,
-  ClearRecentSearchesRequest,
-  GetRecentSearchesRequest,
-  GetStrokeSvgRequest,
+  Handlers,
   HostPush,
   HostSettings,
-  RecordRecentSearchRequest,
   Request,
+  RequestOf,
   Response,
   WebviewReady
 } from "../shared/messages";
@@ -57,25 +61,13 @@ const MAX_QUEUED_PUSHES = 20;
 /** `globalState` key: the user answered the names offer with "No thanks". */
 const NAMES_DECLINED_KEY = "names.offerDeclined";
 
-/** The three requests backed by `globalState` rather than by a dictionary. */
-type RecentRequest =
-  | GetRecentSearchesRequest
-  | RecordRecentSearchRequest
-  | ClearRecentSearchesRequest;
-
-const isRecentRequest = (request: Request): request is RecentRequest =>
-  request.type === "getRecentSearches" ||
-  request.type === "recordRecentSearch" ||
-  request.type === "clearRecentSearches";
-
 /**
  * A browse request for a NAME type, which the separate names dictionary serves.
  *
  * Every other classifier is answered from the word DB, so this is the one branch of `browse` that
  * needs a different backend — routed here rather than in `dispatch.ts`, which has no names handle.
  */
-const isNameBrowse = (request: Request): request is BrowseRequest => {
-  if (request.type !== "browse") return false;
+const isNameBrowse = (request: RequestOf<"browse">): boolean => {
   const classifier = CLASSIFIER_BY_ID.get(request.id);
   return (
     classifier?.kind === "result" &&
@@ -121,6 +113,8 @@ export class JishoViewProvider
   #seen = new Set<Request["type"]>();
   /** Set once the tokenizer warmup has been scheduled, so re-revealing the view doesn't re-arm it. */
   #warmedTokenizer = false;
+  /** One handler per request type, checked against the protocol — see `#buildHandlers`. */
+  readonly #handlers: Handlers;
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
@@ -173,6 +167,7 @@ export class JishoViewProvider
       classify: classifyFailure,
       onStatus
     });
+    this.#handlers = this.#buildHandlers();
   }
 
   /** Both dictionaries, for the update to swap in place. */
@@ -421,9 +416,9 @@ export class JishoViewProvider
     try {
       const response = first
         ? await timed(`first "${request.type}" request`, async () =>
-            this.#dispatch(request)
+            answer(this.#handlers, request)
           )
-        : await this.#dispatch(request);
+        : await answer(this.#handlers, request);
       this.#reply(view, response);
     } catch (err) {
       this.#reply(view, {
@@ -456,7 +451,7 @@ export class JishoViewProvider
    * lists never provisions it: the tags are hidden until it is installed, and an empty list is the
    * honest answer if one is reached anyway.
    */
-  async #browseNames(request: BrowseRequest): Promise<Response> {
+  async #browseNames(request: RequestOf<"browse">): Promise<Answer<"browse">> {
     const classifier = CLASSIFIER_BY_ID.get(request.id);
     const kind =
       classifier?.kind === "result" && classifier.result === "place"
@@ -464,8 +459,6 @@ export class JishoViewProvider
         : "name";
     const names = await this.#installedNames();
     return {
-      type: "browse",
-      requestId: request.requestId,
       results: [],
       kanji: [],
       names: names ? await names.browseNames(kind) : [],
@@ -476,12 +469,10 @@ export class JishoViewProvider
   /**
    * Counts for the name types, which the WORD dictionary cannot produce.
    *
-   * Only for `browseCounts`, and only when the names DB is installed — a count is never a reason to
-   * download it. When it is absent the counts stay 0 and the tags stay hidden, which is the correct
-   * answer then.
+   * Only when the names DB is installed — a count is never a reason to download it. When it is absent
+   * the counts stay 0 and the tags stay hidden, which is the correct answer then.
    */
-  async #nameCounts(request: Request): Promise<Record<string, number>> {
-    if (request.type !== "browseCounts") return {};
+  async #nameCounts(): Promise<Record<string, number>> {
     const names = await this.#installedNames();
     if (!names) return {};
     return {
@@ -490,112 +481,88 @@ export class JishoViewProvider
     };
   }
 
-  /** Route a request to whichever backend serves it. */
-  async #dispatch(request: Request): Promise<Response> {
-    // An early return rather than another arm: this one needs the dictionary's metadata, which is
-    // an await the surrounding ternary chain has no room for.
-    if (request.type === "reportCrash") {
-      await openIssueReport(this.#context, {
-        title: `Crash: ${request.message}`,
-        error: { message: request.message, stack: request.stack ?? "" },
-        meta: await this.dictionaryMeta()
-      });
-      return { type: "reportCrash", requestId: request.requestId };
-    }
-    if (request.type === "getDiagnostics") {
-      return {
-        type: "getDiagnostics",
-        requestId: request.requestId,
-        markdown: diagnosticsMarkdown(
-          await collectDiagnostics(this.#context, await this.dictionaryMeta())
-        )
-      };
-    }
-    if (request.type === "installNames") {
-      // The user accepted: provision it (with VS Code's progress notice), and clear any earlier
-      // "No thanks" so the decision on record is the latest one.
-      await this.#namesDict();
-      await this.#context.globalState.update(NAMES_DECLINED_KEY, undefined);
-      return { type: "installNames", requestId: request.requestId };
-    }
-    if (request.type === "dictionaryAction") {
-      if (request.action === "retry") {
-        // A fresh attempt; its progress and outcome reach the panel as status.
-        void this.warmDictionary();
-      } else if (request.action === "update") {
-        await vscode.commands.executeCommand(
-          "vscode-jisho.checkForDictionaryUpdates"
-        );
-      } else {
-        await vscode.commands.executeCommand(
-          "extension.open",
-          this.#context.extension.id
-        );
-      }
-      return { type: "dictionaryAction", requestId: request.requestId };
-    }
-    if (request.type === "declineNames") {
-      await this.#context.globalState.update(NAMES_DECLINED_KEY, true);
-      return { type: "declineNames", requestId: request.requestId };
-    }
-    if (request.type === "searchNames" || request.type === "getName") {
-      const names = await this.#installedNames();
-      if (names) return respondNames(names, request);
-      // Not installed: answer as if nothing matched rather than download it.
-      return request.type === "searchNames"
-        ? { type: "searchNames", requestId: request.requestId, names: [] }
-        : { type: "getName", requestId: request.requestId, name: null };
-    }
-    const namesAvailable = await namesDatabaseExists(this.#context);
-    return request.type === "openSettings"
-      ? openSettings(request)
-      : request.type === "copyText"
-        ? copyText(request)
-        : request.type === "getStrokeSvg"
-          ? this.#strokeSvg(request)
-          : isRecentRequest(request)
-            ? this.#recentSearches(request)
-            : isNameBrowse(request)
-              ? this.#browseNames(request)
-              : respond(
-                  await this.#dict(),
-                  request,
-                  // Checked per request rather than cached: the names DB can arrive mid-session
-                  // (when the user installs it), and a cached `false` would keep the `#name`/
-                  // `#place` tags hidden until reload. It is two `stat` calls.
-                  {
-                    available: namesAvailable,
-                    offered: this.#namesOffered(namesAvailable)
-                  },
-                  await this.#nameCounts(request)
-                );
-  }
-
   /**
-   * Recent-search history. Served here rather than in `dispatch.ts` because it is backed by the
-   * extension's `globalState`, not by the dictionary — every one of these replies with the full
-   * list, so a record or a clear needs no follow-up fetch.
+   * The answer to every request the webview can make, one handler each.
+   *
+   * Typed `Handlers`, so a request type added to the protocol without a handler here does not
+   * compile, and neither does a handler that answers in another request's shape. The word and names
+   * dictionaries' handlers live in `dispatch.ts`; the ones here need the extension context.
    */
-  async #recentSearches(
-    request:
-      | GetRecentSearchesRequest
-      | RecordRecentSearchRequest
-      | ClearRecentSearchesRequest
-  ): Promise<Response> {
-    if (request.type === "recordRecentSearch") {
-      await recordRecent(this.#context, {
-        query: request.query,
-        headword: request.headword
-      });
-    } else if (request.type === "clearRecentSearches") {
-      await clearRecent(this.#context);
-    }
-    // Echo the REQUEST's type: the webview bridge correlates a reply by matching `type`, so a
-    // shared response type would fail that check on every call.
+  #buildHandlers(): Handlers {
+    const context = this.#context;
+    const words = wordHandlers({
+      dict: async () => this.#dict(),
+      names: async () => {
+        const available = await namesDatabaseExists(context);
+        return { available, offered: this.#namesOffered(available) };
+      },
+      nameCounts: async () => this.#nameCounts()
+    });
+    // Recent-search history is backed by `globalState`, not by a dictionary. All three requests
+    // answer with the full list, so a record or a clear needs no follow-up fetch.
+    const recent = (): Answer<"getRecentSearches"> => ({
+      recent: readRecent(context)
+    });
     return {
-      type: request.type,
-      requestId: request.requestId,
-      recent: readRecent(this.#context)
+      ...words,
+      ...namesHandlers(async () => this.#installedNames()),
+      // Name types live in the names dictionary, which the word handlers do not have.
+      browse: async (request) =>
+        isNameBrowse(request)
+          ? this.#browseNames(request)
+          : words.browse(request),
+      getStrokeSvg: async (request) => this.#strokeSvg(request),
+      openSettings,
+      copyText,
+      reportCrash: async ({ message, stack }) => {
+        await openIssueReport(context, {
+          title: `Crash: ${message}`,
+          error: { message, stack: stack ?? "" },
+          meta: await this.dictionaryMeta()
+        });
+        return {};
+      },
+      getDiagnostics: async () => ({
+        markdown: diagnosticsMarkdown(
+          await collectDiagnostics(context, await this.dictionaryMeta())
+        )
+      }),
+      installNames: async () => {
+        // The user accepted: provision it (with VS Code's progress notice), and clear any earlier
+        // "No thanks" so the decision on record is the latest one.
+        await this.#namesDict();
+        await context.globalState.update(NAMES_DECLINED_KEY, undefined);
+        return {};
+      },
+      declineNames: async () => {
+        await context.globalState.update(NAMES_DECLINED_KEY, true);
+        return {};
+      },
+      dictionaryAction: async ({ action }) => {
+        if (action === "retry") {
+          // A fresh attempt; its progress and outcome reach the panel as status.
+          void this.warmDictionary();
+        } else if (action === "update") {
+          await vscode.commands.executeCommand(
+            "vscode-jisho.checkForDictionaryUpdates"
+          );
+        } else {
+          await vscode.commands.executeCommand(
+            "extension.open",
+            context.extension.id
+          );
+        }
+        return {};
+      },
+      getRecentSearches: async () => Promise.resolve(recent()),
+      recordRecentSearch: async ({ query, headword }) => {
+        await recordRecent(context, { query, headword });
+        return recent();
+      },
+      clearRecentSearches: async () => {
+        await clearRecent(context);
+        return recent();
+      }
     };
   }
 
@@ -604,7 +571,9 @@ export class JishoViewProvider
    * database (the stroke page works even before the dictionary download finishes) and a stroke-data
    * fix never forces a dictionary re-download. See docs/STROKE-ORDER.md.
    */
-  async #strokeSvg(request: GetStrokeSvgRequest): Promise<Response> {
+  async #strokeSvg(
+    request: RequestOf<"getStrokeSvg">
+  ): Promise<Answer<"getStrokeSvg">> {
     let svg: string | null = null;
     // Only the unified drawing ships (its compat twin would collide on a normalizing filesystem —
     // see build-strokes.ts), so fold compat codepoints onto it rather than 404 the 37 Kanjidic
@@ -645,7 +614,7 @@ export class JishoViewProvider
         }
       }
     }
-    return { type: "getStrokeSvg", requestId: request.requestId, svg };
+    return { svg };
   }
 
   async dispose(): Promise<void> {

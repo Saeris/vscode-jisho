@@ -31,7 +31,7 @@ To iterate:
 - Run the **watch** task once (Terminal → Run Task → `watch`) to rebuild the host and webview on every change.
 - Press <kbd>Ctrl</kbd>+<kbd>R</kbd> in the Extension Development Host to load the latest build. Stop debugging with <kbd>Shift</kbd>+<kbd>F5</kbd>.
 
-`vp build` builds the **webview only**. `vp pack` builds the **extension host**. After changing anything under `src/host/` or `src/shared/messages.ts`, run `vp pack` before testing — a stale host answers a new request type with an empty response rather than an error, which reads exactly like a broken query.
+`vp build` builds the **webview only**. `vp pack` builds the **extension host**. After changing anything under `src/host/` or `src/shared/messages.ts`, run `vp pack` before testing. A stale host answers a new request type with an error saying it cannot answer it; before the request protocol was typed end to end, it answered with an empty response, which read exactly like a broken query.
 
 ## Checks and tests
 

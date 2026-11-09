@@ -6,28 +6,13 @@
 import type {
   DictionaryErrorCode,
   DictionaryStatusPush,
-  GetAboutResponse,
-  BrowseResponse,
-  KanjiListResponse,
-  BrowseCountsResponse,
-  GetKanjiResponse,
-  GetMoreExamplesResponse,
-  GetNameResponse,
-  GetComponentTreeResponse,
-  GetStrokeSvgResponse,
-  GetWordResponse,
   HostPush,
   HostSettings,
-  GetKanjiPreviewsResponse,
-  GetDiagnosticsResponse,
-  LookupRadicalsResponse,
-  ClearRecentSearchesResponse,
-  GetRecentSearchesResponse,
-  RecordRecentSearchResponse,
+  Protocol,
   Request,
+  RequestType,
   Response,
-  SearchNamesResponse,
-  SearchResponse
+  ResponseOf
 } from "../shared/messages";
 
 interface VsCodeApi {
@@ -239,15 +224,15 @@ const nextRequestId = (): string => crypto.randomUUID();
  *
  * Ten call sites wrote out the same three steps: send, assert the response type, return it. The type
  * guard is not ceremony — `send` resolves to the whole `Response` union, and narrowing it is what
- * makes each caller's return type sound — so this keeps the guard and removes only the copy. Extra
- * request fields are passed as `payload` rather than spread by the caller, so `requestId` cannot be
- * forgotten or supplied twice.
+ * makes each caller's return type sound — so this keeps the guard and removes only the copy. The
+ * request's fields are passed as `payload`, typed by `Protocol`, rather than spread by the caller, so
+ * `requestId` cannot be forgotten or supplied twice.
  */
-const request = async <T extends Request["type"]>(
+const request = async <T extends RequestType>(
   type: T,
-  payload: Omit<Extract<Request, { type: T }>, "type" | "requestId">,
+  payload: Protocol[T]["request"],
   options: { untimed?: boolean } = {}
-): Promise<Extract<Response, { type: T }>> => {
+): Promise<ResponseOf<T>> => {
   // Two assertions, both confined here rather than repeated at ten call sites — the same trade as
   // `Dictionary`'s typed read helpers. TypeScript cannot prove that spreading `payload` onto a `type`
   // reconstitutes the matching union member, nor that a response whose `type` equals `T` is that
@@ -259,60 +244,63 @@ const request = async <T extends Request["type"]>(
     throw new Error(`Unexpected response for ${type}`);
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return response as Extract<Response, { type: T }>;
+  return response as ResponseOf<T>;
 };
 
-export const searchWords = async (query: string): Promise<SearchResponse> =>
-  request("search", { query });
+export const searchWords = async (
+  query: string
+): Promise<ResponseOf<"search">> => request("search", { query });
 
-export const getWord = async (id: string): Promise<GetWordResponse> =>
+export const getWord = async (id: string): Promise<ResponseOf<"getWord">> =>
   request("getWord", { id });
 
 export const getMoreExamples = async (
   id: string
-): Promise<GetMoreExamplesResponse> => request("getMoreExamples", { id });
+): Promise<ResponseOf<"getMoreExamples">> => request("getMoreExamples", { id });
 
 export const browse = async (
   id: string,
   order: "frequency" | "gojuon"
-): Promise<BrowseResponse> => request("browse", { id, order });
+): Promise<ResponseOf<"browse">> => request("browse", { id, order });
 
-export const kanjiList = async (id: string): Promise<KanjiListResponse> =>
+export const kanjiList = async (id: string): Promise<ResponseOf<"kanjiList">> =>
   request("kanjiList", { id });
 
 export const browseCounts = async (
   applied: string[] = []
-): Promise<BrowseCountsResponse> => request("browseCounts", { applied });
+): Promise<ResponseOf<"browseCounts">> => request("browseCounts", { applied });
 
-export const getKanji = async (literal: string): Promise<GetKanjiResponse> =>
-  request("getKanji", { literal });
+export const getKanji = async (
+  literal: string
+): Promise<ResponseOf<"getKanji">> => request("getKanji", { literal });
 
 export const getStrokeSvg = async (
   literal: string
-): Promise<GetStrokeSvgResponse> => request("getStrokeSvg", { literal });
+): Promise<ResponseOf<"getStrokeSvg">> => request("getStrokeSvg", { literal });
 
 export const getComponentTree = async (
   literal: string
-): Promise<GetComponentTreeResponse> =>
+): Promise<ResponseOf<"getComponentTree">> =>
   request("getComponentTree", { literal });
 
 export const lookupRadicals = async (
   selected: string[]
-): Promise<LookupRadicalsResponse> => request("lookupRadicals", { selected });
+): Promise<ResponseOf<"lookupRadicals">> =>
+  request("lookupRadicals", { selected });
 
 export const getKanjiPreviews = async (
   literals: string[]
-): Promise<GetKanjiPreviewsResponse> =>
+): Promise<ResponseOf<"getKanjiPreviews">> =>
   request("getKanjiPreviews", { literals });
 
-export const getAbout = async (): Promise<GetAboutResponse> =>
+export const getAbout = async (): Promise<ResponseOf<"getAbout">> =>
   request("getAbout", {});
 
 export const searchNames = async (
   query: string
-): Promise<SearchNamesResponse> => request("searchNames", { query });
+): Promise<ResponseOf<"searchNames">> => request("searchNames", { query });
 
-export const getName = async (id: string): Promise<GetNameResponse> =>
+export const getName = async (id: string): Promise<ResponseOf<"getName">> =>
   request("getName", { id });
 
 /** Install the names dictionary (the user accepted). Resolves once it is downloaded and opened. */
@@ -321,7 +309,7 @@ export const installNames = async (): Promise<void> => {
   await request("installNames", {}, { untimed: true });
 };
 
-/** Ask the host for the recovery a dictionary failure needs — see `DictionaryActionRequest`. */
+/** Ask the host for the recovery a dictionary failure needs — see `Protocol["dictionaryAction"]`. */
 export const dictionaryAction = async (
   action: "retry" | "update" | "updateJisho"
 ): Promise<void> => {
@@ -344,7 +332,7 @@ export const openSettings = async (): Promise<void> => {
  * Sanitized HERE rather than in the host so the user's directory layout never crosses the bridge at
  * all — it cannot then end up in a host log on its way to being scrubbed.
  */
-export const getDiagnostics = async (): Promise<GetDiagnosticsResponse> =>
+export const getDiagnostics = async (): Promise<ResponseOf<"getDiagnostics">> =>
   request("getDiagnostics", {});
 
 export const reportCrash = async (
@@ -371,15 +359,16 @@ export const copyText = async (text: string): Promise<void> => {
  * Recent-search history (#17). All three reply with the full list, so a record or a clear updates
  * the cache directly and needs no follow-up fetch.
  */
-export const getRecentSearches = async (): Promise<GetRecentSearchesResponse> =>
-  request("getRecentSearches", {});
+export const getRecentSearches = async (): Promise<
+  ResponseOf<"getRecentSearches">
+> => request("getRecentSearches", {});
 
 export const recordRecentSearch = async (
   query: string,
   headword: string
-): Promise<RecordRecentSearchResponse> =>
+): Promise<ResponseOf<"recordRecentSearch">> =>
   request("recordRecentSearch", { query, headword });
 
-export const clearRecentSearches =
-  async (): Promise<ClearRecentSearchesResponse> =>
-    request("clearRecentSearches", {});
+export const clearRecentSearches = async (): Promise<
+  ResponseOf<"clearRecentSearches">
+> => request("clearRecentSearches", {});
