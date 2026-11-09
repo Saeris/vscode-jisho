@@ -213,6 +213,33 @@ describe("dictionary lifecycle", () => {
     expect(life.status.state).toBe("ready");
   });
 
+  it("reopens a dictionary whose worker died", async () => {
+    // WHY: the database runs in a worker thread, and a worker can die where an in-process database
+    // could not. Kept as `ready`, the dead handle would fail every request until VS Code reloaded.
+    const h = harness();
+    const life = new DictionaryLifecycle(h.deps);
+    const dead = await life.acquire();
+    life.lost(dead);
+    expect(life.status.state).toBe("absent");
+    const next = await life.acquire();
+    expect(next).not.toBe(dead);
+    expect(h.log).toEqual(["open /db/jisho.db", "open /db/jisho.db"]);
+  });
+
+  it("ignores a lost report for a handle it has already replaced", async () => {
+    // WHY: an update swaps in a new handle; a late report about the OLD worker must not drop the new
+    // one that is serving.
+    const h = harness();
+    const life = new DictionaryLifecycle(h.deps);
+    const old = await life.acquire();
+    await life.update(async (swap) =>
+      swap("/db/jisho.db.part", "/db/jisho.db")
+    );
+    life.lost(old);
+    expect(life.status.state).toBe("ready");
+    await expect(life.acquire()).resolves.not.toBe(old);
+  });
+
   it("never provisions when asked only for an installed dictionary", async () => {
     // WHY: names are opt-in (audit I-0). Reading them must not download them.
     const h = harness({ exists: false, download: true });

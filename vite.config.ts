@@ -309,9 +309,18 @@ export default defineConfig({
   // VSCode loads extensions as CommonJS in its extension host, so we emit a
   // single bundled .cjs (no .d.ts — extensions aren't consumed as a library).
   pack: {
-    entry: ["src/extension.ts"],
+    // Two entries: the extension, and the worker the dictionaries run in (host/dictionaryWorker.ts).
+    // A worker is a separate script, so it is bundled as one — `dist/dictionaryWorker.cjs`. Named,
+    // so both land flat in `dist/`.
+    entry: {
+      extension: "src/extension.ts",
+      dictionaryWorker: "src/host/dictionaryWorker.ts"
+    },
+    // The entries share code, which goes in a shared chunk. Without a hash, its name is the same on
+    // every build: `clean` is off, so hashed chunks from old builds would pile up and ship.
+    hash: false,
     // The extension host is Node, not the renderer — a different runtime from the webview above and
-    // so a different target. VSCode 1.123 ships Node 24; `node24` is the floor, not the Node that
+    // so a different target. VS Code 1.145 ships Node 24.22; `node24` is the floor, not the Node that
     // happens to run the build.
     target: "node24",
     // The same stamp as the webview above: a report names one build, whichever side raised it.

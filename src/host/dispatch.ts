@@ -12,6 +12,7 @@ import { hasKanji } from "../shared/japanese";
 import { CLASSIFIER_BY_ID, isKanjiListId } from "../shared/classifiers";
 import { timed } from "./log";
 import type { NamesDictionary } from "./names";
+import type { Remote } from "./remote";
 import { contentSegmentCount, segment } from "./tokenizer";
 import type {
   CopyTextRequest,
@@ -96,7 +97,7 @@ type WordRequest = Exclude<
  * see `namesDatabaseExists`.
  */
 export const respond = async (
-  dict: Dictionary,
+  dict: Remote<Dictionary>,
   request: WordRequest,
   /** Whether the names dictionary is installed, and whether to offer it — see `BrowseCountsResponse`. */
   names: { available: boolean; offered: boolean } = {
@@ -240,7 +241,7 @@ type NamesRequest = Extract<
 
 /** Dispatch a names request to the (separately-provisioned) names dictionary. */
 export const respondNames = async (
-  names: NamesDictionary,
+  names: Remote<NamesDictionary>,
   request: NamesRequest
 ): Promise<Response> => {
   switch (request.type) {

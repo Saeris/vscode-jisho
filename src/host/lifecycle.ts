@@ -13,8 +13,9 @@
  *     │                     └──────┬─────────┘          ▼             │
  *     │                            ▼                 ready(updating%) │
  *     └────── retry ──────── failed(reason)             │ downloaded  │
- *                                                       ▼             │
- *                                                    swapping ────────┘
+ *     ▲                                                 ▼             │
+ *     │                                              swapping ────────┘
+ *     └──────────────── lost (the worker died) ── ready
  *
  * Three rules carry the fixes:
  *
@@ -277,6 +278,18 @@ export class DictionaryLifecycle<Handle extends Closable> {
     });
     // Clear the progress, whether or not the download reached the swap.
     if (serving()) this.#set({ state: "ready" });
+  }
+
+  /**
+   * The open database stopped on its own: the worker it runs in died. The next `acquire` opens it
+   * again, rather than handing every request a handle that can no longer answer.
+   *
+   * Ignored for any handle but the current one, so a stale report cannot drop a newer handle.
+   */
+  lost(handle: Handle): void {
+    if (this.#handle !== handle) return;
+    this.#handle = undefined;
+    this.#set({ state: "absent" });
   }
 
   /** Close the database. The next `acquire` opens it again. */

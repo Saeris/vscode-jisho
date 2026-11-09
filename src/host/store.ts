@@ -88,7 +88,7 @@ export class SqliteStore {
    *    old file open (see the staging path in `scripts/build-data.ts`).
    */
   // Async for the same reason as the reads below: callers already await it, and keeping the shape
-  // leaves room to open on a worker later.
+  // is what let the dictionaries move into a worker thread (dictionaryWorker.ts) unchanged.
   // oxlint-disable-next-line typescript/require-await
   static async open(path: string): Promise<SqliteStore> {
     const db = new DatabaseSync(path, { readOnly: true });
@@ -122,8 +122,8 @@ export class SqliteStore {
    *
    * Every query module and both dictionaries await them, and the host's message dispatch is async
    * regardless — so making them sync would be a large mechanical edit that buys nothing. Keeping the
-   * promise-returning shape also leaves room to move the reads onto a worker later without touching
-   * a single caller.
+   * promise-returning shape is also what let the reads move into a worker thread
+   * (dictionaryWorker.ts) without touching a single caller.
    *
    * `.get()`/`.all()` return loosely-typed rows; funnelling every read through these two methods
    * confines that boundary to one audited place and gives callers precise row types without

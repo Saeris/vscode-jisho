@@ -8,7 +8,7 @@
  */
 import { rename } from "node:fs/promises";
 import * as vscode from "vscode";
-import { Dictionary } from "./db";
+import type { Dictionary } from "./db";
 import { webviewHtml } from "./webviewHtml";
 import { copyText, openSettings, respond, respondNames } from "./dispatch";
 import { openIssueReport } from "./report";
@@ -22,10 +22,11 @@ import {
 } from "./ensureDatabase";
 import { classifyFailure } from "./failure";
 import { DictionaryError, DictionaryLifecycle } from "./lifecycle";
+import { openRemote, type Remote } from "./remote";
 import { provideHover } from "./hoverProvider";
 import type { CommentScopes } from "./grammar";
 import { mark, timed } from "./log";
-import { NamesDictionary } from "./names";
+import type { NamesDictionary } from "./names";
 import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
 import { CLASSIFIER_BY_ID } from "../shared/classifiers";
@@ -92,9 +93,9 @@ export class JishoViewProvider
 {
   #context: vscode.ExtensionContext;
   /** The word dictionary's lifecycle — provisioning, opening, updating, failing. See lifecycle.ts. */
-  readonly #words: DictionaryLifecycle<Dictionary>;
+  readonly #words: DictionaryLifecycle<Remote<Dictionary>>;
   /** The names dictionary's. Opt-in: only `installNames` provisions it. */
-  readonly #names: DictionaryLifecycle<NamesDictionary>;
+  readonly #names: DictionaryLifecycle<Remote<NamesDictionary>>;
   #view: vscode.WebviewView | undefined;
   /** Set when the webview's bridge has said `webviewReady` — messages before that would be lost. */
   #ready = false;
@@ -124,7 +125,14 @@ export class JishoViewProvider
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
     const onStatus = (): void => this.#pushStatus();
-    this.#words = new DictionaryLifecycle<Dictionary>({
+    // Both dictionaries run in worker threads: `node:sqlite` is synchronous, and this thread is
+    // shared by every installed extension (see dictionaryWorker.ts).
+    const worker = vscode.Uri.joinPath(
+      context.extensionUri,
+      "dist",
+      "dictionaryWorker.cjs"
+    ).fsPath;
+    this.#words = new DictionaryLifecycle<Remote<Dictionary>>({
       exists: async (): Promise<boolean> => wordDatabaseExists(context),
       // Timed separately: provisioning (a link, a copy or a download) and opening fail and stall for
       // completely different reasons, and "the first search was slow" needs to say which.
@@ -132,20 +140,35 @@ export class JishoViewProvider
         timed("provision dictionary", async () =>
           ensureDatabase(context, onProgress)
         ),
-      open: async (path): Promise<Dictionary> =>
-        timed("open dictionary", async () => Dictionary.open(path)),
+      open: async (path): Promise<Remote<Dictionary>> =>
+        timed("open dictionary", async () => {
+          // If this worker dies, the next request opens a new one.
+          const words: Remote<Dictionary> = await openRemote<Dictionary>(
+            worker,
+            "words",
+            path,
+            () => this.#words.lost(words)
+          );
+          return words;
+        }),
       rename,
       classify: classifyFailure,
       onStatus
     });
-    this.#names = new DictionaryLifecycle<NamesDictionary>({
+    this.#names = new DictionaryLifecycle<Remote<NamesDictionary>>({
       exists: async (): Promise<boolean> => namesDatabaseExists(context),
       provision: async (onProgress): Promise<string> =>
         timed("provision names dictionary", async () =>
           ensureNamesDatabase(context, onProgress)
         ),
-      open: async (path): Promise<NamesDictionary> =>
-        timed("open names dictionary", async () => NamesDictionary.open(path)),
+      open: async (path): Promise<Remote<NamesDictionary>> =>
+        timed("open names dictionary", async () => {
+          const names: Remote<NamesDictionary> =
+            await openRemote<NamesDictionary>(worker, "names", path, () =>
+              this.#names.lost(names)
+            );
+          return names;
+        }),
       rename,
       classify: classifyFailure,
       onStatus
@@ -154,8 +177,8 @@ export class JishoViewProvider
 
   /** Both dictionaries, for the update to swap in place. */
   get dictionaries(): {
-    words: DictionaryLifecycle<Dictionary>;
-    names: DictionaryLifecycle<NamesDictionary>;
+    words: DictionaryLifecycle<Remote<Dictionary>>;
+    names: DictionaryLifecycle<Remote<NamesDictionary>>;
   } {
     return { words: this.#words, names: this.#names };
   }
@@ -308,7 +331,7 @@ export class JishoViewProvider
     }
   }
 
-  async #dict(): Promise<Dictionary> {
+  async #dict(): Promise<Remote<Dictionary>> {
     return this.#words.acquire();
   }
 
@@ -321,12 +344,12 @@ export class JishoViewProvider
    * asks before they are installed, and this split enforces the same rule here, where a stale
    * document or a race could still send a names request.
    */
-  async #namesDict(): Promise<NamesDictionary> {
+  async #namesDict(): Promise<Remote<NamesDictionary>> {
     return this.#names.install();
   }
 
   /** The names dictionary if it is installed (or being opened), else `undefined`. Never downloads. */
-  async #installedNames(): Promise<NamesDictionary | undefined> {
+  async #installedNames(): Promise<Remote<NamesDictionary> | undefined> {
     return this.#names.acquireIfInstalled();
   }
 

@@ -54,24 +54,21 @@ vi.mock("../ensureDatabase", () => ({
     return "/storage/jisho-names.db";
   }
 }));
-vi.mock("../db", () => ({
-  SchemaVersionError: class extends Error {},
-  Dictionary: {
-    open: async () => ({
-      close: async () => undefined,
-      refineCounts: async () => ({}),
-      getMeta: async () => ({})
-    })
-  }
-}));
-vi.mock("../names", () => ({
-  NamesDictionary: {
-    open: async () => ({
-      close: async () => undefined,
-      searchNames: async () => [{ id: "n1" }],
-      browseNamesCount: async () => 1
-    })
-  }
+vi.mock("../db", () => ({ SchemaVersionError: class extends Error {} }));
+// The dictionaries run in worker threads; these stand in for the workers.
+vi.mock("../remote", () => ({
+  openRemote: async (_script: string, kind: "words" | "names") =>
+    kind === "words"
+      ? {
+          close: async () => undefined,
+          refineCounts: async () => ({}),
+          getMeta: async () => ({})
+        }
+      : {
+          close: async () => undefined,
+          searchNames: async () => [{ id: "n1" }],
+          browseNamesCount: async () => 1
+        }
 }));
 
 const { JishoViewProvider } = await import("../webviewHost");
