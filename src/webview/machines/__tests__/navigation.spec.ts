@@ -432,10 +432,10 @@ describe("hydrateContext", () => {
   });
 
   it("restores EVERY view in the union, not just the ones that predate browse", () => {
-    // WHY: the allowlist is a hand-maintained string set, so a view added to `View` without being
-    // added there is not a type error — it silently makes that view unrestorable and dumps the user
-    // back to a fresh search on the next reload. `browse` and `wordList` were exactly that between
-    // #54 shipping and 2026-08-06. Asserting the whole union is what makes the next omission fail.
+    // WHY: a view that cannot be restored dumps the user back to a fresh search on the next reload.
+    // `browse` and `wordList` were exactly that between #54 shipping and 2026-08-06, when the list
+    // of restorable views was a hand-kept set of strings. It is a `satisfies` table now, so an
+    // omission no longer compiles; this keeps checking that every view round-trips.
     const everyView: View[] = [
       { name: "search" },
       { name: "wordDetail", id: "1" },
@@ -456,6 +456,24 @@ describe("hydrateContext", () => {
         searchQuery: ""
       });
       expect(activeView(restored)).toEqual(view);
+    }
+  });
+
+  it("refuses a view whose fields are not what this build renders", () => {
+    // WHY: persisted state survives extension UPDATES. A view written by an older build with a
+    // field since renamed passed a name-only check, restored, and rendered broken — a word page
+    // with no word to look up (audit I-6).
+    for (const stale of [
+      { name: "wordDetail" },
+      { name: "wordDetail", word: "1" },
+      { name: "kanjiDetail", literal: 6 },
+      { name: "radicals", preselect: "水" }
+    ]) {
+      const restored = hydrateContext({
+        stack: [{ name: "search" }, stale],
+        searchQuery: ""
+      });
+      expect(activeView(restored)).toEqual({ name: "search" });
     }
   });
 

@@ -35,6 +35,31 @@ import { byFrequency, parseCodes, parseStrings, stripHonorific } from "./parse";
  * tokenizer-agnostic: when none are passed (tokenizer not ready, or non-Japanese input) the rule
  * table still covers conjugated queries.
  */
+/**
+ * How search results are ranked, as SQL: by score, then by frequency band (unranked words last),
+ * then common words first. `byRank` is the same order in JavaScript, for the results the
+ * deinflection merge adds after the query.
+ *
+ * Written once each, side by side, and checked against each other by a test that runs both over
+ * the same rows (searchRanking.spec.ts) — they were two hand-kept copies with a comment saying they
+ * "must agree" (audit I-8).
+ */
+export const RANK_ORDER_BY =
+  "score DESC, freq_rank IS NULL, freq_rank, common DESC";
+
+/** One result's ranking keys. */
+export interface RankKeys {
+  score: number;
+  freqRank: number | null;
+  common: number;
+}
+
+/** `RANK_ORDER_BY` in JavaScript. */
+export const byRank = (a: RankKeys, b: RankKeys): number =>
+  b.score - a.score ||
+  byFrequency(a.freqRank, b.freqRank) ||
+  b.common - a.common;
+
 export const search = async (
   store: SqliteStore,
   rawQuery: string,
@@ -111,7 +136,7 @@ export const search = async (
        JOIN words w ON w.id = st.word_id
       WHERE ${where}
       GROUP BY st.word_id
-      ORDER BY score DESC, freq_rank IS NULL, freq_rank, common DESC
+      ORDER BY ${RANK_ORDER_BY}
       LIMIT ?3`,
     ...(exactOnly ? [needle, needle, limit] : [needle, `${needle}￿`, limit])
   );
@@ -210,15 +235,10 @@ export const search = async (
     }
   }
 
-  // Mirrors the SQL's ORDER BY exactly — the deinflection merge above can reorder things, so the
-  // two must agree or results would shuffle depending on whether a query hit that path.
+  // The same order as the SQL — see `byRank`. The deinflection merge above can reorder things, so
+  // the two must agree or results would shuffle depending on whether a query hit that path.
   const ranked = [...merged.entries()]
-    .sort(
-      (a, b) =>
-        b[1].score - a[1].score ||
-        byFrequency(a[1].freqRank, b[1].freqRank) ||
-        b[1].common - a[1].common
-    )
+    .sort(([, a], [, b]) => byRank(a, b))
     .slice(0, limit);
 
   // One hydration query for the whole page, in ranked order — see `searchResults`.
