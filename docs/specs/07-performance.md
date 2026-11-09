@@ -1,6 +1,6 @@
 # Spec 07 — Benchmarking and performance strategy
 
-**Backlog:** new (#41). **Status:** pilot run, workflow proven, strategy proposed. A working benchmark exists (`bench/recognize.bench.mjs`) — the numbers below are measured, not projected.
+**Backlog:** new (#41). **Status:** pilot run, workflow proven, strategy proposed. A working benchmark exists (`bench/recognize.bench.mjs`) — the numbers below are measured, not projected. Since 2026-11-09 (HARDENING-PLAN D-6) the `*.bench.mjs` workloads are folded into the Vitest benches, profiled with `vp run bench:profile`; see [bench/README.md](../../bench/README.md).
 
 ## The shape of the problem
 

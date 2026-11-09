@@ -2,7 +2,7 @@
  * Throughput benchmark for rule-based deinflection — the "did my change make it faster?" measure.
  *
  * `deinflect()` runs on EVERY search, before the SQL query, expanding a conjugated query into
- * candidate dictionary forms. It is pure JS (deoptkit can see it; see deinflect.bench.mjs), so a
+ * candidate dictionary forms. It is pure JS (deoptkit can see it: `vp run bench:profile`), so a
  * regression here is a regression on the search hot path.
  *
  * Input design, measured before writing (bench/README.md rule 2 — find the driver, vary that):
@@ -23,6 +23,7 @@
  * Baseline: vp run bench:save
  * Compare:  vp run bench:compare
  */
+import { benchObserved } from "deoptkit/bench";
 import { it, describe } from "vite-plus/test";
 import { against, baselineFor } from "./baseline";
 import { deinflect } from "../src/host/deinflect";
@@ -52,12 +53,13 @@ describe("deinflect", () => {
       bench,
       expect,
       "deinflect-realistic-query-mix",
-      bench(
+      benchObserved(
+        bench,
         "realistic query mix",
-        baselineFor("deinflect-realistic-query-mix"),
         () => {
           for (const q of mix) sink += deinflect(q).length;
-        }
+        },
+        baselineFor("deinflect-realistic-query-mix")
       )
     );
   });
@@ -69,12 +71,13 @@ describe("deinflect", () => {
       bench,
       expect,
       "deinflect-no-match-floor-plain-noun",
-      bench(
+      benchObserved(
+        bench,
         "no-match floor (plain noun)",
-        baselineFor("deinflect-no-match-floor-plain-noun"),
         () => {
           sink += deinflect("ねこ").length;
-        }
+        },
+        baselineFor("deinflect-no-match-floor-plain-noun")
       )
     );
   });
@@ -84,12 +87,13 @@ describe("deinflect", () => {
       bench,
       expect,
       "deinflect-worst-negative-chain",
-      bench(
+      benchObserved(
+        bench,
         "worst: negative chain (たべなかった)",
-        baselineFor("deinflect-worst-negative-chain"),
         () => {
           sink += deinflect("たべなかった").length;
-        }
+        },
+        baselineFor("deinflect-worst-negative-chain")
       )
     );
   });
@@ -99,12 +103,13 @@ describe("deinflect", () => {
       bench,
       expect,
       "deinflect-common-simple-polite",
-      bench(
+      benchObserved(
+        bench,
         "common: simple polite (はなします)",
-        baselineFor("deinflect-common-simple-polite"),
         () => {
           sink += deinflect("はなします").length;
-        }
+        },
+        baselineFor("deinflect-common-simple-polite")
       )
     );
   });

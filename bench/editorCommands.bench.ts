@@ -38,6 +38,7 @@
  * Compare:  vp run bench:compare
  */
 import { readFileSync } from "node:fs";
+import { benchObserved } from "deoptkit/bench";
 import { it, describe } from "vite-plus/test";
 import { against, baselineFor } from "./baseline";
 import { addFurigana, removeFurigana } from "../src/host/furigana";
@@ -69,12 +70,13 @@ describe("editor commands", () => {
       bench,
       expect,
       "editorCommands-addfurigana-a-3-line-selection",
-      bench(
+      benchObserved(
+        bench,
         "addFurigana: a 3-line selection",
-        baselineFor("editorCommands-addfurigana-a-3-line-selection"),
         async () => {
           sink += (await addFurigana(paragraph)).length;
-        }
+        },
+        baselineFor("editorCommands-addfurigana-a-3-line-selection")
       )
     );
   });
@@ -84,12 +86,13 @@ describe("editor commands", () => {
       bench,
       expect,
       "editorCommands-addspacing-a-3-line-selection",
-      bench(
+      benchObserved(
+        bench,
         "addSpacing: a 3-line selection",
-        baselineFor("editorCommands-addspacing-a-3-line-selection"),
         async () => {
           sink += (await addSpacing(paragraph)).length;
-        }
+        },
+        baselineFor("editorCommands-addspacing-a-3-line-selection")
       )
     );
   });
@@ -101,12 +104,13 @@ describe("editor commands", () => {
       bench,
       expect,
       "editorCommands-removefurigana-a-3-line-selection",
-      bench(
+      benchObserved(
+        bench,
         "removeFurigana: a 3-line selection",
-        baselineFor("editorCommands-removefurigana-a-3-line-selection"),
         async () => {
           sink += (await removeFurigana(annotated)).length;
-        }
+        },
+        baselineFor("editorCommands-removefurigana-a-3-line-selection")
       )
     );
   });
@@ -116,12 +120,13 @@ describe("editor commands", () => {
       bench,
       expect,
       "editorCommands-removespacing-a-3-line-selection",
-      bench(
+      benchObserved(
+        bench,
         "removeSpacing: a 3-line selection",
-        baselineFor("editorCommands-removespacing-a-3-line-selection"),
         async () => {
           sink += (await removeSpacing(spaced)).length;
-        }
+        },
+        baselineFor("editorCommands-removespacing-a-3-line-selection")
       )
     );
   });
@@ -135,12 +140,13 @@ describe("editor commands", () => {
       bench,
       expect,
       "editorCommands-addfurigana-a-whole-short-story-47-lines",
-      bench(
+      benchObserved(
+        bench,
         "addFurigana: a whole short story (47 lines)",
-        baselineFor("editorCommands-addfurigana-a-whole-short-story-47-lines"),
         async () => {
           sink += (await addFurigana(rashomon)).length;
-        }
+        },
+        baselineFor("editorCommands-addfurigana-a-whole-short-story-47-lines")
       )
     );
   });

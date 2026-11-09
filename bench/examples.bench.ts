@@ -33,6 +33,7 @@
  * Compare:  vp run bench:compare
  */
 import { readFileSync } from "node:fs";
+import { benchObserved } from "deoptkit/bench";
 import { it, describe } from "vite-plus/test";
 import { against, baselineFor } from "./baseline";
 import { exampleText, parseExampleMarkup } from "../src/shared/exampleLinks";
@@ -82,17 +83,16 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-hover-1-sentence-through-the-whole-markdown-body",
-      bench(
+      benchObserved(
+        bench,
         "hover: 1 sentence through the whole markdown body",
-        baselineFor(
-          "examples-hover-1-sentence-through-the-whole-markdown-body"
-        ),
         () => {
           const jaFurigana = hoverNext();
           sink += wordHoverMarkdown(
             hoverFor(jaFurigana, "Please be careful.")
           ).length;
-        }
+        },
+        baselineFor("examples-hover-1-sentence-through-the-whole-markdown-body")
       )
     );
   });
@@ -106,13 +106,14 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-word-page-6-inline-examples-parsed-for-render",
-      bench(
+      benchObserved(
+        bench,
         "word page: 6 inline examples parsed for render",
-        baselineFor("examples-word-page-6-inline-examples-parsed-for-render"),
         () => {
           for (let i = 0; i < 6; i++)
             sink += parseExampleMarkup(pageNext()).length;
-        }
+        },
+        baselineFor("examples-word-page-6-inline-examples-parsed-for-render")
       )
     );
   });
@@ -126,13 +127,14 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-more-examples-page-20-pooled-examples-parsed",
-      bench(
+      benchObserved(
+        bench,
         "more-examples page: 20 pooled examples parsed",
-        baselineFor("examples-more-examples-page-20-pooled-examples-parsed"),
         () => {
           for (let i = 0; i < 20; i++)
             sink += parseExampleMarkup(poolNext()).length;
-        }
+        },
+        baselineFor("examples-more-examples-page-20-pooled-examples-parsed")
       )
     );
   });
@@ -145,12 +147,13 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-parse-only-1-sentence-link-layer",
-      bench(
+      benchObserved(
+        bench,
         "parse only: 1 sentence (link layer)",
-        baselineFor("examples-parse-only-1-sentence-link-layer"),
         () => {
           sink += parseExampleMarkup(parseNext()).length;
-        }
+        },
+        baselineFor("examples-parse-only-1-sentence-link-layer")
       )
     );
   });
@@ -164,12 +167,13 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-exampletext-1-sentence-both-layers-stripped",
-      bench(
+      benchObserved(
+        bench,
         "exampleText: 1 sentence (both layers stripped)",
-        baselineFor("examples-exampletext-1-sentence-both-layers-stripped"),
         () => {
           sink += exampleText(textNext()).length;
-        }
+        },
+        baselineFor("examples-exampletext-1-sentence-both-layers-stripped")
       )
     );
   });
@@ -185,12 +189,13 @@ describe("example markup", () => {
       bench,
       expect,
       "examples-worst-1-sentence-at-the-top-of-the-link-range",
-      bench(
+      benchObserved(
+        bench,
         "worst: 1 sentence at the top of the link range",
-        baselineFor("examples-worst-1-sentence-at-the-top-of-the-link-range"),
         () => {
           sink += parseExampleMarkup(worstNext()).length;
-        }
+        },
+        baselineFor("examples-worst-1-sentence-at-the-top-of-the-link-range")
       )
     );
   });

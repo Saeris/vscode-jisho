@@ -119,38 +119,34 @@ jobs:
 
       - run: vp test
 
-  # Structural findings — megamorphic inline caches, deopt loops, hidden-class churn — in the four
-  # bounded workloads (`bench/*.bench.mjs`), against the baselines committed in `.deopt/baselines/`.
-  # Throughput depends on the machine, so it cannot gate; these depend on the code, so they can
-  # (bench/README.md). A new finding fails here. Accept one that is expected with
-  # `vp exec deoptkit ci --update --out-dir .deopt <workload>`, and commit the baseline.
+  # Structural findings — megamorphic inline caches, deopt loops, hidden-class churn — in the benches
+  # of the four plain-JS subjects, against the baseline committed in `.deopt/baselines/`. Throughput
+  # depends on the machine, so it cannot gate; these depend on the code, so they can
+  # (bench/README.md). A new finding fails here. Accept one that is expected by profiling the same
+  # four files and running `vp exec deoptkit ci --update --out-dir .deopt --manifest
+  # .deopt/manifest.json`, and commit the baseline.
   deopt:
     name: Deopt findings
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      # Node 26, not the host's 24.22: the workloads cannot run on Node 24 at all. The bundle they
-      # load includes the handwriting recognizer, whose patterns decode with `Uint8Array.fromBase64`
-      # (Chromium 148 and Node 25+ only). That code runs in the webview, whose V8 is nearer Node
-      # 26's than Node 24's, and the baselines were recorded on Node 26.
+      # Node 26, not the host's 24.22: the recognizer bench cannot run on Node 24 at all. Its patterns
+      # decode with `Uint8Array.fromBase64` (Chromium 148 and Node 25+ only). That code runs in the
+      # webview, whose V8 is nearer Node 26's than Node 24's, and the baseline was recorded on Node 26.
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "26"
           cache: true
 
-      # The editor-commands workload tokenizes.
+      # The editor-commands bench tokenizes.
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 
-      - name: Build the bench bundle
-        run: vp run bench:build
+      # Each case runs a fixed number of times (PROFILE_ITERATIONS in vite.config.ts), so the logs
+      # stay bounded and the findings repeat from run to run. Writes .deopt/manifest.json.
+      - name: Profile the benches
+        run: vp run bench:profile -- bench/deinflect.bench.ts bench/recognize.bench.ts bench/editorCommands.bench.ts bench/examples.bench.ts
 
-      # Every workload, then fail: one finding should not hide another.
-      - name: Compare with the baselines
-        run: |
-          status=0
-          for workload in deinflect recognize editorCommands examples; do
-            vp exec deoptkit ci --out-dir .deopt "bench/$workload.bench.mjs" || status=1
-          done
-          exit $status
+      - name: Compare with the baseline
+        run: vp exec deoptkit ci --out-dir .deopt --manifest .deopt/manifest.json

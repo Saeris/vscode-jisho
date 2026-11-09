@@ -186,7 +186,7 @@ These affect only users who turn on highlighting or code comments, so they rank 
 
 - **Do:** Fold each `*.bench.mjs` into its Vitest bench using `benchObserved`. First make profile mode limit iterations (the audit found that time-based runs with every category on write gigabytes of logs). That may suit an upstream option in deoptkit's preset.
 - **Done when:** `bench/` has one file per subject, and `vp run bench:profile` writes logs under 100 MB with every category on.
-- **Status (2026-11-09): blocked upstream.** deoptkit 0.2.0's Vitest preset has no iteration limit, and `deoptkit ci` gates scripts, not Vitest runs. Since D-5 the `*.bench.mjs` scripts are the CI gate's inputs, so folding them into Vitest now would remove the gate. Both features are needed in deoptkit first.
+- **Status (2026-11-09): done.** deoptkit 0.3.0 added both missing features: `deoptKit({ iterations })` with its benchmark provider runs each case a fixed number of times, and `deoptkit ci --manifest` gates a Vitest run. The five `*.bench.mjs` workloads and the bundle they loaded are gone; every case is wrapped in `benchObserved`. A profile run calls each case 1,000 times (`PROFILE_ITERATIONS`), and the dictionary cases 30 (`profileRuns`). With every category on, each JS subject's log is 27–32 MiB, and the dictionary's 81 MiB (the dictionary log at 1,000 calls: 657 MiB). The CI gate profiles the same four subjects and finds every site the scripts did (the `alignReading` deopt loop now reports in its caller, `addFuriganaToLine`, because the run executes `src/` rather than the bundle), plus two the scripts never ran: `extractFeatures` and `removeSpacingFromLine`.
 
 ### D-7 Stop the startup heartbeat when it has nothing more to record — S
 

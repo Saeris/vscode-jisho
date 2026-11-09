@@ -37,6 +37,22 @@ export const isWritingBaseline =
   // optional chain reads as unnecessary to the type checker while the runtime risk is real.
   "process" in globalThis && process.env.VITE_WRITE_BENCH === "1";
 
+/**
+ * Whether this is `vp run bench:profile`: the cases run under V8 logging, which slows every one of
+ * them, so their numbers say nothing about throughput. Guarded like `isWritingBaseline`.
+ */
+export const isProfiling =
+  "process" in globalThis && process.env.DEOPTKIT === "1";
+
+/**
+ * Run options for a profile run only: how many times V8 observes a case whose every call logs a lot
+ * (a dictionary query walks thousands of rows), below the project's PROFILE_ITERATIONS
+ * (vite.config.ts). A throughput run gets nothing, because there `iterations` is a minimum that
+ * runs alongside the time budget, and it would slow the run down instead.
+ */
+export const profileRuns = (iterations: number): BenchRunOptions | undefined =>
+  isProfiling ? { iterations } : undefined;
+
 /** Where a case's recorded result lives. One file per bench — `writeResult` is a per-bench path. */
 export const baselinePath = (id: string): string =>
   `./bench/baselines/${id}.json`;
@@ -72,8 +88,10 @@ export const REGRESSION_DELTA = 0.15;
  * replacement is an assertion inside the bench, so a regression is a RED TEST rather than a number
  * a reader has to notice.
  *
- * Two runs skip the comparison and simply measure:
+ * Three runs skip the comparison and simply measure:
  *   - RECORDING (`vp run bench:save`), where there is nothing to compare against yet.
+ *   - PROFILING (`vp run bench:profile`), where V8 logging slows every case, so any baseline on
+ *     disk would read as a regression in all of them.
  *   - No baseline file, which is a fresh checkout. `vp run bench` must stay useful as a plain
  *     "what are the numbers" command, so a missing baseline is not a failure.
  *
@@ -95,7 +113,7 @@ export const against = async (
    */
   options?: BenchRunOptions
 ): Promise<void> => {
-  if (isWritingBaseline || !existsSync(baselinePath(id))) {
+  if (isWritingBaseline || isProfiling || !existsSync(baselinePath(id))) {
     // `.run()`, not `compare()`: comparing one benchmark against nothing is a SyntaxError —
     // "requires at least 2 benchmarks, received 1".
     await current.run(options);
