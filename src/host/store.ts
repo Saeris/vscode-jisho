@@ -14,6 +14,28 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { TagDto } from "../shared/messages";
 
 type Db = DatabaseSync;
+
+/**
+ * SQLite's page cache, per connection: 64 MB, against a default of about 2 MB.
+ *
+ * The dictionary is 470 MB, and its slow queries were not slow JavaScript. A tick profile of
+ * `refineCounts` put 4% in JS and 56% in `ntdll.dll` — the same pages read back through syscalls
+ * because a 2 MB cache cannot hold what one query touches. Measured with `bench/dictionary.bench.ts`
+ * (mean ms, default → 16 / 32 / 64 MB):
+ *
+ *   search の          16.1 →  4.9 /  5.0 /  4.9
+ *   search 日          28.1 → 10.3 / 10.6 / 10.5
+ *   getKanji 日        16.9 →  4.3 /  4.6 /  4.6
+ *   browse #jlpt-n5    42.5 → 42.6 / 20.3 / 19.2
+ *   browse #noun        239 →  250 /  244 /  211
+ *   refineCounts #noun 1975 → 1542 / 1411 / 1315
+ *
+ * Searches saturate at 16 MB; browsing needs 32; the heaviest cases — the ones that block every
+ * extension longest — keep improving to 64. The memory is lazy: a typical session's lookups grew the
+ * process by 4 MB at any cap, and the cap is approached only by the heaviest scans. Paths that were
+ * already sub-millisecond are unchanged.
+ */
+const PAGE_CACHE_KIB = 64 * 1024;
 type Statement = StatementSync;
 
 /**
@@ -69,7 +91,9 @@ export class SqliteStore {
   // leaves room to open on a worker later.
   // oxlint-disable-next-line typescript/require-await
   static async open(path: string): Promise<SqliteStore> {
-    return new SqliteStore(new DatabaseSync(path, { readOnly: true }));
+    const db = new DatabaseSync(path, { readOnly: true });
+    db.exec(`PRAGMA cache_size = -${PAGE_CACHE_KIB}`);
+    return new SqliteStore(db);
   }
 
   /**
