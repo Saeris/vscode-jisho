@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-import { SqliteStore } from "../store";
+import { STATEMENT_CACHE_SIZE, SqliteStore } from "../store";
 
 /**
  * The connection settings `SqliteStore.open` applies, checked against a throwaway database so this
@@ -32,6 +32,21 @@ describe("sqliteStore.open", () => {
     const row = await store.get<{ cache_size: number }>("PRAGMA cache_size");
     // Negative means KiB rather than pages.
     expect(row?.cache_size).toBe(-64 * 1024);
+  });
+
+  it("keeps no more prepared statements than its cap", async () => {
+    // WHY (audit I-4): a statement is cached per SQL text, and every length of an `IN (…)` list is
+    // a different text. `refineCounts` builds lists of up to 900, so an uncapped cache grew by one
+    // statement for every pool size a session met — while its comment called those lists short.
+    using store = await SqliteStore.open(path);
+    for (let length = 1; length <= STATEMENT_CACHE_SIZE + 50; length++) {
+      const ids = Array.from({ length }, (_, i) => i);
+      await store.all(
+        `SELECT x FROM t WHERE x IN (${ids.map(() => "?").join(",")})`,
+        ...ids
+      );
+    }
+    expect(store.cachedStatements).toBeLessThanOrEqual(STATEMENT_CACHE_SIZE);
   });
 
   it("stays read-only", async () => {

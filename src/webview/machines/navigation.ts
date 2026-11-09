@@ -456,6 +456,68 @@ export const navigationMachineFrom = (
   persist: Persist = () => {}
 ): NavigationMachine => define(hydrateContext(persisted), persist);
 
+/** A field a view must have, holding a string. */
+const text =
+  (key: string) =>
+  (view: object): boolean =>
+    typeof Reflect.get(view, key) === "string";
+
+/** A field a view may have; when present, a string. */
+const optionalText =
+  (key: string) =>
+  (view: object): boolean => {
+    const value: unknown = Reflect.get(view, key);
+    return value === undefined || typeof value === "string";
+  };
+
+/** A field a view may have; when present, a list of strings. */
+const optionalTexts =
+  (key: string) =>
+  (view: object): boolean => {
+    const value: unknown = Reflect.get(view, key);
+    return (
+      value === undefined ||
+      (Array.isArray(value) && value.every((item) => typeof item === "string"))
+    );
+  };
+
+const noFields = (): boolean => true;
+
+/**
+ * How to check a persisted view's fields, by its name — one entry for every member of `View`.
+ *
+ * `satisfies` makes this a COMPILE-TIME list: a `View` member missing here, or a name that is not
+ * one, does not compile. It was a hand-kept set of strings, so a view added to `View` without being
+ * added there silently became unrestorable — a reload dropped the session back to a fresh search —
+ * which is how `browse` and `wordList` went unrestorable between #54 shipping and 2026-08-06 (audit
+ * I-6). Checking the fields as well means a view a previous build wrote with a field since renamed
+ * is refused, rather than restored and rendered broken.
+ */
+const VIEW_FIELDS = {
+  search: noFields,
+  wordDetail: text("id"),
+  moreExamples: text("id"),
+  kanjiDetail: text("literal"),
+  strokeOrder: text("literal"),
+  componentTree: text("literal"),
+  nameDetail: text("id"),
+  browse: optionalText("group"),
+  wordList: text("id"),
+  radicals: optionalTexts("preselect"),
+  handwriting: noFields,
+  about: noFields
+} satisfies Record<View["name"], (view: object) => boolean>;
+
+/** Whether a persisted value is a view this build can render. */
+const isView = (view: unknown): view is View => {
+  if (typeof view !== "object" || view === null) return false;
+  const name: unknown = Reflect.get(view, "name");
+  const fields = Object.entries(VIEW_FIELDS).find(
+    ([known]) => known === name
+  )?.[1];
+  return fields?.(view) === true;
+};
+
 /**
  * Rebuild a context from state persisted by a previous incarnation of this document.
  *
@@ -473,30 +535,6 @@ export const hydrateContext = (persisted: unknown): NavContext => {
   if (typeof persisted !== "object" || persisted === null) return fresh;
   const { stack, searchQuery } = persisted as Partial<NavContext>;
   if (!Array.isArray(stack) || stack.length === 0) return fresh;
-
-  // Must list every member of `View`. A name missing here is not a type error — it silently makes
-  // that view unrestorable, dropping the whole session back to a fresh search on the next reload,
-  // which is how `browse` and `wordList` went unrestorable between #54 shipping and 2026-08-06.
-  const names = new Set<string>([
-    "search",
-    "wordDetail",
-    "moreExamples",
-    "kanjiDetail",
-    "strokeOrder",
-    "componentTree",
-    "nameDetail",
-    "browse",
-    "wordList",
-    "radicals",
-    "handwriting",
-    "about"
-  ]);
-  const isView = (view: unknown): view is View =>
-    typeof view === "object" &&
-    view !== null &&
-    "name" in view &&
-    typeof view.name === "string" &&
-    names.has(view.name);
 
   if (!stack.every(isView)) return fresh;
   // The base of the stack must be `search`, or Back/Home can strand the user above a view that

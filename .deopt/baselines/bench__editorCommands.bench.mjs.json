@@ -1,5 +1,5 @@
 {
-  "createdAt": "2026-11-09T09:08:08.632Z",
+  "createdAt": "2026-11-09T15:12:34.845Z",
   "script": "bench/editorCommands.bench.mjs",
   "findings": [
     {
@@ -17,10 +17,10 @@
       "summary": "2 eager deopts at the same position (wrong map)"
     },
     {
-      "identity": "map-churn|dist/entry.mjs||Symbol(node:napi:type_tag),Symbol(node:napi:wrapper)",
+      "identity": "map-churn|dist/entry.mjs|buildTokenizer|Symbol(node:napi:type_tag),Symbol(node:napi:wrapper)",
       "kind": "map-churn",
       "file": "dist/entry.mjs",
-      "functionName": "",
+      "functionName": "buildTokenizer",
       "summary": "11 map transitions created in one function (properties: Symbol(node:napi:wrapper), Symbol(node:napi:type_tag))"
     },
     {

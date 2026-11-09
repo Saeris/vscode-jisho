@@ -87,6 +87,19 @@ Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
   - **Brevity**: Every word must earn its place. Ruthlessly cut clutter, redundant adverbs, and unnecessary modifiers that do no useful work.
   - **Humanity**: Let your personality and voice show. Write with warmth, honesty, and a conversational tone rather than hiding behind a cold, robotic corporate or academic facade.
 
+# This project's known hazards
+
+Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the runtimes, the bridge, the state machines, the data and release pipelines, and where each invariant is enforced. Each hazard below cost a debugging session here; the link is where its guard lives.
+
+- **Two runtimes.** The extension host is VS Code 1.145's Node 24.22; the webview is Chromium 148. `Uint8Array.fromBase64` exists only in Chromium (and Node 25+), and Vitest runs a webview `.ts` spec under Node unless it is listed in `BROWSER_ONLY` ([vite.config.ts](vite.config.ts)). The deopt gate runs on Node 26 for the same reason ([ci.yml](.github/workflows/ci.yml), `deopt` job).
+- **The dictionaries run in a worker thread, where `vscode` does not exist.** Nothing the worker imports may import it ([`scripts/__tests__/packaging.spec.ts`](scripts/__tests__/packaging.spec.ts)), and what crosses must be plain data ([docs/CONVENTIONS.md](docs/CONVENTIONS.md)).
+- **Windows cannot replace or delete an open file**, and Linux and macOS hide every bug of this kind. An update closes the old handle immediately before its rename ([src/host/lifecycle.ts](src/host/lifecycle.ts), `update`); closing a dictionary ends its worker ([src/host/remote.ts](src/host/remote.ts)); the data build writes `<db>.building` and then renames ([scripts/build-data.ts](scripts/build-data.ts)).
+- **Yarn quarantines a new package version for three days.** `--no-time-gate` works on `yarn add` and `yarn up` but not on `install`, so a too-fresh dependency passes locally and breaks CI. Exceptions go in `npmPreapprovedPackages` ([.yarnrc.yml](.yarnrc.yml)).
+- **`dictionary-latest` belongs to every version already published.** 0.1–0.3 download it and need schema 6 exactly, so it is frozen there. A schema change bumps `SCHEMA_VERSION` and publishes to its own tag ([src/shared/schema.ts](src/shared/schema.ts), [scripts/data-builds.ts](scripts/data-builds.ts)); the drift guard fails until it does ([`src/shared/__tests__/schema.spec.ts`](src/shared/__tests__/schema.spec.ts)).
+- **Bumping Lindera changes the tokenizer dictionary's format and file layout.** Re-run `vp run build:tokenizer-dict` after any bump; it checks the files it expects ([scripts/build-tokenizer-dict.ts](scripts/build-tokenizer-dict.ts)).
+- **`vp build` builds only the webview; `vp pack` builds the host and the dictionary worker.** A stale host fails a new request with "Rebuild it with `vp pack`", and `remote.spec.ts` runs the BUILT worker ([CONTRIBUTING.md](CONTRIBUTING.md)).
+- **Never run `bumpy ci …` from a local shell**, not even to read its help: `vp dlx @varlock/bumpy ci release -- --help` ran a real release and force-pushed the version PR. It belongs in [release.yml](.github/workflows/release.yml); read Bumpy's options with `vp dlx -s @varlock/bumpy help`.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

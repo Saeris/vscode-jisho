@@ -21,6 +21,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "dist-vsix");
 
 /**
+ * `--dry-run`: do everything but publish. Checks the packages exist and each names its target, that
+ * both publishing CLIs resolve, and what the Marketplace already has — then prints each publish
+ * command instead of running it.
+ *
+ * Run on Bumpy's version PR (ci.yml), so a broken release step fails while there is still a PR to fix,
+ * rather than in the Publish job after the merge (audit I-10, I-11). Needs no tokens.
+ */
+const DRY_RUN = process.argv.includes("--dry-run");
+
+/**
  * The three fields this script needs from package.json.
  *
  * Narrowed through a guard rather than asserted from `JSON.parse`'s `any`: a malformed manifest
@@ -139,6 +149,7 @@ const targetOf = (file: string, version: string): string | undefined => {
 
 const run = (cmd: string, args: string[]): string => {
   console.log(`$ ${cmd} ${args.join(" ")}`);
+  if (DRY_RUN) return "";
   // `pipe`, not `inherit`: the output has to be READ to tell an "already exists" rejection from a
   // transport failure, and vsce writes that to stderr. Echoed so the log still shows everything.
   try {
@@ -287,6 +298,33 @@ if (packages.length === 0) {
   );
 }
 
+if (DRY_RUN) {
+  // The publish commands are only printed below, so check here that they would run: a CLI missing
+  // from the install fails a real release only after the merge.
+  for (const { command } of [
+    { command: "vsce" },
+    { command: "ovsx" }
+  ] as const) {
+    const version = execFileSync("vp", ["exec", command, "--version"], {
+      cwd: root,
+      encoding: "utf8",
+      shell: process.platform === "win32"
+    }).trim();
+    console.log(`${command} ${version}`);
+  }
+  // Every package must be a platform build of THIS version. One whose name does not parse would be
+  // published as universal to Open VSX, where each platform build overwrites the last; one left
+  // over from an earlier version would be offered to the registries again.
+  const strays = packages.filter(
+    (file) => targetOf(file, manifest.version) === undefined
+  );
+  if (strays.length > 0) {
+    throw new Error(
+      `These packages are not platform builds of ${manifest.version}: ${strays.join(", ")}`
+    );
+  }
+}
+
 /**
  * Publish EVERY package, then report.
  *
@@ -332,7 +370,7 @@ const publishAll = (
     }
   }
   console.log(
-    `${registry.name}: published ${packages.length - failed.length - skipped}/${packages.length}` +
+    `${registry.name}: ${DRY_RUN ? "would publish" : "published"} ${packages.length - failed.length - skipped}/${packages.length}` +
       (skipped > 0 ? ` (${skipped} already there)` : "") +
       (failed.length > 0 ? `, ${failed.length} FAILED` : "") +
       "."

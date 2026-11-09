@@ -186,6 +186,7 @@ These affect only users who turn on highlighting or code comments, so they rank 
 
 - **Do:** Fold each `*.bench.mjs` into its Vitest bench using `benchObserved`. First make profile mode limit iterations (the audit found that time-based runs with every category on write gigabytes of logs). That may suit an upstream option in deoptkit's preset.
 - **Done when:** `bench/` has one file per subject, and `vp run bench:profile` writes logs under 100 MB with every category on.
+- **Status (2026-11-09): blocked upstream.** deoptkit 0.2.0's Vitest preset has no iteration limit, and `deoptkit ci` gates scripts, not Vitest runs. Since D-5 the `*.bench.mjs` scripts are the CI gate's inputs, so folding them into Vitest now would remove the gate. Both features are needed in deoptkit first.
 
 ### D-7 Stop the startup heartbeat when it has nothing more to record — S
 
