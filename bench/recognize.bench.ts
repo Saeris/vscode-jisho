@@ -7,8 +7,15 @@
  * Only the second can gate a regression, which is what makes it worth having.
  *
  * Run:      vp run bench
- * Baseline: vp run bench:save     (writes bench/baseline.json)
- * Compare:  vp run bench:compare  (diffs against that baseline)
+ * Baseline: vp run bench:save     (writes bench/baselines/recognize-*.json)
+ * Compare:  vp run bench:compare  (fails any case >15% slower than its baseline)
+ *
+ * NEEDS NODE 25+. `patterns.ts` decodes with `Uint8Array.fromBase64`, which is a browser API that
+ * only reached Node in 25 — the spec version of this code is routed to the browser project for the
+ * same reason (see `BROWSER_ONLY` in vite.config.ts). Benchmarks are developer-only and never run
+ * in CI, where the runner is pinned to 24.15, so this is a constraint rather than a problem; it is
+ * recorded because the failure ("Uint8Array.fromBase64 is not a function") names the API and not
+ * the reason.
  *
  * Methodology — and why the inputs look like this — is in bench/README.md. The short version: cost
  * is driven by STROKE COUNT (17× across the range, non-monotonic, peaking at 9 strokes where the

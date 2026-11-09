@@ -29,6 +29,23 @@ import manifest from "./package.json" with { type: "json" };
 const NOT_BENCH = "bench/**";
 
 /**
+ * Whether this invocation is `vp test bench` rather than a plain `vp test`.
+ *
+ * `benchmark.enabled` has to be BOTH on in bench mode (it is what registers the project — bench
+ * mode filters to the projects that opt in, before `--project` is applied) and off otherwise: left
+ * unconditionally true, the benchmarks also run during an ordinary `vp test`.
+ *
+ * That is not merely slow. `recognize.bench.ts` imports `patterns.ts`, which decodes with
+ * `Uint8Array.fromBase64` — a BROWSER API (Chromium 148, Node 25+). CI runs the suite on Node
+ * 24.15, so a plain `vp test` there died with "Uint8Array.fromBase64 is not a function", while the
+ * same command passed locally on Node 26 purely because the newer runtime happens to have it.
+ *
+ * Read from argv because Vitest's own `benchmarkOnly` is a CLI option, resolved after this config
+ * is evaluated and not reachable from here.
+ */
+const IS_BENCH_RUN = process.argv.includes("bench");
+
+/**
  * `.ts` specs that must run in the browser project despite not rendering anything, because the code
  * under test uses an API the extension host's Node does not have.
  *
@@ -146,7 +163,7 @@ const benchProject: TestProjectConfiguration = {
      * filter \"bench\"" while `vp test list` happily reported `[bench]`, which is a confusing pair
      * of answers to get from one config.
      */
-    benchmark: { enabled: true, include: ["bench/**/*.bench.ts"] },
+    benchmark: { enabled: IS_BENCH_RUN, include: ["bench/**/*.bench.ts"] },
     environment: "node"
   }
 };
