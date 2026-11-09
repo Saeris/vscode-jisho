@@ -1,11 +1,15 @@
 name: Dictionary Data
 
-# Builds the full dictionary databases from source and publishes them to the GitHub Release of their
-# schema (`dictionary-v7`), which installed extensions download on first run (spec 05).
+# Builds the dictionary databases from source and publishes each to the GitHub Release of its schema
+# (`dictionary-v7`), which installed extensions download on first run (spec 05).
 #
-# Triggered on a SCHEMA change (not a schedule): the extension only accepts a DB whose schema it can
-# read, so a schema edit that ships without a rebuilt artifact would break every install. Also
-# runnable manually to refresh the data after an upstream dictionary update.
+# More than one schema is live at once. Every published version downloads its own schema's dictionary,
+# so each schema a published version reads keeps being built — from the newest code that reads it
+# (scripts/data-builds.ts): the current commit for its own schema, the newest release for any other.
+#
+# A push that changes the schema or the data build rebuilds the current schema; the code that builds
+# the others did not change. A manual run refreshes EVERY live schema, so a JMdict update reaches the
+# versions already installed as well as the newest one.
 on:
   push:
     branches: [main]
@@ -14,6 +18,11 @@ on:
       - "src/shared/schema.ts"
       - "scripts/build-data.ts"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload what is built. Off, the run builds and checks every dictionary and uploads nothing — a dry run, for testing a change to this workflow on a branch.
+        type: boolean
+        default: true
 
 # One data publish at a time — concurrent uploads to the same release race on the asset swap.
 concurrency: dictionary-release
@@ -22,18 +31,54 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build & publish dictionary
+  plan:
+    name: Choose the dictionaries to build
     # Never run the publish flow from a fork.
     if: github.repository == 'Saeris/vscode-jisho'
     runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+    steps:
+      # Every release tag, to read the schema each published version downloads.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "lts"
+          cache: true
+
+      - name: Plan the builds
+        id: plan
+        env:
+          SCOPE: ${{ github.event_name == 'push' && '--current' || '' }}
+        run: |
+          set -euo pipefail
+          builds=$(vp exec node scripts/data-matrix.ts $SCOPE)
+          echo "builds=$builds" >> "$GITHUB_OUTPUT"
+          echo "$builds"
+
+  build:
+    name: Schema ${{ matrix.schema }} (${{ matrix.ref }})
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      # Each schema serves different installed versions: one failing to refresh must not stop the rest.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.builds) }}
     env:
       # The full build holds parsed JSON in memory, but measured peak RSS is only ~2 GB (verified at a
       # 2 GiB heap cap — no OOM, no GC thrashing). 4 GiB is 2× that: honest headroom over the real
       # requirement, well under the runner's 16 GB. Streaming was assessed and declined — see spec 05.
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
+      # The code that builds this schema: the current commit, or the newest release that reads it.
+      # Every step below runs THAT code's scripts, so an older schema is built exactly as it was.
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.ref }}
 
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
@@ -47,6 +92,16 @@ jobs:
       # e2e and full-test workflows provision it the same way; this one had been the odd one out.
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
+
+      # The common dictionary (~22k words), published for tests and contributors. Built first and
+      # verified before the full build replaces assets/jisho.db. The publish step below has uploaded
+      # it since 2026-08-09, but nothing BUILT it, so every run since failed at the upload ("no
+      # matches found for assets/jisho-common.db.zst.sha256") and published nothing.
+      - name: Build common word dictionary
+        run: vp run build:data
+
+      - name: Verify common word dictionary
+        run: vp exec node scripts/verify-db.ts assets/jisho.db --zst assets/jisho-common.db.zst
 
       # Word DB (~218k entries) → assets/jisho.db + the jisho-full.db.zst trio (.zst, .sha256,
       # .version). Then the names DB (~743k JMnedict entries) → its own jisho-names.db.zst trio.
@@ -65,18 +120,20 @@ jobs:
       - name: Verify names dictionary
         run: vp exec node scripts/verify-db.ts assets/jisho-names.db --zst assets/jisho-names.db.zst --names
 
-      # Which tags to publish to: this schema's own (`dictionary-v7`), and `dictionary-latest` only
-      # for schema 6. Every version published before schema 7 (0.1 to 0.3) downloads that one tag
-      # and requires schema 6 exactly, so another schema there would break every installed copy
-      # (docs/HARDENING-PLAN.md, H-3 and H-8). Read from the BUILT artifact's sidecar, which is what
-      # installs will read; fails on a schema this checkout does not build.
-      - name: Choose the release tags
-        id: tags
+      # The built dictionary must be the schema this job was planned for: the tags below were chosen
+      # for it, and `dictionary-latest` must only ever carry schema 6 (H-3). Read from the BUILT
+      # artifact's sidecar (`full schema6 …`), which is what installs check.
+      - name: Check the built schema
+        env:
+          SCHEMA: ${{ matrix.schema }}
         run: |
           set -euo pipefail
-          tags=$(vp exec node scripts/release-tags.ts assets/jisho-full.db.zst.version)
-          echo "tags=$(echo $tags)" >> "$GITHUB_OUTPUT"
-          echo "Publishing to: $tags"
+          for sidecar in assets/jisho-full.db.zst.version assets/jisho-common.db.zst.version; do
+            if ! grep -Eq "(^| )schema${SCHEMA}( |$)" "$sidecar"; then
+              echo "::error::$sidecar reads '$(cat "$sidecar")', but this job builds schema $SCHEMA."
+              exit 1
+            fi
+          done
 
       # Upload the checksum + version sidecars FIRST and the large `.zst` archives LAST: the client
       # fetches `.sha256`/`.version` before the archive, so uploading the archive before its checksum
@@ -84,9 +141,11 @@ jobs:
       # the existing assets; a release is created if absent, with `--latest=false` so a data release
       # never takes the "Latest" badge from the extension's own release.
       - name: Publish the dictionaries
+        # A push always publishes; a manual run unless it was started as a dry run.
+        if: github.event_name == 'push' || inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAGS: ${{ steps.tags.outputs.tags }}
+          TAGS: ${{ matrix.tags }}
         run: |
           set -euo pipefail
           for tag in $TAGS; do

@@ -145,6 +145,9 @@ playwright-report/
 /assets/jisho-full.db.zst
 /assets/jisho-full.db.zst.sha256
 /assets/jisho-full.db.zst.version
+/assets/jisho-common.db.zst
+/assets/jisho-common.db.zst.sha256
+/assets/jisho-common.db.zst.version
 /assets/jisho-names.db.zst
 
 # Compiled IPADIC tokenizer dictionary — provisioned by `vp run build:tokenizer-dict`
