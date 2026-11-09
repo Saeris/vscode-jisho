@@ -175,7 +175,9 @@ bench/baselines/
 bench/baseline.json
 # deoptkit's LSP feed is a transient artifact of the last run; .deopt/baselines/ IS committed, since
 # structural findings are properties of the code rather than of the machine (see bench/README.md).
-.deopt/findings.json
+.deopt/*
+# …while `vp run bench:profile` also writes one V8 log per worker and a manifest here, all transient.
+!.deopt/baselines/
 .release-check/
 
 # Provisioned from node_modules by `vp run build:onig-wasm` — a build artifact, not source.

@@ -4,6 +4,7 @@ import type { TestProjectConfiguration } from "vite-plus";
 import { lint, fmt, mergeLint } from "@saeris/configs";
 import react from "@vitejs/plugin-react";
 import { playwright } from "vite-plus/test/browser/providers/playwright";
+import { deoptKit } from "deoptkit/vitest";
 import manifest from "./package.json" with { type: "json" };
 
 // ── Test projects ─────────────────────────────────────────────────────
@@ -27,6 +28,13 @@ import manifest from "./package.json" with { type: "json" };
 // pattern matches them, so without this the benchmarks execute once per project — three redundant
 // runs, and results from an environment (a real browser) the numbers do not claim to describe.
 const NOT_BENCH = "bench/**";
+
+/** deoptkit's log categories, for validating `DEOPTKIT_CATEGORIES` rather than asserting it. */
+const LOG_CATEGORIES = ["ics", "deopts", "maps", "profile", "sources"] as const;
+const isLogCategory = (
+  value: string
+): value is (typeof LOG_CATEGORIES)[number] =>
+  (LOG_CATEGORIES as readonly string[]).includes(value);
 
 /**
  * Whether this invocation is `vp test bench` rather than a plain `vp test`.
@@ -164,7 +172,29 @@ const benchProject: TestProjectConfiguration = {
      * of answers to get from one config.
      */
     benchmark: { enabled: IS_BENCH_RUN, include: ["bench/**/*.bench.ts"] },
-    environment: "node"
+    environment: "node",
+    /**
+     * `vp run bench:profile` runs the same benches under V8 optimization logging (deoptkit).
+     *
+     * Opt-in, never the default: logging slows every case, so a baseline recorded under it would
+     * make each later `bench:compare` read as a regression. The preset forces the forks pool and
+     * writes one log per worker plus `.deopt/manifest.json` and `.deopt/findings.json`, which
+     * `deoptkit lsp` shows as diagnostics. Each case is windowed by `benchObserved`, so findings
+     * can be scoped to it. See bench/README.md.
+     */
+    //
+    // `DEOPTKIT_CATEGORIES` narrows what is logged. Everything is the default and right for the
+    // microsecond cases, but a workload that walks hundreds of thousands of rows logs an inline-cache
+    // event per property access: profiling `refineCounts` that way wrote 8.4 GB before it was
+    // stopped. `deopts,profile,sources` keeps the ticks — which answer "where does the time go" —
+    // and drops the IC and map firehose.
+    ...(process.env.DEOPTKIT === "1"
+      ? deoptKit({
+          outDir: ".deopt",
+          categories:
+            process.env.DEOPTKIT_CATEGORIES?.split(",").filter(isLogCategory)
+        })
+      : {})
   }
 };
 

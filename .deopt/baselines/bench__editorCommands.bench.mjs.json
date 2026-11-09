@@ -1,20 +1,41 @@
 {
-  "createdAt": "2026-07-30T11:26:59.468Z",
+  "createdAt": "2026-11-09T09:08:08.632Z",
   "script": "bench/editorCommands.bench.mjs",
   "findings": [
     {
-      "identity": "map-churn|file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/entry.mjs||adj,adv,adv-to,aux,aux-adj,aux-v,conj,cop,cop-da,ctr,exp,int,lemma,n,n-adv,n-pref,n-suf,n-t,num,o,p,parts,pn,pref,prt,ruby,start,suf,surface,symbol(\"node:napi:wrapper\" hash 2db051eb),text,unc,v,vi,vk,vn,vr,vt,vz,フィラー,副詞,助動詞,助詞,動詞,名詞,形容詞,感動詞,接続詞,接頭詞,記号,連体詞",
-      "kind": "map-churn",
-      "file": "file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/entry.mjs",
-      "functionName": "",
-      "summary": "64 map transitions created in one function (properties: n, n-adv, n-t, n-suf, n-pref, pn, adv, adv-to, … +43 more)"
+      "identity": "deopt-loop|dist/entry.mjs|alignReading|wrong map",
+      "kind": "deopt-loop",
+      "file": "dist/entry.mjs",
+      "functionName": "alignReading",
+      "summary": "2 eager deopts at the same position (wrong map)"
     },
     {
-      "identity": "megamorphic-ic|file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/entry.mjs|toPartOfSpeech|名詞",
+      "identity": "deopt-loop|dist/entry.mjs|toRubyMarkdown|wrong map",
+      "kind": "deopt-loop",
+      "file": "dist/entry.mjs",
+      "functionName": "toRubyMarkdown",
+      "summary": "2 eager deopts at the same position (wrong map)"
+    },
+    {
+      "identity": "map-churn|dist/entry.mjs||Symbol(node:napi:type_tag),Symbol(node:napi:wrapper)",
+      "kind": "map-churn",
+      "file": "dist/entry.mjs",
+      "functionName": "",
+      "summary": "11 map transitions created in one function (properties: Symbol(node:napi:wrapper), Symbol(node:napi:type_tag))"
+    },
+    {
+      "identity": "megamorphic-ic|dist/entry.mjs|toPartOfSpeech|KeyedLoadIC",
       "kind": "megamorphic-ic",
-      "file": "file:///Users/saeris/GitHub/@saeris/vscode-jisho/dist/entry.mjs",
+      "file": "dist/entry.mjs",
       "functionName": "toPartOfSpeech",
-      "summary": "KeyedLoadIC for property \"名詞\" went megamorphic (1 recorded transitions) — keyed/dynamic access, often inherent to generic dispatch"
+      "summary": "KeyedLoadIC at a dynamic-key site went megamorphic (2 recorded transitions over 2 distinct keys, e.g. \"形容詞:自立\", \"名詞:一般\") — often inherent to generic dispatch"
+    },
+    {
+      "identity": "megamorphic-ic|dist/entry.mjs|toPartOfSpeech|KeyedLoadIC",
+      "kind": "megamorphic-ic",
+      "file": "dist/entry.mjs",
+      "functionName": "toPartOfSpeech",
+      "summary": "KeyedLoadIC at a dynamic-key site went megamorphic (2 recorded transitions over 2 distinct keys, e.g. \"形容詞\", \"名詞\") — often inherent to generic dispatch"
     }
   ]
 }

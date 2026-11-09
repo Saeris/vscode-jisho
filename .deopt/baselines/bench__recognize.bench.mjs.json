@@ -1,0 +1,5 @@
+{
+  "createdAt": "2026-11-09T09:07:29.410Z",
+  "script": "bench/recognize.bench.mjs",
+  "findings": []
+}

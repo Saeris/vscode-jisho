@@ -43,39 +43,63 @@ Close other applications for anything you intend to act on.
 
 ## Profiling — "why is it slow?"
 
-Build the bundle first (`vp run bench:build`): deoptkit profiles **built** output, because bundling
-changes object shapes and inlining, so findings against source describe code that never ships.
+There are two ways in, and they suit different workloads.
+
+### The Vitest benches under deoptkit — for "where does the time go?"
 
 ```
-vp run bench:build
-vp exec node bench/recognize.bench.mjs        # run it
-# then, via the deopt MCP server (registered in .mcp.json; approve it once per machine):
-#   profile_run { command: ["node", "bench/recognize.bench.mjs"] }
-#   get_findings { sessionId, fromMark: "recognize_start", toMark: "recognize_end" }
-#   list_functions { sessionId }               # where CPU actually goes
+vp run bench:profile                                   # every bench, V8-logged
+vp run bench:profile -- bench/dictionary.bench.ts -t "refineCounts"   # narrowed
 ```
 
-**Without the MCP server**, the same two questions have CLI answers — useful when a session predates
-the server being registered, or in CI:
+This runs the same `*.bench.ts` cases with deoptkit's Vitest preset (deoptkit 0.2+, Vitest 5): one V8
+log per worker in `.deopt/`, a `manifest.json` for the MCP server's `load_manifest`, and a
+`findings.json` that `deoptkit lsp` shows as editor diagnostics. Every case is wrapped in
+`benchObserved`, so each has `<name>_start`/`<name>_end` window markers. It is a separate mode from
+`bench:compare` on purpose — logging slows every case, so a baseline recorded under it would make
+every later comparison read as a regression.
+
+**Narrow what is logged for anything heavy.** The preset logs every category by default, which means
+an inline-cache event per property access for as long as a case runs. Profiling `refineCounts` that
+way wrote **8.4 GB** before it was stopped, and the JS-only benches together passed 6 GB. For ticks
+alone — the question that usually matters — set:
 
 ```
+DEOPTKIT_CATEGORIES=deopts,profile,sources vp run bench:profile -- bench/dictionary.bench.ts
+vp exec node --prof-process .deopt/v8-<pid>.log      # the worker whose log holds your window
+```
+
+The worker that ran a case is the log containing its marker:
+`grep -l "__DEOPT_MARK__refineCounts_noun" .deopt/*.log`.
+
+### The `*.bench.mjs` workloads — for "is anything shaped badly?"
+
+```
+vp run bench:build                                   # profiles BUILT output: bundling changes shapes
 vp exec deoptkit ci --out-dir .deopt bench/examples.bench.mjs   # structural findings vs baseline
 vp exec deoptkit ci --update --out-dir .deopt <script.mjs>      # accept the current findings
-
-# ticks, via Node's own profiler (this is what list_functions reports):
-vp exec node --prof --logfile=/tmp/v8.log --no-logfile-per-isolate bench/examples.bench.mjs
-vp exec node --prof-process /tmp/v8.log | sed -n '/\[JavaScript\]:/,/^$/p'
 ```
+
+These run a **fixed** iteration count through deoptkit's `observed()` harness, so their logs stay
+bounded with every category on — which is why they still exist alongside the Vitest benches. Folding
+them in is possible, but only once the profile mode caps iterations the same way.
+
+With the deopt MCP server connected (deoptkit's plugin), `profile_run` / `get_findings` /
+`list_functions` answer the same questions interactively; `load_manifest` loads a `bench:profile` run.
 
 `.deopt/baselines/` **is committed**, unlike `bench/baselines/`, and the difference is the point:
 throughput is a property of the machine, while a megamorphic IC or a deopt loop is a property of the
-code. So findings port across machines and can gate; ops/sec cannot. (`deoptkit ci` exits non-zero on
-NEW findings — not yet wired into CI, because nobody has checked whether the counts are stable across
-Node versions and platforms. Verify that before making it a gate.)
+code. So findings port across machines and can gate; ops/sec cannot. The baselines were re-recorded
+for deoptkit 0.2.0, which keys an `obj[key]` site by code position rather than by runtime key — so
+the old baselines reported the same sites as "new" and "no longer occurring" at once. All four
+workloads matched on a second run on the same machine. `deoptkit ci` is still **not** a CI gate: CI
+runs Node 24.22 and that stability was observed on Node 26 — check it on the runner first.
 
-**`list_functions` and `get_findings` often disagree — trust the ticks.** On the recognizer, the
-flagged inline-cache sites hold ~1.5% of CPU while the two functions holding 67% produce no
-findings at all. Findings tell you what is _shaped_ badly; ticks tell you what is _costing_ you.
+**Ticks and findings often disagree — trust the ticks.** On the recognizer, the flagged inline-cache
+sites hold ~1.5% of CPU while the two functions holding 67% produce no findings at all. On the
+dictionary it is starker: `refineCounts` spends **4%** of its ticks in JavaScript and the rest in
+SQLite and the Windows I/O beneath it, so no change to the JS could win more than 4%. Findings tell
+you what is _shaped_ badly; ticks tell you what is _costing_ you.
 
 ## How to write one here
 
@@ -138,6 +162,12 @@ it, or feed it back into the next input) so the compiler cannot optimize the ben
 
 ## Scope
 
-deoptkit only sees **JavaScript we wrote**. The dictionary is a native addon and the tokenizer a
-12 MB WASM module — opaque calls from V8's view — and the webview runs in another process. See
-[docs/specs/07-performance.md](../docs/specs/07-performance.md) for how those are measured instead.
+deoptkit's findings only see **JavaScript we wrote**. The dictionary is `node:sqlite`, compiled into
+Node itself, and the tokenizer is the native `lindera-nodejs` binding — both opaque calls from V8's
+view — and the webview runs in another process. Their cost still shows up in a tick profile, as
+shared-library time attributed to the JS that called them, which is how `dictionary.bench.ts` was
+read. See [docs/specs/07-performance.md](../docs/specs/07-performance.md) for the rest.
+
+`dictionary.bench.ts` needs `assets/jisho.db` and skips without it. Build the **full** dictionary
+(`vp run build:data:full`) before trusting its numbers: the common-only build is a fifth of the size
+and flatters every range scan.

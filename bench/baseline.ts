@@ -11,7 +11,7 @@ import type {
  *
  * Vitest v5 removed `--outputJson` and `--compare`, moving both into the bench itself: a bench
  * writes its own result with `writeResult`, and reads a stored one back with `bench.from()`. The
- * mode is chosen by `VITE_WRITE_BENCH`, which `scripts/bench-baseline.ts` sets.
+ * mode is chosen by `VITE_WRITE_BENCH`, which `scripts/bench.ts save` sets.
  *
  * Baselines stay GITIGNORED, unlike the upstream guidance to commit them. They are machine-specific
  * — bench/README.md records deinflect moving 20-40% across machines with no code change, which
