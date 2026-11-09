@@ -12,6 +12,8 @@
  * playing — see `takeQueue`.
  */
 
+import { lazy } from "../shared/lazy";
+
 const synth: SpeechSynthesis | undefined =
   typeof window !== "undefined" ? window.speechSynthesis : undefined;
 
@@ -56,8 +58,6 @@ const loadVoices = async (): Promise<SpeechSynthesisVoice[]> => {
   });
 };
 
-let cachedJa: SpeechSynthesisVoice | null | undefined;
-
 /** Told when the voices change, so a play control hidden for want of a voice can reappear. */
 const voiceListeners = new Set<() => void>();
 
@@ -69,7 +69,7 @@ const voiceListeners = new Set<() => void>();
  * until VS Code restarted (audit SM-7).
  */
 synth?.addEventListener("voiceschanged", () => {
-  cachedJa = undefined;
+  voice.reset();
   for (const listener of voiceListeners) listener();
 });
 
@@ -81,9 +81,8 @@ export const onVoicesChanged = (listener: () => void): (() => void) => {
   };
 };
 
-/** The preferred Japanese voice, or null if none exists. Cached. */
-const japaneseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
-  if (cachedJa !== undefined) return cachedJa;
+/** The preferred Japanese voice, or null if none exists. */
+const findJapaneseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
   const voices = await loadVoices();
   const ja = voices.filter((v) => v.lang.toLowerCase().startsWith("ja"));
   // Walk the preference hints in order; the first hint that matches a voice name wins. Falls back
@@ -94,9 +93,17 @@ const japaneseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
     preferred = ja.find((v) => v.name.includes(hint));
     if (preferred) break;
   }
-  cachedJa = preferred ?? (ja.length > 0 ? ja[0] : null);
-  return cachedJa;
+  return preferred ?? (ja.length > 0 ? ja[0] : null);
 };
+
+/**
+ * The voice, found once and kept — `null` included — until the OS voices change, when the listener
+ * above resets it. Finding it cannot fail, only find nothing, so "keep" only ever keeps an answer.
+ */
+const voice = lazy(findJapaneseVoice, { onFailure: "keep" });
+
+const japaneseVoice = async (): Promise<SpeechSynthesisVoice | null> =>
+  voice.get();
 
 /** Whether Japanese TTS is usable in this runtime (a ja voice exists). */
 export const isSpeechAvailable = async (): Promise<boolean> =>

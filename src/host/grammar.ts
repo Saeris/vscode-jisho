@@ -38,6 +38,7 @@ import {
   loadWASM
 } from "vscode-oniguruma";
 import { log } from "./log";
+import { lazy, type Lazy } from "../shared/lazy";
 
 /**
  * A half-open `[start, end)` column span of one line that is inside a comment.
@@ -158,9 +159,35 @@ const discoverGrammars = (): GrammarIndex => {
 export class CommentScopes implements vscode.Disposable {
   #registry: Registry | undefined;
   #sources: GrammarIndex | undefined;
-  /** Resolved grammars, and the languages that have been tried and failed (cached as `null`). */
-  readonly #grammars = new Map<string, Promise<IGrammar | null>>();
-  #wasm: Promise<boolean> | undefined;
+  /**
+   * Each language's grammar, made once. KEPT, `null` included: a language no extension contributes a
+   * grammar for, or whose grammar cannot load, will not gain one this session — and retrying would
+   * redo the same failing work on every repaint. The feature degrades to "no comments" instead.
+   */
+  readonly #grammars = new Map<string, Lazy<IGrammar | null>>();
+  /**
+   * The oniguruma WASM every grammar needs, loaded once. A failure is KEPT for the same reason: a
+   * WASM that will not instantiate now will not on the next keystroke either. Logged once, here.
+   */
+  readonly #wasm = lazy(
+    async (): Promise<void> => {
+      try {
+        const uri = vscode.Uri.joinPath(
+          this.extensionUri,
+          "assets",
+          "onig.wasm"
+        );
+        const bytes = await vscode.workspace.fs.readFile(uri);
+        // A copy, not a subarray view: `readFile` may return a view into a larger pooled buffer,
+        // and the loader instantiates the WHOLE ArrayBuffer it is handed.
+        await loadWASM(bytes.slice().buffer);
+      } catch (err) {
+        log().warn(`oniguruma wasm failed to load: ${String(err)}`);
+        throw err;
+      }
+    },
+    { onFailure: "keep" }
+  );
   /** The rule stack at every 100th line of each document — see `LineStates`. */
   readonly #states = new LineStates();
 
@@ -242,50 +269,55 @@ export class CommentScopes implements vscode.Disposable {
 
   /** The grammar for a language, or null when there is none or it could not be read. */
   async #grammar(languageId: string): Promise<IGrammar | null> {
-    const cached = this.#grammars.get(languageId);
-    if (cached) return cached;
+    let grammar = this.#grammars.get(languageId);
+    if (!grammar) {
+      grammar = lazy(async () => this.#resolveGrammar(languageId), {
+        onFailure: "keep"
+      });
+      this.#grammars.set(languageId, grammar);
+    }
+    return grammar.get();
+  }
 
-    const resolving = (async (): Promise<IGrammar | null> => {
-      this.#sources ??= discoverGrammars();
-      const scopeName = this.#sources.byLanguage.get(languageId);
-      // Every `return null` below is logged. This feature's failure mode is SILENCE — it degrades
-      // to "no comments", which is indistinguishable from the setting being off, so a user seeing
-      // nothing has no way to tell which. A CSS report we could not reproduce is what made that
-      // cost concrete: there was no line in the log to ask for.
-      if (scopeName === undefined) {
+  /** Find, load and compile the grammar for a language — or `null`, logged, when it cannot. */
+  async #resolveGrammar(languageId: string): Promise<IGrammar | null> {
+    this.#sources ??= discoverGrammars();
+    const scopeName = this.#sources.byLanguage.get(languageId);
+    // Every `return null` below is logged. This feature's failure mode is SILENCE — it degrades
+    // to "no comments", which is indistinguishable from the setting being off, so a user seeing
+    // nothing has no way to tell which. A CSS report we could not reproduce is what made that
+    // cost concrete: there was no line in the log to ask for.
+    if (scopeName === undefined) {
+      log().warn(
+        `no grammar contributed for language "${languageId}" — comment features are off for it ` +
+          `(${this.#sources.byLanguage.size} languages known)`
+      );
+      return null;
+    }
+    if (!(await this.#loadWasm())) return null;
+    try {
+      this.#registry ??= new Registry({
+        onigLib: Promise.resolve({ createOnigScanner, createOnigString }),
+        loadGrammar: async (scope): Promise<IRawGrammar | null> =>
+          this.#rawGrammar(scope)
+      });
+      const grammar = await this.#registry.loadGrammar(scopeName);
+      if (!grammar) {
+        // `loadGrammar` resolves to null rather than throwing when an INCLUDE cannot be
+        // satisfied, so this is the quietest failure of the four and the one most likely to
+        // depend on which extensions a user has installed.
         log().warn(
-          `no grammar contributed for language "${languageId}" — comment features are off for it ` +
-            `(${this.#sources.byLanguage.size} languages known)`
+          `grammar "${scopeName}" for "${languageId}" resolved to nothing — an include it needs ` +
+            `is probably missing`
         );
         return null;
       }
-      if (!(await this.#loadWasm())) return null;
-      try {
-        this.#registry ??= new Registry({
-          onigLib: Promise.resolve({ createOnigScanner, createOnigString }),
-          loadGrammar: async (scope): Promise<IRawGrammar | null> =>
-            this.#rawGrammar(scope)
-        });
-        const grammar = await this.#registry.loadGrammar(scopeName);
-        if (!grammar) {
-          // `loadGrammar` resolves to null rather than throwing when an INCLUDE cannot be
-          // satisfied, so this is the quietest failure of the four and the one most likely to
-          // depend on which extensions a user has installed.
-          log().warn(
-            `grammar "${scopeName}" for "${languageId}" resolved to nothing — an include it needs ` +
-              `is probably missing`
-          );
-          return null;
-        }
-        log().info(`grammar ready for "${languageId}" (${scopeName})`);
-        return grammar;
-      } catch (err) {
-        log().warn(`grammar load failed for ${languageId}: ${String(err)}`);
-        return null;
-      }
-    })();
-    this.#grammars.set(languageId, resolving);
-    return resolving;
+      log().info(`grammar ready for "${languageId}" (${scopeName})`);
+      return grammar;
+    } catch (err) {
+      log().warn(`grammar load failed for ${languageId}: ${String(err)}`);
+      return null;
+    }
   }
 
   /** Read and parse one grammar file, by scope name. Used for the language AND its includes. */
@@ -308,25 +340,14 @@ export class CommentScopes implements vscode.Disposable {
    * Read through `vscode.workspace.fs` rather than `node:fs` so the same code serves the web
    * extension host (M8), where there is no `fs` at all.
    */
+  /** Whether the WASM is loaded; false (and logged once) when it cannot be. */
   async #loadWasm(): Promise<boolean> {
-    this.#wasm ??= (async (): Promise<boolean> => {
-      try {
-        const uri = vscode.Uri.joinPath(
-          this.extensionUri,
-          "assets",
-          "onig.wasm"
-        );
-        const bytes = await vscode.workspace.fs.readFile(uri);
-        // A copy, not a subarray view: `readFile` may return a view into a larger pooled buffer,
-        // and the loader instantiates the WHOLE ArrayBuffer it is handed.
-        await loadWASM(bytes.slice().buffer);
-        return true;
-      } catch (err) {
-        log().warn(`oniguruma wasm failed to load: ${String(err)}`);
-        return false;
-      }
-    })();
-    return this.#wasm;
+    try {
+      await this.#wasm.get();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   dispose(): void {
