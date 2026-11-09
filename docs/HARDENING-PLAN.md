@@ -17,16 +17,16 @@ Inside a tier, items are ordered by **severity × reach ÷ effort**, and then by
 - **Done when** — a test or measurement that fails today and passes after the change. An item without one is not finished.
 - **Size** — S (a day or less), M (a few days), L (a week or more).
 
-## Decisions only you can make
+## Decisions
 
-These change what gets built, so they come first. Each has a recommendation.
+Answered on 2026-11-09. These change what gets built, so they come first.
 
-| #   | Question                                                        | Options                                                                                                                                     | Recommendation                                                                                                     |
-| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Q1  | Should the names dictionary download on the first search (I-0)? | (a) Keep it, and correct the README and comments. (b) Make it opt-in: the first time, the names section offers "Also search names (84 MB)". | **(b).** It matches what the code and README already promise, and saves 409 MB for users who never look up a name. |
-| Q2  | How big should the SQLite page cache be (H-2)?                  | 16, 32 or 64 MB per connection, filled only as pages are read                                                                               | Measure 32 MB against 64 MB first. Take the smaller one if it keeps most of the gain.                              |
-| Q3  | Should the sidebar keep its context when hidden (I-14)?         | Keep today's behaviour (rebuild from persisted state), or set `retainContextWhenHidden` and pay the memory cost                             | Keep today's behaviour until H-7 lands. Then measure the memory before you decide.                                 |
-| Q4  | Should database queries move to a worker thread (H-10)?         | Yes, after the cheaper fixes; or no, if H-2 and H-9 make the remaining stalls small enough                                                  | Decide after H-2 and H-9, with `bench/dictionary.bench.ts` numbers in hand.                                        |
+| #   | Question                                                        | Decision                                                                                                       |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Q1  | Should the names dictionary download on the first search (I-0)? | **No — make it opt-in.** The names section offers the download the first time; nothing provisions it silently. |
+| Q2  | How big should the SQLite page cache be (H-2)?                  | **Measure 32 MB against 64 MB, then choose.** 64 MB is acceptable if it earns its memory.                      |
+| Q3  | Should the sidebar keep its context when hidden (I-14)?         | **Yes.** Set `retainContextWhenHidden`; `push()` must then respect visibility.                                 |
+| Q4  | Should database queries move to a worker thread (H-10)?         | **Yes.**                                                                                                       |
 
 ## Phase 0 — Done during the audit
 
