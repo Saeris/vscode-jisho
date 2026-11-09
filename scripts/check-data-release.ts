@@ -1,6 +1,6 @@
 /**
  * Release precondition (spec 05 §3): the extension must not publish before the dictionary artifacts
- * it downloads on first run exist on the rolling `dictionary-latest` GitHub Release. Otherwise a user
+ * it downloads on first run exist on its schema's GitHub Release (`dictionary-v7`). Otherwise a user
  * installs the .vsix and then cannot obtain a dictionary — a broken first run for everyone.
  *
  * Run before `bumpy ci release` (wired as the first step of release.yml). Uses `gh` (already
@@ -12,9 +12,14 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { SCHEMA_VERSION } from "../src/shared/schema.ts";
+import {
+  SCHEMA_VERSION,
+  releaseTagFor,
+  schemaOfVersion
+} from "../src/shared/schema.ts";
 
-const TAG = "dictionary-latest";
+/** The tag this build downloads from — the same one `DATA_RELEASE_BASE` names. */
+const TAG = releaseTagFor(SCHEMA_VERSION);
 
 // The word DB is downloaded on first activation — without it nothing works. Hard requirement.
 const REQUIRED = [
@@ -105,7 +110,7 @@ const publishedSchema = (): number | undefined => {
       ".release-check/jisho-full.db.zst.version",
       "utf8"
     );
-    return Number(/schema(\d+)/u.exec(text)?.[1] ?? Number.NaN);
+    return schemaOfVersion(text) ?? Number.NaN;
   } catch {
     return undefined;
   }

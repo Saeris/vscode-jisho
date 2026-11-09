@@ -87,7 +87,7 @@ way they will for a dark-theme reader.
 The one path no test covers, because CI always has a dictionary already: install the built `.vsix`
 into a clean VS Code profile and open the panel. It should download the dictionary with a progress
 notification, then search. This is the flow every new user takes and the one where a broken
-`dictionary-latest` shows up as "the extension does nothing".
+data release shows up as "the extension does nothing".
 
 ```sh
 code --user-data-dir /tmp/jisho-clean --install-extension dist-vsix/<file>.vsix

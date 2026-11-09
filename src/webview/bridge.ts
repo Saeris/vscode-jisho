@@ -4,41 +4,30 @@
  * `queryFn`. This is the *only* place `postMessage`/`onmessage` is touched.
  */
 import type {
-  GetAboutResponse,
-  BrowseResponse,
-  KanjiListResponse,
-  BrowseCountsResponse,
-  GetKanjiResponse,
-  GetMoreExamplesResponse,
-  GetNameResponse,
-  GetComponentTreeResponse,
-  GetStrokeSvgResponse,
-  GetWordResponse,
+  DictionaryErrorCode,
+  DictionaryStatusPush,
   HostPush,
   HostSettings,
-  GetKanjiPreviewsResponse,
-  GetDiagnosticsResponse,
-  LookupRadicalsResponse,
-  ClearRecentSearchesResponse,
-  GetRecentSearchesResponse,
-  RecordRecentSearchResponse,
+  Protocol,
   Request,
+  RequestType,
   Response,
-  SearchNamesResponse,
-  SearchResponse
+  ResponseOf
 } from "../shared/messages";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
   /**
-   * The ONLY way webview state survives the sidebar being hidden.
+   * The only way webview state survives the document being recreated.
    *
-   * VS Code deallocates a `WebviewView`'s document when its container is collapsed or the user
-   * switches activity-bar containers, then recreates it on the way back — and unlike a
-   * `WebviewPanel`, a view has no `retainContextWhenHidden` to opt out of that. (The typings' own
-   * `WebviewViewResolveContext` doc points at `WebviewOptions.retainContextWhenHidden`, which does
-   * not exist; that error is why the advice online contradicts itself.) State written here outlives
-   * the document, so it is what a reopened sidebar reads to rebuild itself.
+   * The sidebar keeps its context when hidden (`retainContextWhenHidden`, set where the view is
+   * registered), so collapsing it no longer destroys the document. But a VS Code restart or a window
+   * reload still does, and state written here outlives that — it is what a reopened sidebar reads to
+   * rebuild itself.
+   *
+   * (This used to say a view CANNOT retain its context. It can: the option is on
+   * `registerWebviewViewProvider`'s `webviewOptions`, not on `WebviewOptions`, which is where the
+   * claim looked. Audit I-14.)
    */
   getState(): unknown;
   setState(state: unknown): void;
@@ -51,24 +40,66 @@ const vscode = acquireVsCodeApi();
 /** Read the persisted webview state, or undefined when there is none (a first, cold open). */
 export const readPersistedState = (): unknown => vscode.getState();
 
-/** Persist webview state across the document being deallocated. Cheap; called on every navigation. */
+/** Persist webview state across the document being recreated. Cheap; called on every navigation. */
 export const persistState = (state: unknown): void => {
   vscode.setState(state);
 };
 
-let nextId = 0;
 const pending = new Map<string, (response: Response) => void>();
 
 /** Subscribers to host-initiated pushes (editor commands). */
 const pushHandlers = new Set<(push: HostPush) => void>();
+/**
+ * Pushes that arrived before anything subscribed.
+ *
+ * `webviewReady` is posted while this module first evaluates, and the host answers it by delivering
+ * any editor command it held — but `App` subscribes from an effect, after React's first commit. Four
+ * cold launches all happened to subscribe first; nothing guaranteed it (audit SM-3). Held here, a
+ * command that arrives early is delivered on subscribe instead of to nobody.
+ */
+const earlyPushes: HostPush[] = [];
 
-/** Subscribe to host pushes; returns the unsubscribe. */
+/** Subscribe to host pushes; returns the unsubscribe. Delivers any that arrived before it. */
 export const onHostPush = (handler: (push: HostPush) => void): (() => void) => {
   pushHandlers.add(handler);
+  for (const push of earlyPushes.splice(0)) handler(push);
   return (): void => {
     pushHandlers.delete(handler);
   };
 };
+
+/** Both dictionaries' state, as last pushed — readable at any time, not only when it changes. */
+let dictionaryStatus: Omit<DictionaryStatusPush, "type"> = {
+  words: { state: "absent" },
+  names: { state: "absent" }
+};
+const statusHandlers = new Set<() => void>();
+
+/** The dictionaries' current state. For `useSyncExternalStore`. */
+export const getDictionaryStatus = (): Omit<DictionaryStatusPush, "type"> =>
+  dictionaryStatus;
+
+/** Subscribe to dictionary state changes; returns the unsubscribe. */
+export const onDictionaryStatus = (handler: () => void): (() => void) => {
+  statusHandlers.add(handler);
+  return (): void => {
+    statusHandlers.delete(handler);
+  };
+};
+
+/**
+ * A request the host refused, with the dictionary's state as the reason when that is the cause — so
+ * a view can offer the recovery that fits instead of a report.
+ */
+export class HostError extends Error {
+  readonly code: DictionaryErrorCode | undefined;
+
+  constructor(message: string, code?: DictionaryErrorCode) {
+    super(message);
+    this.name = "HostError";
+    this.code = code;
+  }
+}
 
 /** Subscribers to host settings snapshots (initial + on every Settings-UI edit). */
 const settingsHandlers = new Set<
@@ -89,7 +120,13 @@ export const onHostSettings = (
 window.addEventListener("message", (event: MessageEvent<unknown>) => {
   const message = event.data;
   if (isHostPush(message)) {
+    if (pushHandlers.size === 0) earlyPushes.push(message);
     for (const handler of pushHandlers) handler(message);
+    return;
+  }
+  if (isDictionaryStatus(message)) {
+    dictionaryStatus = { words: message.words, names: message.names };
+    for (const handler of statusHandlers) handler();
     return;
   }
   if (isHostSettings(message)) {
@@ -123,6 +160,14 @@ const isHostSettings = (value: unknown): value is HostSettings =>
   value.type === "hostSettings" &&
   "settings" in value;
 
+const isDictionaryStatus = (value: unknown): value is DictionaryStatusPush =>
+  typeof value === "object" &&
+  value !== null &&
+  "type" in value &&
+  value.type === "dictionaryStatus" &&
+  "words" in value &&
+  "names" in value;
+
 const isResponse = (value: unknown): value is Response =>
   typeof value === "object" &&
   value !== null &&
@@ -131,102 +176,150 @@ const isResponse = (value: unknown): value is Response =>
   "type" in value;
 
 /**
- * Post a fully-formed request (its `requestId` already set) and await the correlated response.
- * Rejects on an `error` response. Callers narrow the returned `Response` by its `type`.
+ * How long a request waits for an answer before it gives up.
+ *
+ * A backstop, not a deadline anything should reach: the host answers a request at once when the
+ * dictionary is not ready, and holds answers for a hidden panel rather than dropping them. It exists
+ * because a lost answer used to leave its query pending forever — a search that never ended (audit
+ * SM-3). Installing the names dictionary waits through a download, so it passes no limit.
  */
-const send = async (request: Request): Promise<Response> =>
+const ANSWER_TIMEOUT_MS = 60_000;
+
+/**
+ * Post a fully-formed request (its `requestId` already set) and await the correlated response.
+ * Rejects on an `error` response, or when no answer arrives in time. Callers narrow the returned
+ * `Response` by its `type`.
+ */
+const send = async (
+  request: Request,
+  { untimed = false }: { untimed?: boolean } = {}
+): Promise<Response> =>
   new Promise<Response>((resolve, reject) => {
+    const timer = untimed
+      ? undefined
+      : setTimeout(() => {
+          pending.delete(request.requestId);
+          reject(new HostError("Jisho did not answer. Try again."));
+        }, ANSWER_TIMEOUT_MS);
     pending.set(request.requestId, (response) => {
-      if (response.type === "error") reject(new Error(response.message));
+      clearTimeout(timer);
+      if (response.type === "error")
+        reject(new HostError(response.message, response.code));
       else resolve(response);
     });
     vscode.postMessage(request);
   });
 
-const nextRequestId = (): string => `r${nextId++}`;
+/**
+ * A request id that cannot repeat across document lifetimes.
+ *
+ * A counter restarts at zero whenever the webview document is recreated, so an answer meant for an
+ * earlier document could resolve a different request of the same type in the new one. Random ids
+ * make a stray answer simply unmatched.
+ */
+const nextRequestId = (): string => crypto.randomUUID();
 
 /**
  * Send a request and return the response of the matching type.
  *
  * Ten call sites wrote out the same three steps: send, assert the response type, return it. The type
  * guard is not ceremony — `send` resolves to the whole `Response` union, and narrowing it is what
- * makes each caller's return type sound — so this keeps the guard and removes only the copy. Extra
- * request fields are passed as `payload` rather than spread by the caller, so `requestId` cannot be
- * forgotten or supplied twice.
+ * makes each caller's return type sound — so this keeps the guard and removes only the copy. The
+ * request's fields are passed as `payload`, typed by `Protocol`, rather than spread by the caller, so
+ * `requestId` cannot be forgotten or supplied twice.
  */
-const request = async <T extends Request["type"]>(
+const request = async <T extends RequestType>(
   type: T,
-  payload: Omit<Extract<Request, { type: T }>, "type" | "requestId">
-): Promise<Extract<Response, { type: T }>> => {
+  payload: Protocol[T]["request"],
+  options: { untimed?: boolean } = {}
+): Promise<ResponseOf<T>> => {
   // Two assertions, both confined here rather than repeated at ten call sites — the same trade as
   // `Dictionary`'s typed read helpers. TypeScript cannot prove that spreading `payload` onto a `type`
   // reconstitutes the matching union member, nor that a response whose `type` equals `T` is that
   // member; the runtime check on the next line is what actually establishes the second.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const response = await send({
-    type,
-    requestId: nextRequestId(),
-    ...payload
-  } as Request);
+  const message = { type, requestId: nextRequestId(), ...payload } as Request;
+  const response = await send(message, options);
   if (response.type !== type) {
     throw new Error(`Unexpected response for ${type}`);
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return response as Extract<Response, { type: T }>;
+  return response as ResponseOf<T>;
 };
 
-export const searchWords = async (query: string): Promise<SearchResponse> =>
-  request("search", { query });
+export const searchWords = async (
+  query: string
+): Promise<ResponseOf<"search">> => request("search", { query });
 
-export const getWord = async (id: string): Promise<GetWordResponse> =>
+export const getWord = async (id: string): Promise<ResponseOf<"getWord">> =>
   request("getWord", { id });
 
 export const getMoreExamples = async (
   id: string
-): Promise<GetMoreExamplesResponse> => request("getMoreExamples", { id });
+): Promise<ResponseOf<"getMoreExamples">> => request("getMoreExamples", { id });
 
 export const browse = async (
   id: string,
   order: "frequency" | "gojuon"
-): Promise<BrowseResponse> => request("browse", { id, order });
+): Promise<ResponseOf<"browse">> => request("browse", { id, order });
 
-export const kanjiList = async (id: string): Promise<KanjiListResponse> =>
+export const kanjiList = async (id: string): Promise<ResponseOf<"kanjiList">> =>
   request("kanjiList", { id });
 
 export const browseCounts = async (
   applied: string[] = []
-): Promise<BrowseCountsResponse> => request("browseCounts", { applied });
+): Promise<ResponseOf<"browseCounts">> => request("browseCounts", { applied });
 
-export const getKanji = async (literal: string): Promise<GetKanjiResponse> =>
-  request("getKanji", { literal });
+export const getKanji = async (
+  literal: string
+): Promise<ResponseOf<"getKanji">> => request("getKanji", { literal });
 
 export const getStrokeSvg = async (
   literal: string
-): Promise<GetStrokeSvgResponse> => request("getStrokeSvg", { literal });
+): Promise<ResponseOf<"getStrokeSvg">> => request("getStrokeSvg", { literal });
 
 export const getComponentTree = async (
   literal: string
-): Promise<GetComponentTreeResponse> =>
+): Promise<ResponseOf<"getComponentTree">> =>
   request("getComponentTree", { literal });
 
 export const lookupRadicals = async (
   selected: string[]
-): Promise<LookupRadicalsResponse> => request("lookupRadicals", { selected });
+): Promise<ResponseOf<"lookupRadicals">> =>
+  request("lookupRadicals", { selected });
 
 export const getKanjiPreviews = async (
   literals: string[]
-): Promise<GetKanjiPreviewsResponse> =>
+): Promise<ResponseOf<"getKanjiPreviews">> =>
   request("getKanjiPreviews", { literals });
 
-export const getAbout = async (): Promise<GetAboutResponse> =>
+export const getAbout = async (): Promise<ResponseOf<"getAbout">> =>
   request("getAbout", {});
 
 export const searchNames = async (
   query: string
-): Promise<SearchNamesResponse> => request("searchNames", { query });
+): Promise<ResponseOf<"searchNames">> => request("searchNames", { query });
 
-export const getName = async (id: string): Promise<GetNameResponse> =>
+export const getName = async (id: string): Promise<ResponseOf<"getName">> =>
   request("getName", { id });
+
+/** Install the names dictionary (the user accepted). Resolves once it is downloaded and opened. */
+export const installNames = async (): Promise<void> => {
+  // Untimed: it waits through an ~85 MB download on purpose — the user asked for it.
+  await request("installNames", {}, { untimed: true });
+};
+
+/** Ask the host for the recovery a dictionary failure needs — see `Protocol["dictionaryAction"]`. */
+export const dictionaryAction = async (
+  action: "retry" | "update" | "updateJisho"
+): Promise<void> => {
+  await request("dictionaryAction", { action });
+};
+
+/** Decline the names offer under search results. Remembered across windows; About still offers it. */
+export const declineNames = async (): Promise<void> => {
+  await request("declineNames", {});
+};
 
 /** Ask the host to open VS Code's Settings UI at the Jisho section (the sidebar's ⚙). */
 export const openSettings = async (): Promise<void> => {
@@ -239,7 +332,7 @@ export const openSettings = async (): Promise<void> => {
  * Sanitized HERE rather than in the host so the user's directory layout never crosses the bridge at
  * all — it cannot then end up in a host log on its way to being scrubbed.
  */
-export const getDiagnostics = async (): Promise<GetDiagnosticsResponse> =>
+export const getDiagnostics = async (): Promise<ResponseOf<"getDiagnostics">> =>
   request("getDiagnostics", {});
 
 export const reportCrash = async (
@@ -266,15 +359,16 @@ export const copyText = async (text: string): Promise<void> => {
  * Recent-search history (#17). All three reply with the full list, so a record or a clear updates
  * the cache directly and needs no follow-up fetch.
  */
-export const getRecentSearches = async (): Promise<GetRecentSearchesResponse> =>
-  request("getRecentSearches", {});
+export const getRecentSearches = async (): Promise<
+  ResponseOf<"getRecentSearches">
+> => request("getRecentSearches", {});
 
 export const recordRecentSearch = async (
   query: string,
   headword: string
-): Promise<RecordRecentSearchResponse> =>
+): Promise<ResponseOf<"recordRecentSearch">> =>
   request("recordRecentSearch", { query, headword });
 
-export const clearRecentSearches =
-  async (): Promise<ClearRecentSearchesResponse> =>
-    request("clearRecentSearches", {});
+export const clearRecentSearches = async (): Promise<
+  ResponseOf<"clearRecentSearches">
+> => request("clearRecentSearches", {});

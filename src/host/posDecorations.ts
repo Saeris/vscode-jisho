@@ -21,6 +21,7 @@ import {
 import { japaneseRuns, stripRuby } from "./hover";
 import { hasKanji } from "../shared/japanese";
 import { segment } from "./tokenizer";
+import { log } from "./log";
 import {
   PALETTE_CATEGORIES,
   palette,
@@ -212,6 +213,8 @@ export class PosDecorator {
   /** Pending `refreshSoon` timers, keyed like `#generation`. */
   readonly #pending = new Map<string, ReturnType<typeof setTimeout>>();
   #disposed = false;
+  /** Set once a pass has failed and been logged, so a persistent failure logs once. */
+  #reportedFailure = false;
 
   /**
    * The grammar runner, or undefined when this decorator was built without one.
@@ -304,11 +307,24 @@ export class PosDecorator {
     const superseded = (): boolean =>
       this.#disposed || this.#generation.get(key) !== generation;
 
-    const ranges = await computeRanges(
-      editor,
-      superseded,
-      prose ? undefined : this.#scopes
-    );
+    // Caught here because every caller discards this promise (`void this.refresh(...)`): a failure
+    // in a pass — the tokenizer failing to build is the realistic one — was an unhandled rejection on
+    // every scroll and keystroke (audit SM-6). A failed pass leaves the editor as it was, and is
+    // logged once rather than on every repaint after it.
+    let ranges: Awaited<ReturnType<typeof computeRanges>>;
+    try {
+      ranges = await computeRanges(
+        editor,
+        superseded,
+        prose ? undefined : this.#scopes
+      );
+    } catch (err) {
+      if (!this.#reportedFailure) {
+        this.#reportedFailure = true;
+        log().warn(`part-of-speech colouring failed: ${String(err)}`);
+      }
+      return;
+    }
     if (ranges === undefined || superseded()) return;
 
     for (const category of PALETTE_CATEGORIES) {

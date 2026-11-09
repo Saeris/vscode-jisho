@@ -11,7 +11,8 @@ import {
   it,
   vi
 } from "vite-plus/test";
-import { downloadDatabase } from "../download";
+import { DATA_RELEASE_BASE, downloadDatabase } from "../download";
+import { SCHEMA_VERSION } from "../../shared/schema";
 
 // A tiny fake "database" payload, zstd-compressed the same way the data build emits the release
 // asset. Using the sync compressor here (vs the build's streaming one) also asserts the downloader's
@@ -42,6 +43,17 @@ const stubFetch = (overrides: Record<string, Response> = {}): void => {
     );
   });
 };
+
+describe("the data release", () => {
+  it("downloads from the release of the schema this build reads", () => {
+    // WHY: 0.1 to 0.3 hardcoded `dictionary-latest`, so the next schema change, published there,
+    // would have broken every one of them. With the schema in the URL, a schema change publishes to
+    // a new tag and changes nothing that an installed version downloads.
+    expect(DATA_RELEASE_BASE).toMatch(
+      new RegExp(`/releases/download/dictionary-v${SCHEMA_VERSION}$`, "u")
+    );
+  });
+});
 
 describe("downloadDatabase", () => {
   let dir: string;

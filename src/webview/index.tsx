@@ -3,7 +3,11 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { onHostSettings } from "./bridge";
+import {
+  getDictionaryStatus,
+  onDictionaryStatus,
+  onHostSettings
+} from "./bridge";
 import { recordRejections } from "./lastRejection";
 import { applySettings } from "./settings";
 import { isSpeechAvailable } from "./speech";
@@ -31,6 +35,21 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: Infinity, refetchOnWindowFocus: false, retry: false }
   }
+});
+
+/**
+ * Refresh every query when the word dictionary becomes ready.
+ *
+ * Queries made before it was ready were answered `not-ready` (it was downloading) or failed with a
+ * reason; and after an update's swap the file is a different one. Either way, what is cached is no
+ * longer the answer. Subscribed here, beside the client it refreshes, and keyed on the TRANSITION so
+ * a stream of progress pushes does not refetch anything.
+ */
+let wordsWereReady = getDictionaryStatus().words.state === "ready";
+onDictionaryStatus(() => {
+  const ready = getDictionaryStatus().words.state === "ready";
+  if (ready && !wordsWereReady) void queryClient.invalidateQueries();
+  wordsWereReady = ready;
 });
 
 const root = document.getElementById("root");

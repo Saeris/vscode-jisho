@@ -1,6 +1,6 @@
 /**
- * Dictionary download: fetch the zstd-compressed database from the rolling `dictionary-latest` GitHub
- * Release, verify its sha256, and decompress it into place. Pure Node (fetch/zlib/fs) so it is
+ * Dictionary download: fetch the zstd-compressed database from this schema's GitHub Release
+ * (`dictionary-v7`), verify its sha256, and decompress it into place. Pure Node (fetch/zlib/fs) so it is
  * unit-testable without the vscode API — `ensureDatabase` wraps it in the progress UI. Node 26 ships
  * zstd in node:zlib, matching the build's `.zst` output — no runtime dependency.
  */
@@ -10,10 +10,16 @@ import { createHash } from "node:crypto";
 import { createZstdDecompress } from "node:zlib";
 import { pipeline } from "node:stream/promises";
 import { Readable, Transform } from "node:stream";
+import { SCHEMA_VERSION, releaseTagFor } from "../shared/schema";
 
-/** Rolling data release; decoupled from extension releases so dictionary refreshes are cheap. */
-export const DATA_RELEASE_BASE =
-  "https://github.com/Saeris/vscode-jisho/releases/download/dictionary-latest";
+/**
+ * Where this build's dictionaries come from: the release tag of the schema it reads.
+ *
+ * Decoupled from extension releases, so a dictionary refresh needs no new version. Tied to the
+ * schema, so a schema change publishes to a new tag and never reaches a version that cannot read it
+ * — versions before schema 7 hardcoded `dictionary-latest`, which is why that tag is frozen.
+ */
+export const DATA_RELEASE_BASE = `https://github.com/Saeris/vscode-jisho/releases/download/${releaseTagFor(SCHEMA_VERSION)}`;
 
 export interface DownloadProgress {
   /** Bytes received so far and the total (from Content-Length; 0 when unknown). */
@@ -40,7 +46,13 @@ export const downloadDatabase = async (
   destPath: string,
   onProgress: DownloadProgress,
   base: string = DATA_RELEASE_BASE,
-  prefix = "jisho-full.db"
+  prefix = "jisho-full.db",
+  /**
+   * Put the verified download in place. A plain rename by default; an update of a database that is
+   * OPEN passes its lifecycle's swap instead, which closes the old handle immediately before the
+   * rename and reopens after it — Windows cannot rename onto an open file.
+   */
+  swap: (part: string, dest: string) => Promise<void> = rename
 ): Promise<string> => {
   const expectedSha = (
     await (await fetchOk(`${base}/${prefix}.zst.sha256`)).text()
@@ -83,7 +95,7 @@ export const downloadDatabase = async (
         `Dictionary checksum mismatch (expected ${expectedSha.slice(0, 12)}…, got ${actualSha.slice(0, 12)}…) — try again later.`
       );
     }
-    await rename(tempPath, destPath);
+    await swap(tempPath, destPath);
     await writeFile(`${destPath}.version`, version, "utf8");
     return version;
   } catch (err) {

@@ -28,6 +28,21 @@ const words: SearchResultDto[] = [
     jlpt: null
   }
 ];
+// The names dictionary's state, and how often names were actually searched. Names are opt-in: the
+// tests below check that nothing searches them until the user installs them.
+const names = vi.hoisted(() => ({
+  available: false,
+  offered: true,
+  searches: 0,
+  installs: 0,
+  declines: 0
+}));
+
+const readyStatus = vi.hoisted(() => ({
+  words: { state: "ready" },
+  names: { state: "ready" }
+}));
+
 // SearchResults imports the bridge directly for the settings gear; the real module calls
 // acquireVsCodeApi at load, which exists only inside a real VS Code webview.
 vi.mock("../../bridge", () => ({
@@ -41,7 +56,25 @@ vi.mock("../../bridge", () => ({
   })),
   clearRecentSearches: vi.fn<() => Promise<{ recent: [] }>>(async () => ({
     recent: []
-  }))
+  })),
+  // What the host does on each: install makes names available and stops the offer; declining only
+  // stops the offer.
+  installNames: vi.fn<() => Promise<void>>(async () => {
+    names.installs++;
+    names.available = true;
+    names.offered = false;
+  }),
+  declineNames: vi.fn<() => Promise<void>>(async () => {
+    names.declines++;
+    names.offered = false;
+  }),
+  // The dictionary is ready in these tests; its other states have their own spec. One stable
+  // object, as the real bridge returns: `useSyncExternalStore` treats a new object as a change, and
+  // a getter that built one per call re-rendered forever.
+  getDictionaryStatus: () => readyStatus,
+  onDictionaryStatus: () => () => undefined,
+  dictionaryAction: vi.fn<() => Promise<void>>(async () => undefined),
+  HostError: class extends Error {}
 }));
 
 // The breakdown bar only renders when the host returns segments, which it does for a multi-word
@@ -64,7 +97,10 @@ vi.mock("../../queries", () => ({
   }),
   namesQuery: (query: string) => ({
     queryKey: ["names", query],
-    queryFn: () => [],
+    queryFn: () => {
+      names.searches++;
+      return [];
+    },
     enabled: query.trim().length > 0
   }),
   // Tag-filter sets (#27). Never consulted here — these tests type plain text, so no tag token
@@ -77,7 +113,11 @@ vi.mock("../../queries", () => ({
   // suggestion menu opens — but the module must still export it.
   browseCountsQuery: (applied: string[] = []) => ({
     queryKey: ["browseCounts", applied.join(",")],
-    queryFn: () => ({ counts: {}, namesAvailable: false })
+    queryFn: () => ({
+      counts: {},
+      namesAvailable: names.available,
+      namesOffered: names.offered
+    })
   }),
   // Empty history, so the empty view falls back to its hint — these tests are about results.
   recentSearchesQuery: () => ({
@@ -301,5 +341,46 @@ describe("full match vs partial matches", () => {
     await screen.findAllByText("食べる");
     expect(screen.queryByRole("listbox", { name: "Full match" })).toBeNull();
     expect(screen.getByText("Partial matches")).toBeDefined();
+  });
+});
+
+describe("names are opt-in", () => {
+  afterEach(() => {
+    Object.assign(names, {
+      available: false,
+      offered: true,
+      searches: 0,
+      installs: 0,
+      declines: 0
+    });
+  });
+
+  it("searches no names until the user installs them, then does", async () => {
+    // WHY: every search used to search names too, and the host provisioned the names dictionary
+    // on the first one — 84 MB, ~400 MB on disk, for every user, while the README said it cost
+    // that "if you use name lookups" (audit I-0). Nothing may search names before the user opts in.
+    renderView();
+    await screen.findByText("食べる");
+    await expect(screen.findByText(/aren’t installed/u)).resolves.toBeDefined();
+    expect(names.searches).toBe(0);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Install/u }));
+    expect(names.installs).toBe(1);
+    // Installing refreshes the names state, which is what lets the names query run at all.
+    await vi.waitFor(() => expect(names.searches).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren’t installed/u)).toBeNull();
+  });
+
+  it("stops offering once the user says no thanks", async () => {
+    // WHY: an offer under every search, forever, would be its own nuisance. Declining is
+    // remembered, and About still offers names, so the choice can be undone.
+    renderView();
+    await screen.findByText(/aren’t installed/u);
+    await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+    expect(names.declines).toBe(1);
+    await vi.waitFor(() =>
+      expect(screen.queryByText(/aren’t installed/u)).toBeNull()
+    );
+    expect(names.searches).toBe(0);
   });
 });

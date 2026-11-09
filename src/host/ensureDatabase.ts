@@ -8,8 +8,8 @@
  * Two backends behind one signature:
  *   - **dev:** link (or copy) the locally-built `assets/jisho.db` (produced by `vp run build:data`)
  *     that sits alongside the extension source when running via F5.
- *   - **installed:** download the full dictionary from the rolling `dictionary-latest` GitHub
- *     Release with a progress notification, sha256-verified (see `download.ts`).
+ *   - **installed:** download the full dictionary from its schema's GitHub Release
+ *     (`dictionary-v7`) with a progress notification, sha256-verified (see `download.ts`).
  */
 import { link, unlink } from "node:fs/promises";
 import * as vscode from "vscode";
@@ -70,7 +70,9 @@ const linkOrCopy = async (from: vscode.Uri, to: vscode.Uri): Promise<void> => {
 };
 
 export const ensureDatabase = async (
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  /** Download progress, 0-100, for the panel — VS Code's notification gets it too. */
+  onProgress: (percent: number) => void = () => {}
 ): Promise<string> => {
   const storageDir = context.globalStorageUri;
   await vscode.workspace.fs.createDirectory(storageDir);
@@ -137,6 +139,7 @@ export const ensureDatabase = async (
     },
     async (progress) => {
       let lastPercent = 0;
+      onProgress(0);
       await downloadDatabase(target.fsPath, (received, total) => {
         if (total <= 0) return;
         const percent = Math.floor((received / total) * 100);
@@ -146,12 +149,24 @@ export const ensureDatabase = async (
             message: `${percent}%`
           });
           lastPercent = percent;
+          onProgress(percent);
         }
       });
     }
   );
   return target.fsPath;
 };
+
+/**
+ * Whether the word dictionary is on disk — WITHOUT provisioning it. The same two places
+ * `ensureDatabase` looks before it links or downloads.
+ */
+export const wordDatabaseExists = async (
+  context: vscode.ExtensionContext
+): Promise<boolean> =>
+  (await exists(
+    vscode.Uri.joinPath(context.extensionUri, "assets", DB_NAME)
+  )) || exists(vscode.Uri.joinPath(context.globalStorageUri, DB_NAME));
 
 const NAMES_DB_NAME = "jisho-names.db";
 
@@ -184,11 +199,14 @@ export const namesDatabaseExists = async (
  * Unlike the word DB this has **no bundled dev copy** — it is download-only (JMnedict would roughly
  * double the bundled data). If a locally-built `assets/jisho-names.db` exists (from
  * `vp run build:data:names`), F5 development uses it directly; otherwise it downloads the
- * `jisho-names.db.zst` artifact from the same rolling release. Provisioned lazily on the first names
- * query so users who never search names never download it.
+ * `jisho-names.db.zst` artifact from the same rolling release. Called ONLY when the user installs
+ * names (`installNames`): they are opt-in, and every read path checks `namesDatabaseExists` instead.
+ * This used to run on the first names query, which every search made — so it downloaded for everyone.
  */
 export const ensureNamesDatabase = async (
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  /** Download progress, 0-100, for the panel — VS Code's notification gets it too. */
+  onProgress: (percent: number) => void = () => {}
 ): Promise<string> => {
   const storageDir = context.globalStorageUri;
   await vscode.workspace.fs.createDirectory(storageDir);
@@ -214,6 +232,7 @@ export const ensureNamesDatabase = async (
     },
     async (progress) => {
       let lastPercent = 0;
+      onProgress(0);
       await downloadDatabase(
         target.fsPath,
         (received, total) => {
@@ -225,6 +244,7 @@ export const ensureNamesDatabase = async (
               message: `${percent}%`
             });
             lastPercent = percent;
+            onProgress(percent);
           }
         },
         undefined,

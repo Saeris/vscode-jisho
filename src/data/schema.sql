@@ -308,9 +308,8 @@ CREATE INDEX idx_search_term_norm  ON search_terms(term_norm) WHERE term_norm IS
 -- dictionary builds. Deriving it at runtime meant scanning all 406,028 `sense_tags` rows, measured
 -- at ~2s on the full dictionary.
 --
--- Only the UNFILTERED counts live here. Refining counts (how many remain once other tags are
--- applied) still have to be computed live, because the combinations are unbounded — but that is the
--- rarer case and is cached per applied-set in the webview.
+-- Only the UNFILTERED counts live here; `classifier_pair_counts` below holds them with one tag
+-- applied. Two or more applied tags are still counted live, because those combinations are unbounded.
 --
 -- The classifier ids are the extension's own (`shared/classifiers.ts`), not the dataset's, so this
 -- table is a CACHE of something code defines: an id here that the code no longer knows is ignored,
@@ -320,6 +319,21 @@ CREATE TABLE classifier_counts (
   classifier_id TEXT PRIMARY KEY,
   n             INTEGER NOT NULL
 );
+
+-- How many words each classifier holds once ONE word classifier is applied: `n` words are in both
+-- `applied_id` and `classifier_id` (HARDENING-PLAN.md H-9).
+--
+-- One applied tag is the usual case — the first tag typed into the search box — and counting it live
+-- took up to 2 s on the full dictionary, because a broad tag like `#noun` (~190k words) has to be
+-- intersected with every other classifier. Precomputed, it is one indexed read. Word classifiers only
+-- (tags, JLPT, frequency): result types (`#kanji`, `#word`) follow fixed rules in code, not data.
+-- A cache in the same way as `classifier_counts`: an id missing here falls back to the live count.
+CREATE TABLE classifier_pair_counts (
+  applied_id    TEXT NOT NULL,
+  classifier_id TEXT NOT NULL,
+  n             INTEGER NOT NULL,
+  PRIMARY KEY (applied_id, classifier_id)
+) WITHOUT ROWID;
 
 -- Build/attribution metadata (source revisions, entry counts, dict date) as key/value.
 CREATE TABLE meta (

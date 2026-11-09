@@ -12,9 +12,11 @@ import {
 import { Badge } from "../components/Badge";
 import { TagSearchField } from "../components/TagSearchField";
 import { JlptBadge } from "../components/JlptBadge";
+import { DictionaryNotice } from "../components/DictionaryNotice";
+import { NamesOffer } from "../components/NamesOffer";
 import { RecentSearches } from "../components/RecentSearches";
 import { SegmentBar } from "../components/SegmentBar";
-import { openSettings, recordRecentSearch } from "../bridge";
+import { HostError, openSettings, recordRecentSearch } from "../bridge";
 import { useNavigate } from "../navigation";
 import { ErrorState } from "../components/ErrorState";
 import styles from "./SearchResults.module.css";
@@ -94,10 +96,11 @@ export const SearchResults = ({
     isFetching,
     isError,
     error,
+    refetch,
     isPending: isPendingWords
   } = useQuery(searchQuery(deferredQuery));
-  // Names come from a separate, opt-in database queried independently — a failure or first-use
-  // download of the names DB must not affect word/kanji results, so its errors are ignored here.
+  // Names come from a separate, opt-in database queried independently — a failure of the names DB
+  // must not affect word/kanji results, so its errors are ignored here.
   //
   // Gated on the word search having settled, rather than fired alongside it. Both queries share one
   // postMessage channel into a single-threaded host, so racing them means every names message is a
@@ -105,9 +108,17 @@ export const SearchResults = ({
   // both provisioning their databases in the same millisecond, with names (a 409MB file) answering
   // first while the words the user actually searched for arrived seconds later. Sequencing costs
   // names a round trip and buys the primary result that time back.
+  //
+  // And only when names are INSTALLED. They are opt-in: this used to run for every search, and the
+  // host provisioned the names dictionary on the first one — 84 MB, ~400 MB on disk, for every user
+  // (audit I-0). Availability comes from the untagged counts — the cheap precomputed read, usually
+  // already cached by the Browse tab — so a slow tag refine never holds names up.
+  const { data: namesState } = useQuery(browseCountsQuery());
+  const namesAvailable = namesState?.namesAvailable ?? false;
   const { data: names } = useQuery({
     ...namesQuery(deferredQuery),
-    enabled: deferredQuery.trim().length > 0 && !isPendingWords
+    enabled:
+      namesAvailable && deferredQuery.trim().length > 0 && !isPendingWords
   });
   /**
    * Word results, narrowed by the tag filters.
@@ -314,6 +325,11 @@ export const SearchResults = ({
         </Button>
       </div>
 
+      {/* The dictionary's state when it is not simply ready: first-run download progress, or a
+          failure with the one action that fixes it. Above the results rather than in place of them,
+          so it is visible whatever was typed — including nothing, on the very first open. */}
+      <DictionaryNotice />
+
       {segments.length > 0 ? (
         <SegmentBar
           segments={segments}
@@ -335,6 +351,7 @@ export const SearchResults = ({
           isFetching,
           isError,
           error,
+          onRetry: (): void => void refetch(),
           count
         })
       )}
@@ -454,6 +471,11 @@ export const SearchResults = ({
           </>
         ) : null}
 
+        {namesState?.namesOffered === true &&
+        deferredQuery.trim() !== "" &&
+        !isPendingWords ? (
+          <NamesOffer placement="search" />
+        ) : null}
         {nameResults.length > 0 ? (
           <>
             <div className={styles.sectionHeader}>Names</div>
@@ -507,20 +529,31 @@ const renderStatus = ({
   isFetching,
   isError,
   error,
+  onRetry,
   count
 }: {
   query: string;
   isFetching: boolean;
   isError: boolean;
   error: unknown;
+  onRetry: () => void;
   count: number | undefined;
 }): React.ReactElement | null => {
   // The empty case is NOT handled here: it renders the recent-search history, which needs hooks,
   // and this is a plain function. `SearchResults` renders <RecentSearches /> instead.
   if (query.trim() === "") return null;
   if (isError) {
+    // A failure caused by the dictionary's STATE — still downloading, offline, the wrong schema — is
+    // explained by the notice above the results, with its own recovery. Showing it twice, the second
+    // time as something to report, is what this used to do.
+    if (error instanceof HostError && error.code !== undefined) return null;
     return (
-      <ErrorState error={error} context="searching" fallback="Search failed." />
+      <ErrorState
+        error={error}
+        context="searching"
+        fallback="Search failed."
+        onRetry={onRetry}
+      />
     );
   }
   if (isFetching && count === undefined) {

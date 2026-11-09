@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test, beforeAll, afterAll } from "vite-plus/test";
 import { Dictionary } from "../db";
-import { CLASSIFIERS, CLASSIFIER_BY_ID } from "../../shared/classifiers";
+import { liveWordCounts } from "../queries/browse";
+import { SqliteStore } from "../store";
+import {
+  CLASSIFIERS,
+  CLASSIFIER_BY_ID,
+  type Classifier
+} from "../../shared/classifiers";
 
 /**
  * Browsing by classifier (#54) against the real built database.
@@ -289,5 +295,133 @@ describeIfDb("browse by classifier", () => {
     const count = await dict.browseCount(rkb);
     expect(Array.isArray(rows)).toBe(true);
     expect(count).toBe(rows.length);
+  });
+
+  describe("with one tag applied", () => {
+    let store: SqliteStore;
+    beforeAll(async () => {
+      store = await SqliteStore.open(DB_PATH);
+    });
+    afterAll(async () => {
+      await store?.close();
+    });
+
+    const byId = (id: string): Classifier => {
+      const c = CLASSIFIER_BY_ID.get(id);
+      if (!c) throw new Error(`no classifier "${id}"`);
+      return c;
+    };
+    const wordClassifiers = [...CLASSIFIER_BY_ID.values()].filter(
+      (c) => c.kind !== "result"
+    );
+    const onlyWordCounts = (
+      counts: Record<string, number>
+    ): Record<string, number> =>
+      Object.fromEntries(wordClassifiers.map((c) => [c.id, counts[c.id]]));
+
+    it("counts every word in a broad tag, not only the most frequent", async () => {
+      // WHY: the live count once built its pool from the first 100,000 words of each applied tag.
+      // `#noun` holds ~190,000, so with it applied every count covered only the most frequent nouns
+      // — and the autocomplete hides a tag whose count is zero, so tags with results disappeared.
+      using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+      const nouns = raw
+        .prepare(
+          `SELECT COUNT(DISTINCT s.word_id) AS n
+             FROM sense_tags t JOIN senses s ON s.id = t.sense_id
+            WHERE t.kind = 'pos' AND t.code = 'n'`
+        )
+        .get() as { n: number };
+      expect(nouns.n).toBeGreaterThan(100_000);
+      const live = await liveWordCounts(store, [byId("noun")]);
+      expect(live.noun).toBe(nouns.n);
+    });
+
+    it.for([
+      // One of each shape the counts take: the broadest tag (the pool too large to pass to SQL), a
+      // prefix family (godan is v5r/v5k/v5s… with no umbrella code), a JLPT level, a frequency band
+      // (both on `words`, not tags), and a tag small enough for the restricted live query.
+      "noun",
+      "verb-godan",
+      "jlpt-n5",
+      "freq-1-2000"
+    ])(
+      "the precomputed counts for #%s agree with counting live",
+      async (id) => {
+        // WHY: one applied tag is now answered from `classifier_pair_counts`, which the BUILD writes,
+        // by code separate from the live count. A cache that silently disagrees with the data would
+        // show wrong numbers and hide tags that still have results. Each case compares every
+        // classifier's count, not a sample of them.
+        const applied = byId(id);
+        const precomputed = await dict.refineCounts([applied]);
+        const live = await liveWordCounts(store, [applied]);
+        expect(onlyWordCounts(precomputed)).toEqual(live);
+      }
+    );
+
+    it("the precomputed counts agree for a tag narrow enough to count in SQL", async () => {
+      // WHY: the live count has a second path — a pool of 900 words or fewer is filtered in SQL —
+      // so the comparison above must cover it too. Picked from the data, so it stays narrow.
+      using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+      const narrow = (
+        raw
+          .prepare(
+            "SELECT classifier_id AS id, n FROM classifier_counts WHERE n BETWEEN 50 AND 900 ORDER BY n DESC"
+          )
+          .all() as { id: string; n: number }[]
+      ).find((r) => CLASSIFIER_BY_ID.get(r.id)?.kind === "tag");
+      expect(narrow).toBeDefined();
+      const applied = byId(narrow!.id);
+      const precomputed = await dict.refineCounts([applied]);
+      expect(onlyWordCounts(precomputed)).toEqual(
+        await liveWordCounts(store, [applied])
+      );
+    });
+
+    it("covers every pair of word classifiers, and each one's own size", () => {
+      // WHY: a missing row sends that tag back to the 2-second live count without a sign. And a
+      // classifier applied to itself must report its own size — the cheapest check that every row,
+      // not just the ones compared above, was counted from the same word sets as the browse tree.
+      using raw = new DatabaseSync(DB_PATH, { readOnly: true });
+      const pairs = raw
+        .prepare(
+          "SELECT applied_id, classifier_id, n FROM classifier_pair_counts"
+        )
+        .all() as {
+        applied_id: string;
+        classifier_id: string;
+        n: number;
+      }[];
+      const single = new Map(
+        (
+          raw
+            .prepare("SELECT classifier_id, n FROM classifier_counts")
+            .all() as { classifier_id: string; n: number }[]
+        ).map((r) => [r.classifier_id, r.n])
+      );
+      const have = new Set(
+        pairs.map((p) => `${p.applied_id}|${p.classifier_id}`)
+      );
+      const missing = wordClassifiers.flatMap((a) =>
+        wordClassifiers
+          .filter((c) => !have.has(`${a.id}|${c.id}`))
+          .map((c) => `${a.id}|${c.id}`)
+      );
+      expect(missing).toEqual([]);
+      const wrongDiagonal = pairs.filter(
+        (p) =>
+          p.applied_id === p.classifier_id && p.n !== single.get(p.applied_id)
+      );
+      expect(wrongDiagonal).toEqual([]);
+    });
+
+    it("answers one applied tag without counting live", async () => {
+      // WHY: this is the point of the table. Counted live, `#noun` took ~1.5-2 s on the full
+      // dictionary; from the table it is one indexed read. A loose bound, so only losing the table
+      // (or no longer reading it) can fail it.
+      const noun = byId("noun");
+      const start = performance.now();
+      await dict.refineCounts([noun]);
+      expect(performance.now() - start).toBeLessThan(200);
+    });
   });
 });

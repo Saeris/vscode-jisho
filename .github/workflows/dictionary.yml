@@ -1,7 +1,7 @@
 name: Dictionary Data
 
-# Builds the full dictionary databases from source and publishes them to the rolling
-# `dictionary-latest` GitHub Release, which installed extensions download on first run (spec 05).
+# Builds the full dictionary databases from source and publishes them to the GitHub Release of their
+# schema (`dictionary-v7`), which installed extensions download on first run (spec 05).
 #
 # Triggered on a SCHEMA change (not a schedule): the extension only accepts a DB whose schema it can
 # read, so a schema edit that ships without a rebuilt artifact would break every install. Also
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 # One data publish at a time — concurrent uploads to the same release race on the asset swap.
-concurrency: dictionary-latest
+concurrency: dictionary-release
 
 permissions:
   contents: write
@@ -65,57 +65,67 @@ jobs:
       - name: Verify names dictionary
         run: vp exec node scripts/verify-db.ts assets/jisho-names.db --zst assets/jisho-names.db.zst --names
 
-      # Publish to the rolling release. Upload the checksum + version sidecars FIRST and the large
-      # `.zst` archives LAST: the client fetches `.sha256`/`.version` before the archive, so uploading
-      # the archive before its checksum would leave a window where a mid-publish download fails
-      # verification. `--clobber` replaces the existing assets; the release is created if absent.
-      - name: Publish to dictionary-latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # Which tags to publish to: this schema's own (`dictionary-v7`), and `dictionary-latest` only
+      # for schema 6. Every version published before schema 7 (0.1 to 0.3) downloads that one tag
+      # and requires schema 6 exactly, so another schema there would break every installed copy
+      # (docs/HARDENING-PLAN.md, H-3 and H-8). Read from the BUILT artifact's sidecar, which is what
+      # installs will read; fails on a schema this checkout does not build.
+      - name: Choose the release tags
+        id: tags
         run: |
           set -euo pipefail
-          # Ensure the rolling release exists (idempotent: ignore "already exists").
-          gh release view dictionary-latest >/dev/null 2>&1 || \
-            gh release create dictionary-latest \
-              --title "Dictionary data" \
-              --notes "Rolling JMdict/JMnedict databases downloaded by the extension on first run. Rebuilt on schema changes; not tied to extension releases."
+          tags=$(vp exec node scripts/release-tags.ts assets/jisho-full.db.zst.version)
+          echo "tags=$(echo $tags)" >> "$GITHUB_OUTPUT"
+          echo "Publishing to: $tags"
 
-          # Sidecars first (small), archives last (large) — see the note above.
-          gh release upload dictionary-latest --clobber \
-            assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version \
-            assets/jisho-common.db.zst.sha256 assets/jisho-common.db.zst.version \
-            assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
-          gh release upload dictionary-latest --clobber \
-            assets/jisho-full.db.zst \
-            assets/jisho-common.db.zst \
-            assets/jisho-names.db.zst
+      # Upload the checksum + version sidecars FIRST and the large `.zst` archives LAST: the client
+      # fetches `.sha256`/`.version` before the archive, so uploading the archive before its checksum
+      # would leave a window where a mid-publish download fails verification. `--clobber` replaces
+      # the existing assets; a release is created if absent, with `--latest=false` so a data release
+      # never takes the "Latest" badge from the extension's own release.
+      - name: Publish the dictionaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            gh release view "$tag" >/dev/null 2>&1 || \
+              gh release create "$tag" --latest=false \
+                --title "Dictionary data ($tag)" \
+                --notes "JMdict/JMnedict databases downloaded by the extension on first run."
 
-          # Refresh the notes so the Releases tab says WHEN these assets were built.
-          #
-          # This is a rolling release: the tag is created once and its assets are swapped in place,
-          # so the date GitHub shows is the tag's CREATION date and never moves. That is actively
-          # misleading — a dictionary rebuilt an hour ago still reads as weeks old, which is exactly
-          # how a successful rebuild got mistaken for a failed one.
-          # Refresh the notes so the Releases tab says WHEN these assets were built.
-          #
-          # This is a rolling release: the tag is created once and its assets are swapped in place,
-          # so the date GitHub shows is the tag's CREATION date and never moves. That is actively
-          # misleading — a dictionary rebuilt an hour ago still reads as weeks old, which is exactly
-          # how a successful rebuild got mistaken for a failed one.
-          #
-          # Written to a file rather than a heredoc: the notes need column-0 lines (four+ leading
-          # spaces would render the table as a code block), and neither spaces nor tabs can start a
-          # line inside a YAML block scalar. `--notes-file` sidesteps the quoting entirely.
-          {
-            echo "Rolling JMdict/JMnedict databases downloaded by the extension on first run."
-            echo "Rebuilt on schema changes; not tied to extension releases."
-            echo
-            echo "**The tag date above is when this release was first created, not when these files were built.**"
-            echo
-            echo "| Asset | Version |"
-            echo "| --- | --- |"
-            echo "| Word dictionary | \`$(cat assets/jisho-full.db.zst.version)\` |"
-            echo "| Common dictionary (tests, contributors) | \`$(cat assets/jisho-common.db.zst.version)\` |"
-            echo "| Names dictionary | \`$(cat assets/jisho-names.db.zst.version)\` |"
-          } > /tmp/dictionary-notes.md
-          gh release edit dictionary-latest --notes-file /tmp/dictionary-notes.md
+            # Sidecars first (small), archives last (large) — see the note above.
+            gh release upload "$tag" --clobber \
+              assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version \
+              assets/jisho-common.db.zst.sha256 assets/jisho-common.db.zst.version \
+              assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
+            gh release upload "$tag" --clobber \
+              assets/jisho-full.db.zst \
+              assets/jisho-common.db.zst \
+              assets/jisho-names.db.zst
+
+            # Refresh the notes so the Releases tab says WHEN these assets were built.
+            #
+            # The tag is created once and its assets are swapped in place, so the date GitHub shows
+            # is the tag's CREATION date and never moves. That is actively misleading — a dictionary
+            # rebuilt an hour ago still reads as weeks old, which is exactly how a successful rebuild
+            # got mistaken for a failed one.
+            #
+            # Written to a file rather than a heredoc: the notes need column-0 lines (four+ leading
+            # spaces would render the table as a code block), and neither spaces nor tabs can start a
+            # line inside a YAML block scalar. `--notes-file` sidesteps the quoting entirely.
+            {
+              echo "JMdict/JMnedict databases downloaded by the extension on first run."
+              echo "Refreshed in place when the data changes; a schema change publishes to a new tag."
+              echo
+              echo "**The tag date above is when this release was first created, not when these files were built.**"
+              echo
+              echo "| Asset | Version |"
+              echo "| --- | --- |"
+              echo "| Word dictionary | \`$(cat assets/jisho-full.db.zst.version)\` |"
+              echo "| Common dictionary (tests, contributors) | \`$(cat assets/jisho-common.db.zst.version)\` |"
+              echo "| Names dictionary | \`$(cat assets/jisho-names.db.zst.version)\` |"
+            } > /tmp/dictionary-notes.md
+            gh release edit "$tag" --notes-file /tmp/dictionary-notes.md
+          done

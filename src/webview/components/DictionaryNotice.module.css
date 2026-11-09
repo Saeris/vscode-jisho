@@ -1,0 +1,85 @@
+/* The dictionary's state, above the results. Quiet when it is progress, plain when it needs action. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 var(--jisho-gap);
+}
+
+.title {
+  margin: 0;
+  color: var(--jisho-fg);
+}
+
+.detail {
+  margin: 0;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--jisho-border);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--vscode-progressBar-background, var(--jisho-accent));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fill {
+    transition: width 200ms linear;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The fix is the primary action, as on the error state and the crash screen. */
+.primary {
+  padding: 2px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--jisho-radius);
+  background: var(--vscode-button-background, var(--jisho-accent));
+  color: var(--vscode-button-foreground, var(--jisho-fg));
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.primary[data-hovered] {
+  background: var(--vscode-button-hoverBackground, var(--jisho-hover-bg));
+}
+
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--jisho-link);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.primary[data-focus-visible],
+.link[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}

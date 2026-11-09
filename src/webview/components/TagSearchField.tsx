@@ -97,7 +97,7 @@ export const TagSearchField = ({
   const ownRef = useRef<HTMLDivElement>(null);
   const boxRef = inputRef ?? ownRef;
 
-  // Seeded from `text`, not empty: the query survives the webview document being deallocated (the
+  // Seeded from `text`, not empty: the query survives the webview document being recreated (the
   // navigation machine persists it), so on remount there can already be a query to show.
   const [value, setValue] = useState(() => valueOf(text));
 

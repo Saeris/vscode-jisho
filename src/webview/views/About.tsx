@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { aboutQuery, diagnosticsQuery } from "../queries";
+import { aboutQuery, browseCountsQuery, diagnosticsQuery } from "../queries";
+import { NamesOffer } from "../components/NamesOffer";
 import { useNavigate } from "../navigation";
 import { CopyButton } from "../components/CopyButton";
 import { DetailHeader } from "../components/DetailHeader";
@@ -14,6 +15,9 @@ export const About = (): React.ReactElement => {
   const { back } = useNavigate();
   const { data: meta } = useQuery(aboutQuery());
   const { data: diagnostics } = useQuery(diagnosticsQuery());
+  // Names are opt-in. About is where they can always be installed, even after "No thanks" under the
+  // search results.
+  const { data: namesState } = useQuery(browseCountsQuery());
 
   return (
     <div className={styles.container}>
@@ -25,6 +29,15 @@ export const About = (): React.ReactElement => {
             An offline Japanese dictionary for VSCode, inspired by{" "}
             <a href="https://ricoapps.com/">Shirabe Jisho</a>.
           </p>
+        </div>
+
+        <div className={styles.section}>
+          <h2>Names and places</h2>
+          {namesState === undefined ? null : namesState.namesAvailable ? (
+            <p>Installed.</p>
+          ) : (
+            <NamesOffer placement="about" />
+          )}
         </div>
 
         <div className={styles.section}>

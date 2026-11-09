@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { SegmentDto } from "../../shared/messages";
+import type { Handlers, Request, SegmentDto } from "../../shared/messages";
 import type { Dictionary } from "../db";
+import type { Remote } from "../remote";
 
 // Only `openSettings`/`copyText` touch the vscode API, and neither is exercised here — but the
 // module imports it at load, so it needs to resolve.
@@ -24,10 +25,7 @@ vi.mock("../tokenizer", () => ({
     segs.filter((s) => s.pos !== "particle" && s.pos !== "auxiliary").length
 }));
 
-const { respond } = await import("../dispatch");
-
-/** The request subset `respond` accepts — narrower than `Request`, and not exported. */
-type WordRequest = Parameters<typeof respond>[1];
+const { answer, wordHandlers } = await import("../dispatch");
 
 const seg = (
   surface: string,
@@ -59,19 +57,29 @@ const fakeDict = () => {
   return { dict, calls };
 };
 
-/** The fake exposes only the methods `respond` calls, so it is widened rather than implemented. */
-const asDict = (d: unknown): Dictionary => d as Dictionary;
+/** The fake exposes only the methods the handlers call, so it is widened rather than implemented. */
+const asDict = (d: unknown): Remote<Dictionary> => d as Remote<Dictionary>;
+
+/** The word handlers over a fake dictionary, with no names dictionary installed. */
+const handlersFor = (dict: unknown): ReturnType<typeof wordHandlers> =>
+  wordHandlers({
+    dict: async () => asDict(dict),
+    names: async () => ({ available: false, offered: false }),
+    nameCounts: async () => ({})
+  });
 
 describe("dispatch: request/response correlation", () => {
-  it("echoes the requestId on every kind of response", async () => {
-    // WHY: the webview bridge resolves its pending promises BY requestId (see bridge.ts). A response
-    // that drops or mangles it never settles its caller — the UI just spins, with no error anywhere.
-    // Every arm of the switch is mechanical enough to get this wrong when a new request type is
-    // added, and nothing else in the system would notice.
+  it("labels every answer with its request's type and requestId", async () => {
+    // WHY: the webview bridge resolves its pending promises BY requestId and checks the type (see
+    // bridge.ts). An answer that drops or mangles either never settles its caller — the UI just
+    // spins, with no error anywhere. `answer` takes both from the request, so no handler can get
+    // them wrong; this checks that it does, for every kind of word request.
     const { dict } = fakeDict();
     segmentMock.mockResolvedValue([]);
+    // Only the word handlers are exercised; the rest of the table is never reached.
+    const handlers = handlersFor(dict) as Handlers;
 
-    const requests: WordRequest[] = [
+    const requests: Request[] = [
       { type: "search", requestId: "r1", query: "test" },
       { type: "getWord", requestId: "r2", id: "1" },
       { type: "getMoreExamples", requestId: "r3", id: "1" },
@@ -82,12 +90,27 @@ describe("dispatch: request/response correlation", () => {
     ];
 
     for (const request of requests) {
-      const response = await respond(asDict(dict), request);
+      const response = await answer(handlers, request);
       expect(response.requestId).toBe(request.requestId);
       // The response type must match the request it answers, or the bridge hands the caller a
       // correctly-correlated payload of the wrong shape.
       expect(response.type).toBe(request.type);
     }
+  });
+});
+
+describe("dispatch: a request the host cannot answer", () => {
+  it("says to rebuild the host, instead of answering empty", async () => {
+    // WHY: only a host older than its webview gets a request it has no handler for — in
+    // development, after `vp build` without `vp pack`. It used to answer with an empty response,
+    // which read exactly like a broken query and cost real debugging time (adding `kanjiList`).
+    const { dict } = fakeDict();
+    const handlers = handlersFor(dict) as Handlers;
+    const unknown = {
+      type: "notYetBuilt",
+      requestId: "r"
+    } as unknown as Request;
+    await expect(answer(handlers, unknown)).rejects.toThrow(/vp pack/u);
   });
 });
 
@@ -98,7 +121,7 @@ describe("dispatch: when a query gets tokenized", () => {
     // keystroke of an English search for nothing — the rule-based deinflection covers those.
     const { dict } = fakeDict();
     for (const query of ["eat", "taberu", "たべる", "食"]) {
-      await respond(asDict(dict), {
+      await handlersFor(dict).search({
         type: "search",
         requestId: "r",
         query
@@ -114,7 +137,7 @@ describe("dispatch: when a query gets tokenized", () => {
     const { dict, calls } = fakeDict();
     segmentMock.mockResolvedValue([seg("食べました", "食べる", "verb")]);
 
-    await respond(asDict(dict), {
+    await handlersFor(dict).search({
       type: "search",
       requestId: "r",
       query: "食べました"
@@ -135,7 +158,7 @@ describe("dispatch: when a query gets tokenized", () => {
       seg("します", "する", "auxiliary")
     ]);
 
-    await respond(asDict(dict), {
+    await handlersFor(dict).search({
       type: "search",
       requestId: "r",
       query: "日本語を勉強します"
@@ -150,7 +173,7 @@ describe("dispatch: when a query gets tokenized", () => {
     const { dict, calls } = fakeDict();
     segmentMock.mockResolvedValue([seg("勉強", "勉強", "noun")]);
 
-    await respond(asDict(dict), {
+    await handlersFor(dict).search({
       type: "search",
       requestId: "r",
       query: "勉強"
@@ -171,7 +194,7 @@ describe("dispatch: the breakdown bar", () => {
       seg("食べました", "食べる", "verb"),
       seg("か", "か", "particle")
     ]);
-    const single = await respond(asDict(dict), {
+    const single = await handlersFor(dict).search({
       type: "search",
       requestId: "r",
       query: "食べましたか"
@@ -183,12 +206,12 @@ describe("dispatch: the breakdown bar", () => {
       seg("を", "を", "particle"),
       seg("勉強", "勉強", "noun")
     ]);
-    const sentence = await respond(asDict(dict), {
+    const sentence = await handlersFor(dict).search({
       type: "search",
       requestId: "r",
       query: "日本語を勉強"
     });
     expect(sentence).toMatchObject({ segments: expect.any(Array) });
-    expect((sentence as { segments: SegmentDto[] }).segments).toHaveLength(3);
+    expect(sentence.segments).toHaveLength(3);
   });
 });

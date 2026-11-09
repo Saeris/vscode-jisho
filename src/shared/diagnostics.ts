@@ -46,27 +46,39 @@ export interface Diagnostics {
  * `maxFrames` also bounds the length: 40 realistic frames percent-encode to ~7.8 KB, which alone
  * overruns the URL ceiling `issueUrl` has to fit inside.
  */
+/**
+ * Remove the user's paths from any text that may end up in a public issue.
+ *
+ * These are `sanitizeStack`'s line rules, applied to anything — an error MESSAGE as much as a stack.
+ * They used to run on stacks only, which left a hole the size of every host error: Lindera's "Failed
+ * to load dictionary from '…'", or a Windows `EBUSY … unlink 'C:\Users\…'`. A probe passed one through
+ * `issueUrl` and found the account name in both the title and the body (audit I-13).
+ */
+export const sanitizeText = (text: string): string =>
+  text.split("\n").map(sanitizeLine).join("\n");
+
+const sanitizeLine = (line: string): string => {
+  let out = line;
+  // 1. Any script URL down to its bundle-relative path. Both the encoded (`c%3A/`) and decoded
+  //    (`c:/`) forms appear depending on how the runtime rendered the frame.
+  out = out.replace(
+    /(?:https?:\/\/[^\s)]*?vscode-(?:resource|cdn)[^\s)]*?|file:\/\/\/[^\s)]*?)\/(dist\/)?((?:webview|host)\/[\w.-]+(?::\d+:\d+)?)/gu,
+    "$2"
+  );
+  // 2. A home directory anywhere else in the line — an error message quoting a path, a frame the
+  //    rule above did not match. Windows, macOS and Linux shapes.
+  out = out.replace(
+    /(?:[A-Za-z]:\\Users\\[^\\\s)]+|\/(?:Users|home)\/[^/\s)]+)/gu,
+    "~"
+  );
+  // 3. Whatever remains of an absolute extension path, which carries no useful signal once the
+  //    version is already in the environment table.
+  out = out.replace(/[^\s)]*[/\\]extensions[/\\][\w.-]+[/\\]/gu, "");
+  return out;
+};
+
 export const sanitizeStack = (stack: string, maxFrames = 20): string => {
-  const lines = stack.split("\n");
-  const cleaned = lines.map((line) => {
-    let out = line;
-    // 1. Any script URL down to its bundle-relative path. Both the encoded (`c%3A/`) and decoded
-    //    (`c:/`) forms appear depending on how the runtime rendered the frame.
-    out = out.replace(
-      /(?:https?:\/\/[^\s)]*?vscode-(?:resource|cdn)[^\s)]*?|file:\/\/\/[^\s)]*?)\/(dist\/)?((?:webview|host)\/[\w.-]+(?::\d+:\d+)?)/gu,
-      "$2"
-    );
-    // 2. A home directory anywhere else in the line — an error message quoting a path, a frame the
-    //    rule above did not match. Windows, macOS and Linux shapes.
-    out = out.replace(
-      /(?:[A-Za-z]:\\Users\\[^\\\s)]+|\/(?:Users|home)\/[^/\s)]+)/gu,
-      "~"
-    );
-    // 3. Whatever remains of an absolute extension path, which carries no useful signal once the
-    //    version is already in the environment table.
-    out = out.replace(/[^\s)]*[/\\]extensions[/\\][\w.-]+[/\\]/gu, "");
-    return out;
-  });
+  const cleaned = sanitizeText(stack).split("\n");
 
   // The message is line 0 and is never a frame, so the budget applies to what follows it.
   const [message = "", ...frames] = cleaned;
@@ -173,8 +185,11 @@ export const issueBody = (report: IssueReport): string => {
       "### Error",
       "",
       "```",
-      report.error.message,
-      report.error.stack,
+      // Sanitized HERE, where the text is printed, rather than trusted from callers: this body is the
+      // prefilled issue and, when that is too long, what goes on the clipboard. Both are one click
+      // from being public, and a caller that forgot would leak through either.
+      sanitizeText(report.error.message),
+      sanitizeStack(report.error.stack),
       "```",
       ""
     );
@@ -216,8 +231,10 @@ export const issueUrl = (
   title: string,
   report: IssueReport
 ): IssueUrl => {
+  // Titles are built from raw error messages (`Crash: ${message}`), so they carry the same paths.
+  const safeTitle = sanitizeText(title);
   const build = (r: IssueReport): string =>
-    `${base}?labels=bug&title=${encodeURIComponent(title)}&body=${encodeURIComponent(issueBody(r))}`;
+    `${base}?labels=bug&title=${encodeURIComponent(safeTitle)}&body=${encodeURIComponent(issueBody(r))}`;
 
   let candidate = build(report);
   if (candidate.length <= URL_BUDGET)
@@ -248,7 +265,7 @@ export const issueUrl = (
 
   // 3. Out of room. A blank form plus a clipboard paste beats a report missing its evidence.
   return {
-    url: `${base}?labels=bug&title=${encodeURIComponent(title)}`,
+    url: `${base}?labels=bug&title=${encodeURIComponent(safeTitle)}`,
     overBudget: true
   };
 };
