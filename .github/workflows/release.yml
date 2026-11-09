@@ -45,7 +45,7 @@ jobs:
       # so it must build against the runtime that will execute it.
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
-          node-version: "24.15"
+          node-version: "24.22"
           cache: true
 
       # Release precondition: the extension downloads its dictionary from the rolling

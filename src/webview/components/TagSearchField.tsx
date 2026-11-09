@@ -295,14 +295,18 @@ export const TagSearchField = ({
       e.preventDefault();
       const { segments } = value;
       const last = segments.length - 1;
+      // React Aria 1.22 replaced the (anchor, current) position PAIR with a `SelectedRange` holding
+      // both, so the two positions are constructed into one argument rather than passed as two.
       setTokenFieldSelection(
         el,
-        { index: 0, offset: 0 },
-        // The end of the final segment. An empty field has no segments, in which case the start
-        // position is already the end and the call is a no-op.
-        last < 0
-          ? { index: 0, offset: 0 }
-          : { index: last, offset: segments[last].text.length }
+        new TokenFieldValue.SelectedRange(
+          { index: 0, offset: 0 },
+          // The end of the final segment. An empty field has no segments, in which case the start
+          // position is already the end and the call is a no-op.
+          last < 0
+            ? { index: 0, offset: 0 }
+            : { index: last, offset: segments[last].text.length }
+        )
       );
       return true;
     }

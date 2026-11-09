@@ -44,7 +44,7 @@ These are judgement calls, listed in the order they were queued. Cutting any of 
 
 ### Already done, contrary to older notes
 
-The release blocker is **gone**: `dictionary-latest` is published and complete (word DB, names DB, checksums, version sidecars). BACKLOG items #10, #17, #21, #27 and #54 have shipped — only their headings lagged. The engine floor is now stated honestly (`vscode ^1.123`, `node >=24.15`) and CI tests exactly the two runtimes we ship to.
+The release blocker is **gone**: `dictionary-latest` is published and complete (word DB, names DB, checksums, version sidecars). BACKLOG items #10, #17, #21, #27 and #54 have shipped — only their headings lagged. The engine floor is now stated honestly (`vscode ^1.145`, `node >=24.22`) and CI tests exactly the two runtimes we ship to.
 
 ## M1 — Vocabulary search + detail (shipped)
 
@@ -120,7 +120,7 @@ Make the extension run in web-based VSCode (vscode.dev / github.dev), where the 
 
 - **State ownership line:** TanStack Query = async state · XState = UI/navigation state · React Aria = interaction primitives · CVA + CSS Modules = styling. React Hook Form and Valibot were removed in 2026-08 — there are no forms, and carrying them broke `vsce package`. Reintroduce them if a real form ever appears.
 - **Engine (superseded 2026-08):** `node:sqlite`, not Turso. Turso never finished the browse queries at full scale (its planner scans 218k rows rather than using the join) and 0.7.2 did not fix it; `node:sqlite` measured 4–10× faster cold and restores darwin-x64. The store is the seam — see [BACKLOG.md](BACKLOG.md) and the `node-sqlite-engine` change. FTS5 is available in the bundled SQLite but is not used yet; `LIKE` ranking is still fast enough.
-- **Runtime floor:** VSCode `^1.123` fixes both runtimes exactly — Node **24.15** (extension host) and Chromium **148** (webview). They are not interchangeable: `Uint8Array.fromBase64` exists in Chromium 148 but not Node 24. CI pins the same 24.15 rather than a matrix; raise both together, and note VSCode has never shipped Node 26.
+- **Runtime floor:** VSCode `^1.145` fixes both runtimes exactly — Node **24.22** (extension host, from VSCode's own `.nvmrc`) and Chromium (webview). They are not interchangeable: `Uint8Array.fromBase64` exists in the webview's Chromium but not in Node 24. CI pins the same 24.22 rather than a matrix; raise both together, and note VSCode has never shipped Node 26.
 - **Tokenizer:** Lindera **native** via `lindera-nodejs`, on IPADIC — not the WASM build the M5 text below describes. UniDic was evaluated and rejected (SUW-only, splits 図書館); NEologd rejected on size/licence/staleness.
 - **Attribution is a feature:** every dataset addition (M4, M6) extends the credits view and the DB `meta` provenance in the same change.
 - **Out of scope, permanently:** flashcards, notes, synchronization.
