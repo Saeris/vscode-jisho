@@ -70,7 +70,9 @@ const linkOrCopy = async (from: vscode.Uri, to: vscode.Uri): Promise<void> => {
 };
 
 export const ensureDatabase = async (
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  /** Download progress, 0-100, for the panel — VS Code's notification gets it too. */
+  onProgress: (percent: number) => void = () => {}
 ): Promise<string> => {
   const storageDir = context.globalStorageUri;
   await vscode.workspace.fs.createDirectory(storageDir);
@@ -137,6 +139,7 @@ export const ensureDatabase = async (
     },
     async (progress) => {
       let lastPercent = 0;
+      onProgress(0);
       await downloadDatabase(target.fsPath, (received, total) => {
         if (total <= 0) return;
         const percent = Math.floor((received / total) * 100);
@@ -146,12 +149,24 @@ export const ensureDatabase = async (
             message: `${percent}%`
           });
           lastPercent = percent;
+          onProgress(percent);
         }
       });
     }
   );
   return target.fsPath;
 };
+
+/**
+ * Whether the word dictionary is on disk — WITHOUT provisioning it. The same two places
+ * `ensureDatabase` looks before it links or downloads.
+ */
+export const wordDatabaseExists = async (
+  context: vscode.ExtensionContext
+): Promise<boolean> =>
+  (await exists(
+    vscode.Uri.joinPath(context.extensionUri, "assets", DB_NAME)
+  )) || exists(vscode.Uri.joinPath(context.globalStorageUri, DB_NAME));
 
 const NAMES_DB_NAME = "jisho-names.db";
 
@@ -189,7 +204,9 @@ export const namesDatabaseExists = async (
  * This used to run on the first names query, which every search made — so it downloaded for everyone.
  */
 export const ensureNamesDatabase = async (
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  /** Download progress, 0-100, for the panel — VS Code's notification gets it too. */
+  onProgress: (percent: number) => void = () => {}
 ): Promise<string> => {
   const storageDir = context.globalStorageUri;
   await vscode.workspace.fs.createDirectory(storageDir);
@@ -215,6 +232,7 @@ export const ensureNamesDatabase = async (
     },
     async (progress) => {
       let lastPercent = 0;
+      onProgress(0);
       await downloadDatabase(
         target.fsPath,
         (received, total) => {
@@ -226,6 +244,7 @@ export const ensureNamesDatabase = async (
               message: `${percent}%`
             });
             lastPercent = percent;
+            onProgress(percent);
           }
         },
         undefined,

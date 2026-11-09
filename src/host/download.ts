@@ -40,7 +40,13 @@ export const downloadDatabase = async (
   destPath: string,
   onProgress: DownloadProgress,
   base: string = DATA_RELEASE_BASE,
-  prefix = "jisho-full.db"
+  prefix = "jisho-full.db",
+  /**
+   * Put the verified download in place. A plain rename by default; an update of a database that is
+   * OPEN passes its lifecycle's swap instead, which closes the old handle immediately before the
+   * rename and reopens after it — Windows cannot rename onto an open file.
+   */
+  swap: (part: string, dest: string) => Promise<void> = rename
 ): Promise<string> => {
   const expectedSha = (
     await (await fetchOk(`${base}/${prefix}.zst.sha256`)).text()
@@ -83,7 +89,7 @@ export const downloadDatabase = async (
         `Dictionary checksum mismatch (expected ${expectedSha.slice(0, 12)}…, got ${actualSha.slice(0, 12)}…) — try again later.`
       );
     }
-    await rename(tempPath, destPath);
+    await swap(tempPath, destPath);
     await writeFile(`${destPath}.version`, version, "utf8");
     return version;
   } catch (err) {

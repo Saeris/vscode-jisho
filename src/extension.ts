@@ -76,7 +76,7 @@ function activateJisho(context: vscode.ExtensionContext): void {
       await sweepDictionaryStorage(context);
       await checkForDictionaryUpdate(context, {
         manual: false,
-        closeDatabases: async () => provider.closeDatabases()
+        dictionaries: provider.dictionaries
       });
     })();
   }, 3000);
@@ -104,7 +104,12 @@ function activateJisho(context: vscode.ExtensionContext): void {
     });
   };
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(VIEW_ID, provider),
+    // `retainContextWhenHidden`: collapsing the sidebar no longer destroys the panel, so scroll
+    // position, the query cache, stroke playback and the caret survive it. The provider's outbox
+    // holds messages while the panel is hidden, since a hidden webview cannot receive any.
+    vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
+      webviewOptions: { retainContextWhenHidden: true }
+    }),
     vscode.commands.registerCommand(
       "vscode-jisho.lookupSelection",
       pushWord("search")
@@ -186,7 +191,7 @@ function activateJisho(context: vscode.ExtensionContext): void {
       async () =>
         checkForDictionaryUpdate(context, {
           manual: true,
-          closeDatabases: async () => provider.closeDatabases()
+          dictionaries: provider.dictionaries
         })
     ),
     // Feedback with the environment already filled in. The Marketplace's own "issues" link drops

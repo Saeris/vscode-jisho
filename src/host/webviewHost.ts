@@ -6,6 +6,7 @@
  * running session lives here — which view is attached, whether its bridge has said hello, which
  * request kinds have been traced, and the two open-once-retry-on-failure database promises.
  */
+import { rename } from "node:fs/promises";
 import * as vscode from "vscode";
 import { Dictionary } from "./db";
 import { webviewHtml } from "./webviewHtml";
@@ -16,8 +17,11 @@ import { diagnosticsMarkdown } from "../shared/diagnostics";
 import {
   ensureDatabase,
   ensureNamesDatabase,
-  namesDatabaseExists
+  namesDatabaseExists,
+  wordDatabaseExists
 } from "./ensureDatabase";
+import { classifyFailure } from "./failure";
+import { DictionaryError, DictionaryLifecycle } from "./lifecycle";
 import { provideHover } from "./hoverProvider";
 import type { CommentScopes } from "./grammar";
 import { mark, timed } from "./log";
@@ -27,6 +31,7 @@ import { segment, warmTokenizer } from "./tokenizer";
 import { CLASSIFIER_BY_ID } from "../shared/classifiers";
 import type {
   BrowseRequest,
+  DictionaryStatusPush,
   ClearRecentSearchesRequest,
   GetRecentSearchesRequest,
   GetStrokeSvgRequest,
@@ -44,6 +49,9 @@ import {
   isProse,
   VIEW_ID
 } from "./hostSettings";
+
+/** Editor commands held for a panel that has not opened yet. More than this is a backlog, not intent. */
+const MAX_QUEUED_PUSHES = 20;
 
 /** `globalState` key: the user answered the names offer with "No thanks". */
 const NAMES_DECLINED_KEY = "names.offerDeclined";
@@ -83,12 +91,31 @@ export class JishoViewProvider
   implements vscode.WebviewViewProvider, vscode.Disposable
 {
   #context: vscode.ExtensionContext;
-  #dictionary: Promise<Dictionary> | undefined;
-  #names: Promise<NamesDictionary> | undefined;
+  /** The word dictionary's lifecycle — provisioning, opening, updating, failing. See lifecycle.ts. */
+  readonly #words: DictionaryLifecycle<Dictionary>;
+  /** The names dictionary's. Opt-in: only `installNames` provisions it. */
+  readonly #names: DictionaryLifecycle<NamesDictionary>;
   #view: vscode.WebviewView | undefined;
-  /** Set when the webview's bridge has said `webviewReady` — pushes before that would be lost. */
+  /** Set when the webview's bridge has said `webviewReady` — messages before that would be lost. */
   #ready = false;
-  #queuedPushes: HostPush[] = [];
+  /**
+   * Messages waiting for a webview that can receive them, in order.
+   *
+   * A webview receives nothing before its bridge is ready, and — now that the sidebar keeps its
+   * context when hidden — nothing while it is hidden either: "You cannot send messages to a hidden
+   * webview, even with `retainContextWhenHidden`" (the VS Code typings). A response posted then was
+   * simply lost, and the request it answered stayed pending in the webview for good. Everything goes
+   * through `#post`, which delivers now or queues until the view is ready and visible.
+   */
+  #outbox: Array<Response | HostPush> = [];
+  /**
+   * The latest settings and dictionary status, kept apart from the outbox because only the newest of
+   * each matters: a webview that was hidden through three status changes needs the fourth, not all.
+   */
+  #latest = new Map<
+    "hostSettings" | "dictionaryStatus",
+    HostSettings | DictionaryStatusPush
+  >();
   /** Request kinds already served, so the trace times each kind's FIRST (cold) round trip. */
   #seen = new Set<Request["type"]>();
   /** Set once the tokenizer warmup has been scheduled, so re-revealing the view doesn't re-arm it. */
@@ -96,33 +123,102 @@ export class JishoViewProvider
 
   constructor(context: vscode.ExtensionContext) {
     this.#context = context;
+    const onStatus = (): void => this.#pushStatus();
+    this.#words = new DictionaryLifecycle<Dictionary>({
+      exists: async (): Promise<boolean> => wordDatabaseExists(context),
+      // Timed separately: provisioning (a link, a copy or a download) and opening fail and stall for
+      // completely different reasons, and "the first search was slow" needs to say which.
+      provision: async (onProgress): Promise<string> =>
+        timed("provision dictionary", async () =>
+          ensureDatabase(context, onProgress)
+        ),
+      open: async (path): Promise<Dictionary> =>
+        timed("open dictionary", async () => Dictionary.open(path)),
+      rename,
+      classify: classifyFailure,
+      onStatus
+    });
+    this.#names = new DictionaryLifecycle<NamesDictionary>({
+      exists: async (): Promise<boolean> => namesDatabaseExists(context),
+      provision: async (onProgress): Promise<string> =>
+        timed("provision names dictionary", async () =>
+          ensureNamesDatabase(context, onProgress)
+        ),
+      open: async (path): Promise<NamesDictionary> =>
+        timed("open names dictionary", async () => NamesDictionary.open(path)),
+      rename,
+      classify: classifyFailure,
+      onStatus
+    });
+  }
+
+  /** Both dictionaries, for the update to swap in place. */
+  get dictionaries(): {
+    words: DictionaryLifecycle<Dictionary>;
+    names: DictionaryLifecycle<NamesDictionary>;
+  } {
+    return { words: this.#words, names: this.#names };
   }
 
   /**
-   * Deliver an editor-command push, revealing the sidebar. A webview that isn't resolved (or whose
-   * bridge hasn't attached yet) can't receive messages — those pushes queue and flush on
-   * `webviewReady`, so a command issued before the panel ever opened still lands.
+   * Deliver a message now if the webview can receive it, otherwise when it can.
+   *
+   * Settings and status are coalesced (only the newest matters); everything else keeps its order.
+   */
+  #post(
+    message: Response | HostPush | HostSettings | DictionaryStatusPush
+  ): void {
+    if (
+      message.type === "hostSettings" ||
+      message.type === "dictionaryStatus"
+    ) {
+      this.#latest.set(message.type, message);
+    } else {
+      this.#outbox.push(message);
+      // Editor commands issued against a panel that never opens must not accumulate forever.
+      const pushes = this.#outbox.filter((m) => m.type === "hostPush");
+      if (pushes.length > MAX_QUEUED_PUSHES) {
+        const oldest = pushes[0];
+        this.#outbox.splice(this.#outbox.indexOf(oldest), 1);
+      }
+    }
+    this.#flush();
+  }
+
+  /** Send everything waiting, if the view is ready and visible. Settings first, so the panel is
+   *  styled before anything lands in it. */
+  #flush(): void {
+    const view = this.#view;
+    if (!view || !this.#ready || !view.visible) return;
+    for (const message of this.#latest.values())
+      void view.webview.postMessage(message);
+    this.#latest.clear();
+    for (const message of this.#outbox.splice(0))
+      void view.webview.postMessage(message);
+  }
+
+  #pushStatus(): void {
+    this.#post({
+      type: "dictionaryStatus",
+      words: this.#words.status,
+      names: this.#names.status
+    });
+  }
+
+  /**
+   * Deliver an editor-command push, revealing the sidebar. It is held until the webview can receive
+   * it, so a command issued before the panel ever opened — or while it was hidden — still lands.
    */
   push(message: HostPush): void {
     // The `<viewId>.focus` command is auto-registered by VS Code; it opens and reveals the view,
     // triggering resolveWebviewView when needed.
     void vscode.commands.executeCommand(`${VIEW_ID}.focus`);
-    if (this.#ready && this.#view) {
-      void this.#view.webview.postMessage(message);
-    } else {
-      this.#queuedPushes.push(message);
-    }
+    this.#post(message);
   }
 
-  /** Push the current settings snapshot to a live webview (no-op until webviewReady). */
+  /** Push the current settings snapshot (delivered as soon as the webview can receive it). */
   pushSettings(): void {
-    if (this.#ready && this.#view) {
-      const message: HostSettings = {
-        type: "hostSettings",
-        settings: currentSettings()
-      };
-      void this.#view.webview.postMessage(message);
-    }
+    this.#post({ type: "hostSettings", settings: currentSettings() });
   }
 
   /**
@@ -183,16 +279,16 @@ export class JishoViewProvider
   }
 
   /**
-   * Provision and open the word dictionary ahead of the first query. Fire-and-forget: `#dict()`
-   * caches the same promise, so a search arriving mid-warm awaits the in-flight open rather than
-   * starting a second one, and a failure here is re-thrown where a user is actually waiting.
+   * Provision and open the word dictionary ahead of the first query. Fire-and-forget: the lifecycle
+   * shares one attempt, so a search arriving mid-warm joins it rather than starting a second, and a
+   * failure is recorded in its state — which the panel shows — rather than lost.
    */
   async warmDictionary(): Promise<void> {
     try {
-      await this.#dict();
+      await this.#words.acquire();
     } catch {
-      // Speculative work has no caller to report to; #dict() clears its cache so the real request
-      // retries and surfaces the error in the UI.
+      // Speculative work has no caller to report to. `not-ready` (a first-run download) and any
+      // failure are both visible in the dictionary's status, which the panel already shows.
     }
   }
 
@@ -213,58 +309,25 @@ export class JishoViewProvider
   }
 
   async #dict(): Promise<Dictionary> {
-    // Open once, reuse. If opening fails, clear the cache so a later message can retry.
-    this.#dictionary ??= (async (): Promise<Dictionary> => {
-      try {
-        // Timed separately: provisioning (a copy, or a download) and opening fail and stall for
-        // completely different reasons, and "the first search was slow" needs to say which.
-        const path = await timed("provision dictionary", async () =>
-          ensureDatabase(this.#context)
-        );
-        return await timed("open dictionary", async () =>
-          Dictionary.open(path)
-        );
-      } catch (err) {
-        this.#dictionary = undefined;
-        throw err;
-      }
-    })();
-    return this.#dictionary;
+    return this.#words.acquire();
   }
 
   /**
-   * The names dictionary, PROVISIONING it if absent — which downloads it.
+   * The names dictionary, PROVISIONING it if absent — which downloads it, waiting through it.
    *
    * Only `installNames` may call this: names are opt-in. Everything that merely reads names goes
    * through `#installedNames()`, which never downloads. Names used to be provisioned by the first
    * search of anything, because every search also searched names (audit I-0); the webview no longer
    * asks before they are installed, and this split enforces the same rule here, where a stale
    * document or a race could still send a names request.
-   *
-   * Same open-once/retry-on-failure discipline as the word DB.
    */
   async #namesDict(): Promise<NamesDictionary> {
-    this.#names ??= (async (): Promise<NamesDictionary> => {
-      try {
-        const path = await timed("provision names dictionary", async () =>
-          ensureNamesDatabase(this.#context)
-        );
-        return await timed("open names dictionary", async () =>
-          NamesDictionary.open(path)
-        );
-      } catch (err) {
-        this.#names = undefined;
-        throw err;
-      }
-    })();
-    return this.#names;
+    return this.#names.install();
   }
 
   /** The names dictionary if it is installed (or being opened), else `undefined`. Never downloads. */
   async #installedNames(): Promise<NamesDictionary | undefined> {
-    if (this.#names) return this.#names;
-    if (!(await namesDatabaseExists(this.#context))) return undefined;
-    return this.#namesDict();
+    return this.#names.acquireIfInstalled();
   }
 
   /** Whether to offer the names dictionary: not installed, and not declined. */
@@ -294,9 +357,15 @@ export class JishoViewProvider
     this.#view = view;
     this.#ready = false;
     view.onDidDispose(() => {
+      // Only if it is still THIS view: an old view's dispose arriving after a new one resolved used
+      // to clear the new one (audit SM-2).
+      if (this.#view !== view) return;
       this.#view = undefined;
       this.#ready = false;
     });
+    // The sidebar keeps its context when hidden, but a hidden webview cannot receive messages, so
+    // anything that arrived meanwhile is delivered when it is shown again.
+    view.onDidChangeVisibility(() => this.#flush());
     view.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -310,18 +379,17 @@ export class JishoViewProvider
         // is webview bundle load + React mount — the one segment that is NOT extension-host work.
         mark("webview ready");
         this.#ready = true;
-        // Settings first, so the panel is styled before any queued command lands.
+        // A new document knows nothing yet: give it the current settings and dictionary status,
+        // then everything that waited for it.
         this.pushSettings();
-        for (const queued of this.#queuedPushes.splice(0)) {
-          void view.webview.postMessage(queued);
-        }
+        this.#pushStatus();
         return;
       }
-      void this.#handle(view.webview, msg);
+      void this.#handle(view, msg);
     });
   }
 
-  async #handle(webview: vscode.Webview, request: Request): Promise<void> {
+  async #handle(view: vscode.WebviewView, request: Request): Promise<void> {
     // Time the FIRST request of each kind end-to-end. That is the number the user actually feels
     // ("terms are searchable"), and it spans lazy DB provisioning + open + tokenizer + query —
     // costs that no single inner measurement covers on its own.
@@ -333,16 +401,28 @@ export class JishoViewProvider
             this.#dispatch(request)
           )
         : await this.#dispatch(request);
-      await webview.postMessage(response);
+      this.#reply(view, response);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const error: Response = {
+      this.#reply(view, {
         type: "error",
         requestId: request.requestId,
-        message
-      };
-      await webview.postMessage(error);
+        message: err instanceof Error ? err.message : String(err),
+        // The dictionary's STATE (still downloading, offline, the wrong schema) rather than a bug,
+        // so the panel can offer the recovery that fits instead of a report.
+        ...(err instanceof DictionaryError ? { code: err.code } : {})
+      });
     }
+  }
+
+  /**
+   * Answer a request — through the outbox, so an answer that is ready while the view is hidden is
+   * delivered when it is shown, instead of being lost and leaving the request pending forever.
+   *
+   * Dropped if the view that asked has since been replaced: its document, and the request it was
+   * waiting on, are gone.
+   */
+  #reply(view: vscode.WebviewView, response: Response): void {
+    if (this.#view === view) this.#post(response);
   }
 
   /**
@@ -529,41 +609,12 @@ export class JishoViewProvider
     return { type: "getStrokeSvg", requestId: request.requestId, svg };
   }
 
-  /**
-   * Close both database handles so the files can be replaced, then forget them.
-   *
-   * Windows refuses to `rename` onto an open file (EPERM), so the dictionary update — which
-   * downloads to a `.part` and swaps it into place — could never complete once anything had opened
-   * the DB. That is every session by the time a user runs the command, so the update failed with
-   * "operation not permitted" every time on Windows while succeeding on macOS and Linux, where an
-   * open file can be replaced out from under its reader.
-   *
-   * Clearing the cached promises is what makes reopening free: `#dict()` and `#namesDict()` are
-   * open-once-retry-on-failure, so the next request opens the NEW file with no reconnection logic.
-   */
-  async closeDatabases(): Promise<void> {
-    for (const opened of [this.#dictionary, this.#names]) {
-      if (opened) {
-        try {
-          await (await opened).close();
-        } catch {
-          // A handle that cannot be closed is one the swap will fail on anyway; the update reports
-          // that failure itself, and throwing here would lose the other handle's close.
-        }
-      }
-    }
-    this.#dictionary = undefined;
-    this.#names = undefined;
-  }
-
   async dispose(): Promise<void> {
-    for (const opened of [this.#dictionary, this.#names]) {
-      if (opened) {
-        try {
-          await (await opened).close();
-        } catch {
-          // best-effort close on shutdown
-        }
+    for (const lifecycle of [this.#words, this.#names]) {
+      try {
+        await lifecycle.close();
+      } catch {
+        // best-effort close on shutdown
       }
     }
   }

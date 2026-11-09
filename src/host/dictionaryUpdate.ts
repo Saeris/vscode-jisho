@@ -17,6 +17,8 @@ import {
   readVersionSidecar
 } from "./download";
 import { SCHEMA_VERSION, schemaOfVersion } from "../shared/schema";
+import type { DictionaryStatus } from "../shared/messages";
+import type { Closable, DictionaryLifecycle } from "./lifecycle";
 
 const DB_NAME = "jisho.db";
 const NAMES_DB_NAME = "jisho-names.db";
@@ -47,8 +49,11 @@ export const checkForDictionaryUpdate = async (
   context: vscode.ExtensionContext,
   {
     manual,
-    closeDatabases
-  }: { manual: boolean; closeDatabases?: () => Promise<void> }
+    dictionaries
+  }: {
+    manual: boolean;
+    dictionaries?: { words?: Updatable; names?: Updatable };
+  }
 ): Promise<void> => {
   // Dev backend refreshes from assets/ — nothing to check against the release.
   if (await hasBundledDb(context)) {
@@ -121,7 +126,7 @@ export const checkForDictionaryUpdate = async (
     "Never"
   );
   if (choice === "Update") {
-    await updateDictionary(context, closeDatabases);
+    await updateDictionary(context, dictionaries);
   } else if (choice === "Never") {
     await vscode.workspace
       .getConfiguration()
@@ -139,16 +144,17 @@ export const checkForDictionaryUpdate = async (
 export const updateDictionary = async (
   context: vscode.ExtensionContext,
   /**
-   * Release the open database handles before the swap.
+   * The dictionaries' lifecycles, so an OPEN database is swapped in place.
    *
-   * Windows refuses to `rename` onto an open file, so without this the update fails with "EPERM:
-   * operation not permitted" every time — the download succeeds, the checksum verifies, and the
-   * final swap cannot happen. POSIX replaces an open file happily, which is why this only ever
-   * showed up on Windows.
+   * This used to be a `closeDatabases` callback, run BEFORE the download — which is why the update
+   * failed on Windows (audit SM-4): the download takes minutes, any hover during it reopened the
+   * database, and the final rename then hit an open file. A lifecycle keeps the old file serving
+   * through the download and closes it only at the swap, immediately before the rename.
    *
    * Optional so the update path stays callable without a provider (its own tests do exactly that).
+   * A database that is not open is replaced with a plain rename, which is safe.
    */
-  closeDatabases?: () => Promise<void>
+  dictionaries?: { words?: Updatable; names?: Updatable }
 ): Promise<void> => {
   const storageDir = context.globalStorageUri;
   const target = vscode.Uri.joinPath(storageDir, DB_NAME);
@@ -162,36 +168,67 @@ export const updateDictionary = async (
       cancellable: false
     },
     async (progress) => {
-      const onProgress = (received: number, total: number): void => {
+      const report = (received: number, total: number): void => {
         if (total <= 0) return;
         progress.report({
           message: `${Math.floor((received / total) * 100)}%`
         });
       };
-      // Close BEFORE the first download: `downloadDatabase` renames into place at the end of each
-      // call, so a handle still open on the word DB fails the swap even if the names DB is fine.
-      await closeDatabases?.();
-      await downloadDatabase(target.fsPath, onProgress, DATA_RELEASE_BASE);
+      await replace(
+        dictionaries?.words,
+        target.fsPath,
+        "jisho-full.db",
+        report
+      );
       if (namesProvisioned) {
-        await downloadDatabase(
+        await replace(
+          dictionaries?.names,
           namesTarget.fsPath,
-          onProgress,
-          DATA_RELEASE_BASE,
-          "jisho-names.db"
+          "jisho-names.db",
+          report
         );
       }
     }
   );
 
-  // A newer schema could have changed the DB shape; the open dictionaries must be reopened. Reloading
-  // the window is the simplest correct reset (the DB is opened lazily on the next search).
-  const reload = await vscode.window.showInformationMessage(
-    "Jisho: dictionary updated. Reload the window to use it?",
-    "Reload"
-  );
-  if (reload === "Reload") {
-    await vscode.commands.executeCommand("workbench.action.reloadWindow");
+  // No reload. The swap reopened the new file in place, and the schema check above guarantees this
+  // build can read it — the reload used to be the "simplest correct reset" for a shape change that
+  // can no longer arrive this way.
+  void vscode.window.showInformationMessage("Jisho: dictionary updated.");
+};
+
+/** What the update needs from a dictionary's lifecycle. */
+export interface Updatable {
+  readonly status: DictionaryStatus;
+  update: DictionaryLifecycle<Closable>["update"];
+}
+
+/**
+ * Download one database over the installed copy: through its lifecycle when it is open, so the old
+ * file serves until the swap; with a plain rename when nothing has it open.
+ */
+const replace = async (
+  lifecycle: Updatable | undefined,
+  dest: string,
+  prefix: string,
+  report: (received: number, total: number) => void
+): Promise<void> => {
+  if (lifecycle?.status.state === "ready") {
+    await lifecycle.update(async (swap, onPercent) => {
+      await downloadDatabase(
+        dest,
+        (received, total) => {
+          report(received, total);
+          if (total > 0) onPercent(Math.floor((received / total) * 100));
+        },
+        DATA_RELEASE_BASE,
+        prefix,
+        swap
+      );
+    });
+    return;
   }
+  await downloadDatabase(dest, report, DATA_RELEASE_BASE, prefix);
 };
 
 /**

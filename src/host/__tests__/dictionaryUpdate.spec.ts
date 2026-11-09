@@ -78,17 +78,26 @@ vi.mock("vscode", () => ({
   }
 }));
 
-const downloadMock = vi.fn<(destPath: string) => Promise<string>>(
-  async (destPath) => {
-    files.set(destPath, "downloaded");
-    return "remote";
-  }
-);
+type SwapFn = (part: string, dest: string) => Promise<void>;
+const downloadMock = vi.fn<
+  (destPath: string, swap?: SwapFn) => Promise<string>
+>(async (destPath, swap) => {
+  files.set(destPath, "downloaded");
+  // Like the real download: the verified file is put in place by the swap it was given.
+  await swap?.(`${destPath}.part`, destPath);
+  return "remote";
+});
 let remoteVersion: string | undefined =
   `full schema${SCHEMA_VERSION} 2026-08-01`;
 vi.mock("../download", () => ({
   DATA_RELEASE_BASE: "https://example.test/release",
-  downloadDatabase: async (destPath: string) => downloadMock(destPath),
+  downloadDatabase: async (
+    destPath: string,
+    _onProgress: unknown,
+    _base: unknown,
+    _prefix: unknown,
+    swap?: SwapFn
+  ) => (swap ? downloadMock(destPath, swap) : downloadMock(destPath)),
   fetchRemoteVersion: async () => remoteVersion,
   readVersionSidecar: async (dbPath: string) => files.get(`${dbPath}.version`)
 }));
@@ -181,48 +190,59 @@ describe("dictionaryUpdate", () => {
       expect(downloadMock).not.toHaveBeenCalled();
     });
 
-    it("closes the databases BEFORE downloading, so the swap can succeed", async () => {
-      // WHY: this is the Windows publish bug. `downloadDatabase` writes a `.part` and renames it
-      // into place, and Windows refuses to rename onto an OPEN file — so with the dictionary still
-      // held open the update failed with "EPERM: operation not permitted" every time, after a
-      // successful download and a verified checksum. POSIX replaces an open file happily, which is
-      // why it only ever showed up on Windows and why a unit test is the practical way to pin it.
+    it("swaps an open database through its lifecycle, after the download", async () => {
+      // WHY: this is the Windows update bug (audit SM-4). Windows refuses to rename onto an OPEN
+      // file, and the old fix closed the databases BEFORE the download — but the download takes
+      // minutes, any hover during it reopened the database, and the rename failed anyway. An open
+      // database is now updated through its lifecycle, which keeps it serving through the download
+      // and closes it only at the swap; the ordering of close and rename is pinned in lifecycle.spec.
       //
-      // ORDER is the assertion, not merely that close was called: closing after the download would
-      // be just as broken, and a call-count check would pass.
-      // Records order alongside the DEFAULT behaviour rather than replacing it: the default writes
-      // the file that later assertions (and the names-DB branch) depend on, and `mockClear` in
-      // `beforeEach` would not put a replaced implementation back.
+      // ORDER is the assertion: the download must run INSIDE the lifecycle's update, and the swap
+      // after the download. A swap before the download would be the old bug under another name.
       const order: string[] = [];
-      downloadMock.mockImplementation(async (dest: string) => {
-        order.push(`download:${dest}`);
+      downloadMock.mockImplementation(async (dest: string, swap?: SwapFn) => {
+        order.push("download");
         files.set(dest, "downloaded");
+        await swap?.(`${dest}.part`, dest);
         return "remote";
       });
+      const words = {
+        status: { state: "ready" } as const,
+        update: async (
+          run: (
+            swap: SwapFn,
+            onProgress: (percent: number) => void
+          ) => Promise<void>
+        ): Promise<void> => {
+          order.push("update");
+          await run(
+            async () => {
+              order.push("swap");
+            },
+            () => undefined
+          );
+        }
+      };
       files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponse = "Update";
       try {
         await checkForDictionaryUpdate(context, {
           manual: false,
-          closeDatabases: async () => {
-            order.push("close");
-          }
+          dictionaries: { words }
         });
-        expect(order[0]).toBe("close");
-        expect(order.filter((o) => o.startsWith("download"))).not.toHaveLength(
-          0
-        );
+        expect(order).toEqual(["update", "download", "swap"]);
       } finally {
         // `mockClear` in `beforeEach` resets calls, not the implementation, so this has to put the
         // default back itself or every later test inherits the recorder.
-        downloadMock.mockImplementation(async (dest: string) => {
+        downloadMock.mockImplementation(async (dest: string, swap?: SwapFn) => {
           files.set(dest, "downloaded");
+          await swap?.(`${dest}.part`, dest);
           return "remote";
         });
       }
     });
 
-    it("still updates when no close callback is supplied", async () => {
+    it("still updates when no dictionary is open", async () => {
       // WHY: the callback is optional so the update path stays callable without a provider. A
       // required parameter would make this module depend on the webview host to do its job.
       files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
@@ -303,14 +323,19 @@ describe("dictionaryUpdate", () => {
       expect(state.warnMessages).toHaveLength(0);
     });
 
-    it("downloads and offers a reload when the user accepts the update", async () => {
-      // WHY: accepting must actually re-download and prompt a reload so the new (possibly reshaped) DB
-      // is reopened. The download is atomic (download.ts), so the working DB is safe if it fails.
+    it("downloads when the user accepts, and needs no reload", async () => {
+      // WHY: accepting must actually re-download. The reload that used to follow was the "simplest
+      // correct reset" for a database whose SHAPE might have changed — which the schema check now
+      // rules out — and the swap reopens the new file in place, so asking for one would only
+      // interrupt the user for nothing.
       files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
-      state.infoResponses = ["Update", "Reload"]; // accept the update, then accept the reload
+      state.infoResponses = ["Update"];
       await checkForDictionaryUpdate(context, { manual: false });
       expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
-      expect(state.executedCommands).toContain("workbench.action.reloadWindow");
+      expect(state.executedCommands).not.toContain(
+        "workbench.action.reloadWindow"
+      );
+      expect(state.infoMessages.join(" ")).toMatch(/dictionary updated/u);
     });
   });
 
