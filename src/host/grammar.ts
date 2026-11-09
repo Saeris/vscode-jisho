@@ -161,6 +161,8 @@ export class CommentScopes implements vscode.Disposable {
   /** Resolved grammars, and the languages that have been tried and failed (cached as `null`). */
   readonly #grammars = new Map<string, Promise<IGrammar | null>>();
   #wasm: Promise<boolean> | undefined;
+  /** The rule stack at every 100th line of each document — see `LineStates`. */
+  readonly #states = new LineStates();
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -197,9 +199,9 @@ export class CommentScopes implements vscode.Disposable {
    * sits inside a block comment is carried in the rule stack from the line before it. Handing this
    * one line at a time would report the interior of every `/* … *​/` as ordinary code.
    *
-   * `from` is the document line the block starts at. Tokenizing begins at the top of the file when
-   * the block does not, because there is no way to recover the rule stack mid-document — see
-   * `#stackAt`.
+   * `from` is the document line the block starts at. The state there is recovered from the nearest
+   * checkpoint above it — see `LineStates` — since a rule stack cannot be computed mid-document
+   * without tokenizing everything before it.
    */
   async commentSpans(
     document: vscode.TextDocument,
@@ -212,12 +214,13 @@ export class CommentScopes implements vscode.Disposable {
     if (!grammar) return empty();
 
     try {
-      let stack = stackAt(document, grammar, from);
-      // Seeded from the top of the file for the same reason as the rule stack: a viewport that
+      // The fenced state is recovered with the rule stack, for the same reason: a viewport that
       // begins INSIDE a fenced block has no way to know that from its first line alone.
-      let fenced = fencedAt(document, from);
+      let { stack, fenced } = this.#states.at(document, grammar, from);
       const spans: CommentSpan[][] = [];
       for (let line = from; line <= to; line++) {
+        // Passing a checkpoint line: keep the state, so the next hover or pass starts from here.
+        this.#states.record(document, grammar, line, { stack, fenced });
         const text = document.lineAt(line).text;
         const result = grammar.tokenizeLine(text, stack);
         stack = result.ruleStack;
@@ -334,24 +337,6 @@ export class CommentScopes implements vscode.Disposable {
 }
 
 /**
- * The rule stack as it stands at `line`, by tokenizing everything above it.
- *
- * There is no cheaper way: the stack at a line is defined by every line before it. The cost is
- * bounded by where the user is looking rather than by file size in general, and at 0.069ms per line
- * even a 2000-line file is ~140ms on a debounced path — paid once per pass, off the keystroke.
- */
-const stackAt = (
-  document: vscode.TextDocument,
-  grammar: IGrammar,
-  line: number
-): StateStack => {
-  let stack: StateStack = INITIAL;
-  for (let above = 0; above < line; above++)
-    stack = grammar.tokenizeLine(document.lineAt(above).text, stack).ruleStack;
-  return stack;
-};
-
-/**
  * A fenced code block's delimiter, inside a doc comment.
  *
  * ```` * ```ts ```` and ```` * ``` ```` both match, as does the bare form in a `#`-comment language.
@@ -362,21 +347,93 @@ const FENCE = /^\s*(?:[*]|\/\/|#|--)?\s*(?:```|~~~)/u;
 
 const isFence = (line: string): boolean => FENCE.test(line);
 
+/** The tokenizing state BEFORE a line: the grammar's rule stack, and whether a fence is open. */
+export interface LineState {
+  stack: StateStack;
+  /**
+   * Whether the line sits inside a fenced code block. The grammar cannot say: every line of a
+   * ```` ``` ```` block inside a JSDoc comment — the fences, the code, the prose around it — is
+   * uniformly `comment.block.documentation.ts`, because TextMate does not descend into Markdown
+   * nested in a doc comment. So it is ours to track, from the top, like the rule stack.
+   */
+  fenced: boolean;
+}
+
+/** Lines between checkpoints. A lookup tokenizes at most this many lines past the nearest one. */
+const CHECKPOINT_EVERY = 100;
+
+/** Documents whose checkpoints are kept. Least recently used dropped first. */
+const DOCUMENTS_KEPT = 16;
+
 /**
- * Whether `line` sits inside a fenced code block, by counting fences above it.
+ * The tokenizing state at every 100th line of a document, for one version of it.
  *
- * The grammar cannot answer this. Measured: every line of a ```` ``` ```` block inside a JSDoc
- * comment — the fences, the code, the prose around it — is uniformly
- * `comment.block.documentation.ts`, because TextMate does not descend into Markdown nested in a
- * doc comment. So the state is ours to track, and it has to be recovered the same way the rule
- * stack is: from the top.
+ * The state at a line is defined by every line above it, so recovering it meant tokenizing from
+ * line 0 — on every hover, which has no debounce: ~140 ms at line 2,000 (audit P-4). With
+ * checkpoints, a lookup tokenizes from the nearest one at or above it: at most 99 lines. An edit
+ * changes the document's version, which drops its checkpoints.
  */
-const fencedAt = (document: vscode.TextDocument, line: number): boolean => {
-  let fenced = false;
-  for (let above = 0; above < line; above++)
-    if (isFence(document.lineAt(above).text)) fenced = !fenced;
-  return fenced;
-};
+export class LineStates {
+  readonly #documents = new Map<
+    string,
+    { version: number; grammar: IGrammar; at: Map<number, LineState> }
+  >();
+
+  /** The state before `line`, tokenizing from the nearest checkpoint and keeping the ones it passes. */
+  at(
+    document: vscode.TextDocument,
+    grammar: IGrammar,
+    line: number
+  ): LineState {
+    const checkpoints = this.#checkpoints(document, grammar);
+    let from = line - (line % CHECKPOINT_EVERY);
+    while (from > 0 && !checkpoints.has(from)) from -= CHECKPOINT_EVERY;
+    let { stack, fenced } = checkpoints.get(from) ?? {
+      stack: INITIAL,
+      fenced: false
+    };
+    for (let above = from; above < line; above++) {
+      if (above % CHECKPOINT_EVERY === 0)
+        checkpoints.set(above, { stack, fenced });
+      const text = document.lineAt(above).text;
+      stack = grammar.tokenizeLine(text, stack).ruleStack;
+      if (isFence(text)) fenced = !fenced;
+    }
+    this.record(document, grammar, line, { stack, fenced });
+    return { stack, fenced };
+  }
+
+  /** Keep `state` as the state before `line`, if that line is a checkpoint. */
+  record(
+    document: vscode.TextDocument,
+    grammar: IGrammar,
+    line: number,
+    state: LineState
+  ): void {
+    if (line % CHECKPOINT_EVERY === 0)
+      this.#checkpoints(document, grammar).set(line, state);
+  }
+
+  /** This version's checkpoints, started afresh when the document or its grammar has changed. */
+  #checkpoints(
+    document: vscode.TextDocument,
+    grammar: IGrammar
+  ): Map<number, LineState> {
+    const key = document.uri.toString();
+    let entry = this.#documents.get(key);
+    if (entry?.version !== document.version || entry.grammar !== grammar) {
+      entry = { version: document.version, grammar, at: new Map() };
+    }
+    // Re-inserted on every use, so the Map's order stays least-recently-used first.
+    this.#documents.delete(key);
+    this.#documents.set(key, entry);
+    if (this.#documents.size > DOCUMENTS_KEPT) {
+      const oldest = this.#documents.keys().next();
+      if (oldest.done !== true) this.#documents.delete(oldest.value);
+    }
+    return entry.at;
+  }
+}
 
 /**
  * Whether a TextMate scope names prose written for a human reader.
