@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
-import { SCHEMA_FROZEN, SCHEMA_VERSION } from "../schema";
+import {
+  LATEST_TAG,
+  SCHEMA_VERSION,
+  releaseTagFor,
+  releaseTagsFor
+} from "../schema";
 
 /**
  * Drift guard: the schema shape and its version number must move together.
@@ -14,18 +19,20 @@ import { SCHEMA_FROZEN, SCHEMA_VERSION } from "../schema";
  * change that the host queries against cannot ship without the version the host checks also moving,
  * which is what prevents a version-skewed DB from crashing deep inside a query on a missing column.
  *
- * DORMANT until the schema is frozen: while `SCHEMA_FROZEN` is false the v1 schema is still being
- * developed, so it churns freely and there is no shipped client to protect — the guard is skipped.
- * At the pre-publish lock step, freeze the schema (`SCHEMA_FROZEN = true`) and pin the then-current
- * hash below; from then on the guard is live.
+ * Versions 2 to 5 have no hash: before the first publish the schema churned freely, with no installed
+ * version to protect. The guard covers every version from the first published one.
  *
- * When you legitimately change the schema AFTER freezing:
+ * When you change the schema:
  *   1. bump `SCHEMA_VERSION` in ../schema.ts,
  *   2. add an entry here mapping the new version to the new hash (printed on failure).
  */
 const SCHEMA_HASHES: Record<number, string> = {
-  1: "49b815435b1c868efd3b09e5a4691413dbe8f7d8a3def4d1e2603114264b5197"
+  1: "49b815435b1c868efd3b09e5a4691413dbe8f7d8a3def4d1e2603114264b5197",
+  6: "ea869126abcd3b0cd3e6d643ab1b498f47cfc7456a6ecc479a425771877050b4"
 };
+
+/** The schema the first published versions (0.1 to 0.3) shipped with. Pinned from here on. */
+const FIRST_PUBLISHED_SCHEMA = 6;
 
 const schemaSql = (): string =>
   readFileSync(
@@ -33,9 +40,7 @@ const schemaSql = (): string =>
     "utf8"
   );
 
-// Skipped (not silently passing) while the schema is unfrozen, so the suite output shows the guard
-// is intentionally dormant during v1 development rather than absent.
-describe.skipIf(!SCHEMA_FROZEN)("schema drift guard", () => {
+describe("schema drift guard", () => {
   it("pins the schema.sql content to the current SCHEMA_VERSION", () => {
     const actual = createHash("sha256").update(schemaSql()).digest("hex");
     const pinned = SCHEMA_HASHES[SCHEMA_VERSION];
@@ -48,10 +53,10 @@ describe.skipIf(!SCHEMA_FROZEN)("schema drift guard", () => {
     expect(actual).toBe(pinned);
   });
 
-  it("has a pinned hash for every version up to the current one", () => {
+  it("has a pinned hash for every published version up to the current one", () => {
     // Guards against silently dropping an old mapping; the history stays intact.
     const missing: number[] = [];
-    for (let v = 1; v <= SCHEMA_VERSION; v++) {
+    for (let v = FIRST_PUBLISHED_SCHEMA; v <= SCHEMA_VERSION; v++) {
       if (typeof SCHEMA_HASHES[v] !== "string") missing.push(v);
     }
     expect(missing).toEqual([]);
@@ -84,5 +89,23 @@ describe("data release sidecars", () => {
     // pinned here: a schema change belongs on its own release tag, not on this one.
     const { LATEST_TAG_SCHEMA } = await import("../schema");
     expect(LATEST_TAG_SCHEMA).toBe(6);
+  });
+});
+
+describe("release tags", () => {
+  it("publishes each schema to its own tag", () => {
+    // WHY: a schema change must publish BESIDE the data installed versions read, never over it.
+    // One tag per schema is what lets a schema change merge without changing what any published
+    // version downloads.
+    expect(releaseTagsFor(7)).toEqual([releaseTagFor(7)]);
+    expect(releaseTagFor(7)).not.toBe(releaseTagFor(8));
+  });
+
+  it("keeps refreshing dictionary-latest for schema 6, and only schema 6", () => {
+    // WHY: 0.1 to 0.3 download `dictionary-latest` and require schema 6. A schema-6 refresh must
+    // still reach them; any other schema there would break every one of them.
+    expect(releaseTagsFor(6)).toContain(LATEST_TAG);
+    expect(releaseTagsFor(5)).not.toContain(LATEST_TAG);
+    expect(releaseTagsFor(7)).not.toContain(LATEST_TAG);
   });
 });

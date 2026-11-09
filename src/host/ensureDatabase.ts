@@ -8,8 +8,8 @@
  * Two backends behind one signature:
  *   - **dev:** link (or copy) the locally-built `assets/jisho.db` (produced by `vp run build:data`)
  *     that sits alongside the extension source when running via F5.
- *   - **installed:** download the full dictionary from the rolling `dictionary-latest` GitHub
- *     Release with a progress notification, sha256-verified (see `download.ts`).
+ *   - **installed:** download the full dictionary from its schema's GitHub Release
+ *     (`dictionary-v7`) with a progress notification, sha256-verified (see `download.ts`).
  */
 import { link, unlink } from "node:fs/promises";
 import * as vscode from "vscode";

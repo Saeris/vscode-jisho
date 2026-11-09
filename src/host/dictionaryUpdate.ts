@@ -1,8 +1,8 @@
 /**
  * Dictionary update lifecycle + storage cleanup (spec 05 §4–5).
  *
- * The dictionary is downloaded, not bundled, and refreshes on the rolling `dictionary-latest`
- * release. This gives the installed extension a Wallaby-style update model — an automatic, throttled,
+ * The dictionary is downloaded, not bundled, and refreshes in place on its schema's release
+ * (`dictionary-v7`). This gives the installed extension a Wallaby-style update model — an automatic, throttled,
  * offline-safe check plus a manual command — that NOTIFIES rather than forces, and a sweep that keeps
  * `globalStorage` from accumulating superseded ~400 MB databases.
  *

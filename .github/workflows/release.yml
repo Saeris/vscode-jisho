@@ -48,8 +48,8 @@ jobs:
           node-version: "24.22"
           cache: true
 
-      # Release precondition: the extension downloads its dictionary from the rolling
-      # `dictionary-latest` release on first run, so refuse to publish a .vsix whose required
+      # Release precondition: the extension downloads its dictionary from its schema's release
+      # (`dictionary-v7`) on first run, so refuse to publish a .vsix whose required
       # artifacts don't exist yet — otherwise every new install gets a broken first run. The data
       # workflow (dictionary.yml) publishes those artifacts on a schema change; this gate makes the
       # ordering a hard precondition rather than a race.

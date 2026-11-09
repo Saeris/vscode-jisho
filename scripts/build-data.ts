@@ -141,7 +141,7 @@ const NAMES_SCHEMA = join(root, "src", "data", "names-schema.sql");
  * Which jmdict-simplified release to build from.
  *
  * Defaults to `latest`, deliberately: dictionary refreshes are decoupled from extension releases (the
- * rolling `dictionary-latest` GitHub Release), so a maintainer-triggered data build is SUPPOSED to
+ * data's own GitHub Release, refreshed in place), so a maintainer-triggered data build is SUPPOSED to
  * pick up current JMdict without a code change. Pinning by default would defeat that.
  *
  * The cost is that "the same command" produces different databases on different days, which matters
@@ -156,7 +156,7 @@ const RELEASE_API =
     : `https://api.github.com/repos/scriptin/jmdict-simplified/releases/tags/${JMDICT_RELEASE}`;
 
 // `--names` builds the separate JMnedict names database (`jisho-names.db`), an optional download
-// delivered as its own `jisho-names.db.zst` trio on the dictionary-latest release. It's ~743k
+// delivered as its own `jisho-names.db.zst` trio on the data release. It's ~743k
 // entries and would roughly double the main DB, so it's never bundled into it. Runs independently
 // of the word/kanji build.
 const NAMES = process.argv.includes("--names");
@@ -166,7 +166,7 @@ const NO_ARCHIVE = process.argv.includes("--no-archive");
 const NAMES_ASSET_PATTERN = /^jmnedict-all-\d.*\.json\.tgz$/;
 
 // `--full` builds the complete JMdict (~217k entries) — the variant delivered to users via the
-// dictionary-latest GitHub Release. The default common-only subset (~22k) stays the dev/test
+// data's GitHub Release. The default common-only subset (~22k) stays the dev/test
 // fixture, filtered from the same source in-memory. The variant is recorded in `meta` and the
 // version sidecar, so switching variants triggers ensureDatabase's refresh.
 //
@@ -1482,7 +1482,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   writeFileSync(`${OUT_DB}.version`, version, "utf8");
   console.log(`\nWrote ${OUT_DB} — ${total} entries (${VARIANT}).`);
 
-  // Both variants are published to the dictionary-latest release: the zstd-compressed asset, its
+  // Both variants are published to the data release: the zstd-compressed asset, its
   // sha256, and the version string the downloader compares against its sidecar.
   //
   // FULL is what users download on first run. COMMON is published for contributors and CI — it is

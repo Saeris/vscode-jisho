@@ -79,24 +79,11 @@ Marketplace releases are **per-platform packages**. `vp run build:platforms` bui
 
 The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed extensions **download it on first activation** into global storage: streamed, zstd-decompressed, sha256-verified, with a progress notification. Everything is offline after that. In F5 development the workspace copy of `assets/jisho.db` is used directly.
 
-The download comes from the rolling **`dictionary-latest`** GitHub Release, decoupled from extension releases so dictionary refreshes do not require publishing a new version. To create or refresh it:
+The download comes from the GitHub Release of the schema the extension was built for: **`dictionary-v{SCHEMA_VERSION}`** (see `src/shared/schema.ts`). It is decoupled from extension releases, so a dictionary refresh does not need a new version. It is tied to the schema, so a schema change publishes to a new tag and never replaces data that an installed version can read.
 
-```bash
-vp run build:data:full   # builds assets/jisho.db + jisho-full.db.zst (+ .sha256, .version)
-gh release create dictionary-latest --title "Dictionary data" --notes "Rolling JMdict database" \
-  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
-# or, to refresh an existing release:
-gh release upload dictionary-latest --clobber \
-  assets/jisho-full.db.zst assets/jisho-full.db.zst.sha256 assets/jisho-full.db.zst.version
-```
+The "Dictionary Data" workflow (`.github/workflows/dictionary.yml`) builds and publishes it. It runs on every schema change, and you can run it by hand to refresh the data after an upstream dictionary update. It publishes the full word dictionary, the common one (for tests and contributors), and the optional **names dictionary** (JMnedict, ~743k entries, downloaded only when the user installs names).
 
-The **names dictionary** (JMnedict, ~743k entries) is a separate optional artifact, downloaded on demand the first time a search could return names, and built the same way:
-
-```bash
-vp run build:data:names  # builds assets/jisho-names.db + jisho-names.db.zst (+ .sha256, .version)
-gh release upload dictionary-latest --clobber \
-  assets/jisho-names.db.zst assets/jisho-names.db.zst.sha256 assets/jisho-names.db.zst.version
-```
+`dictionary-latest` is frozen at schema 6. Versions 0.1 to 0.3 download that tag and need schema 6 exactly, so the workflow publishes there only for schema 6 (`releaseTagsFor`).
 
 E2E and local development run against the **common** build (`vp run build:data`), which holds ~22,000 words rather than ~218,000. Any headword a test types must exist there, not only in the full build.
 
