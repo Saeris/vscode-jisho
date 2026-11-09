@@ -10,6 +10,11 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write
   pull-requests: write
+  # Lets the publish job mint an OIDC ID token, which is how Open VSX trusted publishing works:
+  # `ovsx` exchanges it for a short-lived publishing token instead of using a stored secret. It is
+  # granted now so retiring OVSX_PAT later is a secret deletion rather than a workflow change —
+  # `ovsx` prefers a PAT when one is set and falls back to OIDC on its own when it is not.
+  id-token: write
 
 jobs:
   # `main` is unprotected and this workflow runs on push, so a red check on the version PR informs
@@ -76,6 +81,11 @@ jobs:
           BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
           # Personal access token for the VS Code Marketplace publisher.
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          # Open VSX. Needed only until the extension exists there: a trusted publisher cannot be
+          # registered for an extension with no published version, so the FIRST release has to use a
+          # token. Once it is registered at open-vsx.org/user-settings/trusted-publishers, delete
+          # this secret and `ovsx` switches to the OIDC exchange on its own.
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
           # Yarn 4 corrupts the tarball path Bumpy captures from stdout if
           # color codes are enabled. NO_COLOR alone is not enough for Yarn 4.
           NO_COLOR: "1"

@@ -12,6 +12,7 @@
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.ts"],
   "ignoreDependencies": [
     "@vscode/vsce",
+    "ovsx",
     "playwright",
     "@varlock/bumpy",
     "@scriptin/jmdict-simplified-types",

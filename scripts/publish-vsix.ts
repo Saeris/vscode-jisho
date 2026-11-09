@@ -151,8 +151,15 @@ class PublishError extends Error {
 }
 
 /** A version the Marketplace already has. Not a failure to recover from — the work is done. */
+/**
+ * A rejection that means "this version is already there", from either registry.
+ *
+ * The two word it differently — vsce says the version "already exists", ovsx answers with a 409 and
+ * names the extension version — so both phrasings are matched here rather than in each publisher.
+ */
 const isDuplicate = (error: unknown): boolean =>
-  error instanceof PublishError && /already exists/iu.test(error.output);
+  error instanceof PublishError &&
+  /already exists|is already published|409/iu.test(error.output);
 
 /** Wait, without pulling in a dependency for it. */
 const sleep = (ms: number): void => {
@@ -173,22 +180,62 @@ const sleep = (ms: number): void => {
  * The backoff is deliberately generous, since the failure mode is a busy server and hammering it is
  * what caused this.
  */
-const publishWithRetry = (file: string, attempts = 3): void => {
+/**
+ * The two registries, as the command each needs to publish one already-built `.vsix`.
+ *
+ * `ovsx` needs the target named explicitly: `vsce` reads it back out of the package, but ovsx would
+ * otherwise register every platform build under the same universal entry and each would overwrite
+ * the last.
+ *
+ * Open VSX authenticates in one of two ways and chooses by itself. With `OVSX_PAT` set it uses the
+ * token; with no token and an OIDC ID token available (GitHub Actions, `id-token: write`) it
+ * exchanges that for a short-lived one instead. Nothing here has to pick — which is what lets the
+ * token be retired later by deleting the secret rather than by changing this file.
+ */
+const REGISTRIES = [
+  {
+    name: "Marketplace",
+    command: "vsce",
+    args: (file: string): string[] => [
+      "publish",
+      "--no-yarn",
+      "--packagePath",
+      join(OUT_DIR, file)
+    ]
+  },
+  {
+    name: "Open VSX",
+    command: "ovsx",
+    args: (file: string): string[] => {
+      const target = targetOf(file, manifest.version);
+      return [
+        "publish",
+        join(OUT_DIR, file),
+        ...(target === undefined ? [] : ["--target", target])
+      ];
+    }
+  }
+] as const;
+
+type Registry = (typeof REGISTRIES)[number];
+
+const publishWithRetry = (
+  registry: Registry,
+  file: string,
+  attempts = 3
+): void => {
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      run("vsce", [
-        "publish",
-        "--no-yarn",
-        "--packagePath",
-        join(OUT_DIR, file)
-      ]);
+      run(registry.command, registry.args(file));
       return;
     } catch (error) {
       // Already published, which a re-run after a partial failure hits for every target that DID
       // land. Retrying it is pure delay: the answer will not change, and 0.2.0's recovery run spent
       // 90s per already-published target before reaching the one that needed publishing.
       if (isDuplicate(error)) {
-        console.log(`  ${file} is already on the Marketplace; nothing to do.`);
+        console.log(
+          `  ${file} is already on the ${registry.name}; nothing to do.`
+        );
         return;
       }
       if (attempt === attempts) throw error;
@@ -223,30 +270,64 @@ if (published.size > 0) {
   );
 }
 
-const failed: string[] = [];
-let skipped = 0;
-for (const file of packages) {
-  const target = targetOf(file, manifest.version);
-  if (target !== undefined && published.has(target)) {
-    console.log(`- skipping ${file} (already published)`);
-    skipped++;
-    continue;
+/**
+ * Publish every package to ONE registry, and report what failed.
+ *
+ * Each registry is finished before the next is started, rather than publishing each package to both
+ * in turn. That ordering is the point: the Marketplace is the primary channel, and interleaving is
+ * exactly what made a missing Open VSX token leave a half-published Marketplace release behind —
+ * the reason Open VSX was dropped before v1 rather than shipped. Now an Open VSX problem can only
+ * ever happen with the Marketplace release already complete.
+ */
+const publishAll = (
+  registry: Registry,
+  skip: ReadonlySet<string>
+): string[] => {
+  const failed: string[] = [];
+  let skipped = 0;
+  console.log(`${String.fromCharCode(10)}Publishing to the ${registry.name}…`);
+  for (const file of packages) {
+    const target = targetOf(file, manifest.version);
+    if (target !== undefined && skip.has(target)) {
+      console.log(`- skipping ${file} (already published)`);
+      skipped++;
+      continue;
+    }
+    try {
+      publishWithRetry(registry, file);
+    } catch {
+      failed.push(file);
+    }
   }
-  try {
-    publishWithRetry(file);
-  } catch {
-    failed.push(file);
-  }
-}
+  console.log(
+    `${registry.name}: published ${packages.length - failed.length - skipped}/${packages.length}` +
+      (skipped > 0 ? ` (${skipped} already there)` : "") +
+      (failed.length > 0 ? `, ${failed.length} FAILED` : "") +
+      "."
+  );
+  return failed;
+};
 
-if (failed.length > 0) {
+const marketplaceFailures = publishAll(REGISTRIES[0], published);
+// Attempted even when the Marketplace had failures: the two registries are independent, and
+// withholding a good Open VSX release because the Marketplace had a bad minute helps nobody. Both
+// sets of failures are reported together below.
+//
+// No pre-query of what Open VSX already has, unlike the Marketplace: a duplicate is recognised from
+// the 409 it answers with (see `isDuplicate`), which costs one request per already-published target
+// on a re-run and saves maintaining a second gallery client.
+const openVsxFailures = publishAll(REGISTRIES[1], new Set());
+
+const problems = [
+  ...marketplaceFailures.map((f) => `Marketplace: ${f}`),
+  ...openVsxFailures.map((f) => `Open VSX: ${f}`)
+];
+if (problems.length > 0) {
+  const indent = `${String.fromCharCode(10)}  `;
   throw new Error(
-    `Published ${packages.length - failed.length}/${packages.length} platform packages. ` +
-      `FAILED: ${failed.join(", ")}. Re-run the release, or publish these by hand with ` +
-      `\`vsce publish --no-yarn --packagePath dist-vsix/<file>\`.`
+    `Publishing did not complete. FAILED:${indent}${problems.join(indent)}${String.fromCharCode(10)}` +
+      `Re-run the release — packages already published are skipped — or publish by hand with ` +
+      `\`vsce publish --no-yarn --packagePath dist-vsix/<file>\` and ` +
+      `\`ovsx publish dist-vsix/<file> --target <target>\`.`
   );
 }
-console.log(
-  `Published ${packages.length - skipped} platform packages` +
-    (skipped > 0 ? ` (${skipped} already on the Marketplace).` : ".")
-);
