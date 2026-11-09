@@ -178,3 +178,43 @@ describe("issue url", () => {
     expect(url.length).toBeLessThanOrEqual(URL_BUDGET);
   });
 });
+
+describe("report privacy", () => {
+  /**
+   * Host errors that really occur, each carrying the user's home directory. The account name in each
+   * is `alice` so the assertion can look for exactly that.
+   */
+  const leaks = [
+    // Windows refusing to replace the open database during an update.
+    "EBUSY: resource busy or locked, unlink 'C:\\Users\\alice\\AppData\\Roaming\\Code\\User\\globalStorage\\saeris.vscode-jisho\\jisho.db'",
+    // The tokenizer failing to load its dictionary from the installed extension.
+    "Failed to load dictionary from '/Users/alice/.vscode/extensions/saeris.vscode-jisho-0.3.1/assets/lindera-ipadic'",
+    // The same on Linux.
+    "ENOENT: no such file or directory, open '/home/alice/.vscode-server/data/jisho.db'"
+  ];
+
+  it.each(leaks)(
+    "keeps the account name out of the title and the body: %s",
+    (message) => {
+      // WHY: the report is a prefilled PUBLIC issue, one click from posted. Stacks were sanitized but
+      // messages and titles were not, and host errors routinely quote absolute paths — the audit's
+      // probe found the account name in both the title and the body (I-13).
+      const { url } = issueUrl(
+        "https://github.com/Saeris/vscode-jisho/issues/new",
+        `Crash: searching: ${message}`,
+        { diagnostics, error: { message, stack: `Error: ${message}` } }
+      );
+      expect(decodeURIComponent(url)).not.toContain("alice");
+    }
+  );
+
+  it.each(leaks)(
+    "keeps the account name out of the clipboard fallback: %s",
+    (message) => {
+      // WHY: when the report is too long for a URL, the body goes to the clipboard instead — the
+      // same one click from public, by a second route that a URL-only fix would miss.
+      const body = issueBody({ diagnostics, error: { message, stack: "" } });
+      expect(body).not.toContain("alice");
+    }
+  );
+});
