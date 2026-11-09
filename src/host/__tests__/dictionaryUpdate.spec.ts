@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // In-memory stand-in for the slice of the vscode API dictionaryUpdate uses. Files are keyed by
 // fsPath; directory listings are derived from the keys under /storage.

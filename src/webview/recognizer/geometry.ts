@@ -98,9 +98,10 @@ export const momentNormalize = (pattern: Pattern): Pattern => {
   const beta = aranHeight / (4 * Math.sqrt(mu02(pattern, yc) / total)) || 0;
 
   const normalized: Pattern = pattern.map((stroke) =>
-    stroke.map(
-      (p): Point => [alpha * (p[0] - xc) + xcHalf, beta * (p[1] - yc) + ycHalf]
-    )
+    stroke.map((p): Point => [
+      alpha * (p[0] - xc) + xcHalf,
+      beta * (p[1] - yc) + ycHalf
+    ])
   );
   return transform(normalized, xOffset, yOffset);
 };

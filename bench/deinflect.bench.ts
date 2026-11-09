@@ -23,7 +23,8 @@
  * Baseline: vp run bench:save
  * Compare:  vp run bench:compare
  */
-import { bench, describe } from "vitest";
+import { it, describe } from "vite-plus/test";
+import { against, baselineFor } from "./baseline";
 import { deinflect } from "../src/host/deinflect";
 
 let sink = 0;
@@ -46,22 +47,66 @@ describe("deinflect", () => {
     "たかくない", // adjective
     "たべています" // progressive chain
   ];
-  bench("realistic query mix", () => {
-    for (const q of mix) sink += deinflect(q).length;
+  it("realistic query mix", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "deinflect-realistic-query-mix",
+      bench(
+        "realistic query mix",
+        baselineFor("deinflect-realistic-query-mix"),
+        () => {
+          for (const q of mix) sink += deinflect(q).length;
+        }
+      )
+    );
   });
 
   // The extremes, isolated, so a change's effect can be attributed: an optimization to the rule
   // scan should move the no-match floor; one to chain handling should move the negative case.
-  bench("no-match floor (plain noun)", () => {
-    sink += deinflect("ねこ").length;
+  it("no-match floor (plain noun)", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "deinflect-no-match-floor-plain-noun",
+      bench(
+        "no-match floor (plain noun)",
+        baselineFor("deinflect-no-match-floor-plain-noun"),
+        () => {
+          sink += deinflect("ねこ").length;
+        }
+      )
+    );
   });
 
-  bench("worst: negative chain (たべなかった)", () => {
-    sink += deinflect("たべなかった").length;
+  it("worst: negative chain (たべなかった)", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "deinflect-worst-negative-chain",
+      bench(
+        "worst: negative chain (たべなかった)",
+        baselineFor("deinflect-worst-negative-chain"),
+        () => {
+          sink += deinflect("たべなかった").length;
+        }
+      )
+    );
   });
 
-  bench("common: simple polite (はなします)", () => {
-    sink += deinflect("はなします").length;
+  it("common: simple polite (はなします)", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "deinflect-common-simple-polite",
+      bench(
+        "common: simple polite (はなします)",
+        baselineFor("deinflect-common-simple-polite"),
+        () => {
+          sink += deinflect("はなします").length;
+        }
+      )
+    );
   });
 });
 

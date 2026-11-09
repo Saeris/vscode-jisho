@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { applySettings } from "../settings";
 import type { HostSettings } from "../../shared/messages";
 

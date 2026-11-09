@@ -1,5 +1,5 @@
 import { render, type RenderResult } from "@testing-library/react";
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 import type { NavEvent } from "../machines/navigation";
 import { NavigationProvider } from "../navigation";
 

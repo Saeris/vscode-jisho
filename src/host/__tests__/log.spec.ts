@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // The log channel is the only piece of `vscode` this module touches. Capturing the lines lets the
 // tests assert that a failure is still reported rather than silently swallowed.

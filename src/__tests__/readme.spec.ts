@@ -9,7 +9,7 @@
  * catch manifest drift at the moment it happens. The claims that need a running extension live in
  * `e2e/docs/claims.docs.e2e.ts`. See docs/specs/19-documentation-drift-tests.md.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

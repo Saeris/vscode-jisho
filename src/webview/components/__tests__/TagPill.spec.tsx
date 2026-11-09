@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { setHostSettings } from "../../__tests__/hostSettingsHarness";
 import { NavigationProvider } from "../../navigation";
 import { TagPills } from "../TagPill";
@@ -80,10 +80,14 @@ describe("tagPills", () => {
     // the access path `title` never supported, so this now covers the reason for the move as well
     // as the content. (Hover would also work in a real browser but needs the warmup delay; focus
     // shows immediately by design.)
+    //
+    // `toMatchTextContent`, not `toHaveTextContent`: Vitest v5 made the latter an EXACT match, and
+    // these assert a fragment of a longer tooltip. The partial-matching behaviour this test was
+    // written against now lives under the new name.
     const pos = [tag("adv", "adverb (fukushi)")];
     const { rerender } = renderPills(<TagPills pos={pos} usage={[]} />);
     screen.getByText("adverb").focus();
-    await expect(screen.findByRole("tooltip")).resolves.toHaveTextContent(
+    await expect(screen.findByRole("tooltip")).resolves.toMatchTextContent(
       /adverb \(fukushi\)/
     );
 
@@ -94,7 +98,7 @@ describe("tagPills", () => {
       </NavigationProvider>
     );
     screen.getByText("副詞").focus();
-    await expect(screen.findByRole("tooltip")).resolves.toHaveTextContent(
+    await expect(screen.findByRole("tooltip")).resolves.toMatchTextContent(
       /adverb \(fukushi\)/
     );
   });

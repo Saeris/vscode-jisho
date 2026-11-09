@@ -2038,7 +2038,7 @@ const importTatoebaPool = async (
   // than asserting a row shape (which the linter rightly flags as unsafe).
   const readTatoebaId = (row: unknown): number => {
     if (typeof row === "object" && row !== null && "tatoeba_id" in row) {
-      return Number((row as { tatoeba_id: unknown }).tatoeba_id);
+      return Number(row.tatoeba_id);
     }
     return NaN;
   };

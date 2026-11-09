@@ -48,9 +48,7 @@ export const PALETTES: Record<
   Exclude<PaletteId, "theme">,
   Partial<Record<PartOfSpeech, PosStyle>>
 > = {
-  jisho: {
-    /* user-supplied values */
-  }
+  jisho: {/* user-supplied values */}
 };
 ```
 

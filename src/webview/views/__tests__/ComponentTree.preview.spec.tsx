@@ -1,5 +1,5 @@
-import { describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { describe, it } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NavigationProvider } from "../../navigation";

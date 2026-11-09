@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, test, beforeAll, afterAll } from "vitest";
+import { describe, expect, test, beforeAll, afterAll } from "vite-plus/test";
 import { Dictionary } from "../db";
 import { CLASSIFIERS, CLASSIFIER_BY_ID } from "../../shared/classifiers";
 

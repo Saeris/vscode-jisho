@@ -181,7 +181,10 @@ export const returnToSearch = async (frame: FrameLocator): Promise<void> => {
   // the common case rather than an error, and the whole point of this helper is to not sit waiting.
   const visible = async (locator: Locator): Promise<boolean> => {
     try {
-      return await locator.isVisible({ timeout: 2_000 });
+      // `isVisible` checks the CURRENT state and returns immediately, so it needs no timeout — the
+      // `{ timeout: 2_000 }` this used to pass is deprecated and was being IGNORED, which means the
+      // bound the comment above promises was already not doing anything.
+      return await locator.isVisible();
     } catch {
       return false;
     }

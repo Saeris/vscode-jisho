@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { contentSegmentCount, segment } from "../tokenizer";
 
 // These run against the real Lindera WASM (loaded synchronously at require in the node env).

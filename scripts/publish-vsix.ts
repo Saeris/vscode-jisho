@@ -20,9 +20,35 @@ const NEWLINE = new RegExp(
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "dist-vsix");
 
-const manifest = JSON.parse(
+/**
+ * The three fields this script needs from package.json.
+ *
+ * Narrowed through a guard rather than asserted from `JSON.parse`'s `any`: a malformed manifest
+ * would otherwise surface as `undefined` inside a publish command, where it reads as a registry
+ * error rather than as the local problem it is.
+ */
+interface Manifest {
+  name: string;
+  version: string;
+  publisher: string;
+}
+
+const isManifest = (value: unknown): value is Manifest =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as Record<string, unknown>).name === "string" &&
+  typeof (value as Record<string, unknown>).version === "string" &&
+  typeof (value as Record<string, unknown>).publisher === "string";
+
+const parsed: unknown = JSON.parse(
   readFileSync(join(root, "package.json"), "utf8")
-) as { name: string; version: string; publisher: string };
+);
+if (!isManifest(parsed)) {
+  throw new Error(
+    "package.json is missing one of `name`, `version` or `publisher`."
+  );
+}
+const manifest = parsed;
 const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`;
 
 /** Only the slice of the gallery response this needs: which targets exist for which version. */
@@ -78,12 +104,18 @@ const alreadyPublished = async (version: string): Promise<Set<string>> => {
       }
     );
     if (!response.ok) return new Set();
-    const body = (await response.json()) as GalleryResponse;
-    const versions = body.results?.[0]?.extensions?.[0]?.versions ?? [];
+    // `unknown`, then read through optional chaining: every hop below is already guarded, so an
+    // unexpected shape yields an empty set rather than throwing inside a release.
+    const body: unknown = await response.json();
+    const gallery = body as GalleryResponse;
+    const versions = gallery.results?.[0]?.extensions?.[0]?.versions ?? [];
     return new Set(
       versions
-        .filter((v) => v.version === version && v.targetPlatform)
-        .map((v) => v.targetPlatform as string)
+        .filter(
+          (v): v is GalleryVersion & { targetPlatform: string } =>
+            v.version === version && typeof v.targetPlatform === "string"
+        )
+        .map((v) => v.targetPlatform)
     );
   } catch (error) {
     console.log(`  could not query the Marketplace (${String(error)});`);

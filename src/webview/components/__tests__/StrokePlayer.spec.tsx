@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { render, screen, waitFor } from "@testing-library/react";
-import { userEvent } from "vitest/browser";
+import { userEvent } from "vite-plus/test/browser";
 import svg from "../../../../assets/kanji-svgs/近.svg?raw";
 import { MS_PER_STROKE, StrokePlayer } from "../StrokePlayer";
 

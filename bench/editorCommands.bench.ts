@@ -38,7 +38,8 @@
  * Compare:  vp run bench:compare
  */
 import { readFileSync } from "node:fs";
-import { bench, describe } from "vitest";
+import { it, describe } from "vite-plus/test";
+import { against, baselineFor } from "./baseline";
 import { addFurigana, removeFurigana } from "../src/host/furigana";
 import { addSpacing, removeSpacing } from "../src/host/spacing";
 
@@ -63,27 +64,85 @@ let sink = 0;
 
 describe("editor commands", () => {
   // The common interaction: a selection of a few sentences.
-  bench("addFurigana: a 3-line selection", async () => {
-    sink += (await addFurigana(paragraph)).length;
+  it("addFurigana: a 3-line selection", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "editorCommands-addfurigana-a-3-line-selection",
+      bench(
+        "addFurigana: a 3-line selection",
+        baselineFor("editorCommands-addfurigana-a-3-line-selection"),
+        async () => {
+          sink += (await addFurigana(paragraph)).length;
+        }
+      )
+    );
   });
 
-  bench("addSpacing: a 3-line selection", async () => {
-    sink += (await addSpacing(paragraph)).length;
+  it("addSpacing: a 3-line selection", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "editorCommands-addspacing-a-3-line-selection",
+      bench(
+        "addSpacing: a 3-line selection",
+        baselineFor("editorCommands-addspacing-a-3-line-selection"),
+        async () => {
+          sink += (await addSpacing(paragraph)).length;
+        }
+      )
+    );
   });
 
   // The inverse pair tokenizes nothing, so these isolate our own string work — the only part of this
   // path a deoptkit finding could be about.
-  bench("removeFurigana: a 3-line selection", async () => {
-    sink += (await removeFurigana(annotated)).length;
+  it("removeFurigana: a 3-line selection", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "editorCommands-removefurigana-a-3-line-selection",
+      bench(
+        "removeFurigana: a 3-line selection",
+        baselineFor("editorCommands-removefurigana-a-3-line-selection"),
+        async () => {
+          sink += (await removeFurigana(annotated)).length;
+        }
+      )
+    );
   });
 
-  bench("removeSpacing: a 3-line selection", async () => {
-    sink += (await removeSpacing(spaced)).length;
+  it("removeSpacing: a 3-line selection", async ({ bench, expect }) => {
+    await against(
+      bench,
+      expect,
+      "editorCommands-removespacing-a-3-line-selection",
+      bench(
+        "removeSpacing: a 3-line selection",
+        baselineFor("editorCommands-removespacing-a-3-line-selection"),
+        async () => {
+          sink += (await removeSpacing(spaced)).length;
+        }
+      )
+    );
   });
 
   // Whole-file scale, at a size that still samples enough times to have a usable margin of error.
-  bench("addFurigana: a whole short story (47 lines)", async () => {
-    sink += (await addFurigana(rashomon)).length;
+  it("addFurigana: a whole short story (47 lines)", async ({
+    bench,
+    expect
+  }) => {
+    await against(
+      bench,
+      expect,
+      "editorCommands-addfurigana-a-whole-short-story-47-lines",
+      bench(
+        "addFurigana: a whole short story (47 lines)",
+        baselineFor("editorCommands-addfurigana-a-whole-short-story-47-lines"),
+        async () => {
+          sink += (await addFurigana(rashomon)).length;
+        }
+      )
+    );
   });
 });
 

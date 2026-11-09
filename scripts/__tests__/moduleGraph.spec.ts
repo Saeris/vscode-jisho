@@ -1,6 +1,6 @@
 import { existsSync, globSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 /**
  * Every module the build scripts reach at runtime must be resolvable by PLAIN NODE.

@@ -13,14 +13,23 @@ the other.
 
 ```
 vp run bench           # run, print ops/sec + p75/p99 + margin of error
-vp run bench:save      # record the current numbers as bench/baseline.json
+vp run bench:save      # record the current numbers as bench/baselines/*.json
 # …make a change…
-vp run bench:compare   # re-run, annotate each case [1.34x] ⇑ / [0.87x] ⇓
+vp run bench:compare   # re-run and FAIL any case more than 15% slower than its baseline
 ```
 
 Baselines are **gitignored on purpose**: they are machine-specific, so comparing your numbers to
 CI's or a teammate's measures the hardware, not the change. Save a baseline, change code, compare
 on the same machine in the same session.
+
+`bench:compare` **fails the run** on a regression rather than annotating one. Vitest v5 removed the
+`--compare` flag that used to print `[1.34x] ⇑` / `[0.87x] ⇓` beside each case; the replacement is
+an assertion inside the bench (`against()` in `baseline.ts`), so a regression is a red test instead
+of a number you have to notice. The tolerance is **15%**, chosen against the noise floor documented
+below — a case that gets FASTER never fails.
+
+With no baseline on disk, `bench:compare` just measures. A fresh checkout has nothing to compare
+against, and the command stays useful as "what are the numbers".
 
 **Absolute microsecond figures in the `*.bench.ts` headers are indicative, not baselines.** They were
 measured on whichever machine wrote them, so treat the SPREAD between cases as the portable claim and
@@ -58,7 +67,7 @@ vp exec node --prof --logfile=/tmp/v8.log --no-logfile-per-isolate bench/example
 vp exec node --prof-process /tmp/v8.log | sed -n '/\[JavaScript\]:/,/^$/p'
 ```
 
-`.deopt/baselines/` **is committed**, unlike `bench/baseline.json`, and the difference is the point:
+`.deopt/baselines/` **is committed**, unlike `bench/baselines/`, and the difference is the point:
 throughput is a property of the machine, while a megamorphic IC or a deopt loop is a property of the
 code. So findings port across machines and can gate; ops/sec cannot. (`deoptkit ci` exits non-zero on
 NEW findings — not yet wired into CI, because nobody has checked whether the counts are stable across

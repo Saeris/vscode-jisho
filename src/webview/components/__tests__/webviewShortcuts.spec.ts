@@ -5,7 +5,7 @@
  * too little leaves #4/#7 unfixed; claiming too much silently breaks a key that worked — and the
  * `Ctrl+Alt` case below is a real keyboard layout, not a hypothetical.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { editingChord, insertAsPaste } from "../webviewShortcuts";
 
 /** A keydown as `editingChord` reads it. */

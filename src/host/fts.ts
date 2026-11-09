@@ -66,10 +66,11 @@ export const loadFtsTokenizer = (
     // `@types/node` declares `loadExtension(path: string)` with no entry-point parameter, but the
     // runtime accepts one — it maps onto `sqlite3_load_extension`'s third argument, which has taken
     // an entry point since the API was introduced. The cast is that gap, not a behaviour change.
-    (db.loadExtension as (path: string, entryPoint?: string) => void)(
-      library,
-      ENTRY_POINT
-    );
+    // Called through a locally-typed alias rather than an inline cast: the lint autofixer treats an
+    // inline `as` here as an unnecessary assertion and strips it, which puts TS2554 straight back.
+    const loadExtension: (path: string, entryPoint?: string) => void =
+      db.loadExtension.bind(db);
+    loadExtension(library, ENTRY_POINT);
     return true;
   } catch {
     // Swallowed deliberately: see the docstring. The caller's fallback is the shipped search path.

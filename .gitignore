@@ -166,6 +166,12 @@ dist-vsix/
 
 # Benchmark baselines are machine-specific: comparing your numbers to a teammate's (or CI's)
 # hardware measures the hardware, not the change. Generate locally with `vp run bench:save`.
+#
+# A DIRECTORY since Vitest v5: `writeResult` is a per-bench path, so what was one `baseline.json`
+# written by `--outputJson` is now one file per case. (Upstream suggests committing these; we do
+# not, for the reason above.)
+bench/baselines/
+# The v4 artifact, kept ignored so an older checkout or a stale run cannot commit one.
 bench/baseline.json
 # deoptkit's LSP feed is a transient artifact of the last run; .deopt/baselines/ IS committed, since
 # structural findings are properties of the code rather than of the machine (see bench/README.md).
@@ -174,3 +180,4 @@ bench/baseline.json
 
 # Provisioned from node_modules by `vp run build:onig-wasm` — a build artifact, not source.
 /assets/onig.wasm
+.vitest/

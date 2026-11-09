@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { Dictionary, SchemaVersionError } from "../db";
 import { SCHEMA_VERSION } from "../../shared/schema";
 import { exampleText } from "../../shared/exampleLinks";

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // Minimal in-memory stand-in for the pieces of `vscode.workspace.fs` that ensureDatabase uses.
 // Keyed by the Uri's fsPath. `copy` records how many times it ran so we can assert re-copy behavior.
