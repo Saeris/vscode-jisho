@@ -64,6 +64,14 @@ const LAG_INTERVAL = 250;
 /** Below this, lag is ordinary scheduling jitter and not worth recording. */
 const LAG_FLOOR = 100;
 const MAX_LAG_SAMPLES = 200;
+/**
+ * How long the heartbeat watches after activation. Long enough to cover a first-run download and
+ * the first searches, hovers and colouring passes — the stalls this trace exists to explain.
+ *
+ * It used to run until deactivation, and on past a full buffer: speculative work that never ended,
+ * four times a second, for a record nobody could add to (audit SM-11).
+ */
+export const HEARTBEAT_WINDOW_MS = 10 * 60 * 1000;
 const lagSamples: LagSample[] = [];
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 
@@ -75,6 +83,13 @@ const startHeartbeat = (): void => {
     previous = now;
     if (lag >= LAG_FLOOR && lagSamples.length < MAX_LAG_SAMPLES) {
       lagSamples.push({ at: now - origin, lag });
+    }
+    // Nothing more it can add: the record is full, or the window it covers has passed.
+    if (
+      lagSamples.length >= MAX_LAG_SAMPLES ||
+      now - origin >= HEARTBEAT_WINDOW_MS
+    ) {
+      endTrace();
     }
   }, LAG_INTERVAL);
   // Never keep the host alive for diagnostics.

@@ -13,7 +13,8 @@ vi.mock("vscode", () => ({
   }
 }));
 
-const { beginTrace, formatTrace, mark, timed } = await import("../log");
+const { HEARTBEAT_WINDOW_MS, beginTrace, endTrace, formatTrace, mark, timed } =
+  await import("../log");
 
 /** Resolve after `ms` of real time, so recorded durations are genuine wall clock. */
 const sleep = async (ms: number): Promise<void> =>
@@ -118,5 +119,22 @@ describe("startup trace", () => {
     mark("stale");
     beginTrace();
     expect(formatTrace()).toBe("No startup activity recorded yet.");
+  });
+});
+
+describe("startup trace heartbeat", () => {
+  it("stops once the window it covers has passed", () => {
+    // WHY (audit SM-11): the heartbeat ran four times a second until deactivation — long after
+    // startup, and on past a full record. Work that can never add to the trace should not run.
+    vi.useFakeTimers();
+    try {
+      beginTrace();
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersByTime(HEARTBEAT_WINDOW_MS + 1000);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      endTrace();
+      vi.useRealTimers();
+    }
   });
 });
