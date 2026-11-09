@@ -39,6 +39,14 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: vp exec playwright install --with-deps chromium
 
+      # Same reason as e2e.yml: the runner has no CJK font, and the component tests render Japanese
+      # in a real Chromium. `PitchAccent.spec.tsx` measures geometry over kana, so without this it
+      # was measuring tofu boxes rather than the glyphs a reader sees.
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
       - name: Provision the tokenizer dictionary
         run: vp run build:tokenizer-dict
 

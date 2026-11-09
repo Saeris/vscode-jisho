@@ -85,6 +85,18 @@ jobs:
       - name: Build the extension and webview
         run: vp pack && vp build
 
+      # GitHub's Linux runners ship no CJK font, so every Japanese glyph drew as tofu (□□□) — in a
+      # suite whose whole subject is Japanese text. It is not only cosmetic: a test locates an editor
+      # line by its text and then measures it, and tofu changes the rendered width of every line it
+      # appears in. The failure artifacts were unreadable for the same reason.
+      #
+      # `noto-cjk` rather than a smaller font, because the suite renders kanji, kana and the
+      # punctuation that comes with them; a partial font would just move the tofu somewhere else.
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
       # VS Code draws a real window — there is no headless mode for the workbench — so a Linux runner
       # needs a virtual display. xvfb-run is the same approach VS Code's own extension CI uses.
       - name: Run the E2E suite
