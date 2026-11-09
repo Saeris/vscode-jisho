@@ -69,8 +69,9 @@ export const namesQuery = (
   queryOptions({
     queryKey: ["names", query],
     queryFn: async () => (await searchNames(query)).names,
-    // Only search names for non-empty queries. Kept separate from the word search so a names-DB
-    // download (first use) never blocks word/kanji results.
+    // Only search names for non-empty queries. Kept separate from the word search so a slow or
+    // failing names query never blocks word/kanji results. Callers also gate it on the names
+    // dictionary being INSTALLED — names are opt-in, see `NamesOffer`.
     enabled: query.trim().length > 0
   });
 
@@ -199,6 +200,13 @@ interface BrowseResult {
  * `staleTime: Infinity` — these change only when the dictionary itself is replaced, so refetching
  * them on every visit to the tree would be ~90 COUNT queries for an answer that cannot have moved.
  */
+/** Category counts, and the names dictionary's state — see `BrowseCountsResponse`. */
+interface BrowseCounts {
+  counts: Record<string, number>;
+  namesAvailable: boolean;
+  namesOffered: boolean;
+}
+
 export const browseCountsQuery = (
   /**
    * Classifier ids already applied. With none, these are each category's own size (the browse
@@ -207,12 +215,7 @@ export const browseCountsQuery = (
    */
   applied: string[] = []
 ): ReturnType<
-  typeof queryOptions<
-    { counts: Record<string, number>; namesAvailable: boolean },
-    Error,
-    { counts: Record<string, number>; namesAvailable: boolean },
-    string[]
-  >
+  typeof queryOptions<BrowseCounts, Error, BrowseCounts, string[]>
 > =>
   queryOptions({
     // Keyed on the applied set, sorted so `#a #b` and `#b #a` are one cache entry. A full pass
@@ -223,7 +226,8 @@ export const browseCountsQuery = (
       const response = await browseCounts(applied);
       return {
         counts: response.counts,
-        namesAvailable: response.namesAvailable
+        namesAvailable: response.namesAvailable,
+        namesOffered: response.namesOffered
       };
     },
     staleTime: Infinity,

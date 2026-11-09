@@ -82,19 +82,26 @@ type WordRequest = Exclude<
   | { type: "getRecentSearches" }
   | { type: "recordRecentSearch" }
   | { type: "clearRecentSearches" }
+  // The names dictionary's lifecycle, which needs the context and the names handle.
+  | { type: "installNames" }
+  | { type: "declineNames" }
 >;
 
 /**
  * Dispatch a word/kanji request to the dictionary and build its response.
  *
- * `namesAvailable` is passed IN rather than checked here: this module has no extension context by
+ * The names state is passed IN rather than checked here: this module has no extension context by
  * design (only `openSettings`/`copyText` touch the vscode API), and the check must not provision —
  * see `namesDatabaseExists`.
  */
 export const respond = async (
   dict: Dictionary,
   request: WordRequest,
-  namesAvailable = false,
+  /** Whether the names dictionary is installed, and whether to offer it — see `BrowseCountsResponse`. */
+  names: { available: boolean; offered: boolean } = {
+    available: false,
+    offered: false
+  },
   /** `Classifier.id` → count, for the name types this dictionary cannot count. */
   nameCounts: Record<string, number> = {}
 ): Promise<Response> => {
@@ -187,7 +194,8 @@ export const respond = async (
         type: "browseCounts",
         requestId: request.requestId,
         counts,
-        namesAvailable
+        namesAvailable: names.available,
+        namesOffered: names.offered
       };
     }
     case "getKanji":

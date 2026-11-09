@@ -456,6 +456,18 @@ export interface GetNameRequest {
  * `.version` sidecar). The webview renders and copies what it is given rather than assembling its
  * own, so all three report surfaces quote the same fields.
  */
+/** Install the names dictionary: the user accepted the offer. Downloads it with a progress notice. */
+export interface InstallNamesRequest {
+  type: "installNames";
+  requestId: string;
+}
+
+/** The user declined the names offer under search results. Remembered across windows. */
+export interface DeclineNamesRequest {
+  type: "declineNames";
+  requestId: string;
+}
+
 export interface GetDiagnosticsRequest {
   type: "getDiagnostics";
   requestId: string;
@@ -542,6 +554,8 @@ export type Request =
   | GetAboutRequest
   | SearchNamesRequest
   | GetNameRequest
+  | InstallNamesRequest
+  | DeclineNamesRequest
   | OpenSettingsRequest
   | CopyTextRequest
   | GetRecentSearchesRequest
@@ -607,6 +621,14 @@ export interface BrowseCountsResponse {
    * completes, not when configuration does.
    */
   namesAvailable: boolean;
+  /**
+   * Whether to offer the names dictionary: it is not installed, and the user has not declined it.
+   *
+   * Names are OPT-IN. Nothing provisions them except the user accepting this offer (or installing
+   * from About) — they used to download on the first search of anything, 84 MB and ~400 MB on disk,
+   * while the README promised "if you use name lookups" (audit I-0).
+   */
+  namesOffered: boolean;
 }
 
 export interface GetKanjiResponse {
@@ -707,6 +729,16 @@ export interface GetNameResponse {
   name: NameDetailDto | null;
 }
 
+export interface InstallNamesResponse {
+  type: "installNames";
+  requestId: string;
+}
+
+export interface DeclineNamesResponse {
+  type: "declineNames";
+  requestId: string;
+}
+
 export interface ErrorResponse {
   type: "error";
   requestId: string;
@@ -791,6 +823,8 @@ export type Response =
   | GetAboutResponse
   | SearchNamesResponse
   | GetNameResponse
+  | InstallNamesResponse
+  | DeclineNamesResponse
   | OpenSettingsResponse
   | CopyTextResponse
   | GetRecentSearchesResponse

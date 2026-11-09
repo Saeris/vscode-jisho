@@ -228,6 +228,16 @@ export const searchNames = async (
 export const getName = async (id: string): Promise<GetNameResponse> =>
   request("getName", { id });
 
+/** Install the names dictionary (the user accepted). Resolves once it is downloaded and opened. */
+export const installNames = async (): Promise<void> => {
+  await request("installNames", {});
+};
+
+/** Decline the names offer under search results. Remembered across windows; About still offers it. */
+export const declineNames = async (): Promise<void> => {
+  await request("declineNames", {});
+};
+
 /** Ask the host to open VS Code's Settings UI at the Jisho section (the sidebar's ⚙). */
 export const openSettings = async (): Promise<void> => {
   await send({ type: "openSettings", requestId: nextRequestId() });

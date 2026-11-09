@@ -45,6 +45,9 @@ import {
   VIEW_ID
 } from "./hostSettings";
 
+/** `globalState` key: the user answered the names offer with "No thanks". */
+const NAMES_DECLINED_KEY = "names.offerDeclined";
+
 /** The three requests backed by `globalState` rather than by a dictionary. */
 type RecentRequest =
   | GetRecentSearchesRequest
@@ -229,9 +232,18 @@ export class JishoViewProvider
     return this.#dictionary;
   }
 
+  /**
+   * The names dictionary, PROVISIONING it if absent — which downloads it.
+   *
+   * Only `installNames` may call this: names are opt-in. Everything that merely reads names goes
+   * through `#installedNames()`, which never downloads. Names used to be provisioned by the first
+   * search of anything, because every search also searched names (audit I-0); the webview no longer
+   * asks before they are installed, and this split enforces the same rule here, where a stale
+   * document or a race could still send a names request.
+   *
+   * Same open-once/retry-on-failure discipline as the word DB.
+   */
   async #namesDict(): Promise<NamesDictionary> {
-    // The names DB is a separate, opt-in download provisioned on first names query. Same
-    // open-once/retry-on-failure discipline as the word DB.
     this.#names ??= (async (): Promise<NamesDictionary> => {
       try {
         const path = await timed("provision names dictionary", async () =>
@@ -246,6 +258,21 @@ export class JishoViewProvider
       }
     })();
     return this.#names;
+  }
+
+  /** The names dictionary if it is installed (or being opened), else `undefined`. Never downloads. */
+  async #installedNames(): Promise<NamesDictionary | undefined> {
+    if (this.#names) return this.#names;
+    if (!(await namesDatabaseExists(this.#context))) return undefined;
+    return this.#namesDict();
+  }
+
+  /** Whether to offer the names dictionary: not installed, and not declined. */
+  #namesOffered(available: boolean): boolean {
+    return (
+      !available &&
+      !this.#context.globalState.get<boolean>(NAMES_DECLINED_KEY, false)
+    );
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -323,8 +350,8 @@ export class JishoViewProvider
    *
    * Served here rather than in `dispatch.ts` because it needs the NAMES dictionary, which is a
    * separate opt-in download — the same reason `searchNames` is routed here. Opening one of these
-   * lists provisions it, exactly as the first name search does; the tags are hidden until it is
-   * present, so reaching this at all means the user has already accepted that download.
+   * lists never provisions it: the tags are hidden until it is installed, and an empty list is the
+   * honest answer if one is reached anyway.
    */
   async #browseNames(request: BrowseRequest): Promise<Response> {
     const classifier = CLASSIFIER_BY_ID.get(request.id);
@@ -332,28 +359,28 @@ export class JishoViewProvider
       classifier?.kind === "result" && classifier.result === "place"
         ? "place"
         : "name";
-    const names = await this.#namesDict();
+    const names = await this.#installedNames();
     return {
       type: "browse",
       requestId: request.requestId,
       results: [],
       kanji: [],
-      names: await names.browseNames(kind),
-      total: await names.browseNamesCount(kind)
+      names: names ? await names.browseNames(kind) : [],
+      total: names ? await names.browseNamesCount(kind) : 0
     };
   }
 
   /**
    * Counts for the name types, which the WORD dictionary cannot produce.
    *
-   * Only for `browseCounts`, and only when the names DB is ALREADY present: opening it provisions
-   * a ~400MB download, and a count is not worth that. When it is absent the counts stay 0 and the
-   * tags stay hidden, which is the correct answer then.
+   * Only for `browseCounts`, and only when the names DB is installed — a count is never a reason to
+   * download it. When it is absent the counts stay 0 and the tags stay hidden, which is the correct
+   * answer then.
    */
   async #nameCounts(request: Request): Promise<Record<string, number>> {
     if (request.type !== "browseCounts") return {};
-    if (!(await namesDatabaseExists(this.#context))) return {};
-    const names = await this.#namesDict();
+    const names = await this.#installedNames();
+    if (!names) return {};
     return {
       name: await names.browseNamesCount("name"),
       place: await names.browseNamesCount("place")
@@ -381,6 +408,26 @@ export class JishoViewProvider
         )
       };
     }
+    if (request.type === "installNames") {
+      // The user accepted: provision it (with VS Code's progress notice), and clear any earlier
+      // "No thanks" so the decision on record is the latest one.
+      await this.#namesDict();
+      await this.#context.globalState.update(NAMES_DECLINED_KEY, undefined);
+      return { type: "installNames", requestId: request.requestId };
+    }
+    if (request.type === "declineNames") {
+      await this.#context.globalState.update(NAMES_DECLINED_KEY, true);
+      return { type: "declineNames", requestId: request.requestId };
+    }
+    if (request.type === "searchNames" || request.type === "getName") {
+      const names = await this.#installedNames();
+      if (names) return respondNames(names, request);
+      // Not installed: answer as if nothing matched rather than download it.
+      return request.type === "searchNames"
+        ? { type: "searchNames", requestId: request.requestId, names: [] }
+        : { type: "getName", requestId: request.requestId, name: null };
+    }
+    const namesAvailable = await namesDatabaseExists(this.#context);
     return request.type === "openSettings"
       ? openSettings(request)
       : request.type === "copyText"
@@ -389,19 +436,20 @@ export class JishoViewProvider
           ? this.#strokeSvg(request)
           : isRecentRequest(request)
             ? this.#recentSearches(request)
-            : request.type === "searchNames" || request.type === "getName"
-              ? respondNames(await this.#namesDict(), request)
-              : isNameBrowse(request)
-                ? this.#browseNames(request)
-                : respond(
-                    await this.#dict(),
-                    request,
-                    // Checked per request rather than cached: the names DB can arrive mid-session
-                    // (the first name search provisions it), and a cached `false` would keep the
-                    // `#name`/`#place` tags hidden until reload. It is two `stat` calls.
-                    await namesDatabaseExists(this.#context),
-                    await this.#nameCounts(request)
-                  );
+            : isNameBrowse(request)
+              ? this.#browseNames(request)
+              : respond(
+                  await this.#dict(),
+                  request,
+                  // Checked per request rather than cached: the names DB can arrive mid-session
+                  // (when the user installs it), and a cached `false` would keep the `#name`/
+                  // `#place` tags hidden until reload. It is two `stat` calls.
+                  {
+                    available: namesAvailable,
+                    offered: this.#namesOffered(namesAvailable)
+                  },
+                  await this.#nameCounts(request)
+                );
   }
 
   /**

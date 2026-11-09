@@ -184,8 +184,9 @@ export const namesDatabaseExists = async (
  * Unlike the word DB this has **no bundled dev copy** — it is download-only (JMnedict would roughly
  * double the bundled data). If a locally-built `assets/jisho-names.db` exists (from
  * `vp run build:data:names`), F5 development uses it directly; otherwise it downloads the
- * `jisho-names.db.zst` artifact from the same rolling release. Provisioned lazily on the first names
- * query so users who never search names never download it.
+ * `jisho-names.db.zst` artifact from the same rolling release. Called ONLY when the user installs
+ * names (`installNames`): they are opt-in, and every read path checks `namesDatabaseExists` instead.
+ * This used to run on the first names query, which every search made — so it downloaded for everyone.
  */
 export const ensureNamesDatabase = async (
   context: vscode.ExtensionContext

@@ -1,0 +1,31 @@
+/* An offer, not an alert: one muted line that reads as part of the list's footer. */
+.offer {
+  margin: var(--jisho-gap) 0 0;
+  color: var(--jisho-muted);
+  font-size: 0.9em;
+}
+
+.action,
+.dismiss {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.action {
+  color: var(--jisho-link);
+}
+
+/* Declining is offered at lower weight than accepting, but is still there to be found. */
+.dismiss {
+  color: var(--jisho-muted);
+}
+
+.action[data-focus-visible],
+.dismiss[data-focus-visible] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}

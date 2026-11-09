@@ -127,7 +127,7 @@ Type a word as it appears in your text. Jisho works back to the dictionary form:
 
 ### Names
 
-Personal and place names come from a separate database, so a name in your text resolves instead of returning nothing. The names database downloads the first time you need it.
+Personal and place names come from a separate, optional database, so a name in your text resolves instead of returning nothing. Nothing downloads it until you ask: Jisho offers it under your search results, and you can always install it from **About**. It is about 85 MB to download and 400 MB on disk.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/sentence-breakdown-dark.png" />
@@ -488,7 +488,7 @@ Set `vscode-jisho.appearance.textScale`. It multiplies VS Code's own font size, 
 
 **Does this need an internet connection?** Only for the initial dictionary download and for update checks. Every lookup is local.
 
-**How much disk space does it use?** About 450 MB for the dictionary, plus another 400 MB if you use name lookups, which download separately the first time you need them.
+**How much disk space does it use?** About 450 MB for the dictionary, plus another 400 MB if you install names and places, which are optional and download only when you choose to.
 
 **Does it work in vscode.dev or GitHub Codespaces?** Not yet. Jisho reads its dictionary from the filesystem, which the browser build does not have.
 
