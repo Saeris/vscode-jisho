@@ -24,6 +24,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
+import { DICTIONARY_FILES, linderaVersion } from "./lindera-dict.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(root, "assets", "lindera-ipadic");
@@ -32,41 +33,11 @@ const OUT_DIR = join(root, "assets", "lindera-ipadic");
 const SLANG_SRC = join(root, "src", "data", "slang-userdict.csv");
 const SLANG_DEST = join(OUT_DIR, "slang-userdict.csv");
 
-/**
- * READ from package.json rather than written here twice.
- *
- * The docstring above says this "MUST match the `lindera-nodejs` dependency", which a second
- * hardcoded copy cannot guarantee — and did not: bumping the package to 5.3.0 left this at 5.0.0,
- * and the mismatch surfaced as "Dictionary 'ipadic' has format version 1, but this build of Lindera
- * reads format version 2" across 37 tests. The dictionary ships INSIDE every .vsix, so the same
- * drift would have shipped a tokenizer that cannot load its own dictionary.
- */
-const LINDERA_VERSION = (
-  JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
-    dependencies: Record<string, string>;
-  }
-).dependencies["lindera-nodejs"].replace(/^[\^~]/u, "");
+// The version and the file list live in `lindera-dict.ts`, shared with the packager — see there for
+// why a second copy of either is how a release breaks.
+const LINDERA_VERSION = linderaVersion(root);
 const DICT_URL = `https://github.com/lindera/lindera/releases/download/v${LINDERA_VERSION}/lindera-ipadic-${LINDERA_VERSION}.zip`;
-
-/**
- * The files `load_dictionary_from_bytes` / `loadDictionary` expect (the compiled dictionary dir).
- *
- * Lindera 5.3 changed this layout along with the serialized FORMAT (v1 → v2): the double-array
- * `dict.da` became the FST-backed `dict.trie`, and `dict.valsidx` is new. The archive is the source
- * of truth for the list; this is asserted against it so a future reshuffle fails loudly here rather
- * than at runtime inside a shipped .vsix.
- */
-const EXPECTED = [
-  "metadata.json",
-  "dict.trie",
-  "dict.vals",
-  "dict.valsidx",
-  "dict.wordsidx",
-  "dict.words",
-  "matrix.mtx",
-  "char_def.bin",
-  "unk.bin"
-];
+const EXPECTED: readonly string[] = DICTIONARY_FILES;
 
 const main = async (): Promise<void> => {
   console.log(`Downloading lindera-ipadic ${LINDERA_VERSION}…`);
