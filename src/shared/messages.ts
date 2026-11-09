@@ -743,6 +743,51 @@ export interface ErrorResponse {
   type: "error";
   requestId: string;
   message: string;
+  /**
+   * Why, when the cause is the dictionary's STATE rather than a bug — so the webview can offer the
+   * recovery that fits instead of treating every failure as something to report (audit SM-10).
+   * Absent for anything else.
+   */
+  code?: DictionaryErrorCode;
+}
+
+// ── The dictionary's lifecycle (host/lifecycle.ts) ───────────────────────────
+
+/** Why a dictionary failed, each with its own recovery in the panel. */
+export type FailureReason =
+  /** The download could not reach the release. Retrying fixes it. */
+  | "offline"
+  /** The file is an older schema than this build reads. Updating the dictionary fixes it. */
+  | "schema-older"
+  /** The file is a newer schema than this build reads. Only a newer Jisho fixes it. */
+  | "schema-newer"
+  /** Anything else about opening the file. */
+  | "io";
+
+/** A failed request's cause, when it is the dictionary's state. */
+export type DictionaryErrorCode = FailureReason | "not-ready";
+
+/** Where one dictionary is in its lifecycle. */
+export type DictionaryStatus =
+  | { state: "absent" }
+  | { state: "downloading"; percent: number }
+  | { state: "opening" }
+  /** Open and serving. `updating` is the progress of a newer copy downloading behind it. */
+  | { state: "ready"; updating?: number }
+  /** Closing the old file and opening the new one — well under a second. Requests wait. */
+  | { state: "swapping" }
+  | { state: "failed"; reason: FailureReason; message: string };
+
+/**
+ * Both dictionaries' state, pushed on every change.
+ *
+ * The webview used to have no idea any of this existed: on first run it showed "Searching…" for the
+ * whole 119 MB download, and every failure looked like a bug (audit SM-10).
+ */
+export interface DictionaryStatusPush {
+  type: "dictionaryStatus";
+  words: DictionaryStatus;
+  names: DictionaryStatus;
 }
 
 // ── Host-initiated pushes (editor commands) ──────────────────────────────────
