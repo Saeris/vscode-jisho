@@ -95,3 +95,23 @@ describe.skipIf(!hasBundle)("the packaged host bundle", () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * The tokenizer dictionary must pass the same check the packager runs before it builds a .vsix.
+ *
+ * This failure used to surface only at RELEASE time. The packager tested for one sentinel file,
+ * `dict.da`, which Lindera 5.3 renamed to `dict.trie`: `main` built, tested and passed every PR check
+ * while the next release could not have packaged — nothing before the Publish job ever ran that line.
+ * CI's check job provisions the dictionary, so asking the packager's question here moves the failure
+ * to the pull request that causes it.
+ *
+ * It also catches the quieter case locally: a dictionary provisioned before a Lindera bump has every
+ * file it used to need and still cannot be loaded, which is a stale VERSION marker rather than a
+ * missing file.
+ */
+describe("tokenizer dictionary", () => {
+  it("is ready to ship, by the packager's own check", async () => {
+    const { dictionaryProblems } = await import("../lindera-dict.ts");
+    expect(dictionaryProblems(root)).toEqual([]);
+  });
+});

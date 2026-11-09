@@ -29,6 +29,7 @@ import {
 import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { dictionaryProblems } from "./lindera-dict.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MODULES_DIR = join(root, "node_modules");
@@ -216,9 +217,16 @@ const main = async (): Promise<void> => {
   // directory is absent — so without this the package would build clean and ship a tokenizer that
   // cannot load its dictionary. Provisioning is deliberately explicit (like build:data), so demand
   // it rather than run it here.
-  if (!existsSync(join(root, "assets", "lindera-ipadic", "dict.da"))) {
+  //
+  // The check itself is shared with the provisioner (`lindera-dict.ts`). This used to test for one
+  // sentinel file, `dict.da`, which Lindera 5.3 renamed — so a correctly provisioned dictionary was
+  // reported missing and every release would have failed here. It also checks the VERSION marker,
+  // since a dictionary left over from an older Lindera has all its files and still cannot load.
+  const dictionary = dictionaryProblems(root);
+  if (dictionary.length > 0) {
     throw new Error(
-      "assets/lindera-ipadic/ is missing — run `vp run build:tokenizer-dict` before packaging."
+      `assets/lindera-ipadic/ is not ready to ship (${dictionary.join("; ")}) — ` +
+        "run `vp run build:tokenizer-dict` before packaging."
     );
   }
   // Same failure shape for the regex engine behind comment highlighting: the .wasm is gitignored
