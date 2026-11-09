@@ -225,16 +225,97 @@ export const refineCounts = async (
     }
   }
 
-  // The candidate pool: the words the applied WORD filters leave. Result-type filters are excluded
-  // — they select a kind of result rather than narrowing words, and `idsFor` returns nothing for
-  // the non-word ones, which would empty the pool and zero every count.
+  // Word classifiers first: precomputed for none or one applied word filter (the usual cases),
+  // counted live for more. Result types are rules, not data, and are resolved below either way.
   const wordFilters = applied.filter((c) => c.kind !== "result");
+  const counts =
+    (await precomputedWordCounts(store, wordFilters)) ??
+    (await liveWordCounts(store, wordFilters));
+
+  /*
+   * Result types, resolved against what is already applied.
+   *
+   * This is what makes nonsense combinations disappear on their own rather than needing a rule
+   * per pair. Two kinds of conflict:
+   *   - two result types at once (`#kanji #name`) — a result is one thing or the other.
+   *   - a non-word type plus a WORD filter (`#kanji #verb-godan`) — godan is a property of words,
+   *     and no kanji has it.
+   * Both report 0, and the autocomplete already drops anything that would narrow to zero.
+   */
+  const appliedTypes = applied.filter((c) => c.kind === "result");
+  const appliedWordFilters = applied.some((c) => c.kind !== "result");
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind !== "result") continue;
+    const clashesWithType = appliedTypes.some((t) => t.id !== c.id);
+    const clashesWithFilter = c.result !== "word" && appliedWordFilters;
+    counts[c.id] =
+      clashesWithType || clashesWithFilter ? 0 : await browseCount(store, c);
+  }
+
+  // The same conflict in the OTHER direction: with a non-word type applied, every WORD filter is
+  // meaningless — `#kanji #verb-godan` asks for a kanji that is a godan verb, and none is. Zeroing
+  // here is what actually removes them from the suggestions; the loop above only handled the case
+  // where the word filter came first.
+  if (appliedTypes.some((t) => t.result !== "word")) {
+    for (const c of CLASSIFIER_BY_ID.values()) {
+      if (c.kind !== "result") counts[c.id] = 0;
+    }
+  }
+
+  return counts;
+};
+
+/** SQLite reads a negative LIMIT as "no limit". */
+const ALL = -1;
+
+/**
+ * How many words each WORD classifier holds, as the build precomputed them — or `undefined` to
+ * count live.
+ *
+ * With no word filter applied that is `classifier_counts`; with one, `classifier_pair_counts` (H-9).
+ * One applied tag is the usual case, and counting it live took up to 2 s for a broad tag like
+ * `#noun`. Precomputed it is one indexed read. Undefined for two or more filters, whose combinations
+ * are unbounded, and when the build did not count a classifier the code has since gained.
+ */
+const precomputedWordCounts = async (
+  store: SqliteStore,
+  wordFilters: Classifier[]
+): Promise<Record<string, number> | undefined> => {
+  if (wordFilters.length > 1) return undefined;
+  const rows = await store.all<{ classifier_id: string; n: number }>(
+    wordFilters.length === 0
+      ? "SELECT classifier_id, n FROM classifier_counts"
+      : "SELECT classifier_id, n FROM classifier_pair_counts WHERE applied_id = ?",
+    ...wordFilters.map((c) => c.id)
+  );
+  const stored = new Map(rows.map((r) => [r.classifier_id, r.n]));
+  const counts: Record<string, number> = {};
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind === "result") continue;
+    const n = stored.get(c.id);
+    if (n === undefined) return undefined;
+    counts[c.id] = n;
+  }
+  return counts;
+};
+
+/**
+ * How many words each WORD classifier holds within the words `wordFilters` leave, counted from the
+ * data. The fallback for `precomputedWordCounts`, and what the test of that table compares it to.
+ */
+export const liveWordCounts = async (
+  store: SqliteStore,
+  wordFilters: Classifier[]
+): Promise<Record<string, number>> => {
+  // The candidate pool: the words the applied word filters leave. EVERY word, not the first 100,000
+  // as it once was — `#noun` holds ~190,000, and a capped pool counted only the most frequent of
+  // them, so the autocomplete hid tags that still had results.
   const pool =
     wordFilters.length === 0
       ? null
       : await (async (): Promise<Set<string>> => {
           const lists = await Promise.all(
-            wordFilters.map(async (c) => idsFor(store, c, "frequency", 100_000))
+            wordFilters.map(async (c) => idsFor(store, c, "frequency", ALL))
           );
           const [first, ...rest] = lists;
           const others = rest.map((l) => new Set(l.map((r) => r.id)));
@@ -304,42 +385,12 @@ export const refineCounts = async (
 
   // JLPT and frequency live on `words`, so they are counted from their own lists.
   for (const c of CLASSIFIER_BY_ID.values()) {
-    if (c.kind === "tag") continue;
+    if (c.kind === "tag" || c.kind === "result") continue;
     if (pool === null) {
       counts[c.id] = await browseCount(store, c);
     } else {
-      const ids = await idsFor(store, c, "frequency", 100_000);
+      const ids = await idsFor(store, c, "frequency", ALL);
       counts[c.id] = ids.filter((r) => pool.has(r.id)).length;
-    }
-  }
-
-  /*
-   * Result types, resolved against what is already applied.
-   *
-   * This is what makes nonsense combinations disappear on their own rather than needing a rule
-   * per pair. Two kinds of conflict:
-   *   - two result types at once (`#kanji #name`) — a result is one thing or the other.
-   *   - a non-word type plus a WORD filter (`#kanji #verb-godan`) — godan is a property of words,
-   *     and no kanji has it.
-   * Both report 0, and the autocomplete already drops anything that would narrow to zero.
-   */
-  const appliedTypes = applied.filter((c) => c.kind === "result");
-  const appliedWordFilters = applied.some((c) => c.kind !== "result");
-  for (const c of CLASSIFIER_BY_ID.values()) {
-    if (c.kind !== "result") continue;
-    const clashesWithType = appliedTypes.some((t) => t.id !== c.id);
-    const clashesWithFilter = c.result !== "word" && appliedWordFilters;
-    counts[c.id] =
-      clashesWithType || clashesWithFilter ? 0 : await browseCount(store, c);
-  }
-
-  // The same conflict in the OTHER direction: with a non-word type applied, every WORD filter is
-  // meaningless — `#kanji #verb-godan` asks for a kanji that is a godan verb, and none is. Zeroing
-  // here is what actually removes them from the suggestions; the loop above only handled the case
-  // where the word filter came first.
-  if (appliedTypes.some((t) => t.result !== "word")) {
-    for (const c of CLASSIFIER_BY_ID.values()) {
-      if (c.kind !== "result") counts[c.id] = 0;
     }
   }
 

@@ -85,6 +85,13 @@ if (isNames) {
     scalar("SELECT COUNT(*) AS c FROM kanji_characters WHERE literal = '食'")
   );
   if (shoku !== 1) fail("canary kanji 食 is missing");
+
+  // The precomputed tag-pair counts. Without them nothing breaks, which is the danger: every first
+  // tag typed is counted live again, up to 2 s each (H-9).
+  const pairs = Number(
+    scalar("SELECT COUNT(*) AS c FROM classifier_pair_counts")
+  );
+  if (!(pairs > 0)) fail("classifier_pair_counts is empty");
 }
 
 db.close();

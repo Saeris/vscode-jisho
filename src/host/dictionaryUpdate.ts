@@ -201,11 +201,17 @@ export const updateDictionary = async (
 export interface Updatable {
   readonly status: DictionaryStatus;
   update: DictionaryLifecycle<Closable>["update"];
+  /** Open it — used to reopen one that failed, once the download has fixed it. */
+  acquire: () => Promise<unknown>;
 }
 
 /**
  * Download one database over the installed copy: through its lifecycle when it is open, so the old
  * file serves until the swap; with a plain rename when nothing has it open.
+ *
+ * A database that FAILED to open is reopened after the download. That is the upgrade path: a new
+ * version of Jisho needs a new schema, the old file fails with `schema-older`, and the panel offers
+ * this update. Without the reopen the panel kept showing that failure until the next search.
  */
 const replace = async (
   lifecycle: Updatable | undefined,
@@ -229,6 +235,7 @@ const replace = async (
     return;
   }
   await downloadDatabase(dest, report, DATA_RELEASE_BASE, prefix);
+  if (lifecycle?.status.state === "failed") await lifecycle.acquire();
 };
 
 /**

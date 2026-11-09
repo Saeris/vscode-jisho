@@ -208,6 +208,7 @@ describe("dictionaryUpdate", () => {
       });
       const words = {
         status: { state: "ready" } as const,
+        acquire: async (): Promise<void> => undefined,
         update: async (
           run: (
             swap: SwapFn,
@@ -249,6 +250,58 @@ describe("dictionaryUpdate", () => {
       state.infoResponse = "Update";
       await checkForDictionaryUpdate(context, { manual: false });
       expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
+    });
+
+    it("reopens a dictionary that failed on an old schema, once the new one lands", async () => {
+      // WHY: this is how every user meets a schema change. After the extension updates, the old
+      // dictionary fails to open (`schema-older`) and the panel offers this update. The download
+      // fixes the file, but nothing reopened it, so the panel kept showing the failure until the
+      // next search.
+      const order: string[] = [];
+      downloadMock.mockImplementation(async () => {
+        order.push("download");
+        return "remote";
+      });
+      const words = {
+        status: {
+          state: "failed",
+          reason: "schema-older",
+          message: "schema 6"
+        } as const,
+        update: async (): Promise<void> => {
+          order.push("update");
+        },
+        acquire: async (): Promise<void> => {
+          order.push("reopen");
+        }
+      };
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
+      state.infoResponse = "Update";
+      await checkForDictionaryUpdate(context, {
+        manual: true,
+        dictionaries: { words }
+      });
+      expect(order).toEqual(["download", "reopen"]);
+    });
+
+    it("leaves a dictionary nobody opened closed", async () => {
+      // WHY: names are opt-in and open on first use. Updating them must not open them early.
+      const opened: string[] = [];
+      downloadMock.mockImplementation(async () => "remote");
+      const words = {
+        status: { state: "absent" } as const,
+        update: async (): Promise<void> => undefined,
+        acquire: async (): Promise<void> => {
+          opened.push("words");
+        }
+      };
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
+      state.infoResponse = "Update";
+      await checkForDictionaryUpdate(context, {
+        manual: true,
+        dictionaries: { words }
+      });
+      expect(opened).toEqual([]);
     });
 
     it("throttles the automatic check to once per 24h", async () => {

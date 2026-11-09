@@ -646,19 +646,34 @@ const fetchTatoeba = async (): Promise<{
  * Writes what the CODE currently defines. An id the code later drops is simply ignored at read
  * time, and an id it gains before the next rebuild falls back to a live count — which is what keeps
  * adding a category a code-only change rather than one that needs new data.
+ *
+ * Also writes `classifier_pair_counts`: for every two word classifiers, how many words are in both —
+ * what `refineCounts` returns with one tag applied (H-9). Built from the same word sets as the single
+ * counts, so the two tables cannot disagree. ~96² intersections, each walking the smaller set: a few
+ * seconds on the full dictionary.
  */
-const writeClassifierCounts = (db: DatabaseSync): number => {
+const writeClassifierCounts = (
+  db: DatabaseSync
+): { counts: number; pairs: number } => {
   const insert = db.prepare(
     "INSERT INTO classifier_counts(classifier_id, n) VALUES (?, ?)"
   );
+  const insertPair = db.prepare(
+    "INSERT INTO classifier_pair_counts(applied_id, classifier_id, n) VALUES (?, ?, ?)"
+  );
 
-  // Turso returns `any`; these two confine that boundary to one place rather than asserting at
-  // each of the six call sites below.
+  // `node:sqlite` returns loosely-typed rows; these confine that boundary to one place rather than
+  // asserting at each call site below.
   const countOf = (sql: string, ...params: Array<string | number>): number => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const row = db.prepare(sql).get(...params) as { n: number } | undefined;
     return row?.n ?? 0;
   };
+  const idsOf = (sql: string, ...params: Array<string | number>): Set<string> =>
+    new Set(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      (db.prepare(sql).all(...params) as Array<{ id: string }>).map((r) => r.id)
+    );
 
   // Tag-backed classifiers, attributed in a single scan. Prefix families (v5*, v1*, vs*) match by
   // range, so they are checked separately from the exact codes.
@@ -673,7 +688,24 @@ const writeClassifierCounts = (db: DatabaseSync): number => {
     }
   }
 
-  const seen = new Map<string, Set<string>>();
+  // The words in each WORD classifier (tags, JLPT, frequency) — DISTINCT words, not rows: a word with
+  // three `v5*` senses is one godan verb, not three.
+  const members = new Map<string, Set<string>>();
+  for (const c of CLASSIFIER_BY_ID.values()) {
+    if (c.kind === "tag") members.set(c.id, new Set());
+    else if (c.kind === "jlpt") {
+      members.set(c.id, idsOf("SELECT id FROM words WHERE jlpt = ?", c.level));
+    } else if (c.kind === "freq") {
+      members.set(
+        c.id,
+        idsOf(
+          "SELECT id FROM words WHERE freq_rank BETWEEN ? AND ?",
+          c.from,
+          c.to
+        )
+      );
+    }
+  }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const rows = db
     .prepare(
@@ -682,33 +714,21 @@ const writeClassifierCounts = (db: DatabaseSync): number => {
     )
     .all() as Array<{ kind: string; code: string; word_id: string }>;
   for (const r of rows) {
-    // DISTINCT words, not rows: a word with three `v5*` senses is one godan verb, not three.
     const hits = [
       ...(exact.get(`${r.kind}\t${r.code}`) ?? []),
       ...prefixes
         .filter((p) => p.tagKind === r.kind && r.code.startsWith(p.code))
         .map((p) => p.id)
     ];
-    for (const id of hits) {
-      const set = seen.get(id) ?? new Set<string>();
-      set.add(r.word_id);
-      seen.set(id, set);
-    }
+    for (const id of hits) members.get(id)?.add(r.word_id);
   }
 
+  db.exec("BEGIN");
   let written = 0;
   for (const c of CLASSIFIER_BY_ID.values()) {
     let n: number;
-    if (c.kind === "tag") {
-      n = seen.get(c.id)?.size ?? 0;
-    } else if (c.kind === "jlpt") {
-      n = countOf("SELECT COUNT(*) AS n FROM words WHERE jlpt = ?", c.level);
-    } else if (c.kind === "freq") {
-      n = countOf(
-        "SELECT COUNT(*) AS n FROM words WHERE freq_rank BETWEEN ? AND ?",
-        c.from,
-        c.to
-      );
+    if (c.kind !== "result") {
+      n = members.get(c.id)?.size ?? 0;
     } else if (c.result === "kanji") {
       n = countOf("SELECT COUNT(*) AS n FROM kanji_characters");
     } else if (c.result === "word") {
@@ -721,7 +741,28 @@ const writeClassifierCounts = (db: DatabaseSync): number => {
     insert.run(c.id, n);
     written++;
   }
-  return written;
+
+  // Every ordered pair, the diagonal included (a classifier applied to itself is its own size).
+  // Intersections are symmetric, so each is counted once and written both ways.
+  const sets = [...members];
+  let pairs = 0;
+  for (let i = 0; i < sets.length; i++) {
+    const [a, inA] = sets[i];
+    for (let j = i; j < sets.length; j++) {
+      const [b, inB] = sets[j];
+      const [small, large] = inA.size <= inB.size ? [inA, inB] : [inB, inA];
+      let n = 0;
+      for (const id of small) if (large.has(id)) n++;
+      insertPair.run(a, b, n);
+      pairs++;
+      if (a !== b) {
+        insertPair.run(b, a, n);
+        pairs++;
+      }
+    }
+  }
+  db.exec("COMMIT");
+  return { counts: written, pairs };
 };
 
 const HAS_KANJI = /[㐀-鿿豈-﫿]/u;
@@ -1344,7 +1385,9 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   console.log(`  tatoeba: ${tatoebaRows} pool sentence rows`);
 
   const classifierRows = writeClassifierCounts(db);
-  console.log(`  classifiers: ${classifierRows} precomputed counts`);
+  console.log(
+    `  classifiers: ${classifierRows.counts} precomputed counts, ${classifierRows.pairs} pair counts`
+  );
 
   // Attribution / provenance.
   const insMeta = db.prepare("INSERT INTO meta(key, value) VALUES (?, ?)");

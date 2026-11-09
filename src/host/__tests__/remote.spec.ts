@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-import type { Classifier } from "../../shared/classifiers";
+import { CLASSIFIER_BY_ID } from "../../shared/classifiers";
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY } from "../../shared/schema";
 import { SchemaVersionError, type Dictionary } from "../db";
 import { openRemote } from "../remote";
@@ -147,16 +147,14 @@ describe("dictionaries in a worker thread", () => {
     () => {
       it("leaves the extension host's thread free during a slow query", async () => {
         // WHY: this is the point of the worker. The extension host is ONE thread shared by every
-        // extension; run here, this query blocked all of them for its whole length (~1.7 s on the
-        // full dictionary — audit P-1). Measured through the worker: one timer tick (~16 ms).
-        const noun: Classifier = {
-          id: "noun",
-          label: "Nouns",
-          kind: "tag",
-          tagKind: "pos",
-          code: "n",
-          prefix: false
-        };
+        // extension; run here, a query like this blocked all of them for its whole length (~1.7 s on
+        // the full dictionary — audit P-1). Measured through the worker: one timer tick (~16 ms).
+        // Two tags applied, because one is now precomputed (H-9) and two are still counted live.
+        const applied = ["noun", "verb-suru"].map((id) => {
+          const c = CLASSIFIER_BY_ID.get(id);
+          if (!c) throw new Error(`no classifier "${id}"`);
+          return c;
+        });
         const remote = await openRemote<Dictionary>(WORKER, "words", DB_PATH);
         let last = performance.now();
         let worst = 0;
@@ -166,7 +164,7 @@ describe("dictionaries in a worker thread", () => {
           last = now;
         }, 1);
         const start = performance.now();
-        await remote.refineCounts([noun]);
+        await remote.refineCounts(applied);
         const took = performance.now() - start;
         clearInterval(timer);
         await remote.close();
