@@ -42,7 +42,14 @@ jobs:
       # Same reason as e2e.yml: the runner has no CJK font, and the component tests render Japanese
       # in a real Chromium. `PitchAccent.spec.tsx` measures geometry over kana, so without this it
       # was measuring tofu boxes rather than the glyphs a reader sees.
+      #
+      # Backgrounded: this is an apt download, and the database work below neither needs a font nor
+      # competes with one for CPU. Only `vp test` renders anything, so the wait sits there. Measured
+      # on the last release run: 12s of a 76s job spent waiting on apt with the runner otherwise
+      # idle.
       - name: Install CJK fonts
+        id: cjk-fonts
+        background: true
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
@@ -69,11 +76,19 @@ jobs:
       # NamesDictionary's only coverage is names.spec, which skips without this. --no-archive drops
       # the zstd release asset: compressing 409MB at level 19 takes longer than building it, and
       # nothing here consumes the archive. Measured: ~50s to build, ~120s to compress.
+      # Backgrounded for the same reason: 25s of the 76s job, and nothing between here and the
+      # verify step reads this database. It is the single longest step in the job.
       - name: Build the names database
+        id: names-db
+        background: true
         run: vp exec node scripts/build-data.ts --names --no-archive
 
       # A half-built DB would leave the specs skipping and this job green, so assert both artifacts
       # answer before trusting a run that depends on them.
+      # Everything backgrounded above must have landed before the suite reads it.
+      - name: Wait for the fonts and the names database
+        wait: [cjk-fonts, names-db]
+
       - name: Verify the databases
         run: |
           vp exec node scripts/verify-db.ts assets/jisho.db
