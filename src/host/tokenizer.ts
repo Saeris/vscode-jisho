@@ -1,8 +1,8 @@
 /**
  * Japanese morphological analysis via Lindera (Vibrato/MeCab-quality). Wraps the `lindera-nodejs`
  * NAPI binding behind a small typed service. Lazy-initialized via a dynamic `import()`: the native
- * addon load + IPADIC dictionary read (~200ms) are paid on the first Japanese query, never at
- * activation.
+ * addon load + IPADIC dictionary read (~9ms + ~39ms, measured below) are paid on the first Japanese
+ * query, never at activation.
  *
  * This used to import a local `vendor/lindera-nodejs` shim, because the published package shipped
  * without the napi-generated entry point that resolves its per-platform `.node` (docs/specs/14).
@@ -85,8 +85,9 @@ export const configureTokenizer = (compiledDictDir: string): void => {
  * `configureTokenizer`; falls back to the repo `assets/` copy so unit tests (which never call
  * `configureTokenizer`) resolve the dev dictionary.
  *
- * The dynamic `import()` is worth less than it looks and is kept for one specific reason. Measured:
- * importing the package is **9ms** (it loads the native `.node`), while `loadDictionary()` is
+ * The dynamic `import()` is worth less than it looks and is kept for one specific reason. Measured
+ * with a probe (no bench reproduces it — benches warm the tokenizer first): importing the package
+ * is **9ms** (it loads the native `.node`), while `loadDictionary()` is
  * **39ms** — and that stays lazy either way, because it happens here rather than at module scope.
  * What the dynamic form buys is that `extension.ts` imports THIS module at activation, so a
  * top-level `import "lindera-nodejs"` would load the addon for every user on every activation,
@@ -131,10 +132,11 @@ const tokenizer = lazy(buildTokenizer, { onFailure: "retry" });
  * cold tokenizer delays word results while the names query — which never tokenizes — answers
  * immediately. That asymmetry is visible as names appearing first on the first Japanese search.
  *
- * Measured cold: 23ms to load/instantiate the WASM, 192ms to build, ~4ms for the first tokenize.
- * Moving that ~220ms off the first query and into activation makes the tokenizer usually ready by
- * the time anyone types. It is fire-and-forget: failures surface on the real call, which has to
- * handle them anyway.
+ * Measured cold with the native binding (2026-07-29): the build is ~27ms, and a cold `segment()`
+ * with no warm-up costs ~24ms — down from ~220ms when the tokenizer was WASM. No bench reproduces
+ * these; they come from the startup trace (see `#warmTokenizerOnce` in webviewHost.ts). Warming
+ * still makes the tokenizer ready before anyone types. It is fire-and-forget: failures surface on
+ * the real call, which has to handle them anyway.
  */
 export const warmTokenizer = async (): Promise<void> => {
   try {

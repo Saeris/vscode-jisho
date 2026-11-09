@@ -42,7 +42,9 @@ const REFRESH_DELAY_MS = 150;
  * `segment()` resumes through the microtask queue, and VS Code's events — a keystroke, a scroll —
  * are macrotasks, so a pass that never yields cannot be interrupted at all: a probe saw a
  * "keystroke" run only after a whole 100-line pass had finished (audit SM-6), with every other
- * extension blocked for those ~80-200 ms (P-2). Yielding this often keeps a stall to about one slice.
+ * extension blocked for those ~80-200 ms (P-2: ~120 lines at the 0.68 ms a line that
+ * `bench/tokenize.bench.ts`, "highlight walk", measures). Yielding this often keeps a stall to
+ * about one slice.
  */
 const SLICE_MS = 8;
 
@@ -330,9 +332,9 @@ export class PosDecorator {
    * `refresh` because there the delay would be visible as uncoloured text the reader is already
    * looking at, whereas mid-word colouring is churn nobody reads.
    *
-   * The generation counter already stops a superseded pass cheaply (~3.6ms of an otherwise ~219ms
-   * viewport pass), so this is about the repaint that lands the moment typing stops, not about
-   * runaway work.
+   * A superseded pass stops within one slice (`SLICE_MS`), so this is about the repaint that lands
+   * the moment typing stops, not about runaway work. (This comment used to say the pass stopped
+   * "cheaply" when it could not stop at all — audit SM-6.)
    */
   refreshSoon(editor: vscode.TextEditor, delayMs = REFRESH_DELAY_MS): void {
     if (this.#disposed) return;

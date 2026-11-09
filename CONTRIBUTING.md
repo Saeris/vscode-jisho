@@ -2,7 +2,7 @@
 
 Thanks for looking. This file covers everything about _building_ the extension; [README.md](./README.md) covers using it.
 
-The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release. [CLAUDE.md](./CLAUDE.md) holds the contribution rules that apply to every change.
+The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release. [CLAUDE.md](./CLAUDE.md) holds the contribution rules that apply to every change. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) maps how the pieces fit together — the runtimes, the bridge, the state machines, and the data and release pipelines — and where each invariant is enforced.
 
 ## Getting set up
 

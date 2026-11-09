@@ -13,8 +13,9 @@
  *
  * Getting that right by hand means tracking `${}` nesting — reimplementing what the grammar already
  * does. Block comments spanning lines need their own state machine on top. The cost of NOT doing
- * that by hand is 0.069ms per line (measured on real TypeScript source), against a repaint path
- * already debounced 150ms.
+ * that by hand is 0.069ms per line (measured with a probe on real TypeScript source; no bench can
+ * reproduce it, because a grammar needs VS Code's extension API). `LineStates` keeps a hover or a
+ * repaint from paying it for every line above the one it needs.
  *
  * Nothing is bundled. Grammars are read from the editor the user is running, so a language they
  * have installed brings its own — which is why this generalises past JS/TS without a growing table.
@@ -390,7 +391,8 @@ const DOCUMENTS_KEPT = 16;
  * The tokenizing state at every 100th line of a document, for one version of it.
  *
  * The state at a line is defined by every line above it, so recovering it meant tokenizing from
- * line 0 — on every hover, which has no debounce: ~140 ms at line 2,000 (audit P-4). With
+ * line 0 — on every hover, which has no debounce: ~140 ms at line 2,000 (audit P-4: 2,000 lines
+ * at the 0.069 ms a line measured above; grammar.spec.ts counts lines instead of timing them). With
  * checkpoints, a lookup tokenizes from the nearest one at or above it: at most 99 lines. An edit
  * changes the document's version, which drops its checkpoints.
  */

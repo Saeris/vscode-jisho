@@ -1,6 +1,6 @@
 # Spec 21 — The errors the crash boundary does not catch
 
-**Backlog:** new. **Status:** SPECIFIED. Follows [spec 20](./20-crash-and-issue-reporting.md), which named this as a follow-up.
+**Backlog:** new. **Status:** IMPLEMENTED. Follows [spec 20](./20-crash-and-issue-reporting.md), which named this as a follow-up.
 
 ## What spec 20 actually left uncovered
 
