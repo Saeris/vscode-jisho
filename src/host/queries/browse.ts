@@ -40,7 +40,8 @@ const idsFor = async (
   // `w.sort_key`, denormalized onto `words` at build time, NOT a subquery into `kana`. The
   // correlated form made SQLite evaluate it for every candidate row before LIMIT could apply —
   // measured at ~2s for "Nouns" on the full dictionary, and identical at LIMIT 10, because the
-  // ordering was the entire cost. `idx_words_sort` now answers it directly.
+  // ordering was the entire cost. `idx_words_sort` now answers it directly; what it costs now is
+  // measured by `bench/dictionary.bench.ts`, "browse: #noun (frequency order)".
   const orderBy =
     order === "gojuon" ? `w.sort_key` : `w.freq_rank IS NULL, w.freq_rank`;
 
@@ -200,7 +201,8 @@ export const refineCounts = async (
   // Nothing applied — the overwhelmingly common case (the browse tree, and the first tag typed).
   // Read the counts the BUILD precomputed rather than deriving them: the live derivation scans all
   // 406,028 `sense_tags` rows, measured at ~2s on the full dictionary, for an answer that cannot
-  // change until the next dictionary build.
+  // change until the next dictionary build. (`bench/dictionary.bench.ts`, "refineCounts: nothing
+  // applied (precomputed)", measures this path.)
   //
   // A classifier the build did not know (added in code since) is simply absent, and falls through
   // to the live path below — which is what keeps adding a category a code-only change.
@@ -272,10 +274,12 @@ const ALL = -1;
  * How many words each WORD classifier holds, as the build precomputed them — or `undefined` to
  * count live.
  *
- * With no word filter applied that is `classifier_counts`; with one, `classifier_pair_counts` (H-9).
- * One applied tag is the usual case, and counting it live took up to 2 s for a broad tag like
- * `#noun`. Precomputed it is one indexed read. Undefined for two or more filters, whose combinations
- * are unbounded, and when the build did not count a classifier the code has since gained.
+ * With no word filter applied that is `classifier_counts`; with one, `classifier_pair_counts`
+ * (H-9). One applied tag is the usual case, and counting it live took up to 2 s for a broad tag
+ * like `#noun`. Precomputed it is one indexed read: `bench/dictionary.bench.ts`, "refineCounts:
+ * #noun applied", measured ~1,950 ms before and 0.29 ms after. Undefined for two or more filters,
+ * whose combinations are unbounded, and when the build did not count a classifier the code has
+ * since gained.
  */
 const precomputedWordCounts = async (
   store: SqliteStore,

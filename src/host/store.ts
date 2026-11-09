@@ -36,6 +36,12 @@ type Db = DatabaseSync;
  * already sub-millisecond are unchanged.
  */
 const PAGE_CACHE_KIB = 64 * 1024;
+
+/**
+ * Prepared statements kept per connection. Far more than the queries a session repeats — the
+ * fixed queries are a few dozen — so only one-off `IN (…)` lengths are ever dropped.
+ */
+export const STATEMENT_CACHE_SIZE = 256;
 type Statement = StatementSync;
 
 /**
@@ -104,16 +110,32 @@ export class SqliteStore {
    * result, so it dominated search latency at scale.
    *
    * Keyed on SQL text, so a query built from a variable-length parameter list gets one entry per
-   * distinct length. Those lists are short by design (see CONVENTIONS.md on why `IN (…)` is banned
-   * on indexed columns), which is what keeps this bounded.
+   * distinct length — and those lists are long and varied: CONVENTIONS.md prefers `IN (…)` for id
+   * batches, and `refineCounts` alone builds lists of up to 900. So the cache is capped, least
+   * recently used dropped first (audit I-4). It used to claim those lists were "short by design",
+   * citing a rule CONVENTIONS.md had since reversed.
    */
   #stmts = new Map<string, Statement>();
 
+  /** Statements currently cached. For the test that holds the cap. */
+  get cachedStatements(): number {
+    return this.#stmts.size;
+  }
+
   #prepare(sql: string): Statement {
     const cached = this.#stmts.get(sql);
-    if (cached) return cached;
+    if (cached) {
+      // Re-inserted, so the Map's order stays least-recently-used first.
+      this.#stmts.delete(sql);
+      this.#stmts.set(sql, cached);
+      return cached;
+    }
     const stmt = this.#db.prepare(sql);
     this.#stmts.set(sql, stmt);
+    if (this.#stmts.size > STATEMENT_CACHE_SIZE) {
+      const oldest = this.#stmts.keys().next();
+      if (oldest.done !== true) this.#stmts.delete(oldest.value);
+    }
     return stmt;
   }
 

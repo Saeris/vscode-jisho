@@ -2,7 +2,7 @@
 
 Thanks for looking. This file covers everything about _building_ the extension; [README.md](./README.md) covers using it.
 
-The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release. [CLAUDE.md](./CLAUDE.md) holds the contribution rules that apply to every change.
+The project uses [Vite+][viteplus] as a unified toolchain (Oxlint + Oxfmt + tsdown + Vitest) and [Bumpy][bumpy] for versioning and release. [CLAUDE.md](./CLAUDE.md) holds the contribution rules that apply to every change. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) maps how the pieces fit together — the runtimes, the bridge, the state machines, and the data and release pipelines — and where each invariant is enforced.
 
 ## Getting set up
 
@@ -81,9 +81,15 @@ The full dictionary (~320MB, ~218k entries) is too large to bundle, so installed
 
 The download comes from the GitHub Release of the schema the extension was built for: **`dictionary-v{SCHEMA_VERSION}`** (see `src/shared/schema.ts`). It is decoupled from extension releases, so a dictionary refresh does not need a new version. It is tied to the schema, so a schema change publishes to a new tag and never replaces data that an installed version can read.
 
-The "Dictionary Data" workflow (`.github/workflows/dictionary.yml`) builds and publishes it. It runs on every schema change, and you can run it by hand to refresh the data after an upstream dictionary update. It publishes the full word dictionary, the common one (for tests and contributors), and the optional **names dictionary** (JMnedict, ~743k entries, downloaded only when the user installs names).
+The "Dictionary Data" workflow (`.github/workflows/dictionary.yml`) builds and publishes it: the full word dictionary, the common one (for tests and contributors), and the optional **names dictionary** (JMnedict, ~743k entries, downloaded only when the user installs names).
 
-`dictionary-latest` is frozen at schema 6. Versions 0.1 to 0.3 download that tag and need schema 6 exactly, so the workflow publishes there only for schema 6 (`releaseTagsFor`).
+More than one schema is live at once, because every published version keeps downloading its own. So the workflow builds each schema that a published release reads, from the newest code that reads it: the current commit for its own schema, and the newest release tag for any older one (`scripts/data-builds.ts`). Tagging a release is what adds its schema to the set; there is no list to keep.
+
+- **A push** that changes the schema or the data build rebuilds the current schema only.
+- **A manual run** rebuilds every live schema. Run it after an upstream dictionary update, so the versions already installed get the new data too.
+- **A manual run with `publish` off** builds and checks everything and uploads nothing. Use it to test a change to the workflow on a branch.
+
+`dictionary-latest` is frozen at schema 6. Versions 0.1 to 0.3 download that tag and need schema 6 exactly, so only a schema-6 build publishes there (`releaseTagsFor`).
 
 E2E and local development run against the **common** build (`vp run build:data`), which holds ~22,000 words rather than ~218,000. Any headword a test types must exist there, not only in the full build.
 

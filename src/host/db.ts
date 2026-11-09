@@ -36,8 +36,9 @@ import type {
 
 /**
  * Thrown when a database's schema version doesn't match this build's expectation. Typed so the
- * delivery layer can distinguish "wrong shape, re-provision" from a genuine open/IO failure and
- * prompt the user to update rather than showing a raw SQL error.
+ * delivery layer can tell "wrong shape" from a genuine open/IO failure: `classifyFailure`
+ * (failure.ts) reads it as `schema-older` or `schema-newer`, and the panel offers the update that
+ * fits — the dictionary, or Jisho itself (`DictionaryNotice`) — rather than a raw SQL error.
  */
 export class SchemaVersionError extends Error {
   constructor(

@@ -36,6 +36,63 @@ import {
  */
 const REFRESH_DELAY_MS = 150;
 
+/**
+ * How long a pass works before it lets the extension host run something else.
+ *
+ * `segment()` resumes through the microtask queue, and VS Code's events — a keystroke, a scroll —
+ * are macrotasks, so a pass that never yields cannot be interrupted at all: a probe saw a
+ * "keystroke" run only after a whole 100-line pass had finished (audit SM-6), with every other
+ * extension blocked for those ~80-200 ms (P-2: ~120 lines at the 0.68 ms a line that
+ * `bench/tokenize.bench.ts`, "highlight walk", measures). Yielding this often keeps a stall to
+ * about one slice.
+ */
+const SLICE_MS = 8;
+
+/** Lines whose colouring is remembered. At ~120 lines a viewport, many screens' worth. */
+const LINE_CACHE_SIZE = 5000;
+
+/** Let the extension host handle pending events, then carry on. */
+const yieldToHost = async (): Promise<void> =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+/** One coloured stretch of a line: its category and its columns in the document's line. */
+interface Colouring {
+  category: PaletteCategory;
+  start: number;
+  end: number;
+}
+
+/**
+ * Each line's colouring, keyed by the line's text, least recently used dropped first.
+ *
+ * The colouring of a line depends only on its text, so scrolling back over text already coloured —
+ * or a repaint after an edit elsewhere — needs no tokenizer call for it. Keyed by text, not line
+ * number, so an edit that moves lines does not invalidate them.
+ */
+class LineCache {
+  readonly #lines = new Map<string, readonly Colouring[]>();
+
+  get(text: string): readonly Colouring[] | undefined {
+    const hit = this.#lines.get(text);
+    if (hit !== undefined) {
+      // Re-inserted, so the Map's order stays least-recently-used first.
+      this.#lines.delete(text);
+      this.#lines.set(text, hit);
+    }
+    return hit;
+  }
+
+  set(text: string, colouring: readonly Colouring[]): void {
+    this.#lines.set(text, colouring);
+    if (this.#lines.size > LINE_CACHE_SIZE) {
+      const oldest = this.#lines.keys().next();
+      if (oldest.done !== true) this.#lines.delete(oldest.value);
+    }
+  }
+}
+
 const isDecorated = (document: vscode.TextDocument): boolean =>
   SUPPORTED_LANGUAGES.includes(document.languageId);
 
@@ -82,6 +139,44 @@ const createDecorations = (id: PaletteId): DecorationSet => {
 const isColoured = (pos: string): pos is PaletteCategory =>
   (PALETTE_CATEGORIES as readonly string[]).includes(pos);
 
+/** The colouring of one line of text, in document columns. */
+const colourLine = async (text: string): Promise<Colouring[]> => {
+  // `"drop"` because this is ANALYSIS, not a rewrite: emphasis markers are removed so
+  // `彼に*遅れない*ように` reads as one Japanese run. The offset maps put the ranges back.
+  const stripped = stripRuby(text, "drop");
+  // Gate on the LINE, not the run. A run is whatever sits between punctuation, so
+  // `もしもし、私は…` splits into a kana-only run and a kanji-bearing one — and gating per run
+  // would skip もしもし, ゆっくり and every other kana word. That would silently erase the
+  // utterance category, which is almost entirely kana (もしもし, ああ, えと).
+  //
+  // The constraint the gate exists for is real but coarser: a line with NO kanji anywhere is
+  // usually not prose the tokenizer can segment reliably (no script transitions to anchor word
+  // boundaries on), and wrong colouring teaches wrong boundaries.
+  if (!hasKanji(stripped.text)) return [];
+  const colouring: Colouring[] = [];
+  for (const run of japaneseRuns(stripped.text)) {
+    const segments = await segment(run.text);
+    let offset = run.start;
+    for (const seg of segments) {
+      // Morphemes, not segments: auxiliaries are folded into their verb for searching
+      // (食べ+まし+た → 食べました), but colouring them separately is the point — it shows the
+      // internal structure of a conjugation.
+      for (const part of seg.parts) {
+        const end = offset + part.surface.length;
+        if (isColoured(part.pos)) {
+          colouring.push({
+            category: part.pos,
+            start: stripped.starts[offset],
+            end: stripped.ends[end - 1]
+          });
+        }
+        offset = end;
+      }
+    }
+  }
+  return colouring;
+};
+
 /**
  * Colour one editor's VISIBLE lines.
  *
@@ -92,6 +187,7 @@ const isColoured = (pos: string): pos is PaletteCategory =>
 const computeRanges = async (
   editor: vscode.TextEditor,
   superseded: () => boolean,
+  cache: LineCache,
   scopes?: CommentScopes
 ): Promise<Map<PaletteCategory, vscode.Range[]> | undefined> => {
   const ranges = new Map<PaletteCategory, vscode.Range[]>();
@@ -115,49 +211,33 @@ const computeRanges = async (
   const commentsByLine = await commentGate(document, lines, scopes);
   if (superseded()) return undefined;
 
+  let slice = performance.now();
   for (const lineNo of lines) {
-    // Checked per line rather than only at the end: a fast typist can supersede this pass several
-    // times over, and each line is a tokenizer call we would otherwise waste.
+    // Yield now and then, so a keystroke or a scroll can supersede this pass (see `SLICE_MS`) — and
+    // so the check below can ever see one.
+    if (performance.now() - slice > SLICE_MS) {
+      await yieldToHost();
+      slice = performance.now();
+    }
     if (superseded()) return undefined;
-    // `"drop"` because this is ANALYSIS, not a rewrite: emphasis markers are removed so
-    // `彼に*遅れない*ように` reads as one Japanese run. The offset maps put the ranges back.
-    const stripped = stripRuby(document.lineAt(lineNo).text, "drop");
-    // Gate on the LINE, not the run. A run is whatever sits between punctuation, so
-    // `もしもし、私は…` splits into a kana-only run and a kanji-bearing one — and gating per run
-    // would skip もしもし, ゆっくり and every other kana word. That would silently erase the
-    // utterance category, which is almost entirely kana (もしもし, ああ, えと).
-    //
-    // The constraint the gate exists for is real but coarser: a line with NO kanji anywhere is
-    // usually not prose the tokenizer can segment reliably (no script transitions to anchor word
-    // boundaries on), and wrong colouring teaches wrong boundaries.
-    if (!hasKanji(stripped.text)) continue;
     // In a code file, everything outside a comment is skipped before it is ever tokenized. A line
     // of code with no comment costs nothing beyond the lookup.
     const comments = commentsByLine?.get(lineNo);
     if (commentsByLine && (comments === undefined || comments.length === 0))
       continue;
-    for (const run of japaneseRuns(stripped.text)) {
-      const segments = await segment(run.text);
-      let offset = run.start;
-      for (const seg of segments) {
-        // Morphemes, not segments: auxiliaries are folded into their verb for searching
-        // (食べ+まし+た → 食べました), but colouring them separately is the point — it shows the
-        // internal structure of a conjugation.
-        for (const part of seg.parts) {
-          const end = offset + part.surface.length;
-          if (isColoured(part.pos)) {
-            const startCol = stripped.starts[offset];
-            const endCol = stripped.ends[end - 1];
-            // Checked on the DOCUMENT columns, after `stripRuby`'s offset map has put them back —
-            // the grammar tokenized the real line, so its spans are in the same coordinates.
-            if (!comments || within(comments, startCol, endCol))
-              ranges
-                .get(part.pos)
-                ?.push(new vscode.Range(lineNo, startCol, lineNo, endCol));
-          }
-          offset = end;
-        }
-      }
+    const { text } = document.lineAt(lineNo);
+    let colouring = cache.get(text);
+    if (colouring === undefined) {
+      colouring = await colourLine(text);
+      cache.set(text, colouring);
+    }
+    for (const { category, start, end } of colouring) {
+      // Checked on the DOCUMENT columns, after `stripRuby`'s offset map has put them back — the
+      // grammar tokenized the real line, so its spans are in the same coordinates.
+      if (!comments || within(comments, start, end))
+        ranges
+          .get(category)
+          ?.push(new vscode.Range(lineNo, start, lineNo, end));
     }
   }
   return ranges;
@@ -208,10 +288,23 @@ export class PosDecorator {
   #paletteId: PaletteId;
   #enabled: boolean;
   #codeComments: boolean;
-  /** Per-editor generation counter: a newer pass invalidates an in-flight older one. */
-  readonly #generation = new Map<string, number>();
+  /**
+   * The generation of each editor's newest pass: a newer pass invalidates an in-flight older one.
+   *
+   * Keyed by EDITOR, not document. Two editors on one document (a split view) each need their own
+   * pass over their own visible lines; keyed by document, the second cancelled the first, and only
+   * one of them was ever coloured (audit SM-6).
+   */
+  readonly #generation = new Map<vscode.TextEditor, number>();
+  /** Never reused, so a pass can never mistake a newer generation for its own. */
+  #nextGeneration = 0;
   /** Pending `refreshSoon` timers, keyed like `#generation`. */
-  readonly #pending = new Map<string, ReturnType<typeof setTimeout>>();
+  readonly #pending = new Map<
+    vscode.TextEditor,
+    ReturnType<typeof setTimeout>
+  >();
+  /** Every line's colouring by its text — see `LineCache`. */
+  readonly #lines = new LineCache();
   #disposed = false;
   /** Set once a pass has failed and been logged, so a persistent failure logs once. */
   #reportedFailure = false;
@@ -239,18 +332,17 @@ export class PosDecorator {
    * `refresh` because there the delay would be visible as uncoloured text the reader is already
    * looking at, whereas mid-word colouring is churn nobody reads.
    *
-   * The generation counter already stops a superseded pass cheaply (~3.6ms of an otherwise ~219ms
-   * viewport pass), so this is about the repaint that lands the moment typing stops, not about
-   * runaway work.
+   * A superseded pass stops within one slice (`SLICE_MS`), so this is about the repaint that lands
+   * the moment typing stops, not about runaway work. (This comment used to say the pass stopped
+   * "cheaply" when it could not stop at all — audit SM-6.)
    */
   refreshSoon(editor: vscode.TextEditor, delayMs = REFRESH_DELAY_MS): void {
     if (this.#disposed) return;
-    const key = editor.document.uri.toString();
-    clearTimeout(this.#pending.get(key));
+    clearTimeout(this.#pending.get(editor));
     this.#pending.set(
-      key,
+      editor,
       setTimeout(() => {
-        this.#pending.delete(key);
+        this.#pending.delete(editor);
         void this.refresh(editor);
       }, delayMs)
     );
@@ -285,7 +377,6 @@ export class PosDecorator {
   /** Repaint one editor. Safe to call often — an in-flight pass for the same editor is dropped. */
   async refresh(editor: vscode.TextEditor): Promise<void> {
     if (this.#disposed) return;
-    const key = editor.document.uri.toString();
 
     if (!this.#enabled || !isDecorated(editor.document)) {
       this.#clear(editor);
@@ -300,12 +391,12 @@ export class PosDecorator {
     }
 
     // Generation counter, not a CancellationToken: nothing hands us one here (decorations are
-    // pushed, not requested), so supersession is ours to track. A later pass for the same document
-    // bumps the counter, and any earlier pass still tokenizing sees it and abandons its work.
-    const generation = (this.#generation.get(key) ?? 0) + 1;
-    this.#generation.set(key, generation);
+    // pushed, not requested), so supersession is ours to track. A later pass for the same editor
+    // takes a newer generation, and any earlier pass still working sees it and abandons its work.
+    const generation = ++this.#nextGeneration;
+    this.#generation.set(editor, generation);
     const superseded = (): boolean =>
-      this.#disposed || this.#generation.get(key) !== generation;
+      this.#disposed || this.#generation.get(editor) !== generation;
 
     // Caught here because every caller discards this promise (`void this.refresh(...)`): a failure
     // in a pass — the tokenizer failing to build is the realistic one — was an unhandled rejection on
@@ -316,6 +407,7 @@ export class PosDecorator {
       ranges = await computeRanges(
         editor,
         superseded,
+        this.#lines,
         prose ? undefined : this.#scopes
       );
     } catch (err) {
@@ -326,6 +418,8 @@ export class PosDecorator {
       return;
     }
     if (ranges === undefined || superseded()) return;
+    // Done and still current: forget the editor, so a closed one is not kept alive by this map.
+    this.#generation.delete(editor);
 
     for (const category of PALETTE_CATEGORIES) {
       editor.setDecorations(

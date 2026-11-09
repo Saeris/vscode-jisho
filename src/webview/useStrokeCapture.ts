@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { lazy } from "../shared/lazy";
 import type { Point, Stroke } from "./recognizer/types";
 
 /** Recognize a set of drawn strokes, best candidates first. */
@@ -7,19 +8,23 @@ export type Recognize = (strokes: Stroke[], limit?: number) => string[];
 /**
  * The recognizer and its 6.7MB reference patterns load on demand, the first time a stroke is
  * completed, so the base webview bundle stays small — the chunk downloads only when someone actually
- * draws. Cached at module scope, so it is fetched once per session rather than per mount.
+ * draws. Shared at module scope, so it is fetched once per session rather than per mount.
+ *
+ * A failed load is forgotten, so the next stroke tries again. It used to be kept: one failed load
+ * left handwriting unable to recognize anything until the panel was reloaded.
  */
-let recognizerPromise: Promise<Recognize> | undefined;
-const loadRecognizerChunk = async (): Promise<Recognize> => {
-  recognizerPromise ??= (async (): Promise<Recognize> => {
+const recognizerChunk = lazy(
+  async (): Promise<Recognize> => {
     const [{ recognize }, { refPatterns }] = await Promise.all([
       import("./recognizer/index"),
       import("./recognizer/patterns")
     ]);
     return (strokes, limit = 8) => recognize(strokes, refPatterns, limit);
-  })();
-  return recognizerPromise;
-};
+  },
+  { onFailure: "retry" }
+);
+const loadRecognizerChunk = async (): Promise<Recognize> =>
+  recognizerChunk.get();
 
 export interface StrokeCapture {
   /** Committed strokes, for rendering. A new array each mutation so React sees the change. */

@@ -1,8 +1,8 @@
 /**
  * Japanese morphological analysis via Lindera (Vibrato/MeCab-quality). Wraps the `lindera-nodejs`
  * NAPI binding behind a small typed service. Lazy-initialized via a dynamic `import()`: the native
- * addon load + IPADIC dictionary read (~200ms) are paid on the first Japanese query, never at
- * activation.
+ * addon load + IPADIC dictionary read (~9ms + ~39ms, measured below) are paid on the first Japanese
+ * query, never at activation.
  *
  * This used to import a local `vendor/lindera-nodejs` shim, because the published package shipped
  * without the napi-generated entry point that resolves its per-platform `.node` (docs/specs/14).
@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Tokenizer as LinderaTokenizer } from "lindera-nodejs";
 import type { PartOfSpeech, SegmentDto } from "../shared/messages";
+import { lazy } from "../shared/lazy.ts";
 
 /** A built tokenizer instance (the class is a value; this is its instance type). */
 type Tokenizer = InstanceType<typeof LinderaTokenizer>;
@@ -68,7 +69,6 @@ const SUBCATEGORY_POS: Record<string, PartOfSpeech | undefined> = {
 const toPartOfSpeech = (tag: string, subcategory: string): PartOfSpeech =>
   SUBCATEGORY_POS[`${tag}:${subcategory}`] ?? POS_MAP[tag] ?? "other";
 
-let cached: Promise<Tokenizer> | undefined;
 let dictPath: string | undefined;
 
 /**
@@ -85,8 +85,9 @@ export const configureTokenizer = (compiledDictDir: string): void => {
  * `configureTokenizer`; falls back to the repo `assets/` copy so unit tests (which never call
  * `configureTokenizer`) resolve the dev dictionary.
  *
- * The dynamic `import()` is worth less than it looks and is kept for one specific reason. Measured:
- * importing the package is **9ms** (it loads the native `.node`), while `loadDictionary()` is
+ * The dynamic `import()` is worth less than it looks and is kept for one specific reason. Measured
+ * with a probe (no bench reproduces it — benches warm the tokenizer first): importing the package
+ * is **9ms** (it loads the native `.node`), while `loadDictionary()` is
  * **39ms** — and that stays lazy either way, because it happens here rather than at module scope.
  * What the dynamic form buys is that `extension.ts` imports THIS module at activation, so a
  * top-level `import "lindera-nodejs"` would load the addon for every user on every activation,
@@ -95,24 +96,7 @@ export const configureTokenizer = (compiledDictDir: string): void => {
  * (`import defer` would express this better — static syntax, evaluation on first access — but it is
  * TC39 stage 3 and Node 26 does not support it outside a V8 flag. Revisit when it ships.)
  */
-const getTokenizer = async (): Promise<Tokenizer> => {
-  if (cached) return cached;
-  const attempt = buildTokenizer();
-  cached = attempt;
-  // A failed build must not be cached for the session. It used to be: one failure — a dictionary in
-  // the wrong format, which is exactly what a Lindera bump causes — disabled the hover, the
-  // decorations, search lemmas and the editor commands until VS Code reloaded, while the database
-  // promises beside it retried on the next call (audit SM-5).
-  //
-  // Cleared only if it is still THIS attempt, so a failure cannot erase a newer build that started
-  // after it — the same race the database promises had.
-  try {
-    return await attempt;
-  } catch (err) {
-    if (cached === attempt) cached = undefined;
-    throw err;
-  }
-};
+const getTokenizer = async (): Promise<Tokenizer> => tokenizer.get();
 
 const buildTokenizer = async (): Promise<Tokenizer> => {
   const lindera = await import("lindera-nodejs");
@@ -134,16 +118,25 @@ const buildTokenizer = async (): Promise<Tokenizer> => {
 };
 
 /**
+ * The tokenizer, built on first use. A failed build is forgotten, so the next call tries again: one
+ * failure — a dictionary in the wrong format, which is exactly what a Lindera bump causes — used to
+ * disable the hover, the colouring, search lemmas and the editor commands until VS Code reloaded
+ * (audit SM-5).
+ */
+const tokenizer = lazy(buildTokenizer, { onFailure: "retry" });
+
+/**
  * Start building the tokenizer without waiting for it.
  *
  * `search` awaits the tokenizer BEFORE querying the database (the lemmas refine ranking), so a
  * cold tokenizer delays word results while the names query — which never tokenizes — answers
  * immediately. That asymmetry is visible as names appearing first on the first Japanese search.
  *
- * Measured cold: 23ms to load/instantiate the WASM, 192ms to build, ~4ms for the first tokenize.
- * Moving that ~220ms off the first query and into activation makes the tokenizer usually ready by
- * the time anyone types. It is fire-and-forget: failures surface on the real call, which has to
- * handle them anyway.
+ * Measured cold with the native binding (2026-07-29): the build is ~27ms, and a cold `segment()`
+ * with no warm-up costs ~24ms — down from ~220ms when the tokenizer was WASM. No bench reproduces
+ * these; they come from the startup trace (see `#warmTokenizerOnce` in webviewHost.ts). Warming
+ * still makes the tokenizer ready before anyone types. It is fire-and-forget: failures surface on
+ * the real call, which has to handle them anyway.
  */
 export const warmTokenizer = async (): Promise<void> => {
   try {

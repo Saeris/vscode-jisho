@@ -22,6 +22,43 @@ jobs:
     if: github.event.pull_request.head.ref == 'bumpy/version-packages'
     uses: ./.github/workflows/e2e.yml
 
+  # The Publish job's own steps, on the version PR, with nothing published (audit I-10, I-11). Tests
+  # never ran them: the dictionary check, the provisioning, the per-platform packaging, the publish
+  # script. So each broke for the first time AFTER the merge, in the Publish job, when the release
+  # was already under way. Here a broken step fails while there is still a PR to fix. Same order as
+  # release.yml; no tokens, because nothing is uploaded.
+  release-gate-package:
+    name: Release gate (packaging)
+    if: github.event.pull_request.head.ref == 'bumpy/version-packages'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "24.22"
+          cache: true
+
+      # Red until the data workflow has published this schema's dictionary — which is the point:
+      # merging before then would ship a version whose first run cannot download anything.
+      - name: Verify dictionary artifacts exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: vp exec node scripts/check-data-release.ts
+
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
+      # The oniguruma WASM, then the host and webview bundles, then one .vsix per platform — what
+      # Bumpy's `buildCommand` runs in the Publish job, after release.yml provisions the WASM.
+      - name: Build every platform package
+        run: vp run build:platforms
+
+      # Checks the packages, the publishing CLIs and what the Marketplace already has, then prints the
+      # commands the Publish job would run.
+      - name: Publish (dry run)
+        run: vp exec node scripts/publish-vsix.ts --dry-run
+
   ci:
     name: Check & Test
     runs-on: ubuntu-latest
@@ -81,3 +118,39 @@ jobs:
         run: vp run build:onig-wasm && vp pack
 
       - run: vp test
+
+  # Structural findings — megamorphic inline caches, deopt loops, hidden-class churn — in the four
+  # bounded workloads (`bench/*.bench.mjs`), against the baselines committed in `.deopt/baselines/`.
+  # Throughput depends on the machine, so it cannot gate; these depend on the code, so they can
+  # (bench/README.md). A new finding fails here. Accept one that is expected with
+  # `vp exec deoptkit ci --update --out-dir .deopt <workload>`, and commit the baseline.
+  deopt:
+    name: Deopt findings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Node 26, not the host's 24.22: the workloads cannot run on Node 24 at all. The bundle they
+      # load includes the handwriting recognizer, whose patterns decode with `Uint8Array.fromBase64`
+      # (Chromium 148 and Node 25+ only). That code runs in the webview, whose V8 is nearer Node
+      # 26's than Node 24's, and the baselines were recorded on Node 26.
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "26"
+          cache: true
+
+      # The editor-commands workload tokenizes.
+      - name: Provision the tokenizer dictionary
+        run: vp run build:tokenizer-dict
+
+      - name: Build the bench bundle
+        run: vp run bench:build
+
+      # Every workload, then fail: one finding should not hide another.
+      - name: Compare with the baselines
+        run: |
+          status=0
+          for workload in deinflect recognize editorCommands examples; do
+            vp exec deoptkit ci --out-dir .deopt "bench/$workload.bench.mjs" || status=1
+          done
+          exit $status

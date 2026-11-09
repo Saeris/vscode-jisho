@@ -67,7 +67,10 @@ const BROWSER_ONLY = [
   "src/webview/recognizer/__tests__/recognize.spec.ts",
   // `webviewShortcuts.ts` builds an `InputEvent` carrying a `DataTransfer` — both DOM constructors,
   // and the point of the module is that a REAL element consumes the event it dispatches.
-  "src/webview/components/__tests__/webviewShortcuts.spec.ts"
+  "src/webview/components/__tests__/webviewShortcuts.spec.ts",
+  // `speech.ts` takes `window.speechSynthesis` at import, and its tests drive the Web Speech API's
+  // event model (an EventTarget firing `voiceschanged`) the way the webview meets it.
+  "src/webview/__tests__/speech.spec.ts"
 ];
 
 /**

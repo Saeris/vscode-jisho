@@ -9,8 +9,8 @@ import styles from "./PlayButton.module.css";
  *
  * A query rather than a useState/useEffect pair: it is async state, which CONVENTIONS.md assigns to
  * TanStack Query, and the effect version re-ran the OS voice check once per mounted play button (a
- * kanji page has several). The answer depends on installed OS voices and so cannot change within a
- * session — `staleTime: Infinity` makes it happen once and be shared.
+ * kanji page has several). `staleTime: Infinity` makes it happen once and be shared; when the OS
+ * voices change, the app invalidates it (index.tsx), so buttons hidden for want of a voice appear.
  *
  * Colocated here rather than in `queries.ts`: that module is the BRIDGE-backed query registry (a
  * request type, a bridge function, a query), and this is a browser capability check. Putting it there
