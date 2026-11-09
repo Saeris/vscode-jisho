@@ -33,7 +33,9 @@ import type {
  * instead of breaking the run.
  */
 export const isWritingBaseline =
-  globalThis.process?.env.VITE_WRITE_BENCH === "1";
+  // `in` rather than `?.`: @types/node declares `globalThis.process` as always present, so the
+  // optional chain reads as unnecessary to the type checker while the runtime risk is real.
+  "process" in globalThis && process.env.VITE_WRITE_BENCH === "1";
 
 /** Where a case's recorded result lives. One file per bench — `writeResult` is a per-bench path. */
 export const baselinePath = (id: string): string =>

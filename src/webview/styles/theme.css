@@ -89,7 +89,7 @@ body {
  *      anything font-metric-dependent (`palt` kerning, `text-box-edge: cap alphabetic`) can not be
  *      set blind — it would land differently for every user. Those are left out.
  *   2. The runtime is a single known Chromium, not a browser matrix. Everything below is supported
- *      at our engine floor (VSCode ^1.123 → Chromium 148), so no fallbacks are needed. The one
+ *      at our engine floor (VSCode ^1.145, whose webview Chromium is newer than 148), so no fallbacks are needed. The one
  *      exception is `hanging-punctuation`, which Chromium has never shipped, so it is omitted.
  *
  * All of it is wrapped in `:where()` for zero specificity: these are defaults that every component

@@ -73,7 +73,7 @@ Install **Jisho: Offline Japanese Dictionary** from the Extensions view in VS Co
 
 > [!Note]
 >
-> Jisho requires **VS Code 1.123 or newer**.
+> Jisho requires **VS Code 1.145 or newer**.
 
 The first time you open the panel, Jisho downloads its dictionary. That is about 125 MB, which expands to around 450 MB on disk, and a progress notification tracks it. This happens once. After that, everything is local.
 

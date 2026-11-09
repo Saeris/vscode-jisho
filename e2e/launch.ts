@@ -31,7 +31,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
  * release silently swaps the binary (and re-downloads 224MB) under a suite that was green an hour
  * ago. Pin it so runs are reproducible and version bumps are a deliberate, reviewable change.
  */
-const VSCODE_VERSION = "1.128.1";
+const VSCODE_VERSION = "1.145.2";
 // A deliberately uncommon port. NOT 9229 (Node's default inspector) or 9222 (Chrome's default) —
 // attaching to a port some other process already owns risks driving/closing the user's real editor
 // or a debug session. We additionally verify the endpoint is OUR spawned process before using it.
