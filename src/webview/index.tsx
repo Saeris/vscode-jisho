@@ -10,7 +10,7 @@ import {
 } from "./bridge";
 import { recordRejections } from "./lastRejection";
 import { applySettings } from "./settings";
-import { isSpeechAvailable } from "./speech";
+import { isSpeechAvailable, onVoicesChanged } from "./speech";
 import "./styles/theme.css";
 import "./styles/posPalette.css";
 // After posPalette.css: that file defines the `--pos-*` values this one reads.
@@ -50,6 +50,12 @@ onDictionaryStatus(() => {
   const ready = getDictionaryStatus().words.state === "ready";
   if (ready && !wordsWereReady) void queryClient.invalidateQueries();
   wordsWereReady = ready;
+});
+
+// Ask again whether speech is available when the OS voices change: voices can load after the first
+// check, and the play buttons stay hidden until something asks (see `onVoicesChanged`).
+onVoicesChanged(() => {
+  void queryClient.invalidateQueries({ queryKey: ["speechAvailable"] });
 });
 
 const root = document.getElementById("root");

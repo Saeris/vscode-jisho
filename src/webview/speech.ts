@@ -6,6 +6,10 @@
  *
  * All webview-side; no host or data involvement. Degrades gracefully — `isSpeechAvailable()`
  * returns false when the runtime has no Japanese voice, so callers can hide their play controls.
+ *
+ * This module is the ONE owner of `speechSynthesis`, which is a single queue for the whole page.
+ * Anything that speaks goes through it, so starting new speech can stop everything else that is
+ * playing — see `takeQueue`.
  */
 
 const synth: SpeechSynthesis | undefined =
@@ -38,7 +42,8 @@ const PREFERRED_VOICE_HINTS = [
 
 /**
  * getVoices() populates asynchronously; resolve once it's non-empty (or immediately if already
- * loaded, or after `voiceschanged`, with a short timeout so we never hang).
+ * loaded, or after `voiceschanged`, with a short timeout so we never hang). Voices that arrive after
+ * the timeout are picked up by the `voiceschanged` listener below.
  */
 const loadVoices = async (): Promise<SpeechSynthesisVoice[]> => {
   if (!synth) return [];
@@ -52,6 +57,29 @@ const loadVoices = async (): Promise<SpeechSynthesisVoice[]> => {
 };
 
 let cachedJa: SpeechSynthesisVoice | null | undefined;
+
+/** Told when the voices change, so a play control hidden for want of a voice can reappear. */
+const voiceListeners = new Set<() => void>();
+
+/**
+ * Read the voices again whenever the OS list changes.
+ *
+ * The answer used to be cached for the session, `null` included: a first check that found no voice
+ * in its one second — a slow voice service, a voice pack installed later — hid every play button
+ * until VS Code restarted (audit SM-7).
+ */
+synth?.addEventListener("voiceschanged", () => {
+  cachedJa = undefined;
+  for (const listener of voiceListeners) listener();
+});
+
+/** Run `listener` whenever the available voices change. Returns the unsubscribe. */
+export const onVoicesChanged = (listener: () => void): (() => void) => {
+  voiceListeners.add(listener);
+  return (): void => {
+    voiceListeners.delete(listener);
+  };
+};
 
 /** The preferred Japanese voice, or null if none exists. Cached. */
 const japaneseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
@@ -84,13 +112,37 @@ const utter = (
   return u;
 };
 
-/** Speak one reading. Cancels anything currently playing first. */
+/** Every sequence that is playing. */
+const playing = new Set<SpeechSequence>();
+
+/**
+ * Take the page's speech queue: stop every sequence still playing, then clear the queue.
+ *
+ * A sequence tracked only its own token. When `speak()` or another sequence cleared the queue, the
+ * current reading ended, the sequence's wait for it resolved, and it went on to its NEXT reading,
+ * still reporting "playing" (audit SM-7). Cancelling it through its own token is what ends it.
+ */
+const takeQueue = (owner?: SpeechSequence): void => {
+  for (const sequence of playing) if (sequence !== owner) sequence.cancel();
+  synth?.cancel();
+};
+
+/** Speak one reading. Stops anything currently playing first, sequences included. */
 export const speak = async (text: string): Promise<void> => {
   const voice = await japaneseVoice();
   if (!synth || !voice) return;
-  synth.cancel();
+  takeQueue();
   synth.speak(utter(text, voice));
 };
+
+/**
+ * How long one reading may take before a sequence gives up waiting for its `end` event.
+ *
+ * Engines do not always fire it — Chromium is known to drop it for interrupted or long utterances —
+ * and a sequence waiting forever keeps reporting "playing". Generous: Japanese runs at about eight
+ * morae a second, and this allows two characters a second plus two seconds.
+ */
+const readingLimitMs = (text: string): number => 2000 + text.length * 500;
 
 /**
  * A cancellable player for a list of readings (kanji on/kun/nanori). Reads each in turn with a
@@ -109,7 +161,8 @@ export class SpeechSequence {
     const voice = await japaneseVoice();
     if (!synth || !voice || readings.length === 0) return;
     const token = ++this.#token;
-    synth.cancel();
+    takeQueue(this);
+    playing.add(this);
     this.#onStateChange(true);
     for (const reading of readings) {
       if (token !== this.#token) return; // superseded/cancelled
@@ -117,21 +170,30 @@ export class SpeechSequence {
       if (token !== this.#token) return;
       await delay(250);
     }
-    if (token === this.#token) this.#onStateChange(false);
+    if (token === this.#token) {
+      playing.delete(this);
+      this.#onStateChange(false);
+    }
   }
 
   cancel(): void {
     this.#token++;
+    playing.delete(this);
     synth?.cancel();
     this.#onStateChange(false);
   }
 
   async #speakOne(u: SpeechSynthesisUtterance, token: number): Promise<void> {
     return new Promise((resolve) => {
-      u.onend = (): void => resolve();
-      u.onerror = (): void => resolve();
-      if (token !== this.#token) {
+      const done = (): void => {
+        clearTimeout(limit);
         resolve();
+      };
+      const limit = setTimeout(done, readingLimitMs(u.text));
+      u.onend = done;
+      u.onerror = done;
+      if (token !== this.#token) {
+        done();
         return;
       }
       synth?.speak(u);
