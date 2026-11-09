@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { SCHEMA_VERSION } from "../../shared/schema";
 
 // In-memory stand-in for the slice of the vscode API dictionaryUpdate uses. Files are keyed by
 // fsPath; directory listings are derived from the keys under /storage.
@@ -83,7 +84,8 @@ const downloadMock = vi.fn<(destPath: string) => Promise<string>>(
     return "remote";
   }
 );
-let remoteVersion: string | undefined = "full 2026-08-01";
+let remoteVersion: string | undefined =
+  `full schema${SCHEMA_VERSION} 2026-08-01`;
 vi.mock("../download", () => ({
   DATA_RELEASE_BASE: "https://example.test/release",
   downloadDatabase: async (destPath: string) => downloadMock(destPath),
@@ -121,7 +123,7 @@ describe("dictionaryUpdate", () => {
     state.configUpdates = [];
     state.globalState = new Map();
     state.executedCommands = [];
-    remoteVersion = "full 2026-08-01";
+    remoteVersion = `full schema${SCHEMA_VERSION} 2026-08-01`;
     downloadMock.mockClear();
   });
 
@@ -130,19 +132,52 @@ describe("dictionaryUpdate", () => {
       // WHY: F5 dev refreshes from assets/ automatically; an "update available" prompt there is noise
       // and would point at a release the dev build doesn't use.
       files.set(BUNDLED_DB, "db");
-      files.set(CACHED_VERSION, "full 2026-07-01"); // even with an "older" cached version
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`); // even with an "older" cached version
       await checkForDictionaryUpdate(context, { manual: false });
       expect(state.infoMessages).toHaveLength(0);
     });
 
     it("offers to update when the release has a newer version", async () => {
       // WHY: the core of the feature — a newer data version must surface as a (dismissible) prompt.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponse = "Later"; // dismiss without downloading
       await checkForDictionaryUpdate(context, { manual: false });
       expect(
         state.infoMessages.some((m) => m.includes("newer dictionary"))
       ).toBe(true);
+      expect(downloadMock).not.toHaveBeenCalled();
+    });
+
+    it("never offers a dictionary built for another schema", async () => {
+      // WHY: the update REPLACES the working database. Offering one this build cannot open is not a
+      // failed update but a broken install — every lookup fails the schema check afterwards, and the
+      // update check then reports the unreadable version as installed, so nothing leads back out.
+      // This is what an installed 0.3.x would do if a new schema ever reached its release tag.
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
+      remoteVersion = `full schema${SCHEMA_VERSION + 1} 2026-12-01`;
+      state.infoResponse = "Update";
+      await checkForDictionaryUpdate(context, { manual: false });
+      expect(state.infoMessages).toHaveLength(0);
+      expect(downloadMock).not.toHaveBeenCalled();
+    });
+
+    it("tells a manual check that a newer schema needs a newer extension", async () => {
+      // WHY: "up to date" would be false and "update the dictionary" impossible — the only way
+      // forward is a newer Jisho, so that is what the user who asked is told.
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
+      remoteVersion = `full schema${SCHEMA_VERSION + 1} 2026-12-01`;
+      await checkForDictionaryUpdate(context, { manual: true });
+      expect(state.infoMessages.join(" ")).toMatch(/newer version of Jisho/u);
+      expect(downloadMock).not.toHaveBeenCalled();
+    });
+
+    it("treats a sidecar that does not name its schema as incompatible", async () => {
+      // WHY: an unverifiable shape must not get the benefit of the doubt — guessing wrong costs the
+      // user their working dictionary, while declining costs them one skipped update.
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
+      remoteVersion = "full 2026-12-01";
+      state.infoResponse = "Update";
+      await checkForDictionaryUpdate(context, { manual: false });
       expect(downloadMock).not.toHaveBeenCalled();
     });
 
@@ -164,7 +199,7 @@ describe("dictionaryUpdate", () => {
         files.set(dest, "downloaded");
         return "remote";
       });
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponse = "Update";
       try {
         await checkForDictionaryUpdate(context, {
@@ -190,7 +225,7 @@ describe("dictionaryUpdate", () => {
     it("still updates when no close callback is supplied", async () => {
       // WHY: the callback is optional so the update path stays callable without a provider. A
       // required parameter would make this module depend on the webview host to do its job.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponse = "Update";
       await checkForDictionaryUpdate(context, { manual: false });
       expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
@@ -199,7 +234,7 @@ describe("dictionaryUpdate", () => {
     it("throttles the automatic check to once per 24h", async () => {
       // WHY: an activation-frequency network check is wasteful; the throttle makes it daily. A check
       // that ran an hour ago must not fetch again.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.globalState.set(
         "dictionary.lastUpdateCheck",
         Date.now() - 60 * 60 * 1000 // 1h ago
@@ -210,7 +245,7 @@ describe("dictionaryUpdate", () => {
 
     it("ignores the throttle for a manual check", async () => {
       // WHY: the user explicitly asking must always run, regardless of when the last auto-check was.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.globalState.set("dictionary.lastUpdateCheck", Date.now());
       state.infoResponse = "Later";
       await checkForDictionaryUpdate(context, { manual: true });
@@ -221,7 +256,7 @@ describe("dictionaryUpdate", () => {
 
     it("respects the autoCheck opt-out for the automatic path only", async () => {
       // WHY: "Never" disables the automatic prompt; but a manual check must still work afterward.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.config.set("vscode-jisho.dictionary.autoCheck", false);
 
       await checkForDictionaryUpdate(context, { manual: false });
@@ -237,7 +272,7 @@ describe("dictionaryUpdate", () => {
     it("writes the opt-out setting when the user picks Never", async () => {
       // WHY: "Never" must persist so the daily prompt stops — a prompt that keeps reappearing after
       // "Never" is exactly the nag the dismissible model is meant to avoid.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponse = "Never";
       await checkForDictionaryUpdate(context, { manual: false });
       expect(state.configUpdates).toContainEqual({
@@ -249,7 +284,7 @@ describe("dictionaryUpdate", () => {
     it("reports up-to-date on a manual check but stays silent automatically", async () => {
       // WHY: a manual check should confirm "nothing to do"; the automatic one must never interrupt
       // when there's no news.
-      files.set(CACHED_VERSION, "full 2026-08-01"); // same as remote
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-08-01`); // same as remote
       await checkForDictionaryUpdate(context, { manual: false });
       expect(state.infoMessages).toHaveLength(0);
 
@@ -261,7 +296,7 @@ describe("dictionaryUpdate", () => {
 
     it("stays silent when the release is unreachable (offline)", async () => {
       // WHY: offline-first — a failed version fetch must never surface as an error on the auto path.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       remoteVersion = undefined;
       await checkForDictionaryUpdate(context, { manual: false });
       expect(state.infoMessages).toHaveLength(0);
@@ -271,7 +306,7 @@ describe("dictionaryUpdate", () => {
     it("downloads and offers a reload when the user accepts the update", async () => {
       // WHY: accepting must actually re-download and prompt a reload so the new (possibly reshaped) DB
       // is reopened. The download is atomic (download.ts), so the working DB is safe if it fails.
-      files.set(CACHED_VERSION, "full 2026-07-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-07-01`);
       state.infoResponses = ["Update", "Reload"]; // accept the update, then accept the reload
       await checkForDictionaryUpdate(context, { manual: false });
       expect(downloadMock).toHaveBeenCalledWith(CACHED_DB);
@@ -285,7 +320,7 @@ describe("dictionaryUpdate", () => {
       // files — both are dead weight. But the active word DB, its sidecar, and an opt-in names DB must
       // survive (deleting the names DB would force an unwanted re-download of a feature the user chose).
       files.set(CACHED_DB, "active");
-      files.set(CACHED_VERSION, "full 2026-08-01");
+      files.set(CACHED_VERSION, `full schema${SCHEMA_VERSION} 2026-08-01`);
       files.set("/storage/jisho-names.db", "names");
       files.set("/storage/jisho-names.db.version", "names v1");
       files.set("/storage/jisho-full.db@v1.db", "orphan"); // superseded by an upgrade

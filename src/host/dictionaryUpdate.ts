@@ -16,6 +16,7 @@ import {
   fetchRemoteVersion,
   readVersionSidecar
 } from "./download";
+import { SCHEMA_VERSION, schemaOfVersion } from "../shared/schema";
 
 const DB_NAME = "jisho.db";
 const NAMES_DB_NAME = "jisho-names.db";
@@ -80,6 +81,24 @@ export const checkForDictionaryUpdate = async (
     if (manual) {
       void vscode.window.showWarningMessage(
         "Jisho: couldn't reach the dictionary release. Check your connection and try again."
+      );
+    }
+    return;
+  }
+
+  // Never offer a database this build cannot open.
+  //
+  // The update replaces the WORKING database, so offering an incompatible one is not a failed update,
+  // it is a broken install: every lookup then fails on the schema check, and the update check would
+  // report the "new" version as installed. The sidecar names its schema (`full schema6 …`); one that
+  // does not, or names another, is treated as incompatible rather than given the benefit of the doubt.
+  const remoteSchema = schemaOfVersion(remote);
+  if (remoteSchema !== SCHEMA_VERSION) {
+    if (manual) {
+      void vscode.window.showInformationMessage(
+        remoteSchema !== undefined && remoteSchema > SCHEMA_VERSION
+          ? "Jisho: a newer dictionary is available, but it needs a newer version of Jisho. Update the extension to get it."
+          : "Jisho: no dictionary update is available for this version of Jisho."
       );
     }
     return;

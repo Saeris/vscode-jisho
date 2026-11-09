@@ -57,3 +57,32 @@ describe.skipIf(!SCHEMA_FROZEN)("schema drift guard", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("data release sidecars", () => {
+  it("reads the schema a release was built for", async () => {
+    // WHY: the update check and the data workflow both decide compatibility from this, so a sidecar
+    // whose token is misread would either brick installs or block every legitimate update.
+    const { schemaOfVersion } = await import("../schema");
+    expect(
+      schemaOfVersion("full schema6 2026-08-03 2026-08-10T01:14:07.082Z")
+    ).toBe(6);
+    expect(schemaOfVersion("names schema12 2026-08-03")).toBe(12);
+  });
+
+  it("reports an unnamed schema as unknown, never as a number", async () => {
+    // WHY: sidecars from before the token existed must read as "unknown" so callers refuse them;
+    // NaN or 0 would compare unequal by accident rather than by intent.
+    const { schemaOfVersion } = await import("../schema");
+    expect(
+      schemaOfVersion("full 2026-08-03 2026-08-08T04:22:10.194Z")
+    ).toBeUndefined();
+  });
+
+  it("keeps dictionary-latest at the schema every published version reads", async () => {
+    // WHY: 0.2.x and 0.3.x hardcode `dictionary-latest` and require schema 6 exactly. Changing this
+    // constant is the one edit that would let the data workflow break every installed copy, so it is
+    // pinned here: a schema change belongs on its own release tag, not on this one.
+    const { LATEST_TAG_SCHEMA } = await import("../schema");
+    expect(LATEST_TAG_SCHEMA).toBe(6);
+  });
+});

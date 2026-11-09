@@ -12,7 +12,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { SCHEMA_VERSION } from "../src/shared/schema.ts";
+import { SCHEMA_VERSION, schemaOfVersion } from "../src/shared/schema.ts";
 
 const TAG = "dictionary-latest";
 
@@ -105,7 +105,7 @@ const publishedSchema = (): number | undefined => {
       ".release-check/jisho-full.db.zst.version",
       "utf8"
     );
-    return Number(/schema(\d+)/u.exec(text)?.[1] ?? Number.NaN);
+    return schemaOfVersion(text) ?? Number.NaN;
   } catch {
     return undefined;
   }

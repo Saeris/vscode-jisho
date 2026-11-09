@@ -65,6 +65,14 @@ jobs:
       - name: Verify names dictionary
         run: vp exec node scripts/verify-db.ts assets/jisho-names.db --zst assets/jisho-names.db.zst --names
 
+      # `dictionary-latest` is FROZEN at schema 6. Every published version (0.2.x, 0.3.x) downloads
+      # that one tag and requires schema 6 exactly, so uploading any other schema there breaks every
+      # installed copy — and their update prompt would replace a working database with the new one.
+      # A schema change publishes to its own tag instead (docs/HARDENING-PLAN.md, H-8). Checked
+      # against the BUILT artifact's sidecar, which is what installs will read.
+      - name: Refuse another schema on dictionary-latest
+        run: vp exec node scripts/check-latest-schema.ts assets/jisho-full.db.zst.version
+
       # Publish to the rolling release. Upload the checksum + version sidecars FIRST and the large
       # `.zst` archives LAST: the client fetches `.sha256`/`.version` before the archive, so uploading
       # the archive before its checksum would leave a window where a mid-publish download fails
