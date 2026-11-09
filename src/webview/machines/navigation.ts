@@ -10,11 +10,11 @@
  * traverses session history natively when the X1/X2 mouse buttons are pressed — so on the surface
  * it looks like the platform could own all of this for free.
  *
- * It cannot, because session history is per-DOCUMENT. VS Code deallocates a `WebviewView`'s
- * document whenever the user collapses the view or switches activity-bar containers, and recreates
- * it on the way back; `retainContextWhenHidden` is a `WebviewPanel` option that views do not have
- * (microsoft/vscode#152110). The documented alternative is `setState`/`getState`, which is what
- * `persist` below uses — and that state survives, while `navigation.entries()` comes back empty.
+ * It cannot, because session history is per-DOCUMENT, and the document does not outlive a VS Code
+ * restart or a window reload. (It no longer dies when the sidebar collapses — the view retains its
+ * context now — but it used to, on the mistaken belief that views could not; audit I-14.) The
+ * documented alternative is `setState`/`getState`, which is what `persist` below uses — and that
+ * state survives, while `navigation.entries()` comes back empty.
  *
  * Adopting it would therefore mean two histories that disagree exactly when it matters: after a
  * restore we would hold a populated stack and an empty session history, and would have to
@@ -104,8 +104,8 @@ export interface NavContext {
    * scroll position, list virtualisation — lives in component state kept alive by the tab panels
    * being force-mounted rather than unmounted, so there is nothing to serialise and nothing to
    * restore. This one field is here because `<Activity>`-style preservation dies with the document,
-   * and VSCode deallocates the webview whenever the sidebar is collapsed; without persisting it the
-   * panel would reopen on Search no matter where the user was.
+   * which a VS Code restart or window reload recreates; without persisting it the panel would reopen
+   * on Search no matter where the user was.
    */
   tab: Tab;
   /**
@@ -184,7 +184,7 @@ export type NavEvent =
 // what every caller actually uses.
 // oxlint-disable-next-line typescript/explicit-function-return-type
 /**
- * Where the machine writes its context so it survives the webview document being deallocated.
+ * Where the machine writes its context so it survives the webview document being recreated.
  *
  * Injected rather than imported so the machine stays testable without a webview — the unit tests pass
  * a no-op, and only App wires in the real `persistState`.
@@ -447,9 +447,9 @@ export const navigationMachine: NavigationMachine = define(
 /**
  * The same machine seeded from state a previous incarnation of the webview persisted.
  *
- * VS Code deallocates a WebviewView's document when its container is hidden and recreates it on the
- * way back, and views have no `retainContextWhenHidden`, so this is the only way an open word or a
- * typed query survives the user glancing at their file tree.
+ * The document is recreated by a VS Code restart or a window reload, so this is how an open word or a
+ * typed query survives one. (Collapsing the sidebar no longer recreates it — the view retains its
+ * context.)
  */
 export const navigationMachineFrom = (
   persisted: unknown,

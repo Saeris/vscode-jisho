@@ -85,6 +85,7 @@ type WordRequest = Exclude<
   // The names dictionary's lifecycle, which needs the context and the names handle.
   | { type: "installNames" }
   | { type: "declineNames" }
+  | { type: "dictionaryAction" }
 >;
 
 /**

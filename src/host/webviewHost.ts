@@ -495,6 +495,22 @@ export class JishoViewProvider
       await this.#context.globalState.update(NAMES_DECLINED_KEY, undefined);
       return { type: "installNames", requestId: request.requestId };
     }
+    if (request.type === "dictionaryAction") {
+      if (request.action === "retry") {
+        // A fresh attempt; its progress and outcome reach the panel as status.
+        void this.warmDictionary();
+      } else if (request.action === "update") {
+        await vscode.commands.executeCommand(
+          "vscode-jisho.checkForDictionaryUpdates"
+        );
+      } else {
+        await vscode.commands.executeCommand(
+          "extension.open",
+          this.#context.extension.id
+        );
+      }
+      return { type: "dictionaryAction", requestId: request.requestId };
+    }
     if (request.type === "declineNames") {
       await this.#context.globalState.update(NAMES_DECLINED_KEY, true);
       return { type: "declineNames", requestId: request.requestId };

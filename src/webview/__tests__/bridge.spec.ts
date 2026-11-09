@@ -163,3 +163,83 @@ describe("host settings", () => {
     expect(seen).toEqual([{ textScale: 1.5, guideStyle: "aligned" }]);
   });
 });
+
+describe("webview bridge robustness", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("delivers an editor command that arrived before anything subscribed", async () => {
+    // WHY: `webviewReady` is posted while the bridge first loads, and the host answers it with any
+    // command it held — but App subscribes from an effect, after React's first commit. Four cold
+    // launches happened to subscribe first; nothing guaranteed it (audit SM-3).
+    const { bridge, deliver } = await setup();
+    deliver({ type: "hostPush", action: "search", text: "食べる" });
+    const received: unknown[] = [];
+    bridge.onHostPush((push) => received.push(push));
+    expect(received).toEqual([
+      { type: "hostPush", action: "search", text: "食べる" }
+    ]);
+  });
+
+  it("gives up on a request that never gets an answer", async () => {
+    // WHY: a lost answer used to leave its query pending forever — a search that never ended.
+    vi.useFakeTimers();
+    const { bridge } = await setup();
+    const promise = bridge.searchWords("eat");
+    vi.advanceTimersByTime(60_000);
+    await expect(promise).rejects.toThrow(/did not answer/u);
+  });
+
+  it("carries the dictionary's reason on a refused request", async () => {
+    // WHY: the reason is what lets the panel offer the right recovery — retry when offline, update
+    // when the schema is older — instead of treating every failure as a bug to report.
+    const { bridge, posted, deliver } = await setup();
+    const promise = bridge.searchWords("eat");
+    const sent = posted[0] as { requestId: string };
+    deliver({
+      type: "error",
+      requestId: sent.requestId,
+      message: "Couldn't download the dictionary.",
+      code: "offline"
+    });
+    await expect(promise).rejects.toMatchObject({ code: "offline" });
+  });
+
+  it("never reuses a request id in a new document", async () => {
+    // WHY: ids from a counter restarted at zero whenever the webview document was recreated, so an
+    // answer meant for the previous document could resolve a different request in the new one.
+    const first = await setup();
+    void first.bridge.searchWords("猫");
+    const before = (first.posted[0] as { requestId: string }).requestId;
+
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    const second = await setup();
+    void second.bridge.searchWords("犬");
+    const after = (second.posted[0] as { requestId: string }).requestId;
+    expect(after).not.toBe(before);
+  });
+
+  it("keeps the latest dictionary status, and tells subscribers", async () => {
+    // WHY: the panel reads the status at any time, not only when it changes — a view that mounts
+    // mid-download must see the download.
+    const { bridge, deliver } = await setup();
+    let notified = 0;
+    bridge.onDictionaryStatus(() => notified++);
+    deliver({
+      type: "dictionaryStatus",
+      words: { state: "downloading", percent: 40 },
+      names: { state: "absent" }
+    });
+    expect(bridge.getDictionaryStatus().words).toEqual({
+      state: "downloading",
+      percent: 40
+    });
+    expect(notified).toBe(1);
+  });
+});

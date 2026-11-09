@@ -12,10 +12,11 @@ import {
 import { Badge } from "../components/Badge";
 import { TagSearchField } from "../components/TagSearchField";
 import { JlptBadge } from "../components/JlptBadge";
+import { DictionaryNotice } from "../components/DictionaryNotice";
 import { NamesOffer } from "../components/NamesOffer";
 import { RecentSearches } from "../components/RecentSearches";
 import { SegmentBar } from "../components/SegmentBar";
-import { openSettings, recordRecentSearch } from "../bridge";
+import { HostError, openSettings, recordRecentSearch } from "../bridge";
 import { useNavigate } from "../navigation";
 import { ErrorState } from "../components/ErrorState";
 import styles from "./SearchResults.module.css";
@@ -324,6 +325,11 @@ export const SearchResults = ({
         </Button>
       </div>
 
+      {/* The dictionary's state when it is not simply ready: first-run download progress, or a
+          failure with the one action that fixes it. Above the results rather than in place of them,
+          so it is visible whatever was typed — including nothing, on the very first open. */}
+      <DictionaryNotice />
+
       {segments.length > 0 ? (
         <SegmentBar
           segments={segments}
@@ -537,6 +543,10 @@ const renderStatus = ({
   // and this is a plain function. `SearchResults` renders <RecentSearches /> instead.
   if (query.trim() === "") return null;
   if (isError) {
+    // A failure caused by the dictionary's STATE — still downloading, offline, the wrong schema — is
+    // explained by the notice above the results, with its own recovery. Showing it twice, the second
+    // time as something to report, is what this used to do.
+    if (error instanceof HostError && error.code !== undefined) return null;
     return (
       <ErrorState
         error={error}

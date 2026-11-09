@@ -462,6 +462,18 @@ export interface InstallNamesRequest {
   requestId: string;
 }
 
+/**
+ * Act on the dictionary from the panel: the recovery each failure needs.
+ *   - `retry`: try to download or open it again (offline, or any other failure).
+ *   - `update`: run the dictionary update check (an older schema).
+ *   - `updateJisho`: open Jisho's page in the Extensions view (a newer schema needs a newer Jisho).
+ */
+export interface DictionaryActionRequest {
+  type: "dictionaryAction";
+  requestId: string;
+  action: "retry" | "update" | "updateJisho";
+}
+
 /** The user declined the names offer under search results. Remembered across windows. */
 export interface DeclineNamesRequest {
   type: "declineNames";
@@ -556,6 +568,7 @@ export type Request =
   | GetNameRequest
   | InstallNamesRequest
   | DeclineNamesRequest
+  | DictionaryActionRequest
   | OpenSettingsRequest
   | CopyTextRequest
   | GetRecentSearchesRequest
@@ -729,6 +742,11 @@ export interface GetNameResponse {
   name: NameDetailDto | null;
 }
 
+export interface DictionaryActionResponse {
+  type: "dictionaryAction";
+  requestId: string;
+}
+
 export interface InstallNamesResponse {
   type: "installNames";
   requestId: string;
@@ -870,6 +888,7 @@ export type Response =
   | GetNameResponse
   | InstallNamesResponse
   | DeclineNamesResponse
+  | DictionaryActionResponse
   | OpenSettingsResponse
   | CopyTextResponse
   | GetRecentSearchesResponse

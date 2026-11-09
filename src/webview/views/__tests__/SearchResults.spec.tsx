@@ -38,6 +38,11 @@ const names = vi.hoisted(() => ({
   declines: 0
 }));
 
+const readyStatus = vi.hoisted(() => ({
+  words: { state: "ready" },
+  names: { state: "ready" }
+}));
+
 // SearchResults imports the bridge directly for the settings gear; the real module calls
 // acquireVsCodeApi at load, which exists only inside a real VS Code webview.
 vi.mock("../../bridge", () => ({
@@ -62,7 +67,14 @@ vi.mock("../../bridge", () => ({
   declineNames: vi.fn<() => Promise<void>>(async () => {
     names.declines++;
     names.offered = false;
-  })
+  }),
+  // The dictionary is ready in these tests; its other states have their own spec. One stable
+  // object, as the real bridge returns: `useSyncExternalStore` treats a new object as a change, and
+  // a getter that built one per call re-rendered forever.
+  getDictionaryStatus: () => readyStatus,
+  onDictionaryStatus: () => () => undefined,
+  dictionaryAction: vi.fn<() => Promise<void>>(async () => undefined),
+  HostError: class extends Error {}
 }));
 
 // The breakdown bar only renders when the host returns segments, which it does for a multi-word
