@@ -323,6 +323,11 @@ describeIfDb("browse by classifier", () => {
       // WHY: the live count once built its pool from the first 100,000 words of each applied tag.
       // `#noun` holds ~190,000, so with it applied every count covered only the most frequent nouns
       // — and the autocomplete hides a tag whose count is zero, so tags with results disappeared.
+      //
+      // Any cap below the tag's size shows here as a short count. The common build that CI and
+      // contributors use holds ~19,000 nouns, under that old cap, so there this catches only a
+      // smaller one; the full build catches the 100,000 cap itself. (This test once asserted the
+      // full build's size, and failed the release gate, which runs on the common build.)
       using raw = new DatabaseSync(DB_PATH, { readOnly: true });
       const nouns = raw
         .prepare(
@@ -331,7 +336,6 @@ describeIfDb("browse by classifier", () => {
             WHERE t.kind = 'pos' AND t.code = 'n'`
         )
         .get() as { n: number };
-      expect(nouns.n).toBeGreaterThan(100_000);
       const live = await liveWordCounts(store, [byId("noun")]);
       expect(live.noun).toBe(nouns.n);
     });
