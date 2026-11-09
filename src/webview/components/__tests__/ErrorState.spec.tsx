@@ -59,3 +59,27 @@ describe("error state", () => {
     expect(screen.getByText(/dictionary is not affected/i)).toBeDefined();
   });
 });
+
+describe("error state retry", () => {
+  it("offers Try again when the caller can retry, and runs it", () => {
+    // WHY: queries here never retry on their own, so without this a transient failure — offline
+    // during the first download, a dictionary update mid-flight — stayed until the query changed,
+    // and the only thing on offer was to report it (audit SM-9).
+    const retry = vi.fn<() => void>();
+    render(
+      <ErrorState
+        error={new Error("offline")}
+        context="searching"
+        onRetry={retry}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("offers no Try again when there is nothing to retry", () => {
+    // WHY: a button that does nothing is worse than none.
+    render(<ErrorState error={new Error("boom")} context="searching" />);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

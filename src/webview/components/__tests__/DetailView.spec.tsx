@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery
+} from "@tanstack/react-query";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import { DetailView } from "../DetailView";
 
@@ -93,5 +98,45 @@ describe("detailView", () => {
       expect(screen.getByText("水")).toBeDefined();
       unmount();
     }
+  });
+});
+
+describe("detail view recovery", () => {
+  /** A view backed by a real query that fails the first time and succeeds after. */
+  const Flaky = ({
+    load
+  }: {
+    load: () => Promise<string>;
+  }): React.ReactElement => {
+    const query = useQuery({ queryKey: ["flaky"], queryFn: load });
+    return (
+      <DetailView query={query} context="loading">
+        {(word) => <p>{word}</p>}
+      </DetailView>
+    );
+  };
+
+  it("recovers from a failed load with Try again", async () => {
+    // WHY: the app runs every query with `retry: false` and `staleTime: Infinity` and never
+    // invalidates, so a failed load was final while the view stayed open. This uses those same
+    // settings, so it fails the way the app did (audit SM-9).
+    let calls = 0;
+    const load = async (): Promise<string> => {
+      calls++;
+      if (calls === 1) throw new Error("the dictionary is being updated");
+      return "食べる";
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } }
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Flaky load={load} />
+      </QueryClientProvider>
+    );
+    await screen.findByText("the dictionary is being updated");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText("食べる");
+    expect(calls).toBe(2);
   });
 });

@@ -21,12 +21,22 @@ interface ErrorStateProps {
   context: string;
   /** Shown when the error carries no message of its own. */
   fallback?: string;
+  /**
+   * Run the failed request again. Offered first when present, because it is what fixes most of these.
+   *
+   * Queries never retry on their own here (`retry: false`, `staleTime: Infinity`), so without this a
+   * failure stayed on screen until the query changed: someone offline during the first download, or
+   * caught by a dictionary update, had to edit their search to try again — and the only thing on
+   * offer was to report a problem that a retry would have fixed (audit SM-9).
+   */
+  onRetry?: () => void;
 }
 
 export const ErrorState = ({
   error,
   context,
-  fallback = "Something went wrong."
+  fallback = "Something went wrong.",
+  onRetry
 }: ErrorStateProps): React.ReactElement => {
   const message = error instanceof Error ? error.message : fallback;
   return (
@@ -35,12 +45,19 @@ export const ErrorState = ({
       {/* Said here for the same reason the crash screen says it: a failure to load a word looks,
           to someone who just waited for a 450 MB download, like their dictionary is broken. */}
       <p className={styles.reassurance}>Your dictionary is not affected.</p>
-      <Button
-        className={styles.report}
-        onPress={() => void reportCrash(`${context}: ${message}`)}
-      >
-        Report this problem
-      </Button>
+      <div className={styles.actions}>
+        {onRetry ? (
+          <Button className={styles.retry} onPress={onRetry}>
+            Try again
+          </Button>
+        ) : null}
+        <Button
+          className={styles.report}
+          onPress={() => void reportCrash(`${context}: ${message}`)}
+        >
+          Report this problem
+        </Button>
+      </div>
     </div>
   );
 };

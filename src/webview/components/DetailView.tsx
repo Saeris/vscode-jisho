@@ -4,7 +4,7 @@ import { ErrorState } from "./ErrorState";
 import styles from "./DetailView.module.css";
 
 /**
- * The four fields this component reads from a query.
+ * The fields this component reads from a query.
  *
  * Deliberately structural rather than `Pick<UseQueryResult<T>, …>`: TanStack's result is a
  * discriminated union, so depending on it would couple the shell to the query library AND make it
@@ -16,6 +16,8 @@ export interface QueryState<T> {
   isPending: boolean;
   isError: boolean;
   error: unknown;
+  /** Run the query again — `useQuery`'s own `refetch`, which every caller already passes by shape. */
+  refetch?: () => unknown;
 }
 
 interface DetailViewProps<T> {
@@ -63,7 +65,7 @@ export const DetailView = <T,>({
   // Back/Home come from the navigation context rather than props: every one of the five callers
   // passed the same two closures over the same machine, and App wrote them out per call site.
   const { back, home } = useNavigate();
-  const { data, isPending, isError, error } = query;
+  const { data, isPending, isError, error, refetch } = query;
   const resolved = data ?? null;
   const blank = resolved === null || isEmpty?.(resolved) === true;
 
@@ -79,6 +81,7 @@ export const DetailView = <T,>({
             error={error}
             context={context}
             fallback="Failed to load."
+            onRetry={refetch ? (): void => void refetch() : undefined}
           />
         ) : blank ? (
           <p className={styles.empty}>{empty}</p>

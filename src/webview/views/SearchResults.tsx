@@ -94,6 +94,7 @@ export const SearchResults = ({
     isFetching,
     isError,
     error,
+    refetch,
     isPending: isPendingWords
   } = useQuery(searchQuery(deferredQuery));
   // Names come from a separate, opt-in database queried independently — a failure or first-use
@@ -335,6 +336,7 @@ export const SearchResults = ({
           isFetching,
           isError,
           error,
+          onRetry: (): void => void refetch(),
           count
         })
       )}
@@ -507,12 +509,14 @@ const renderStatus = ({
   isFetching,
   isError,
   error,
+  onRetry,
   count
 }: {
   query: string;
   isFetching: boolean;
   isError: boolean;
   error: unknown;
+  onRetry: () => void;
   count: number | undefined;
 }): React.ReactElement | null => {
   // The empty case is NOT handled here: it renders the recent-search history, which needs hooks,
@@ -520,7 +524,12 @@ const renderStatus = ({
   if (query.trim() === "") return null;
   if (isError) {
     return (
-      <ErrorState error={error} context="searching" fallback="Search failed." />
+      <ErrorState
+        error={error}
+        context="searching"
+        fallback="Search failed."
+        onRetry={onRetry}
+      />
     );
   }
   if (isFetching && count === undefined) {
