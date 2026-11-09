@@ -54,20 +54,48 @@ export const transformEditorText = async (
 ): Promise<void> => {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
-  const { document, selection } = editor;
-  const range = selection.isEmpty
-    ? new vscode.Range(
-        0,
-        0,
-        document.lineCount - 1,
-        document.lineAt(document.lineCount - 1).text.length
-      )
-    : new vscode.Range(
-        selection.start.line,
-        0,
-        selection.end.line,
-        document.lineAt(selection.end.line).text.length
-      );
-  const replaced = await transform(document.getText(range));
-  await editor.edit((edit) => edit.replace(range, replaced));
+  // Twice at most: once on the text as it was, and once more on the text as it is now if that
+  // changed while the transform ran.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { document, selection } = editor;
+    const version = document.version;
+    const range = selection.isEmpty
+      ? new vscode.Range(
+          0,
+          0,
+          document.lineCount - 1,
+          document.lineAt(document.lineCount - 1).text.length
+        )
+      : new vscode.Range(
+          selection.start.line,
+          0,
+          selection.end.line,
+          document.lineAt(selection.end.line).text.length
+        );
+    const replaced = await transform(document.getText(range));
+    // The transform awaits the tokenizer, so the document can change under it — typing, a
+    // formatter, another extension. VS Code then rejects the edit, and that rejection used to be
+    // ignored: the command did nothing and said nothing (audit I-12). Redo it on the current text.
+    if (document.version !== version) continue;
+    if (await applied(editor, range, replaced)) return;
+  }
+  void vscode.window.showWarningMessage(
+    "Jisho: the text changed while it was being rewritten, so it was left as it is. Try the command again."
+  );
+};
+
+/** Replace `range` with `text`. False when VS Code refuses — a newer version, or a closed editor. */
+const applied = async (
+  editor: vscode.TextEditor,
+  range: vscode.Range,
+  text: string
+): Promise<boolean> => {
+  try {
+    return await editor.edit((edit) => {
+      edit.replace(range, text);
+    });
+  } catch {
+    // `edit` throws, rather than answering false, on an editor that has been closed.
+    return false;
+  }
 };
