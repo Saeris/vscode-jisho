@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Autocomplete,
   Menu,
@@ -158,6 +158,103 @@ export const TagSearchField = ({
     setValue(next);
     onChange(textOf(next), tokensOf(next));
     revealCaret();
+  };
+
+  /**
+   * Show a draft without searching it.
+   *
+   * The field still updates — the reader must see what they are typing — but `onChange` is withheld,
+   * so no query is run for it.
+   */
+  const showWithoutSearching = (next: TagSearchValue): void => {
+    setValue(next);
+    revealCaret();
+  };
+
+  /**
+   * The last value withheld during composition, or null when nothing is pending.
+   *
+   * `compositionend` carries the committed TEXT, not a `TagSearchValue`, and rebuilding one from
+   * that text would lose the tokens already in the field. Keeping the value the field last computed
+   * is what lets the search fire with tags intact.
+   */
+  const pending = useRef<TagSearchValue | null>(null);
+
+  /**
+   * The current `onChange`, reachable from a listener that is subscribed once.
+   *
+   * The prop is a fresh arrow function on every render, so depending on it directly would tear down
+   * and re-add the listeners below on each keystroke — mid-composition, which is exactly when the
+   * IME must not be disturbed.
+   */
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  /**
+   * Whether the `onChange` now arriving belongs to an uncommitted IME draft.
+   *
+   * Written by a listener on the element rather than read from `window.event`: React Aria calls
+   * `onChange` from inside a `setState` updater, and `window.event` is already undefined by then —
+   * measured, it survives the synchronous listener and is gone one microtask later.
+   *
+   * The source of truth is the EVENT's own `isComposing`, not a flag latched on `compositionstart`.
+   * Measured in Chromium: Escape mid-composition abandons the draft WITHOUT a `compositionend` —
+   * that event does not arrive until blur — so a latched flag would stay stuck and silently
+   * suppress every search until the field lost focus. `isComposing` is false on the very next
+   * keystroke, which makes this self-correcting where a flag is not.
+   */
+  const composingInput = useRef(false);
+  useEffect((): (() => void) => {
+    const el = boxRef.current;
+    if (!el) return () => undefined;
+    const onInput = (e: Event): void => {
+      composingInput.current = e instanceof InputEvent && e.isComposing;
+    };
+    /**
+     * Search the committed word, once.
+     *
+     * Chromium delivers the committed text in an `input` event whose `isComposing` is still TRUE,
+     * and fires `compositionend` only after it — measured, in that order, for both the
+     * convert-on-Space path and a direct commit. So the final value is one that
+     * `applyUnlessComposing` WITHHELD, and this is where it gets searched; waiting for a later
+     * keystroke would mean never searching it at all.
+     */
+    const onCompositionEnd = (): void => {
+      composingInput.current = false;
+      const next = pending.current;
+      pending.current = null;
+      // Null when the composition changed nothing we withheld — an Escape that already resolved, or
+      // a commit identical to what was showing. Nothing to search.
+      if (next === null) return;
+      onChangeRef.current(textOf(next), tokensOf(next));
+    };
+    el.addEventListener("input", onInput);
+    el.addEventListener("compositionend", onCompositionEnd);
+    return (): void => {
+      el.removeEventListener("input", onInput);
+      el.removeEventListener("compositionend", onCompositionEnd);
+    };
+  }, [boxRef]);
+
+  /**
+   * Don't search what the IME has not committed yet.
+   *
+   * Typing 日本 passes through に, にほ, にほん before the kanji — drafts the reader never asked to
+   * look up. Searching each one is not merely wasted work: にほ is a real entry (二歩), so the
+   * results flash confidently wrong answers on the way to the right one.
+   *
+   * React Aria handles composition for the caret and the token DOM, but deliberately still emits
+   * `onChange` for every draft — its own comment says it keeps doing so "to ensure that things like
+   * autocomplete work". Withholding the search is therefore ours to do.
+   */
+  const applyUnlessComposing = (next: TagSearchValue): void => {
+    if (composingInput.current) {
+      pending.current = next;
+      showWithoutSearching(next);
+      return;
+    }
+    pending.current = null;
+    apply(next);
   };
 
   /**
@@ -327,7 +424,7 @@ export const TagSearchField = ({
           aria-label="Search the dictionary"
           role="searchbox"
           value={value}
-          onChange={apply}
+          onChange={applyUnlessComposing}
           className={styles.field}
           autoFocus
           onKeyDown={(e) => {

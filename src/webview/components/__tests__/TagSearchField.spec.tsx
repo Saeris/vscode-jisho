@@ -132,4 +132,94 @@ describe("tag search field", () => {
     expect(opened).toEqual([]);
     expect(changes.at(-1)?.tags).toEqual(["jlpt-n5"]);
   });
+
+  /**
+   * Drive an IME the way Chromium does, which is the only way these paths can be exercised:
+   * `userEvent` has no composition support of its own.
+   *
+   * The text is typed through `userEvent` rather than written to `textContent`, because React Aria
+   * reads edits via `beforeinput` and ignores the DOM being mutated behind its back — a helper that
+   * assigns `textContent` produces a field the library never sees, and tests that pass against it
+   * prove nothing about the product. (Measured: `onChange` never fired at all.)
+   *
+   * The ORDER is the part that matters, and it was measured against real Chromium via CDP
+   * `Input.imeSetComposition`: every draft arrives as an `input` with `isComposing` true, the
+   * COMMITTED text arrives the same way — still `isComposing` true — and `compositionend` comes
+   * last. A helper that fired `compositionend` before the final input would pass against an
+   * implementation that is wrong in the product.
+   */
+  const composeInto = async (
+    box: HTMLElement,
+    drafts: string[],
+    committed: string
+  ): Promise<void> => {
+    await userEvent.click(box);
+    box.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true })
+    );
+    // Each draft REPLACES the one before it, as an IME's composition region does.
+    let shown = "";
+    for (const draft of [...drafts, committed]) {
+      if (shown !== "") {
+        await userEvent.keyboard("{Backspace>" + shown.length + "/}");
+      }
+      await userEvent.keyboard(draft);
+      shown = draft;
+      // Mark what was just typed as composing, which is what the gate reads.
+      box.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          isComposing: true,
+          data: draft
+        })
+      );
+    }
+    box.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true, data: committed })
+    );
+  };
+
+  it("does not search the drafts an IME passes through on the way to a word", async () => {
+    // WHY: typing 日本 goes through に, にほ, にほん first. Those are not what the reader asked to
+    // look up, and にほ is a REAL entry (二歩), so searching drafts does not merely waste queries —
+    // it renders confidently wrong results on the way to the right ones.
+    //
+    // React Aria will not do this for us: it tracks composition for the caret and the token DOM but
+    // deliberately still emits `onChange` per draft, to keep autocomplete working. So this asserts
+    // OUR suppression, and it would fail the moment that gate is removed.
+    const { changes } = setup();
+    const box = screen.getByRole("searchbox");
+    await composeInto(box, ["に", "にほ", "にほん"], "日本");
+
+    expect(changes.map((c) => c.text)).not.toContain("にほ");
+    expect(changes.map((c) => c.text)).not.toContain("にほん");
+  });
+
+  it("searches the committed word exactly once", async () => {
+    // WHY: the counterpart to the test above, and the reason suppression cannot be the whole fix.
+    // Chromium delivers the committed text with `isComposing` STILL TRUE and only then fires
+    // `compositionend`, so the final value is one the gate withheld. If nothing searched it at
+    // `compositionend`, the word would never be searched at all — the field would go quiet, which
+    // is far worse than searching too often.
+    const { changes } = setup();
+    const box = screen.getByRole("searchbox");
+    await composeInto(box, ["に", "にほ", "にほん"], "日本");
+
+    expect(changes.filter((c) => c.text === "日本")).toHaveLength(1);
+    expect(changes.at(-1)?.text).toBe("日本");
+  });
+
+  it("keeps searching per keystroke when no IME is involved", async () => {
+    // WHY: romaji and English have no draft phase, so there is nothing to wait for — results should
+    // still track each keystroke. This guards the gate from over-reaching into the common path: a
+    // flag that latched on and never cleared would silently stop ordinary search, and nothing else
+    // in this file would notice.
+    const { changes } = setup();
+    const box = screen.getByRole("searchbox");
+    await userEvent.click(box);
+    await userEvent.keyboard("taberu");
+
+    expect(changes.at(-1)?.text).toBe("taberu");
+    expect(changes.length).toBeGreaterThan(1);
+  });
 });
