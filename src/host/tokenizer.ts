@@ -96,25 +96,41 @@ export const configureTokenizer = (compiledDictDir: string): void => {
  * TC39 stage 3 and Node 26 does not support it outside a V8 flag. Revisit when it ships.)
  */
 const getTokenizer = async (): Promise<Tokenizer> => {
-  cached ??= (async (): Promise<Tokenizer> => {
-    const lindera = await import("lindera-nodejs");
-    // Dev/test fallback: the repo-local compiled dictionary (produced/vendored under assets/).
-    const dir = dictPath ?? join(process.cwd(), "assets", "lindera-ipadic");
-    const dictionary = lindera.loadDictionary(dir);
-    // Layer our slang user-dictionary (colloquial words IPADIC lacks — きもい, うざい, エモい) if it
-    // was provisioned next to the compiled dict; degrade gracefully if it isn't present/loadable.
-    const csv = join(dir, "slang-userdict.csv");
-    let userDict = null;
-    if (existsSync(csv)) {
-      try {
-        userDict = lindera.loadUserDictionary(csv, new lindera.Metadata());
-      } catch {
-        userDict = null; // slang words just fall back to their shattered segmentation
-      }
+  if (cached) return cached;
+  const attempt = buildTokenizer();
+  cached = attempt;
+  // A failed build must not be cached for the session. It used to be: one failure — a dictionary in
+  // the wrong format, which is exactly what a Lindera bump causes — disabled the hover, the
+  // decorations, search lemmas and the editor commands until VS Code reloaded, while the database
+  // promises beside it retried on the next call (audit SM-5).
+  //
+  // Cleared only if it is still THIS attempt, so a failure cannot erase a newer build that started
+  // after it — the same race the database promises had.
+  try {
+    return await attempt;
+  } catch (err) {
+    if (cached === attempt) cached = undefined;
+    throw err;
+  }
+};
+
+const buildTokenizer = async (): Promise<Tokenizer> => {
+  const lindera = await import("lindera-nodejs");
+  // Dev/test fallback: the repo-local compiled dictionary (produced/vendored under assets/).
+  const dir = dictPath ?? join(process.cwd(), "assets", "lindera-ipadic");
+  const dictionary = lindera.loadDictionary(dir);
+  // Layer our slang user-dictionary (colloquial words IPADIC lacks — きもい, うざい, エモい) if it
+  // was provisioned next to the compiled dict; degrade gracefully if it isn't present/loadable.
+  const csv = join(dir, "slang-userdict.csv");
+  let userDict = null;
+  if (existsSync(csv)) {
+    try {
+      userDict = lindera.loadUserDictionary(csv, new lindera.Metadata());
+    } catch {
+      userDict = null; // slang words just fall back to their shattered segmentation
     }
-    return new lindera.Tokenizer(dictionary, "normal", userDict);
-  })();
-  return cached;
+  }
+  return new lindera.Tokenizer(dictionary, "normal", userDict);
 };
 
 /**

@@ -60,11 +60,19 @@ vi.mock("vscode", () => ({
 // The tokenizer is a native addon; the debounce has nothing to do with it, and loading it here
 // would make these tests depend on the dictionary being provisioned.
 const segmentCalls: string[] = [];
+/** Switched on by the test that needs the tokenizer to fail, as a bad dictionary would make it. */
+let segmentFails = false;
 vi.mock("../tokenizer", () => ({
   segment: async (text: string) => {
     segmentCalls.push(text);
+    if (segmentFails) throw new Error("tokenizer failed to build");
     return [];
   }
+}));
+
+const warnings: string[] = [];
+vi.mock("../log", () => ({
+  log: () => ({ warn: (message: string) => warnings.push(message) })
 }));
 
 const { PosDecorator } = await import("../posDecorations");
@@ -142,5 +150,35 @@ describe("posDecorator debounce", () => {
     vi.advanceTimersByTime(1000);
 
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("posDecorator failures", () => {
+  /** An editor showing one line of Japanese, enough for a pass to reach the tokenizer. */
+  const japaneseEditor = (): FakeEditor & Record<string, unknown> => ({
+    document: {
+      uri: { toString: () => "file:///notes.md" },
+      languageId: "markdown",
+      lineCount: 1,
+      lineAt: () => ({ text: "猫が好きです。" })
+    } as never,
+    visibleRanges: [{ start: { line: 0 }, end: { line: 0 } }],
+    setDecorations: () => undefined
+  });
+
+  it("logs a failed pass once and does not reject", async () => {
+    // WHY: every caller discards this promise (`void this.refresh(...)`), so a throw here was an
+    // unhandled rejection on every scroll and keystroke for as long as the tokenizer stayed broken
+    // (audit SM-6). Logged once, because a persistent failure repeats on every repaint after it.
+    segmentFails = true;
+    warnings.length = 0;
+    const decorator = new PosDecorator();
+    const editor = japaneseEditor();
+    await expect(decorator.refresh(editor as never)).resolves.toBeUndefined();
+    await expect(decorator.refresh(editor as never)).resolves.toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/colouring failed/u);
+    decorator.dispose();
+    segmentFails = false;
   });
 });
