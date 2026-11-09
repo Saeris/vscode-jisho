@@ -122,11 +122,18 @@ test("pasting a sentence lands it once, with the caret after it", async () => {
   await box.click();
   await box.press("ControlOrMeta+v");
 
-  expect(await searchText(frame)).toBe(paste);
+  // Waited for, not read once: the paste handler suppresses the native paste, reads the clipboard
+  // (asynchronously) and re-inserts it — see clipboard.e2e.ts. Read at once, this raced that insert
+  // and saw an empty box, failing the release gate on 2026-11-09 with nothing wrong.
+  await expect(async () => {
+    expect(await searchText(frame)).toBe(paste);
+  }).toPass({ timeout: 5000 });
 
   // And the caret is after it: typing appends rather than landing at the start.
   await box.pressSequentially("か");
-  expect(await searchText(frame)).toBe(`${paste}か`);
+  await expect(async () => {
+    expect(await searchText(frame)).toBe(`${paste}か`);
+  }).toPass({ timeout: 5000 });
 });
 
 test("a sentence's results are labelled as partial matches", async () => {
