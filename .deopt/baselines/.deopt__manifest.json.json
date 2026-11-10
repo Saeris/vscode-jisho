@@ -1,0 +1,55 @@
+{
+  "createdAt": "2026-11-09T23:50:21.207Z",
+  "script": ".deopt/manifest.json",
+  "findings": [
+    {
+      "identity": "deopt-loop|src/webview/recognizer/geometry.ts|extractFeatures|wrong map",
+      "kind": "deopt-loop",
+      "file": "src/webview/recognizer/geometry.ts",
+      "functionName": "extractFeatures",
+      "summary": "2 eager deopts at the same position (wrong map)"
+    },
+    {
+      "identity": "megamorphic-ic|src/shared/exampleLinks.ts|parseExampleMarkup|KeyedLoadIC",
+      "kind": "megamorphic-ic",
+      "file": "src/shared/exampleLinks.ts",
+      "functionName": "parseExampleMarkup",
+      "summary": "KeyedLoadIC at a dynamic-key site went megamorphic (2 recorded transitions over 2 distinct keys, e.g. \"adj\", \"n\") — often inherent to generic dispatch"
+    },
+    {
+      "identity": "deopt-loop|src/host/furigana.ts|addFuriganaToLine|wrong map",
+      "kind": "deopt-loop",
+      "file": "src/host/furigana.ts",
+      "functionName": "addFuriganaToLine",
+      "summary": "3 eager deopts at the same position (wrong map)"
+    },
+    {
+      "identity": "deopt-loop|src/shared/ruby.ts|toRubyMarkdown|wrong map",
+      "kind": "deopt-loop",
+      "file": "src/shared/ruby.ts",
+      "functionName": "toRubyMarkdown",
+      "summary": "2 eager deopts at the same position (wrong map)"
+    },
+    {
+      "identity": "map-churn|src/host/tokenizer.ts|buildTokenizer|Symbol(node:napi:type_tag),Symbol(node:napi:wrapper)",
+      "kind": "map-churn",
+      "file": "src/host/tokenizer.ts",
+      "functionName": "buildTokenizer",
+      "summary": "8 map transitions created in one function (properties: Symbol(node:napi:wrapper), Symbol(node:napi:type_tag))"
+    },
+    {
+      "identity": "megamorphic-ic|src/host/tokenizer.ts|toPartOfSpeech|KeyedLoadIC",
+      "kind": "megamorphic-ic",
+      "file": "src/host/tokenizer.ts",
+      "functionName": "toPartOfSpeech",
+      "summary": "KeyedLoadIC at a dynamic-key site went megamorphic (2 recorded transitions over 2 distinct keys, e.g. \"名詞\", \"連体詞\") — often inherent to generic dispatch"
+    },
+    {
+      "identity": "megamorphic-ic|src/host/spacing.ts|removeSpacingFromLine|at",
+      "kind": "megamorphic-ic",
+      "file": "src/host/spacing.ts",
+      "functionName": "removeSpacingFromLine",
+      "summary": "LoadIC for property \"at\" went megamorphic (7 recorded transitions) over 5 string representations (INTERNALIZED_ONE_BYTE_STRING_TYPE, SEQ_TWO_BYTE_STRING_TYPE, CONS_TWO_BYTE_STRING_TYPE, SEQ_ONE_BYTE_STRING_TYPE, … +1 more): V8-internal string kinds, not object shapes"
+    }
+  ]
+}

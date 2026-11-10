@@ -124,9 +124,8 @@ const componentProject: TestProjectConfiguration = {
     include: ["src/**/*.{test,spec}.tsx", ...BROWSER_ONLY],
     exclude: [...configDefaults.exclude, NOT_BENCH],
     // See the unit project: a bench variant resolves `benchmark.include` independently of
-    // `exclude`. Unset, this project pulled `bench/**` into a CHROMIUM tab — including the
-    // `*.bench.mjs` deoptkit workloads, which are not Vitest suites and failed on an unresolvable
-    // `deoptkit/harness` import.
+    // `exclude`. Unset, this project pulled `bench/**` into a CHROMIUM tab, where the Node-only
+    // benches cannot run.
     benchmark: { include: [] },
     browser: {
       enabled: true,
@@ -139,6 +138,16 @@ const componentProject: TestProjectConfiguration = {
     setupFiles: ["src/webview/__tests__/setup.ts"]
   }
 };
+
+/** Whether this is `vp run bench:profile`: the benches under V8 logging (deoptkit). */
+const IS_PROFILE_RUN = process.env.DEOPTKIT === "1";
+
+/**
+ * How many times a profile run calls each case. Vitest's time budget made a log as large as the case
+ * was fast: with every category on, the JS benches passed 6 GB. A fixed count bounds the logs and
+ * makes the findings repeat from run to run, which the CI gate needs (`deoptkit ci --manifest`).
+ */
+const PROFILE_ITERATIONS = 1_000;
 
 /**
  * Throughput benchmarks (`vp test bench`). Separate from the test projects because these answer a
@@ -160,9 +169,6 @@ const benchProject: TestProjectConfiguration = {
      * measure outside bench mode, deliberately, because benchmarks are flaky under a test runner.
      *
      * `benchmark.include` below is what claims these files, and only in bench mode.
-     *
-     * Only `.ts`: the sibling `*.bench.mjs` files are deoptkit PROFILING workloads, run under V8
-     * logging flags rather than by Vitest — they export no Vitest suite at all.
      */
     include: [],
     /**
@@ -174,7 +180,13 @@ const benchProject: TestProjectConfiguration = {
      * filter \"bench\"" while `vp test list` happily reported `[bench]`, which is a confusing pair
      * of answers to get from one config.
      */
-    benchmark: { enabled: IS_BENCH_RUN, include: ["bench/**/*.bench.ts"] },
+    benchmark: {
+      enabled: IS_BENCH_RUN,
+      include: ["bench/**/*.bench.ts"],
+      // deoptkit's provider applies a profile run's fixed count (see PROFILE_ITERATIONS). It is
+      // ours to set: the preset cannot, because spreading it would replace this whole key.
+      ...(IS_PROFILE_RUN ? { provider: "deoptkit/vitest/provider" } : {})
+    },
     environment: "node",
     /**
      * `vp run bench:profile` runs the same benches under V8 optimization logging (deoptkit).
@@ -191,11 +203,12 @@ const benchProject: TestProjectConfiguration = {
     // event per property access: profiling `refineCounts` that way wrote 8.4 GB before it was
     // stopped. `deopts,profile,sources` keeps the ticks — which answer "where does the time go" —
     // and drops the IC and map firehose.
-    ...(process.env.DEOPTKIT === "1"
+    ...(IS_PROFILE_RUN
       ? deoptKit({
           outDir: ".deopt",
           categories:
-            process.env.DEOPTKIT_CATEGORIES?.split(",").filter(isLogCategory)
+            process.env.DEOPTKIT_CATEGORIES?.split(",").filter(isLogCategory),
+          iterations: PROFILE_ITERATIONS
         })
       : {})
   }

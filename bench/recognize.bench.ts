@@ -1,10 +1,10 @@
 /**
  * Throughput benchmarks for the handwriting recognizer — the "did my change help?" measurement.
  *
- * This is the companion to `recognize.bench.mjs`, and they answer different questions:
- *   - the .mjs profile → deoptkit → WHY a path is slow (inline caches, deopts, where ticks go)
- *   - this file       → ops/sec + margin of error → WHETHER a change made it faster
- * Only the second can gate a regression, which is what makes it worth having.
+ * The same cases answer two questions, in two modes:
+ *   - `vp run bench`         → ops/sec + margin of error → WHETHER a change made it faster
+ *   - `vp run bench:profile` → deoptkit → WHY a path is slow (inline caches, deopts, where ticks go)
+ * Only the first can gate a regression on speed; the second gates structural findings in CI.
  *
  * Run:      vp run bench
  * Baseline: vp run bench:save     (writes bench/baselines/recognize-*.json)
@@ -12,15 +12,15 @@
  *
  * NEEDS NODE 25+. `patterns.ts` decodes with `Uint8Array.fromBase64`, which is a browser API that
  * only reached Node in 25 — the spec version of this code is routed to the browser project for the
- * same reason (see `BROWSER_ONLY` in vite.config.ts). Benchmarks are developer-only and never run
- * in CI, where the runner is pinned to 24.15, so this is a constraint rather than a problem; it is
- * recorded because the failure ("Uint8Array.fromBase64 is not a function") names the API and not
- * the reason.
+ * same reason (see `BROWSER_ONLY` in vite.config.ts). That is why CI's deopt job, which profiles
+ * this file, runs on Node 26 rather than the extension host's 24.22. It is recorded because the
+ * failure ("Uint8Array.fromBase64 is not a function") names the API and not the reason.
  *
  * Methodology — and why the inputs look like this — is in bench/README.md. The short version: cost
  * is driven by STROKE COUNT (17× across the range, non-monotonic, peaking at 9 strokes where the
  * ±2 candidate window admits 863 of 2,213 patterns), not by how wobbly the strokes are.
  */
+import { benchObserved } from "deoptkit/bench";
 import { it, describe } from "vite-plus/test";
 import { against, baselineFor } from "./baseline";
 import { recognize } from "../src/webview/recognizer/index";
@@ -64,14 +64,13 @@ describe("recognize", () => {
       bench,
       expect,
       "recognize-session-draw-9-strokes-worst-case-candidate-set",
-      bench(
+      benchObserved(
+        bench,
         "session: draw 食 (9 strokes, worst-case candidate set)",
-        baselineFor(
-          "recognize-session-draw-9-strokes-worst-case-candidate-set"
-        ),
         () => {
           for (const prefix of nineStroke) recognize(prefix, refPatterns);
-        }
+        },
+        baselineFor("recognize-session-draw-9-strokes-worst-case-candidate-set")
       )
     );
   });
@@ -82,12 +81,13 @@ describe("recognize", () => {
       bench,
       expect,
       "recognize-session-draw-4-strokes-typical",
-      bench(
+      benchObserved(
+        bench,
         "session: draw 水 (4 strokes, typical)",
-        baselineFor("recognize-session-draw-4-strokes-typical"),
         () => {
           for (const prefix of fourStroke) recognize(prefix, refPatterns);
-        }
+        },
+        baselineFor("recognize-session-draw-4-strokes-typical")
       )
     );
   });
@@ -101,12 +101,13 @@ describe("recognize", () => {
       bench,
       expect,
       "recognize-single-1-stroke-cheapest",
-      bench(
+      benchObserved(
+        bench,
         "single: 1 stroke (cheapest)",
-        baselineFor("recognize-single-1-stroke-cheapest"),
         () => {
           recognize(oneStroke, refPatterns);
-        }
+        },
+        baselineFor("recognize-single-1-stroke-cheapest")
       )
     );
   });
@@ -117,12 +118,13 @@ describe("recognize", () => {
       bench,
       expect,
       "recognize-single-9-strokes-peak-candidate-set",
-      bench(
+      benchObserved(
+        bench,
         "single: 9 strokes (peak candidate set)",
-        baselineFor("recognize-single-9-strokes-peak-candidate-set"),
         () => {
           recognize(nineComplete, refPatterns);
-        }
+        },
+        baselineFor("recognize-single-9-strokes-peak-candidate-set")
       )
     );
   });
@@ -135,14 +137,13 @@ describe("recognize", () => {
       bench,
       expect,
       "recognize-single-20-strokes-long-but-narrow-candidate-set",
-      bench(
+      benchObserved(
+        bench,
         "single: 20 strokes (long but narrow candidate set)",
-        baselineFor(
-          "recognize-single-20-strokes-long-but-narrow-candidate-set"
-        ),
         () => {
           recognize(twentyStroke, refPatterns);
-        }
+        },
+        baselineFor("recognize-single-20-strokes-long-but-narrow-candidate-set")
       )
     );
   });

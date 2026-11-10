@@ -19,6 +19,7 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { benchObserved } from "deoptkit/bench";
 import { describe, it } from "vite-plus/test";
 import { against, baselineFor } from "./baseline";
 import { segment } from "../src/host/tokenizer";
@@ -58,12 +59,13 @@ describe("tokenize", () => {
       bench,
       expect,
       "tokenize-document",
-      bench(
+      benchObserved(
+        bench,
         "tokenize 吾輩は猫である (~2,255 lines, line by line)",
-        { ...warmFirst, ...baselineFor("tokenize-document") },
         async () => {
           for (const line of corpus) await segment(line);
-        }
+        },
+        { ...warmFirst, ...baselineFor("tokenize-document") }
       ),
       heavy
     );
@@ -78,9 +80,9 @@ describe("tokenize", () => {
       bench,
       expect,
       "highlight-walk",
-      bench(
+      benchObserved(
+        bench,
         "highlight walk 吾輩は猫である (strip + runs + tokenize)",
-        { ...warmFirst, ...baselineFor("highlight-walk") },
         async () => {
           for (const line of corpus) {
             const stripped = stripRuby(line, "drop");
@@ -88,7 +90,8 @@ describe("tokenize", () => {
               if (HAS_KANJI.test(run.text)) await segment(run.text);
             }
           }
-        }
+        },
+        { ...warmFirst, ...baselineFor("highlight-walk") }
       ),
       heavy
     );
@@ -101,12 +104,13 @@ describe("tokenize", () => {
       bench,
       expect,
       "tokenize-sentence",
-      bench(
+      benchObserved(
+        bench,
         "tokenize one sentence",
-        { ...warmFirst, ...baselineFor("tokenize-sentence") },
         async () => {
           await segment(sentence);
-        }
+        },
+        { ...warmFirst, ...baselineFor("tokenize-sentence") }
       )
     );
   });

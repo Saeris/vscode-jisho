@@ -4,7 +4,6 @@
     "src/extension.ts",
     "src/webview/index.tsx",
     "scripts/*.ts",
-    "bench/entry.ts",
     "e2e/**/*.e2e.ts",
     "**/__tests__/**/*.{ts,tsx}",
     "**/*.spec.{ts,tsx}"

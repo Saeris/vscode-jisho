@@ -505,7 +505,7 @@ Work is a platform seam (`"browser"` entry point + two thin backends), not a rew
 
 ### 41. Benchmarking and performance strategy (infrastructure — pilot done)
 
-Full spec: [specs/07-performance.md](specs/07-performance.md). A working deoptkit benchmark exists (`bench/recognize.bench.mjs`, `vp run bench:build`) and the profile→findings→verify loop is proven against the real recognizer.
+Full spec: [specs/07-performance.md](specs/07-performance.md). A working deoptkit benchmark exists (`bench/recognize.bench.ts`, profiled with `vp run bench:profile`) and the profile→findings→verify loop is proven against the real recognizer.
 
 The pilot's most useful result was a negative one: `recognize()` costs 17ms warm against 2,213 patterns, and **67% of that is `endPointDistance` + `initialDistance`, neither of which produced a deoptkit finding**. The 12 findings (4 eager deopts, 8 polymorphic ICs — no megamorphic sites, no deopt loops) sit in `coarseClassification`/`fineClassification`, worth ~2% of ticks. So shape-fixing here would be a rounding error; the real win is algorithmic (shrink the candidate set the coarse filter walks). The tool earned its keep by telling us what NOT to spend a day on.
 

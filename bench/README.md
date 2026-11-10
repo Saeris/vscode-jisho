@@ -1,12 +1,12 @@
 # Benchmarks
 
-Two kinds of benchmark live here, answering two different questions. Both matter; neither replaces the other.
+One file per subject (`*.bench.ts`), run in two modes that answer two different questions. Both matter; neither replaces the other.
 
-|           | `*.bench.ts` (Vitest)                  | `*.bench.mjs` (deoptkit)                    |
+|           | `vp run bench` (throughput)            | `vp run bench:profile` (deoptkit)           |
 | --------- | -------------------------------------- | ------------------------------------------- |
 | Question  | **Did my change make it faster?**      | **Why is this slow?**                       |
 | Output    | ops/sec, percentiles, margin of error  | inline-cache states, deopts, where ticks go |
-| Use it to | gate regressions, compare before/after | decide what to optimize                     |
+| Use it to | gate regressions, compare before/after | decide what to optimize; gate structure     |
 
 ## Throughput — "did my change help?"
 
@@ -29,18 +29,16 @@ With no baseline on disk, `bench:compare` just measures. A fresh checkout has no
 
 ## Profiling — "why is it slow?"
 
-There are two ways in, and they suit different workloads.
-
-### The Vitest benches under deoptkit — for "where does the time go?"
-
 ```
-vp run bench:profile                                   # every bench, V8-logged
+vp run bench:profile                                                  # every bench, V8-logged
 vp run bench:profile -- bench/dictionary.bench.ts -t "refineCounts"   # narrowed
 ```
 
-This runs the same `*.bench.ts` cases with deoptkit's Vitest preset (deoptkit 0.2+, Vitest 5): one V8 log per worker in `.deopt/`, a `manifest.json` for the MCP server's `load_manifest`, and a `findings.json` that `deoptkit lsp` shows as editor diagnostics. Every case is wrapped in `benchObserved`, so each has `<name>_start`/`<name>_end` window markers. It is a separate mode from `bench:compare` on purpose — logging slows every case, so a baseline recorded under it would make every later comparison read as a regression.
+This runs the same cases under deoptkit's Vitest preset (deoptkit 0.3+, Vitest 5): one V8 log per worker in `.deopt/`, a `manifest.json` for the MCP server's `load_manifest`, and a `findings.json` that `deoptkit lsp` shows as editor diagnostics. Every case is wrapped in `benchObserved`, so each has `<name>_start`/`<name>_end` window markers. It is a separate mode from `bench:compare` on purpose: logging slows every case, so a baseline recorded under it would make every later comparison read as a regression, and `against()` does not compare while profiling.
 
-**Narrow what is logged for anything heavy.** The preset logs every category by default, which means an inline-cache event per property access for as long as a case runs. Profiling `refineCounts` that way wrote **8.4 GB** before it was stopped, and the JS-only benches together passed 6 GB. For ticks alone — the question that usually matters — set:
+**Each case runs a fixed number of times.** Vitest normally runs a case for a time budget, so under logging a fast case ran hundreds of thousands of times: with every category on, the JS benches passed 6 GB, and `refineCounts` alone wrote 8.4 GB before it was stopped. A profile run instead calls each case `PROFILE_ITERATIONS` times (1,000, in `vite.config.ts`), through deoptkit's benchmark provider, with no time budget and no warm-up. A case whose every call logs a lot asks for fewer with `profileRuns(n)` (in `baseline.ts`), which a throughput run ignores: the dictionary cases run 30 times, because each query logs an inline-cache event per row it walks. Measured with every category on: 27–32 MiB per JS subject, 81 MiB for the dictionary (657 MiB at 1,000 calls). About 27 MiB of every log is written before the first case runs.
+
+**For ticks alone, narrow the categories.** `deopts,profile,sources` keeps the ticks, which answer "where does the time go", and drops the inline-cache and map events:
 
 ```
 DEOPTKIT_CATEGORIES=deopts,profile,sources vp run bench:profile -- bench/dictionary.bench.ts
@@ -49,21 +47,23 @@ vp exec node --prof-process .deopt/v8-<pid>.log      # the worker whose log hold
 
 The worker that ran a case is the log containing its marker: `grep -l "__DEOPT_MARK__refineCounts_noun" .deopt/*.log`.
 
-### The `*.bench.mjs` workloads — for "is anything shaped badly?"
-
-```
-vp run bench:build                                   # profiles BUILT output: bundling changes shapes
-vp exec deoptkit ci --out-dir .deopt bench/examples.bench.mjs   # structural findings vs baseline
-vp exec deoptkit ci --update --out-dir .deopt <script.mjs>      # accept the current findings
-```
-
-These run a **fixed** iteration count through deoptkit's `observed()` harness, so their logs stay bounded with every category on — which is why they still exist alongside the Vitest benches. Folding them in is possible, but only once the profile mode caps iterations the same way.
-
 With the deopt MCP server connected (deoptkit's plugin), `profile_run` / `get_findings` / `list_functions` answer the same questions interactively; `load_manifest` loads a `bench:profile` run.
 
-`.deopt/baselines/` **is committed**, unlike `bench/baselines/`, and the difference is the point: throughput is a property of the machine, while a megamorphic IC or a deopt loop is a property of the code. So findings port across machines and can gate; ops/sec cannot. The baselines were re-recorded for deoptkit 0.2.0, which keys an `obj[key]` site by code position rather than by runtime key — so the old baselines reported the same sites as "new" and "no longer occurring" at once. All four workloads matched on a second run on the same machine.
+### The structural gate
 
-`deoptkit ci` **is a CI gate** (the `deopt` job in `ci.yml`): a new finding in any of the four workloads fails the build. It runs on **Node 26**, not the extension host's 24.22, because the workloads cannot run on Node 24 at all — the bundle they load includes the handwriting recognizer, whose patterns decode with `Uint8Array.fromBase64` (Chromium 148 and Node 25+ only). When a finding is expected (a refactor can move one: wrapping the tokenizer build in `lazy()` changed the map-churn finding's function name from empty to `buildTokenizer`), accept it with `vp exec deoptkit ci --update --out-dir .deopt <workload>` and commit the baseline in the same change.
+`deoptkit ci` **is a CI gate** (the `deopt` job in `ci.yml`). It profiles the four plain-JS subjects (deinflect, recognize, editorCommands, examples) and compares the run's findings with the committed baseline; a new finding fails the build. The fixed count is what makes this work: the same run gives the same findings, here and on the CI runner.
+
+```
+vp run bench:profile -- bench/deinflect.bench.ts bench/recognize.bench.ts bench/editorCommands.bench.ts bench/examples.bench.ts
+vp exec deoptkit ci --out-dir .deopt --manifest .deopt/manifest.json            # compare
+vp exec deoptkit ci --update --out-dir .deopt --manifest .deopt/manifest.json   # accept the current findings
+```
+
+`.deopt/baselines/` **is committed**, unlike `bench/baselines/`, and the difference is the point: throughput is a property of the machine, while a megamorphic IC or a deopt loop is a property of the code. So findings port across machines and can gate; ops/sec cannot. The baseline (`.deopt__manifest.json.json`, named after the manifest's path) was built with `--accumulate` over three runs and matched a fourth. Run the same four files when you update it: a run over fewer reports the rest as findings that no longer occur.
+
+The gate runs on **Node 26**, not the extension host's 24.22, because the recognizer bench cannot run on Node 24 at all: its patterns decode with `Uint8Array.fromBase64` (Chromium 148 and Node 25+ only). When a finding is expected (a refactor can move one: wrapping the tokenizer build in `lazy()` changed the map-churn finding's function name from empty to `buildTokenizer`), accept it with `--update` and commit the baseline in the same change.
+
+These benches run `src/` through Vite's module runner, not the built bundle that the old `*.bench.mjs` workloads loaded (they were folded in on 2026-11-09, HARDENING-PLAN D-6). V8 inlines differently across the two, so a finding can report in a different function: the `alignReading` deopt loop now reports in its caller, `addFuriganaToLine`.
 
 **Ticks and findings often disagree — trust the ticks.** On the recognizer, the flagged inline-cache sites hold ~1.5% of CPU while the two functions holding 67% produce no findings at all. On the dictionary it is starker: `refineCounts` spends **4%** of its ticks in JavaScript and the rest in SQLite and the Windows I/O beneath it, so no change to the JS could win more than 4%. Findings tell you what is _shaped_ badly; ticks tell you what is _costing_ you.
 

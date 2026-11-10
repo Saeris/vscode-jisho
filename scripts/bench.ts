@@ -22,7 +22,10 @@ const MODES = {
 const isMode = (value: string): value is keyof typeof MODES =>
   Object.hasOwn(MODES, value);
 
-const [mode = "", ...files] = process.argv.slice(2);
+const [mode = "", ...rest] = process.argv.slice(2);
+// `vp run bench:profile -- <files>` forwards the `--` as well, and Vitest ignores every argument
+// after one, so the files never narrowed the run until it was dropped here.
+const files = rest[0] === "--" ? rest.slice(1) : rest;
 if (!isMode(mode)) {
   console.error(`usage: bench.ts <${Object.keys(MODES).join("|")}> [files…]`);
   process.exit(2);

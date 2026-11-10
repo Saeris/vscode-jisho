@@ -25,7 +25,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { benchObserved } from "deoptkit/bench";
 import { afterAll, beforeAll, describe, it } from "vite-plus/test";
-import { against, baselineFor } from "./baseline";
+import { against, baselineFor, profileRuns } from "./baseline";
 import { Dictionary } from "../src/host/db";
 import { CLASSIFIER_BY_ID, type Classifier } from "../src/shared/classifiers";
 
@@ -43,6 +43,15 @@ const classifier = (id: string): Classifier => {
  * whole-document tokenizer cases make).
  */
 const heavy = { iterations: 5 };
+
+/**
+ * How many times a profile run calls the other cases. Each query logs an inline-cache event per row
+ * it walks: at the project's 1,000 calls the widest searches wrote ~123 MiB each and this file's log
+ * 657 MiB. About 60 MiB of it is fixed (the log before the first case, and the heavy browse), and
+ * each call of the other cases adds about 0.6 MiB, so 30 calls keep the log at 81 MiB with every
+ * category on (measured 2026-11-09, `vp run bench:profile -- bench/dictionary.bench.ts`).
+ */
+const profiled = profileRuns(30);
 
 let sink = 0;
 
@@ -82,7 +91,8 @@ describe.skipIf(!existsSync(DB_PATH))("dictionary", () => {
           sink += (await dict.search(query)).length;
         },
         baselineFor(id)
-      )
+      ),
+      profiled
     );
   });
 
@@ -101,7 +111,8 @@ describe.skipIf(!existsSync(DB_PATH))("dictionary", () => {
           sink += (await dict.resolveByLemma("食べる", "verb")) ? 1 : 0;
         },
         baselineFor(id)
-      )
+      ),
+      profiled
     );
   });
 
@@ -126,7 +137,8 @@ describe.skipIf(!existsSync(DB_PATH))("dictionary", () => {
           sink += (await dict.getWord(resolved.id))?.senses.length ?? 0;
         },
         baselineFor(id)
-      )
+      ),
+      profiled
     );
   });
 
@@ -156,7 +168,8 @@ describe.skipIf(!existsSync(DB_PATH))("dictionary", () => {
           sink += Object.keys(await dict.refineCounts([])).length;
         },
         baselineFor(id)
-      )
+      ),
+      profiled
     );
   });
 
@@ -218,7 +231,8 @@ describe.skipIf(!existsSync(DB_PATH))("dictionary", () => {
           sink += (await dict.getKanji("日"))?.literal.length ?? 0;
         },
         baselineFor(id)
-      )
+      ),
+      profiled
     );
   });
 });
