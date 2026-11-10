@@ -1,11 +1,12 @@
 /**
- * Publish every platform .vsix built by package-platforms.ts to the VS Code Marketplace. Run by
- * Bumpy's publishCommand on release (needs VSCE_PAT in the env).
+ * Publish every platform .vsix built by package-platforms.ts to the VS Code Marketplace, then to
+ * Open VSX. Run by Bumpy's publishCommand on release (needs VSCE_PAT, and OVSX_PAT until Open VSX
+ * trusted publishing is set up; see release.yml).
  *
- * Marketplace only, deliberately: v1 targets the editor the extension was built and tested in.
- * Open VSX is a separate distribution story — a second registry, its own token and namespace
- * claim, and editors (VSCodium, Cursor, Gitpod) none of which are part of the release test. It was
- * dropped rather than shipped untested; see docs/ROADMAP.md.
+ * The Marketplace is finished before Open VSX starts (see `publishAll`), so an Open VSX problem
+ * cannot half-publish a Marketplace release. A failure on either still fails the run, and Bumpy then
+ * holds back the version tag and leaves the GitHub release a draft until a re-run succeeds;
+ * packages the Marketplace already has are skipped on that re-run. See docs/ROADMAP.md.
  */
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
