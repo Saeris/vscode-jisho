@@ -260,6 +260,38 @@ CREATE TABLE radicals (
   position     TEXT
 );
 
+-- ── Regional forms (spec 22) ────────────────────────────────────────────────
+-- One character as China, Hong Kong, Taiwan and Japan write it: 学 in China and Japan, 學 in Hong
+-- Kong and Taiwan, and 學 also Japan's pre-reform form. Built by scripts/regional.ts (method adapted
+-- from hanji, MIT). Not limited to kanji_characters: a group whose Japanese form we have no entry for
+-- still answers a lookup by its Chinese form.
+CREATE TABLE regional_groups (
+  id        INTEGER PRIMARY KEY,
+  key       TEXT NOT NULL UNIQUE, -- the group's name, usually its traditional form
+  -- Which forms share a GLYPH, as a partition of (cn, hk, tw, jp), plus a fifth digit for the old form
+  -- when there is one: '0123' is four shapes, '0010' Taiwan's alone differs. Same digits, same glyph.
+  -- Code points cannot say this: 返 is one code point written four ways.
+  glyph_sig TEXT NOT NULL,
+  cp_sig    TEXT NOT NULL         -- the same partition of (cn, hk, tw, jp) by code point
+);
+
+-- One row per region, plus 'old' for Japan's pre-reform form (眞 for 真).
+CREATE TABLE regional_forms (
+  group_id INTEGER NOT NULL REFERENCES regional_groups(id),
+  region   TEXT NOT NULL,          -- 'cn' | 'hk' | 'tw' | 'jp' | 'old'
+  char     TEXT NOT NULL,
+  -- The region's own count where it has one (Taiwan from CNS 11643, Japan from Kanjidic2), so 返 is
+  -- 8 strokes in Taiwan and 7 in Japan. NULL when no source counts the form.
+  strokes  INTEGER,
+  -- The form's level on the region's list: China 1-3 (its 2013 table), Hong Kong 1, Taiwan 1
+  -- (common) or 2 (secondary), Japan 1 (jōyō) or 2 (kyōiku). 0: the list does not enter the form, and
+  -- always for 'old'.
+  tier     INTEGER NOT NULL,
+  PRIMARY KEY (group_id, region)
+) WITHOUT ROWID;
+
+CREATE INDEX idx_regional_forms_char ON regional_forms(char);
+
 -- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a
 -- single indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji.
 --   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char',  -- word entries

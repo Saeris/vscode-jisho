@@ -35,6 +35,22 @@ The extension's own source is [MIT](./LICENSE.md). The data below remains under 
 **[Example sentences](https://tatoeba.org/)** — from the Tatoeba project.
 Used under [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/deed.en). The curated Tanaka-corpus subset, embedded in JMdict through jmdict-simplified, provides the per-sense inline examples; the fuller Tatoeba corpus provides the word-level example pool.
 
+## Regional forms
+
+Which form of a character China, Hong Kong, Taiwan and Japan each write, whether two regions draw it the same way, and each form's list level and stroke count. These tables are built when the dictionary is built; none of the source files below ships with the extension.
+
+**[OpenCC](https://github.com/BYVoid/OpenCC)** — variant tables relating simplified, traditional, Hong Kong, Taiwan and Japanese forms.
+© Carbo Kuo and the OpenCC contributors, used under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+**[Source Han Sans](https://github.com/adobe-fonts/source-han-sans) and [Source Han Serif](https://github.com/adobe-fonts/source-han-serif)** — their per-region character maps, which tell whether two regions draw a character with the same glyph.
+© Adobe, used under the [SIL Open Font License 1.1](https://openfontlicense.org/). Source is a trademark of Adobe in the United States and/or other countries.
+
+**[Unihan database](https://www.unicode.org/charts/unihan.html)** — China's 2013 table of general standard characters, Hong Kong's list of graphemes, the jōyō kanji list, and stroke counts.
+© Unicode, Inc., used under the [Unicode License v3](https://www.unicode.org/license.txt).
+
+**[CNS 11643](https://www.cns11643.gov.tw/)** — Taiwan's lists of common and less-common characters, and Taiwan's official stroke counts.
+CNS 11643 Chinese Standard Interchange Code, National Development Council, Taiwan, used under the [Open Government Data License, version 1.0](https://data.gov.tw/license).
+
 ## Stroke-order drawings
 
 **[AnimCJK](https://github.com/parsimonhi/animCJK)** — stroke-order animations, © FM&SH.
@@ -55,6 +71,9 @@ The direction guides drawn over each stroke (numbered start markers and dashed a
 
 **[perfect-freehand](https://github.com/steveruizok/perfect-freehand)** — pressure-sensitive strokes for the handwriting input.
 © Steve Ruiz, [MIT](https://github.com/steveruizok/perfect-freehand/blob/main/LICENSE).
+
+**[hanji](https://github.com/sxzz/hanji)** — the method for grouping a character's regional forms and comparing their glyphs, adapted in `scripts/regional.ts`.
+© Kevin Deng, [MIT](https://github.com/sxzz/hanji/blob/main/LICENSE).
 
 **[Lindera](https://github.com/lindera/lindera)** — Japanese morphological analysis, with the IPADIC dictionary.
 © the Lindera authors, [MIT](https://github.com/lindera/lindera/blob/main/LICENSE). IPADIC is © Nara Institute of Science and Technology, under a BSD-style licence.
