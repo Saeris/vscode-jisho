@@ -38,7 +38,7 @@ interface Ours {
   chars: string[];
   old?: string;
   glyphSig: string;
-  strokes: (number | null)[];
+  strokes: Array<number | null>;
 }
 
 const dbPath = process.argv[2] ?? join(process.cwd(), "assets", "jisho.db");
@@ -49,32 +49,30 @@ for (const row of db
     `SELECT g.key, g.glyph_sig, f.region, f.char, f.strokes
        FROM regional_groups g JOIN regional_forms f ON f.group_id = g.id`
   )
-  .all() as {
-  key: string;
-  glyph_sig: string;
-  region: string;
-  char: string;
-  strokes: number | null;
-}[]) {
-  const held = groups.get(row.key) ?? {
-    key: row.key,
+  .all()) {
+  const key = String(row["key"]);
+  const char = String(row["char"]);
+  const held = groups.get(key) ?? {
+    key,
     chars: [],
-    glyphSig: row.glyph_sig,
+    glyphSig: String(row["glyph_sig"]),
     strokes: []
   };
-  const region = REGIONS.indexOf(row.region as (typeof REGIONS)[number]);
-  if (region === -1) held.old = row.char;
+  const region = REGIONS.findIndex((name) => name === row["region"]);
+  if (region === -1) held.old = char;
   else {
-    held.chars[region] = row.char;
-    held.strokes[region] = row.strokes;
+    held.chars[region] = char;
+    held.strokes[region] =
+      row["strokes"] === null ? null : Number(row["strokes"]);
   }
-  groups.set(row.key, held);
+  groups.set(key, held);
 }
 db.close();
 
 const res = await fetch(HANJI_DATA);
 if (!res.ok) throw new Error(`${HANJI_DATA}: ${res.status}`);
-const { rows } = (await res.json()) as { rows: HanjiRow[] };
+const data: { rows: HanjiRow[] } = await res.json();
+const { rows } = data;
 
 /** Renumber a partition by first appearance, after dropping Korea's digit. */
 const renumber = (digits: number[]): string => {
@@ -109,7 +107,9 @@ for (const row of rows) {
     ...(row.old ? [row.old.glyph] : [])
   ]);
   if (ours.glyphSig !== signature)
-    glyphs.push(`${row.key} ${theirs}: ours ${ours.glyphSig}, hanji ${signature}`);
+    glyphs.push(
+      `${row.key} ${theirs}: ours ${ours.glyphSig}, hanji ${signature}`
+    );
   for (const region of [0, 1, 3])
     if (ours.strokes[region] !== row.strokes[region])
       strokes.push(
@@ -125,7 +125,9 @@ const show = (label: string, lines: string[]): void => {
   console.log(`\n${label}: ${lines.length}`);
   for (const line of lines) console.log(`  ${line}`);
 };
-console.log(`ours ${groups.size} groups, hanji ${rows.length} rows (with Korea)`);
+console.log(
+  `ours ${groups.size} groups, hanji ${rows.length} rows (with Korea)`
+);
 show("only in hanji", onlyHanji);
 show("only in ours", onlyOurs);
 show("columns differ", columns);
