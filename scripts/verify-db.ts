@@ -92,6 +92,27 @@ if (isNames) {
     scalar("SELECT COUNT(*) AS c FROM classifier_pair_counts")
   );
   if (!(pairs > 0)) fail("classifier_pair_counts is empty");
+
+  // The regional forms (spec 22). 學 is 学 in China and Japan, 學 in Hong Kong and Taiwan, and 學 is
+  // Japan's pre-reform form: a pass run on a missing or misread source loses one of these.
+  const learn = scalar(
+    `SELECT group_concat(f.region || ':' || f.char, ' ' ORDER BY f.region)
+       FROM regional_forms f JOIN regional_groups g ON g.id = f.group_id
+      WHERE g.key = '學'`
+  );
+  if (learn !== "cn:学 hk:學 jp:学 old:學 tw:學")
+    fail(`regional forms of 學 are "${String(learn)}"`);
+
+  // Taiwan's official count, from CNS 11643: 返 is 8 strokes there and 7 in Japan. Unihan's single
+  // count would give 7, so this fails if Taiwan's stroke data did not come through.
+  const returnTw = Number(
+    scalar(
+      `SELECT f.strokes FROM regional_forms f JOIN regional_groups g ON g.id = f.group_id
+        WHERE g.key = '返' AND f.region = 'tw'`
+    )
+  );
+  if (returnTw !== 8)
+    fail(`Taiwan's stroke count for 返 is ${returnTw}, not 8 (CNS 11643)`);
 }
 
 db.close();

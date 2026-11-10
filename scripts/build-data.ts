@@ -57,6 +57,18 @@ import { linkToken, posToken } from "../src/shared/exampleLinks.ts";
 import { CLASSIFIER_BY_ID } from "../src/shared/classifiers.ts";
 import { searchFold, sortKey } from "../src/shared/kana.ts";
 import { fetchAcjkMap, voteRadicalPositions } from "./acjk.ts";
+import {
+  OPENCC_SHA,
+  REGIONS,
+  SOURCE_HAN_SANS_SHA,
+  SOURCE_HAN_SERIF_SHA,
+  UNICODE_VERSION,
+  buildGroups,
+  fetchRegionalSources,
+  regionalLists,
+  strokeCounts,
+  type RegionalSources
+} from "./regional.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
@@ -1013,6 +1025,8 @@ interface Sources {
     stroke: Awaited<ReturnType<typeof fetchYencken>>;
     radical: Awaited<ReturnType<typeof fetchYencken>>;
   };
+  /** Variant tables, region CMaps, Unihan and CNS 11643, for the regional forms (spec 22). */
+  regional: RegionalSources;
   /** The resolved jmdict-simplified release tag, recorded so a build says what it came from. */
   release: string;
 }
@@ -1037,7 +1051,8 @@ const downloadSources = async (): Promise<Sources> => {
     tatoeba,
     yenckenStroke,
     yenckenRadical,
-    kanjiJlpt
+    kanjiJlpt,
+    regional
   ] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -1050,7 +1065,8 @@ const downloadSources = async (): Promise<Sources> => {
     fetchTatoeba(),
     fetchYencken(YENCKEN_STROKE_URL),
     fetchYencken(YENCKEN_RADICAL_URL),
-    fetchKanjiJlpt()
+    fetchKanjiJlpt(),
+    fetchRegionalSources(fetchRetrying)
   ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -1075,6 +1091,7 @@ const downloadSources = async (): Promise<Sources> => {
     kanjiJlpt,
     tatoeba,
     yencken: { stroke: yenckenStroke, radical: yenckenRadical },
+    regional,
     release: release.tag_name
   };
 };
@@ -1091,7 +1108,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     decomp,
     kanjiJlpt,
     tatoeba,
-    yencken
+    yencken,
+    regional
   } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   // Clear only the STAGING path here. The destination is left alone until the promote at the end,
@@ -1355,6 +1373,56 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     `  similar: ${similarRows} rows (${yenckenCovered} kanji from Yencken, rest from the component heuristic)`
   );
 
+  // ── Regional forms pass (spec 22) ─────────────────────────────────────────
+  // Each character as China, Hong Kong, Taiwan and Japan write it. Japan's kyōiku grades and stroke
+  // counts come from the Kanjidic2 data imported above, so the regional view agrees with the kanji
+  // page beside it.
+  const kanjiGrades = new Map<string, number>();
+  const japanStrokes = new Map<string, number>();
+  for (const char of kanjidic.characters) {
+    if (char.misc.grade !== null)
+      kanjiGrades.set(char.literal, char.misc.grade);
+    // Kanjidic2 requires at least one stroke count per character; the first is the accepted one.
+    japanStrokes.set(char.literal, char.misc.strokeCounts[0]);
+  }
+  const regionalGroups = buildGroups({
+    opencc: regional.opencc,
+    lists: regionalLists(regional.unihan, regional.taiwan.tiers, kanjiGrades),
+    sans: regional.sans,
+    serif: regional.serif
+  });
+  db.exec("BEGIN");
+  const insRegionalGroup = db.prepare(
+    "INSERT INTO regional_groups(id, key, glyph_sig, cp_sig) VALUES (?, ?, ?, ?)"
+  );
+  const insRegionalForm = db.prepare(
+    "INSERT INTO regional_forms(group_id, region, char, strokes, tier) VALUES (?, ?, ?, ?, ?)"
+  );
+  for (const [index, group] of regionalGroups.entries()) {
+    const id = index + 1;
+    insRegionalGroup.run(id, group.key, group.glyphSig, group.cpSig);
+    const counts = strokeCounts(group, {
+      unihan: regional.unihan,
+      taiwan: regional.taiwan.strokes,
+      japan: japanStrokes
+    });
+    for (const [position, region] of REGIONS.entries())
+      insRegionalForm.run(
+        id,
+        region,
+        group.chars[position],
+        counts.strokes[position] ?? null,
+        group.tiers[position]
+      );
+    if (group.old !== undefined)
+      insRegionalForm.run(id, "old", group.old, counts.old ?? null, 0);
+  }
+  db.exec("COMMIT");
+  const regionalOld = regionalGroups.filter((g) => g.old !== undefined).length;
+  console.log(
+    `  regional: ${regionalGroups.length} character groups, ${regionalOld} with a Japanese old form`
+  );
+
   // ── JLPT pass ─────────────────────────────────────────────────────────────
   // Join word-level JLPT by JMdict id (exact PK). Only ids present in this variant's JMdict get
   // updated, so the common-only build naturally covers fewer list rows than the full build. Record
@@ -1471,7 +1539,24 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     // The exports roll weekly; their last-modified dates are the closest thing to a version.
     ["tatoebaIndicesDate", tatoeba.dates.indices],
     ["tatoebaJpnDate", tatoeba.dates.jpn],
-    ["tatoebaEngDate", tatoeba.dates.eng]
+    ["tatoebaEngDate", tatoeba.dates.eng],
+
+    [
+      "regionalSource",
+      "Regional forms: method adapted from hanji (Kevin Deng, MIT); glyph identity from Adobe Source Han Sans and Serif CMaps; grouping from OpenCC; lists from Unihan and CNS 11643 (National Development Council, Taiwan)"
+    ],
+    [
+      "regionalLicense",
+      "OpenCC Apache-2.0; Source Han CMaps SIL OFL 1.1; Unihan Unicode License v3; CNS 11643 Open Government Data License 1.0"
+    ],
+    [
+      "regionalPins",
+      `OpenCC ${OPENCC_SHA}, Source Han Sans ${SOURCE_HAN_SANS_SHA}, Source Han Serif ${SOURCE_HAN_SERIF_SHA}, Unihan ${UNICODE_VERSION}`
+    ],
+    // CNS 11643 updates its archives in place; their last-modified dates are its version.
+    ["regionalTaiwanPropertiesDate", regional.taiwan.propertiesDate],
+    ["regionalTaiwanMappingsDate", regional.taiwan.mappingsDate],
+    ["regionalGroups", String(regionalGroups.length)]
   ];
   for (const [key, value] of metaRows) insMeta.run(key, value);
 
@@ -1487,6 +1572,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   atLeast("radical positions", positioned, FLOORS.radicalPositions);
   atLeast("inline sentences", sentenceRows, FLOORS.inlineSentences);
   atLeast("pool sentences", tatoebaRows, FLOORS.poolSentences);
+  atLeast("regional groups", regionalGroups.length, FLOORS.regionalGroups);
+  atLeast("regional old forms", regionalOld, FLOORS.regionalOldForms);
   // Not tracked in a local (it is written per sense inside importWord), so read it back.
   const tagRow: unknown = db
     .prepare("SELECT COUNT(*) AS n FROM sense_tags")
@@ -1607,6 +1694,9 @@ const FLOORS = {
   /** 17,301 inline Tanaka + 116,269 Tatoeba pool. */
   inlineSentences: 14000,
   poolSentences: 90000,
+  /** 8,418 groups, 378 with an old form (2026-11-10) — variant-independent (spec 22). */
+  regionalGroups: 7500,
+  regionalOldForms: 320,
   /** 743,538 names — the separate JMnedict build. */
   names: 600000
 };
