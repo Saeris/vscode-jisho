@@ -48,12 +48,30 @@ jobs:
           node-version: "24.22"
           cache: true
 
+      # Bumpy publishes a version that has no `<name>@<version>` tag yet (its rule for a package with
+      # a custom publishCommand). Any other push to main only updates the version PR.
+      - name: Is a version waiting to be published?
+        id: pending
+        run: |
+          tag="$(vp exec node -p "const p = require('./package.json'); p.name + '@' + p.version")"
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "$tag is already published; this push only updates the version PR."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Release precondition: the extension downloads its dictionary from its schema's release
       # (`dictionary-v7`) on first run, so refuse to publish a .vsix whose required
       # artifacts don't exist yet — otherwise every new install gets a broken first run. The data
       # workflow (dictionary.yml) publishes those artifacts on a schema change; this gate makes the
       # ordering a hard precondition rather than a race.
+      #
+      # Only when a version is waiting to be published. A push that changes the schema starts this
+      # workflow and the data workflow together, so that push failed here while its data was still
+      # building (2026-11-10, schema 7), although it published nothing.
       - name: Verify dictionary artifacts exist
+        if: steps.pending.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: vp exec node scripts/check-data-release.ts
