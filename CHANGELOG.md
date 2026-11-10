@@ -6,6 +6,57 @@
 
 
 
+
+## 0.4.0
+<sub>2026-11-10</sub>
+
+- [#19](https://github.com/Saeris/vscode-jisho/pull/19)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Jisho now requires VS Code 1.145 or newer.** The previous floor was 1.123. If your editor is older, update it to keep receiving Jisho updates.
+
+  Under the hood: the Japanese tokenizer moved to Lindera 5.3, and React, React Aria, TanStack Query and XState are all on current releases.
+- [#15](https://github.com/Saeris/vscode-jisho/pull/15)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Handwriting recognition is about twice as fast per stroke. The stroke-correspondence search computed the same stroke-pair distance many times over while it refined its map; each pair is now measured once per candidate, in both the coarse and the fine pass. Results are unchanged, and the ported reference tests pin that.
+-  *(patch)*
+  The extension is now published to Open VSX as well as the VS Code Marketplace, so it can be installed from VSCodium, Code - OSS, Cursor, Windsurf and Gitpod — editors that cannot use the Marketplace. Searching for it, or running `ext install saeris.vscode-jisho`, now finds it there too.
+- [#17](https://github.com/Saeris/vscode-jisho/pull/17)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Search now waits for the word you meant. Typing with a Japanese IME passes through drafts on the way to the finished word — 日本 goes through に, にほ and にほん first — and each of those used to run its own search. Some of them are real words, so the results flashed confidently wrong entries before settling on the right one. The field now shows the draft as you type it but searches only once the word is committed.
+- [#18](https://github.com/Saeris/vscode-jisho/pull/18)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Internal toolchain upgrade: Yarn 4.18.1, Vite+ 1.5.0 and Vitest v5. No change to how the extension behaves — the benchmark suite moved to the new API, and `vp run bench:compare` now fails a run that regresses rather than printing a number beside it.
+- [#21](https://github.com/Saeris/vscode-jisho/pull/21)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Searches that used to be slow are now about three times faster — single characters like の and 日, kana words, and the kanji page — and adding a tag filter blocks the editor for noticeably less time.
+
+  When a search or a page fails to load, you can now press **Try again** instead of having to change what you typed.
+
+  Problem reports no longer include your user name in the error text they prefill, and Jisho now refuses to install a dictionary update that your version cannot read.
+- [#21](https://github.com/Saeris/vscode-jisho/pull/21)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Names and places are now opt-in.** Jisho used to download the names dictionary (about 85 MB, 400 MB on disk) the first time you searched for anything. Now it never downloads it unless you ask: a line under your search results offers to install it, with a "No thanks" that is remembered, and you can always install it from **About**. If you already have it, nothing changes.
+- [#21](https://github.com/Saeris/vscode-jisho/pull/21)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Dictionary updates now work on Windows, and you can keep searching while one downloads.** Updates used to fail at the very end on Windows, after the whole download. Now the old dictionary keeps working through the download and is swapped for the new one in a fraction of a second — no window reload needed.
+
+  **The panel says what the dictionary is doing.** On first run it shows the download's progress instead of "Searching…". If something goes wrong, it says what happened and offers the one fix that applies: try again when you are offline, update the dictionary when it is out of date, or update Jisho when the dictionary needs a newer version.
+
+  **The sidebar remembers where you were when you collapse it** — scroll position, results and playback included.
+- [#25](https://github.com/Saeris/vscode-jisho/pull/25)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Searching no longer freezes VS Code.** Every extension shares one thread, and Jisho's dictionary queries used to run on it. A slow one — adding a `#noun` tag to the search box took up to 2 seconds — froze hovers, completions and every other extension for as long as it ran. The dictionaries now run on their own thread, so a slow search only delays its own results.
+- [#25](https://github.com/Saeris/vscode-jisho/pull/25)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Adding a tag to the search box is instant.** With one tag applied, the counts beside every other suggestion now come from the dictionary itself instead of being worked out on the spot, which took up to 2 seconds for a broad tag like `#noun`.
+
+  **Tag suggestions no longer go missing.** With a broad tag applied, the counts covered only that tag's 100,000 most frequent words, so a tag whose words were all less common showed zero and disappeared from the suggestions. Every word counts now.
+
+  **This version needs a new dictionary download.** The dictionary gained a table, so Jisho downloads the new one on first run. Dictionaries are now published per format, so older versions of Jisho keep the dictionary they can read.
+- [#41](https://github.com/Saeris/vscode-jisho/pull/41)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Part-of-speech colouring now works in a split view.** With the same document open twice side by side, only one side was ever coloured. Each editor now gets its own colouring.
+
+  **Colouring no longer freezes the editor.** A colouring pass used to hold VS Code for 80-200 ms at a time; it now gives way every few milliseconds, and a keystroke or a scroll interrupts it. Scrolling back over text that is already coloured costs nothing.
+- [#41](https://github.com/Saeris/vscode-jisho/pull/41)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Hovering Japanese in a code comment no longer slows down further into a long file. Each hover used to re-read the file from the top, about 140 ms at line 2,000; it now starts from a saved point at most 100 lines above.
+- [#32](https://github.com/Saeris/vscode-jisho/pull/32)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Playing one reading now stops another.** Playing a word while a kanji's readings were being read out used to stop only the current reading: the list carried on with the next one, and its button kept showing Stop. Any new playback now stops everything else.
+
+  **Play buttons appear when your voices load late.** If the system's Japanese voice was not ready in the first second, every play button stayed hidden until VS Code restarted. They now appear as soon as the voice does.
+- [#32](https://github.com/Saeris/vscode-jisho/pull/32)  *(patch)* Thanks [@Saeris](https://github.com/Saeris)!
+  Adding or removing spacing or furigana now tells you when it could not apply. If the text changed while the command ran, it used to do nothing and say nothing; it now redoes the change on the current text, and if that also fails, it says so.
+
 ## 0.3.0
 <sub>2026-08-20</sub>
 
