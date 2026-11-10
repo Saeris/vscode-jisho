@@ -251,9 +251,13 @@ const writeReleaseAsset = async (
  * full-test.yml builds both databases before a publish is allowed.
  *
  * Retries transport errors and the statuses worth retrying (5xx, 429). A 4xx is our bug — a bad URL
- * or an unpinned asset name — so it returns immediately rather than waiting to fail three times.
+ * or an unpinned asset name — so it returns immediately rather than waiting to fail every attempt.
+ *
+ * Five attempts, with pauses of 2, 4, 8 and 16 s: about a minute of a host refusing connections. On
+ * 2026-11-09 ftp.edrdg.org refused two of three CI jobs that built at the same moment, for longer
+ * than the three attempts and 1.5 s of pauses this used to allow, and failed both.
  */
-const FETCH_ATTEMPTS = 3;
+const FETCH_ATTEMPTS = 5;
 
 const fetchRetrying = async (
   url: string,
@@ -277,9 +281,9 @@ const fetchRetrying = async (
         `  retrying ${url} (${reason}, attempt ${attempt}/${FETCH_ATTEMPTS})`
       );
     }
-    // Exponential backoff: 0.5s, then 1s.
+    // Exponential backoff: 2, 4, 8, then 16 s.
     await new Promise((resolve) =>
-      setTimeout(resolve, 500 * 2 ** (attempt - 1))
+      setTimeout(resolve, 2_000 * 2 ** (attempt - 1))
     );
   }
 };

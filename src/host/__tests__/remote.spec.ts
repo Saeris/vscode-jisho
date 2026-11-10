@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -17,6 +23,11 @@ import { openRemote } from "../remote";
  */
 const WORKER = join(process.cwd(), "dist", "dictionaryWorker.cjs");
 const DB_PATH = join(process.cwd(), "assets", "jisho.db");
+
+/** Whether `jisho.db` is the full build: its `.version` sidecar starts with the variant. */
+const isFullBuild = (): boolean =>
+  existsSync(`${DB_PATH}.version`) &&
+  readFileSync(`${DB_PATH}.version`, "utf8").startsWith("full ");
 
 let dir: string;
 
@@ -145,11 +156,21 @@ describe("dictionaries in a worker thread", () => {
   describe.skipIf(!existsSync(WORKER) || !existsSync(DB_PATH))(
     "the dictionary worker, against the built jisho.db",
     () => {
-      it("leaves the extension host's thread free during a slow query", async () => {
+      it("leaves the extension host's thread free during a slow query", async ({
+        skip
+      }) => {
         // WHY: this is the point of the worker. The extension host is ONE thread shared by every
         // extension; run here, a query like this blocked all of them for its whole length (~1.7 s on
         // the full dictionary — audit P-1). Measured through the worker: one timer tick (~16 ms).
         // Two tags applied, because one is now precomputed (H-9) and two are still counted live.
+        //
+        // The full dictionary only. The common build that CI and contributors use holds ~22,000
+        // words, not ~218,000, and its query took 165-243 ms on one Windows machine (2026-11-09):
+        // around the 200 ms below, so the result there would depend on the machine's speed.
+        skip(
+          !isFullBuild(),
+          "needs the full dictionary (vp run build:data:full): on the common build the query is too close to 200 ms to show a stall reliably"
+        );
         const applied = ["noun", "verb-suru"].map((id) => {
           const c = CLASSIFIER_BY_ID.get(id);
           if (!c) throw new Error(`no classifier "${id}"`);
