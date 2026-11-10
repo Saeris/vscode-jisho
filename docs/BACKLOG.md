@@ -668,11 +668,11 @@ Full spec: [specs/16-tabbed-navigation-and-browse.md](specs/16-tabbed-navigation
 
 ## Kanji across regions
 
-### 56. Regional forms — compare a kanji across Japan, China, Hong Kong, Taiwan and Korea (feature — large)
+### 56. Regional forms — compare a kanji across Japan, China, Hong Kong and Taiwan (feature — large)
 
-Full plan: [specs/22-regional-forms.md](specs/22-regional-forms.md). For review; nothing built yet.
+Full plan: [specs/22-regional-forms.md](specs/22-regional-forms.md). Decisions made with the user on 2026-11-10; nothing built yet, phase 0 next.
 
-A kanji seen outside a Japanese textbook is often not Japan's form: simplified or traditional Chinese, Korean hanja, or Japan's own pre-reform forms (kyūjitai). Fold most of [hanji](https://github.com/sxzz/hanji) (code MIT, data CC BY 4.0) into the kanji pages: a stacked comparison of each region's form, a chart of code points, stroke counts and official list status, stroke order by region, lookup from any regional form, and a browse with hanji's filters. The plan runs in phases, from data (schema 8) through fonts, the view, regional stroke order, lookup and browse, and lists the decisions it needs from the user first.
+A kanji seen outside a Japanese textbook is often not Japan's form: simplified or traditional Chinese, or Japan's own pre-reform forms (kyūjitai). Fold most of [hanji](https://github.com/sxzz/hanji) (code MIT, used as a reference rather than copied) into the kanji pages: a stacked comparison of each region's form, a chart of code points, stroke counts and official list status, stroke order by region, Mandarin and Cantonese readings and frequency by region, notes from Wiktionary on where the shape came from, and a browse with hanji's filters. Korea, and lookup from a form seen in the wild, come later.
 
 ## Suggested sequencing
 

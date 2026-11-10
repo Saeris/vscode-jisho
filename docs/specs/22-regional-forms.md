@@ -1,18 +1,29 @@
-# Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong, Taiwan and Korea
+# Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** plan, for review. Nothing is built yet. **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`.
+> **Status:** planned; decisions made with the user on 2026-11-10 (see "Decisions"). Nothing is built yet. **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
-A kanji you meet outside a Japanese textbook is often not the form Japan writes. Chinese text uses simplified or traditional forms; signs, names and older books use the forms Japan wrote before its postwar reform (kyūjitai, "old forms"); Korean hanja keep traditional forms. Sometimes the difference is a different character with its own code point (学 in Japan, 學 in Taiwan). Sometimes it is the same code point drawn differently: 返 is one Unicode character, but China, Japan, Hong Kong and Taiwan each draw it slightly differently, most visibly in its "movement" radical (shinnyō).
+A kanji you meet outside a Japanese textbook is often not the form Japan writes. Chinese text uses simplified or traditional forms; signs, names and older books use the forms Japan wrote before its postwar reform (kyūjitai, "old forms"). Sometimes the difference is a different character with its own code point (学 in Japan, 學 in Taiwan). Sometimes it is the same code point drawn differently: 返 is one Unicode character, but China, Japan, Hong Kong and Taiwan each draw it slightly differently, most visibly in its "movement" radical (shinnyō).
 
 The user wants to fold most of hanji into our kanji pages so that a learner can:
 
-- take a form seen in the wild and find the Japanese kanji it corresponds to;
-- see how each region writes it, stacked on top of one another so the differences stand out;
+- see how each region writes a kanji, stacked on top of one another so the differences stand out;
 - compare code points, stroke counts and official list status in one chart;
 - watch the stroke order each region teaches;
-- search and filter the whole table of regional differences.
+- read how the character is pronounced elsewhere, how common it is in each region, and where its shape came from;
+- search and filter the whole table of regional differences;
+- later, take a form seen in the wild and find the Japanese kanji it corresponds to.
+
+## Decisions (2026-11-10)
+
+1. **Port and adapt** hanji's method into our data build, with hanji's code as a reference. Do not ship hanji's published data.
+2. **Taiwan's list status comes from Taiwan's own sources**, preferably (see "Taiwan's list" under Data: the cleanest licensed source is still to be found).
+3. **Korea is out for now.** It overlaps least with Japanese. Regions: China (CN), Japan (JP), Japan's old form (Old), Hong Kong (HK), Taiwan (TW).
+4. **Fonts are bundled** in the `.vsix`.
+5. **Lookup from a regional form comes later** in development, after the rest of this spec.
+6. **Readings in other languages and frequency per region are in scope** (phase 5).
+7. **Wiktionary is an added source** (user's suggestion): its character pages give variant forms, where a shape came from, and definitions and readings in English for each language (phase 6).
 
 ## What hanji does
 
@@ -55,15 +66,15 @@ At 380 px the page mostly survives: a three-column chart fits, but the readings 
 ### How the data is made
 
 - **Scope.** The union of five official lists: China's Table of General Standard Chinese Characters (2013), Taiwan's Standard Form of National Characters (1982), Hong Kong's List of Graphemes of Commonly-Used Chinese Characters, Japan's jōyō kanji (2010), and South Korea's Basic Hanja for Educational Use (2000). Forms that are the same character in different regions (simplified and traditional, Japanese reformed and old forms) are merged with OpenCC's variant tables into one row per character: 8,449 rows. 1,692 are written the same way everywhere; 129 differ in all five regions.
-- **Glyph identity** ([`scripts/cmap.ts`](https://github.com/sxzz/hanji/blob/main/scripts/cmap.ts)). Adobe's Source Han fonts draw all five regions from one shared pool of glyphs, with a per-region map from code point to glyph ID (CID). Two regions write a character the same way exactly when their maps give the same glyph ID. No outlines are compared. hanji does this for both the sans and the serif family and treats two regions as the same if **either** family gives them one glyph, so a difference only one typeface makes (a design choice, not a regional convention) is ignored.
-- **The partition signature.** Each row stores its regions' glyph IDs as a string numbered in order of first appearance: `"00000"` when all five agree, `"0112"` when the first stands alone, the middle two agree and the last differs. The same is done for code points. Every filter, chip and grouping on the site reads these two strings.
+- **Glyph identity** ([`scripts/cmap.ts`](https://github.com/sxzz/hanji/blob/main/scripts/cmap.ts)). Adobe's Source Han fonts draw every region from one shared pool of glyphs, with a per-region map from code point to glyph ID (CID). Two regions write a character the same way exactly when their maps give the same glyph ID. No outlines are compared. hanji does this for both the sans and the serif family and treats two regions as the same if **either** family gives them one glyph, so a difference only one typeface makes (a design choice, not a regional convention) is ignored.
+- **The partition signature.** Each row stores its regions' glyph IDs as a string numbered in order of first appearance: `"0000"` when all agree, `"0112"` when the first stands alone, the middle two agree and the last differs. The same is done for code points. Every filter, chip and grouping on the site reads these two strings.
 - **Stroke counts** come first from the stroke-order data (the number of strokes actually drawn), then from Unihan (`kAlternateTotalStrokes`, `kRSAdobe_Japan1_6`, `kTotalStrokes`).
 - **Frequency** comes from a different corpus per region (Chinese text, written Cantonese, Taiwanese news and forums, Japanese Wikipedia).
 - **The build** is about 1,100 lines ([`scripts/build-data.ts`](https://github.com/sxzz/hanji/blob/main/scripts/build-data.ts)), most of it reconciling OpenCC with the official lists: folding rows that name the same character, keeping apart characters a region lists separately, and flagging relations the lists do not confirm.
 
 ### Fonts
 
-The display uses Noto Sans CJK in each regional version (SC for China, TC for Taiwan, HK, JP, KR), subset to the characters in the table. Two tricks keep it small: regions that write a character the same way share one region's glyph, so the others do not carry it (about a third fewer glyphs, and the cells shown as identical really are one glyph); and each font is split by Unicode range in order of commonness, so the browser loads only the pieces on screen. **Measured: 5.37 MB for the sans fonts of all five regions** (China 1.96, Hong Kong 1.51, Japan 1.38, Taiwan 0.35, Korea 0.17).
+The display uses Noto Sans CJK in each regional version (SC for China, TC for Taiwan, HK, JP, KR), subset to the characters in the table. Two tricks keep it small: regions that write a character the same way share one region's glyph, so the others do not carry it (about a third fewer glyphs, and the cells shown as identical really are one glyph); and each font is split by Unicode range in order of commonness, so the browser loads only the pieces on screen. **Measured: 5.37 MB for the sans fonts of all five regions** (China 1.96, Hong Kong 1.51, Japan 1.38, Taiwan 0.35, Korea 0.17), so about 5.2 MB without Korea.
 
 ### Stroke order
 
@@ -74,47 +85,49 @@ hanji reads AnimCJK's per-language data: Simplified Chinese for China, Tradition
 | Japanese            | 7,007      | 21.9 MB |
 | Simplified Chinese  | 8,014      | 22.6 MB |
 | Traditional Chinese | 1,013      | 3.0 MB  |
-| Korean              | 535        | 1.4 MB  |
+| Korean (not needed) | 535        | 1.4 MB  |
 
-So Taiwan, Hong Kong and Korea will have no drawing for most characters, which is why hanji's page for 返 offers only China and Japan.
+So Taiwan and Hong Kong will have no drawing for most characters, which is why hanji's page for 返 offers only China and Japan.
 
 ### Licences and names
 
-- **Code: MIT.** We may port it, keeping its copyright notice.
-- **Compiled data** (the row structure, selection and arrangement): **CC BY 4.0**, attribution "Hanji data by Kevin Deng, CC BY 4.0, https://github.com/sxzz/hanji".
+- **Code: MIT.** Where we port code, keep its copyright notice.
+- **Compiled data** (the row structure, selection and arrangement): **CC BY 4.0**. We are not shipping it (decision 1), but if any of it is ever used: "Hanji data by Kevin Deng, CC BY 4.0, https://github.com/sxzz/hanji".
 - **Third-party data** keeps its own licence (table under "Sources and licences").
 - **The name "Hanji" and its logo are excluded from both licences.** We may not use them as the name of our feature. A plain credit such as "based on Hanji" in our notices is allowed.
-- **One source has no licence:** hanji takes the five official lists from a transcription (`zispace/hanzi-chars`) whose repository states none.
+- **One source has no licence:** hanji takes the five official lists from a transcription (`zispace/hanzi-chars`) whose repository states none. We do not use it.
 
 ## What we adopt, adapt and leave out
 
 | hanji feature                                       | For jisho                                                                                                               |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Glyph identity from Source Han CMaps (sans ∪ serif) | **Adopt** as is: small, exact, licence-clean                                                                            |
-| Row building (OpenCC + lists)                       | **Adopt the method**; port and test it (see the data decision)                                                          |
+| Glyph identity from Source Han CMaps (sans ∪ serif) | **Adopt**: small, exact, licence-clean                                                                                  |
+| Row building (OpenCC + lists)                       | **Adapt** into our build, tested against hanji's output                                                                 |
 | Overprint stack and its interactions                | **Adopt**, with our theme tokens and a non-colour channel                                                               |
 | Comparison chart with merged cells                  | **Adapt** for a narrow sidebar                                                                                          |
 | Stroke order per region                             | **Adopt**, on our existing stroke player                                                                                |
 | Region fonts, subset and shared by group            | **Adopt**                                                                                                               |
+| Readings in other languages                         | **Adopt** (Mandarin, Cantonese); Korean is out with Korea                                                               |
+| Frequency per region                                | **Adopt**, from sources whose terms suit us                                                                             |
 | Search and filters                                  | **Adapt** into the Kanji browse tab                                                                                     |
-| Readings in other languages                         | **Optional** (phase 7)                                                                                                  |
-| Frequency per region                                | **Optional** (phase 7); each corpus has its own terms                                                                   |
 | External dictionary links                           | **Adapt**: English-language ones only (Wiktionary, the Unicode Unihan page), since most of hanji's are Chinese-language |
+| Korea                                               | **Leave out for now** (decision 3)                                                                                      |
 | Interface languages, serif typeface, PWA, OG images | **Leave out**                                                                                                           |
 | The name and logo                                   | **Leave out** (not licensed)                                                                                            |
+| _(not in hanji)_ Wiktionary                         | **Add**: shape history, definitions and readings in English, and a cross-check of our grouping                          |
 
 ## Design for jisho
 
 ### Where it lives
 
 - **A summary on the kanji page.** When a kanji has regional forms that differ, KanjiDetail gets a compact block under the readings: a small overprint, a line such as "Written differently in China and Taiwan · 3 forms", and a button into the full view. When every region writes it the same way, a single quiet line says so.
-- **A "Regional forms" view.** Opened from that block, the same way the stroke-order and component-tree views open today: the overprint, the chart, stroke order by region, and links.
+- **A "Regional forms" view.** Opened from that block, the same way the stroke-order and component-tree views open today: the overprint, the chart, stroke order by region, readings and frequency, the Wiktionary notes, and links.
 
 ### The overprint
 
 Ported from hanji with its behaviours (fan on rest, highlight each form in turn, press-and-drag to separate, spring back, outline mode, the Separate/Overprint toggle). Changes for us:
 
-- **Inks from our theme.** Five hues at equal lightness, derived in oklch from the theme's foreground per [CONVENTIONS.md](../CONVENTIONS.md), with the light-theme value under `body.vscode-light` (not `prefers-color-scheme`). Blend with `darken` on light themes and `lighten` on dark ones. Verify contrast on both themes in the E2E captures.
+- **Inks from our theme.** Hues at equal lightness, derived in oklch from the theme's foreground per [CONVENTIONS.md](../CONVENTIONS.md), with the light-theme value under `body.vscode-light` (not `prefers-color-scheme`). Blend with `darken` on light themes and `lighten` on dark ones. Verify contrast on both themes in the E2E captures.
 - **Not by colour alone.** The inks differ only in hue, which fails readers with colour-vision deficiencies (our POS palette treats that as a requirement). The forms must also be told apart by label: the Separate view labels each form with its regions, the highlight cycle names the form it lights, and the chart below names everything.
 - **Reduced motion.** With `prefers-reduced-motion`, no fan or spring: Separate is a plain switch.
 - Follow [STROKE-ORDER.md](../STROKE-ORDER.md)'s lessons for anything animated (one clock, registered `@property`).
@@ -132,37 +145,60 @@ When two rows share a code point, the chart says so ("same code point, drawn dif
 
 ### Stroke order by region
 
-The existing stroke-order view gains a region switcher above the player, one choice per distinct drawing ("Japan", "China", "Taiwan · Hong Kong", "Korea", "Old"). A region with no drawing says so plainly ("No stroke-order data for Taiwan's form") instead of falling back silently to another region's order, because a different order is exactly what the learner is checking.
+The existing stroke-order view gains a region switcher above the player, one choice per distinct drawing ("Japan", "China", "Taiwan · Hong Kong", "Old"). A region with no drawing says so plainly ("No stroke-order data for Taiwan's form") instead of falling back silently to another region's order, because a different order is exactly what the learner is checking.
 
-### Looking up a form seen in the wild
+### Readings and frequency
 
-Search accepts any regional form. Searching 學 or 國 (traditional forms) resolves to the Japanese kanji 学 or 国, and 们 (a simplified Chinese form) to 們, and the results say how they relate ("學 is the traditional and old Japanese form of 学"). This is the entry point for "I saw this somewhere": without it, the feature is only reachable from kanji the user can already type.
+The view lists Mandarin and Cantonese readings beside our Japanese ones, and each region's frequency rank. Frequency ranks come from different corpora (news, forums, an encyclopedia), so the view labels each rank with its region and corpus, and never compares them as one scale.
+
+### Where the shape came from (Wiktionary)
+
+A short "From Wiktionary" block: the cross-language note on the character's forms (for example, that 学 was simplified from 學) and, where Wiktionary has one, its "glyph origin" note, with a link to the page and the CC BY-SA credit. Simplified pages on Wiktionary often only point at the traditional form ("see 學"), so the build takes the note from the traditional form's page when the simplified one has none.
 
 ### Browse and filters
 
-The Kanji browse tab gains a "Regional differences" list with hanji's filters, adapted: search (character, reading, code point), difference pattern (same everywhere, 2/3/4/5 forms, then the exact split chips), list membership, stroke-count range for a chosen region, sort by stroke count or code point (and frequency if phase 7 lands). Each result row: a small overprint, then the forms in a compact strip grouped by region.
+The Kanji browse tab gains a "Regional differences" list with hanji's filters, adapted: search (character, reading, code point), difference pattern (same everywhere, 2/3/4 forms, then the exact split chips), list membership, stroke-count range for a chosen region, sort by stroke count, code point or a region's frequency. Each result row: a small overprint, then the forms in a compact strip grouped by region.
 
 ## Data
 
 ### Scope
 
-All character groups in the union of the five official lists, about 8,400. The whole set is small (hanji's JSON is 3.1 MB, 430 KB gzipped) and lookup from Chinese forms needs groups whose Japanese form is unlisted. The kanji page shows the block only for groups whose Japanese form is in our `kanji_characters`.
+All character groups in the union of the four regions' official lists (China, Hong Kong, Taiwan, Japan). The set is small (hanji's whole JSON, with Korea, is 3.1 MB, 430 KB gzipped), and including groups whose Japanese form is unlisted keeps the later lookup phase possible. The kanji page shows the block only for groups whose Japanese form is in our `kanji_characters`.
 
 ### Sources and licences
 
-| Use                                               | Source                                                                                                                                 | Licence                                           |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Whether regions share a glyph                     | Adobe Source Han Sans and Serif, region CMaps (10 small files)                                                                         | SIL OFL 1.1                                       |
-| Display fonts                                     | Noto Sans CJK SC, TC, HK, JP, KR, subset and renamed                                                                                   | SIL OFL 1.1                                       |
-| Which forms belong together                       | OpenCC variant tables                                                                                                                  | Apache-2.0                                        |
-| China, Japan, Hong Kong and Korea list membership | Unihan: `kTGH` (China 2013 table, with its three levels by index), `kJoyoKanji`, `kJinmeiyoKanji`, `kHKGlyph`, `kKoreanEducationHanja` | Unicode License v3                                |
-| Taiwan list membership                            | **Open question** (no Unihan field exists)                                                                                             | —                                                 |
-| Kyōiku grade                                      | Kanjidic2 (already in our DB)                                                                                                          | CC BY-SA 4.0 (already attributed)                 |
-| Fallback stroke counts                            | Unihan                                                                                                                                 | Unicode License v3                                |
-| Stroke order                                      | AnimCJK: Simplified Chinese, Traditional Chinese and Korean sets, in addition to our Japanese set                                      | Arphic Public License (already shipped and noted) |
-| The method, and any ported code                   | hanji                                                                                                                                  | MIT (keep the notice)                             |
+| Use                                        | Source                                                                                                                                           | Licence                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Whether regions share a glyph              | Adobe Source Han Sans and Serif, region CMaps (8 small files for four regions)                                                                   | SIL OFL 1.1                                       |
+| Display fonts                              | Noto Sans CJK SC, TC, HK, JP, subset and renamed                                                                                                 | SIL OFL 1.1                                       |
+| Which forms belong together                | OpenCC variant tables                                                                                                                            | Apache-2.0                                        |
+| China, Japan and Hong Kong list membership | Unihan: `kTGH` (China 2013 table, with its three levels by index: 1–3,500, 3,501–6,500, 6,501–8,105), `kJoyoKanji`, `kJinmeiyoKanji`, `kHKGlyph` | Unicode License v3                                |
+| Taiwan list membership                     | Taiwan's own sources: see "Taiwan's list" below                                                                                                  | To be confirmed                                   |
+| Kyōiku grade                               | Kanjidic2 (already in our DB)                                                                                                                    | CC BY-SA 4.0 (already attributed)                 |
+| Stroke counts                              | AnimCJK drawings first, then Unihan; for Taiwan, possibly CNS 11643 (below)                                                                      | APL / Unicode License v3 / OGDL 1.0               |
+| Stroke order                               | AnimCJK: Simplified and Traditional Chinese sets, in addition to our Japanese set                                                                | Arphic Public License (already shipped and noted) |
+| Mandarin and Cantonese readings            | Unihan `kMandarin`, `kCantonese`                                                                                                                 | Unicode License v3                                |
+| Frequency, China                           | Jun Da's Modern Chinese Character Frequency List (via hanziDB)                                                                                   | MIT                                               |
+| Frequency, Hong Kong                       | words.hk corpus character frequency                                                                                                              | Public domain (credit requested)                  |
+| Frequency, Taiwan                          | National Academy for Educational Research, corpus character frequency (2023)                                                                     | Open-data declaration, attribution required       |
+| Frequency, Japan                           | scriptin/kanji-frequency (Japanese Wikipedia), beyond Kanjidic2's newspaper top 2,500                                                            | CC BY 4.0                                         |
+| Shape history, definitions, cross-check    | English Wiktionary, via Wiktextract's extraction ([kaikki.org](https://kaikki.org/dictionary/rawdata.html))                                      | CC BY-SA 4.0                                      |
+| The method, and any ported code            | hanji                                                                                                                                            | MIT (keep the notice)                             |
 
-Taking list membership from Unihan instead of hanji's source avoids the unlicensed transcription for four of the five lists.
+Taking list membership from Unihan avoids the unlicensed transcription hanji uses. Every frequency source and Wiktionary need a line in THIRD_PARTY_NOTICES, and Wiktionary text needs a credit and link where it is shown.
+
+### Taiwan's list
+
+Unihan has no field for Taiwan's Standard Form of National Characters (4,808 common characters, plus a secondary list). What was found on 2026-11-10:
+
+- **The Ministry of Education** publishes the 4,808-character list as an ODS spreadsheet and a PDF on its [language portal](https://language.moe.gov.tw/material/info?m=9fe3ff5a-5a8c-4817-9e60-6337dd55a509). The page states no open licence; its footer says "Copyright All Rights Reserved". Taiwan's copyright law exempts official government documents, and which characters a list contains is arguably a fact rather than a work, but that is not ours to conclude without checking.
+- **CNS 11643** (Taiwan's national character database, on Taiwan's [open data portal](https://data.gov.tw/dataset/5961)) is under the Open Government Data License 1.0, which allows reuse with attribution. Its attribute data covers stroke counts, stroke order, readings, radicals and components. Whether it records membership of the 4,808 list is not stated.
+
+**Phase 0 settles it:** inspect CNS 11643's `Properties.zip` for a standard-list flag; if there is none, ask the Ministry or find another Taiwan source with clear terms, and bring the options back to the user before using the Ministry's file.
+
+### Wiktionary extraction
+
+kaikki.org publishes English Wiktionary as JSON Lines, extracted weekly. The per-language files are deprecated and due to be removed, so the build cannot rely on them. The full dump is 24.8 GB (2.9 GB compressed): too heavy for every data build. Instead, an **on-demand extraction job** streams the full dump once, keeps only single-character entries for the Translingual, Chinese and Japanese sections of the characters in scope, and publishes the small result as a release asset that the data build pins by date. Re-run it when we want fresher notes. (kaikki.org asks users to cite its LREC 2022 paper; credit it in THIRD_PARTY_NOTICES.)
 
 ### Schema (schema 8)
 
@@ -173,27 +209,29 @@ A proposal for the implementing phase to refine:
 CREATE TABLE regional_groups (
   id        INTEGER PRIMARY KEY,
   key       TEXT NOT NULL UNIQUE,  -- the traditional form, as hanji keys it
-  glyph_sig TEXT NOT NULL,         -- partition of (cn, hk, tw, jp, kr) by glyph, e.g. '00100'
-  cp_sig    TEXT NOT NULL          -- the same, by code point
+  glyph_sig TEXT NOT NULL,         -- partition of (cn, hk, tw, jp) by glyph, e.g. '0010'
+  cp_sig    TEXT NOT NULL,         -- the same, by code point
+  notes     TEXT                   -- Wiktionary notes as JSON, with their page links
 );
 
--- One row per region (plus 'old' for Japan's pre-reform form).
+-- One row per region, plus 'old' for Japan's pre-reform form.
 CREATE TABLE regional_forms (
   group_id  INTEGER NOT NULL REFERENCES regional_groups(id),
-  region    TEXT NOT NULL,         -- 'cn' | 'hk' | 'tw' | 'jp' | 'kr' | 'old'
+  region    TEXT NOT NULL,         -- 'cn' | 'hk' | 'tw' | 'jp' | 'old'
   char      TEXT NOT NULL,
   glyph     INTEGER NOT NULL,      -- this region's index in glyph_sig
   strokes   INTEGER,
   tier      INTEGER,               -- list level in this region (0 = unlisted)
   listing   TEXT NOT NULL,         -- 'primary' | 'glossed' | 'unlisted'
+  freq      INTEGER,               -- this region's frequency rank, NULL when unranked
   drawing   INTEGER,               -- which stroke drawing; NULL when there is none
   PRIMARY KEY (group_id, region)
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_regional_forms_char ON regional_forms(char);  -- lookup from any form
+CREATE INDEX idx_regional_forms_char ON regional_forms(char);  -- the later lookup phase
 ```
 
-A schema change bumps `SCHEMA_VERSION` to 8 and publishes to `dictionary-v8`, which the per-schema data workflow already handles (see [ARCHITECTURE.md](../ARCHITECTURE.md)).
+Mandarin and Cantonese readings may live on `regional_groups` or in a readings table; phase 5 decides. A schema change bumps `SCHEMA_VERSION` to 8 and publishes to `dictionary-v8`, which the per-schema data workflow already handles (see [ARCHITECTURE.md](../ARCHITECTURE.md)). Later phases that change the schema again bump it again.
 
 ### Fonts and data must not drift apart
 
@@ -201,19 +239,20 @@ The overprint and the "same glyph" claims are only honest if the fonts drawn are
 
 ## Phases
 
-Each phase ends with `vp check` clean, tests green (and, from phase 3, E2E in VS Code), and a bump file.
+Each phase ends with `vp check` clean, tests green (and, from phase 3, E2E in VS Code), and a bump file. Phases 1–3 ship the core; 4–7 build on it in order.
 
-### Phase 0 — Decisions and spikes (no product code)
+### Phase 0 — Spikes (no product code)
 
-- Settle the open questions below with the user.
-- Spike: read the ten CMaps and compute partitions for a sample of known characters, and compare them with hanji's published `chars.json`.
-- Measure: fonts subset to our scope (target well under the measured 5.4 MB), and how many AnimCJK drawings differ from our Japanese ones.
+- Read the eight CMaps and compute partitions for a sample of known characters; compare them with hanji's published `chars.json`.
+- Measure fonts subset to our scope (target under the 5.2 MB hanji needs for these four regions) and how many AnimCJK drawings differ from our Japanese ones.
+- Settle Taiwan's list source (above).
+- Run the Wiktionary filter once over the full dump: output size, and whether the fields we want (variant forms with their labels, glyph origin, English senses, readings) come out cleanly.
 
-**Done when** the decisions are recorded in this spec and the numbers measured.
+**Done when** the numbers are recorded here and Taiwan's source is agreed with the user.
 
 ### Phase 1 — Data
 
-Build the regional tables in the data build: CMap partitions (sans ∪ serif), OpenCC grouping, list tiers, stroke counts, old forms, and the lookup index. Schema 8.
+Build the regional tables in the data build: CMap partitions (sans ∪ serif), OpenCC grouping, list tiers, stroke counts, and old forms. Schema 8.
 
 **Tests (each says why):** 晚/晩 (different code points, 2 forms); 返 (one code point, 4 forms: the case code points alone cannot show); 有 (Taiwan alone differs, by glyph only); 学/學 (2 forms, and Japan's old form shares Hong Kong and Taiwan's glyph); a character identical everywhere. A one-off script (not CI) diffs our partitions against hanji's for every shared row; every difference is explained or fixed.
 
@@ -221,7 +260,7 @@ Build the regional tables in the data build: CMap partitions (sans ∪ serif), O
 
 ### Phase 2 — Region fonts
 
-Subset Noto Sans CJK per region to the characters each region must draw (sharing by group), split by Unicode range, rename the families (for example "Jisho Regional Sans JP"; never "Hanji"), ship them in the `.vsix`, and add the OFL notices.
+Subset Noto Sans CJK SC, TC, HK and JP to the characters each must draw (sharing by group), split by Unicode range, rename the families (for example "Jisho Regional Sans JP"; never "Hanji"), bundle them in the `.vsix`, and add the OFL notices.
 
 **Done when** a test page renders each region's glyph for the phase 1 test characters from the bundled fonts, and the `.vsix` size delta is recorded.
 
@@ -233,39 +272,39 @@ The overprint (all behaviours, theme inks, non-colour labels, reduced motion), t
 
 ### Phase 4 — Stroke order by region
 
-Ingest AnimCJK's Simplified Chinese, Traditional Chinese and Korean drawings for the groups in scope, keep only drawings that differ from the Japanese one, let Hong Kong and the old form borrow per glyph group, and add the region switcher to the stroke-order view. Follow the delivery path and lessons of [STROKE-ORDER.md](../STROKE-ORDER.md).
+Ingest AnimCJK's Simplified and Traditional Chinese drawings for the groups in scope, keep only drawings that differ from the Japanese one, let Hong Kong and the old form borrow per glyph group, and add the region switcher to the stroke-order view. Follow the delivery path and lessons of [STROKE-ORDER.md](../STROKE-ORDER.md).
 
 **Done when** 学 plays China's and Japan's order, 學 plays Taiwan's, and a region with no drawing says so.
 
-### Phase 5 — Lookup from any regional form
+### Phase 5 — Readings and frequency by region
 
-Search resolves any regional form to its group and Japanese kanji, with a note on how they relate.
+Mandarin and Cantonese readings from Unihan, and each region's frequency rank from the sources above, on the view and in the browse's sort.
 
-**Done when** searching 學, 國 and 们 lands on 学, 国 and 們 with the note, by test and by E2E.
+**Done when** 学 shows its Mandarin and Cantonese readings and a labelled rank for each region, and the new sources are in THIRD_PARTY_NOTICES.
 
-### Phase 6 — Browse and filters
+### Phase 6 — Wiktionary notes
+
+The extraction job, the pinned release asset, and the "From Wiktionary" block, with credit and link. The extracted variant labels also feed a test that cross-checks phase 1's grouping: a group Wiktionary links but we split, or the reverse, is listed and explained.
+
+**Done when** 学 shows the note that it was simplified from 學, linked to Wiktionary, and the cross-check runs.
+
+### Phase 7 — Browse and filters
 
 The "Regional differences" list in the Kanji browse tab, with the filters above, in the sidebar's width.
 
 **Done when** filtering to "Japan alone differs" and sorting by stroke count gives the expected first rows by test, and the list stays fast on the full table.
 
-### Phase 7 — Optional: readings in other languages, frequency per region
+### Later
 
-Mandarin, Cantonese and Korean readings (Kanjidic2 and Unihan), and per-region frequency if its sources' terms suit us.
+- **Lookup from any regional form** (decision 5): searching 學 or 國 (traditional forms) resolves to the Japanese kanji 学 or 国, and 们 (a simplified Chinese form) to 們, with a note on how they relate. The `char` index in schema 8 is there for it.
+- **Korea** (decision 3): the Korean column, font, stroke order (AnimCJK has 535 Korean drawings) and Korea's education list (Unihan `kKoreanEducationHanja`).
 
 ## Risks
 
-- **Size.** Fonts (≈5 MB at most) and extra drawings both grow the `.vsix`. Measure in phase 0; drawings may belong in the DB instead.
+- **Size.** Fonts (about 5 MB at most) and extra drawings both grow the `.vsix`. Measure in phase 0; drawings may belong in the DB instead.
 - **Hong Kong is under-covered by Source Han**, so "only Hong Kong differs" is under-reported (hanji says the same). State it on the view.
-- **The grouping logic is subtle.** hanji's build spends most of its length on edge cases; a simpler port will get some wrong. The phase 1 diff against hanji is the safety net.
+- **The grouping logic is subtle.** hanji's build spends most of its length on edge cases; our adaptation will get some wrong. The diff against hanji (phase 1) and the Wiktionary cross-check (phase 6) are the safety nets.
 - **Hue-only inks** (see the overprint design) need the label channel to ship in the same phase.
-- **The data release.** Schema 8 means `dictionary-v8` must exist before the release that reads it; the release gate already checks this.
-
-## Open questions for the user
-
-1. **Data path.** (a) Port hanji's build into ours, from the pinned sources above (recommended: one reproducible pipeline, licences clear field by field, and hanji's published data used as a cross-check); or (b) ship hanji's published `chars.json` as a pinned snapshot under CC BY 4.0 (fastest, but it carries the unlicensed list transcription and depends on hanji's site).
-2. **Taiwan's list.** Unihan has no field for it. Options: Taiwan's Ministry of Education's own publication, if its terms allow; hanji's transcription (no licence stated); or drop Taiwan's list status and keep only Taiwan's forms.
-3. **Korea.** hanji hides the Korean column by default. Show it, hide it by default, or leave Korea out?
-4. **Font delivery.** In the `.vsix` (recommended: they are needed whatever data is installed, and pinned with the code), or downloaded with the dictionary?
-5. **Order.** Is lookup from regional forms (phase 5) worth moving ahead of the stroke order (phase 4)?
-6. **Readings and frequency** (phase 7): wanted, or out of scope?
+- **Taiwan's list may have no clearly licensed source.** Phase 0 brings the options back to the user rather than choosing one.
+- **The Wiktionary dump is large and its per-language files are going away.** The extraction job runs on demand, not in every build.
+- **The data release.** Each schema bump means its `dictionary-v{N}` must exist before the release that reads it; the release gate already checks this.

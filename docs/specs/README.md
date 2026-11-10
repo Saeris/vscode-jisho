@@ -45,7 +45,7 @@ Detailed, self-contained specs for the remaining polish/feature work, written fo
 | 19  | [Tests that fail when the documentation goes stale](19-documentation-drift-tests.md)                            | docs        | **Implemented** — tiers 1 and 2 shipped; tier 3 is a list  |
 | 20  | [Crash reporting and issue filing](20-crash-and-issue-reporting.md)                                             | new         | Specified — one snapshot, three surfaces                   |
 | 21  | [The errors the crash boundary does not catch](21-error-reporting-coverage.md)                                  | new         | **Implemented** — log attachment deferred pending research |
-| 22  | [Regional forms: one kanji across Japan, China, Hong Kong, Taiwan and Korea](22-regional-forms.md)              | #56         | Plan — for review; open questions first                    |
+| 22  | [Regional forms: one kanji across Japan, China, Hong Kong and Taiwan](22-regional-forms.md)                     | #56         | Planned — decisions made 2026-11-10; phase 0 next          |
 
 Not yet specced: the #32 word-detail layout redesign, and the visual-regression baseline procedure.
 
