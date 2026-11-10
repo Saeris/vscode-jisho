@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** planned; decisions made with the user on 2026-11-10 (see "Decisions"). Nothing is built yet. **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phase 1 next. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -173,9 +173,9 @@ All character groups in the union of the four regions' official lists (China, Ho
 | Display fonts                              | Noto Sans CJK SC, TC, HK, JP, subset and renamed                                                                                                 | SIL OFL 1.1                                       |
 | Which forms belong together                | OpenCC variant tables                                                                                                                            | Apache-2.0                                        |
 | China, Japan and Hong Kong list membership | Unihan: `kTGH` (China 2013 table, with its three levels by index: 1–3,500, 3,501–6,500, 6,501–8,105), `kJoyoKanji`, `kJinmeiyoKanji`, `kHKGlyph` | Unicode License v3                                |
-| Taiwan list membership                     | Taiwan's own sources: see "Taiwan's list" below                                                                                                  | To be confirmed                                   |
+| Taiwan list membership                     | CNS 11643 open data (`CNS_source.txt`, mapped by its Unicode tables): see "Taiwan's list" below                                                  | Open Government Data License 1.0 (attribution)    |
 | Kyōiku grade                               | Kanjidic2 (already in our DB)                                                                                                                    | CC BY-SA 4.0 (already attributed)                 |
-| Stroke counts                              | AnimCJK drawings first, then Unihan; for Taiwan, possibly CNS 11643 (below)                                                                      | APL / Unicode License v3 / OGDL 1.0               |
+| Stroke counts                              | AnimCJK drawings first, then Unihan; Taiwan's checked against CNS 11643                                                                          | APL / Unicode License v3 / OGDL 1.0               |
 | Stroke order                               | AnimCJK: Simplified and Traditional Chinese sets, in addition to our Japanese set                                                                | Arphic Public License (already shipped and noted) |
 | Mandarin and Cantonese readings            | Unihan `kMandarin`, `kCantonese`                                                                                                                 | Unicode License v3                                |
 | Frequency, China                           | Jun Da's Modern Chinese Character Frequency List (via hanziDB)                                                                                   | MIT                                               |
@@ -194,11 +194,19 @@ Unihan has no field for Taiwan's Standard Form of National Characters (4,808 com
 - **The Ministry of Education** publishes the 4,808-character list as an ODS spreadsheet and a PDF on its [language portal](https://language.moe.gov.tw/material/info?m=9fe3ff5a-5a8c-4817-9e60-6337dd55a509). The page states no open licence; its footer says "Copyright All Rights Reserved". Taiwan's copyright law exempts official government documents, and which characters a list contains is arguably a fact rather than a work, but that is not ours to conclude without checking.
 - **CNS 11643** (Taiwan's national character database, on Taiwan's [open data portal](https://data.gov.tw/dataset/5961)) is under the Open Government Data License 1.0, which allows reuse with attribution. Its attribute data covers stroke counts, stroke order, readings, radicals and components. Whether it records membership of the 4,808 list is not stated.
 
-**Phase 0 settles it:** inspect CNS 11643's `Properties.zip` for a standard-list flag; if there is none, ask the Ministry or find another Taiwan source with clear terms, and bring the options back to the user before using the Ministry's file.
+**Settled in phase 0: CNS 11643.** Its `CNS_source.txt` (in `Properties.zip`) records, for each character, the documents it comes from, and those include the Ministry's own lists. Mapped to Unicode through the database's own mapping tables (`MapingTables.zip`, same licence), with no code left unmapped:
+
+| List (translated)                                | Characters                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------- |
+| Standard Form of Common National Characters      | 4,808, the list's official size                                             |
+| Standard Form of Less-Common National Characters | 5,768, none also common (the official list has about 6,340; record the gap) |
+| Standard Form of Rare National Characters        | 18,357 (not needed)                                                         |
+
+Spot checks pass: 學, 返, 有, 晚 and 國 are common; 学, 晩 and 国 (simplified or Japanese forms) are on neither list. The same data gives Taiwan's stroke counts (`CNS_stroke.txt`) and Taiwan's stroke order as a sequence of stroke types (`CNS_strokes_sequence.txt`: 1 horizontal, 2 vertical, 3 left-falling, 4 dot, 5 turning). That sequence cannot be animated, but it can check Taiwan's stroke count and order where AnimCJK has no Traditional Chinese drawing. Attribution, as the licence requires: "CNS 11643 Chinese Standard Interchange Code, National Development Council, Taiwan (Open Government Data License 1.0)".
 
 ### Wiktionary extraction
 
-kaikki.org publishes English Wiktionary as JSON Lines, extracted weekly. The per-language files are deprecated and due to be removed, so the build cannot rely on them. The full dump is 24.8 GB (2.9 GB compressed): too heavy for every data build. Instead, an **on-demand extraction job** streams the full dump once, keeps only single-character entries for the Translingual, Chinese and Japanese sections of the characters in scope, and publishes the small result as a release asset that the data build pins by date. Re-run it when we want fresher notes. (kaikki.org asks users to cite its LREC 2022 paper; credit it in THIRD_PARTY_NOTICES.)
+kaikki.org publishes English Wiktionary as JSON Lines, extracted weekly. The per-language files are deprecated and due to be removed, so the build cannot rely on them. The full dump is 24.8 GB (2.9 GB compressed): too heavy for every data build. Instead, an **on-demand extraction job** streams the full dump once, keeps only single-character entries for the Translingual, Chinese and Japanese sections of the characters in scope, and publishes the small result as a release asset that the data build pins by date. Re-run it when we want fresher notes. Measured in phase 0: 141 seconds for the full dump, and an 18.8 MB result. (kaikki.org asks users to cite its LREC 2022 paper; credit it in THIRD_PARTY_NOTICES.)
 
 ### Schema (schema 8)
 
@@ -241,26 +249,36 @@ The overprint and the "same glyph" claims are only honest if the fonts drawn are
 
 Each phase ends with `vp check` clean, tests green (and, from phase 3, E2E in VS Code), and a bump file. Phases 1–3 ship the core; 4–7 build on it in order.
 
-### Phase 0 — Spikes (no product code)
+### Phase 0 — Spikes (done 2026-11-10)
 
-- Read the eight CMaps and compute partitions for a sample of known characters; compare them with hanji's published `chars.json`.
-- Measure fonts subset to our scope (target under the 5.2 MB hanji needs for these four regions) and how many AnimCJK drawings differ from our Japanese ones.
-- Settle Taiwan's list source (above).
-- Run the Wiktionary filter once over the full dump: output size, and whether the fields we want (variant forms with their labels, glyph origin, English senses, readings) come out cleanly.
+Throwaway scripts, not product code; the results below are what phases 1–6 build on. Each was run against hanji's published `chars.json` (8,449 groups) and the sources pinned at hanji's commits.
 
-**Done when** the numbers are recorded here and Taiwan's source is agreed with the user.
+1. **Glyph partitions.** The CMap reading and the sans ∪ serif union, ported from hanji, reproduce hanji's published glyph signatures for **all 8,449 groups** (five regions plus the old form), with no differences. Computed over our four regions without Korea, **8 groups** come out differently from hanji's signatures with Korea dropped afterwards: in each, Korea was the only link joining two regions (冤, for example, is one form everywhere with Korea, but Japan stands apart without it). We compute over our own regions. Across China, Hong Kong, Taiwan and Japan: **1,719** groups are written the same way everywhere, **3,026** have two forms, **3,117** three and **587** four; **372** also have a Japanese old form.
+2. **Taiwan's list.** Settled with CNS 11643 open data (see "Taiwan's list" under Data).
+3. **Taiwan's stroke counts.** Taiwan's official counts (CNS 11643) differ from hanji's for **1,263 of 8,446** Taiwan forms (15%). hanji takes a count from the stroke-order drawing and otherwise from Unihan, and AnimCJK has a Traditional Chinese drawing for only 994 groups, so most of its Taiwan counts are Unihan's single count. The differences are regional conventions, not noise: 1,137 are one stroke more in Taiwan (the "grass" radical written with 4 strokes, as in 著, 12 not 11; the "altar" radical in its fuller form, as in 神, 社, 視; the traditional "movement" radical, as in 返, 8 not 7), 68 are two more, and 58 are fewer (統, 致). Wiktionary agrees where it says (返: "8 strokes in traditional Chinese and Korean, 7 strokes in simplified Chinese and Japanese"). **Taiwan's counts therefore come from CNS 11643 first** (phase 1), and our counts will deliberately differ from hanji's there.
+4. **Fonts.** Subset to our four regions, with regions sharing a glyph also sharing one region's font, in chunks of 300 characters: **5.01 MB** for all groups, **4.40 MB** for the 7,213 groups whose Japanese form is in our `kanji_characters`. Under the 5.2 MB target.
+5. **Stroke order.** Of the 8,449 groups, AnimCJK has a drawing for Japan in 5,173, China in 7,223 and Taiwan in 994; Hong Kong can borrow one in 1,264 and the old form in 344 of 372. Adding China's and Taiwan's drawings means **5,508** drawings, **15.5 MB** of raw outline data at most (less for our scope, and it compresses well). Deduplicating against the Japanese drawings saves almost nothing: AnimCJK draws each language's set separately, so outlines rarely match exactly. In **23** groups China and Japan share a glyph but AnimCJK's drawings have different stroke counts; phase 1's tests list them. AnimCJK also publishes these drawings as per-character SVGs in our player's format (`svgsZhHans/`, `svgsZhHant/`), so phase 4 needs no SVG generation.
+6. **Wiktionary.** One pass over the full dump (11.1 million entries) takes **141 seconds** and keeps **41,637** entries for the 11,324 characters in scope (Translingual 11,326, Chinese 16,212, Japanese 14,099). Pruned to the fields below, the result is **18.8 MB**. A quick filter that matched the first `"word"` key in each line lost about 2,700 Japanese entries, because nested objects carry `word` and `lang` keys too; the extraction must test the parsed entry's own top-level fields. What the entries give, in English:
+   - **Where the shape came from.** A Chinese entry's `etymology_text` often explains the glyph: 晚 is "a phono-semantic compound: semantic 日 + phonetic 免"; 學's note explains how its parts were added and how one of them "corrupted" in the modern form. The Translingual entry notes simplification: 学 was "simplified from 學 … in simplified Chinese and Japanese shinjitai".
+   - **Meanings by language**: Chinese senses in English (學: "to learn; to study", "school"), Japanese senses (晚: "evening, night, late").
+   - **Variant forms, labelled**: Japanese entries tag forms as `shinjitai` or `kyūjitai` (晚's Japanese entry gives 晩 as its shinjitai), which cross-checks our grouping.
+   - **Readings**: Mandarin (pinyin) and Cantonese (jyutping) in `sounds`, kept; the many other Chinese varieties are dropped.
+   - **A summary line** in each Translingual entry: radical, stroke count (sometimes per region), Cangjie code and composition.
+   - Simplified forms often have no Chinese entry of their own, only a redirect to the traditional form ("see 學"); take the notes from the traditional form's entry.
+
+The Taiwan source is a Taiwan government dataset under an attribution licence, as the user preferred (decision 2), so no further decision is needed before phase 1.
 
 ### Phase 1 — Data
 
-Build the regional tables in the data build: CMap partitions (sans ∪ serif), OpenCC grouping, list tiers, stroke counts, and old forms. Schema 8.
+Build the regional tables in the data build: CMap partitions (sans ∪ serif) over our four regions, OpenCC grouping, list tiers (Unihan, and CNS 11643 for Taiwan), stroke counts, and old forms. Taiwan's stroke counts come from CNS 11643 first, then the drawing, then Unihan; the other regions' from the drawing, then Unihan. Schema 8.
 
-**Tests (each says why):** 晚/晩 (different code points, 2 forms); 返 (one code point, 4 forms: the case code points alone cannot show); 有 (Taiwan alone differs, by glyph only); 学/學 (2 forms, and Japan's old form shares Hong Kong and Taiwan's glyph); a character identical everywhere. A one-off script (not CI) diffs our partitions against hanji's for every shared row; every difference is explained or fixed.
+**Tests (each says why):** 晚/晩 (different code points, 2 forms); 返 (one code point, 4 forms: the case code points alone cannot show); 有 (Taiwan alone differs, by glyph only); 学/學 (2 forms, and Japan's old form shares Hong Kong and Taiwan's glyph); a character identical everywhere; 返 and 著 (Taiwan's official count is one more than China's and Japan's: the regional stroke difference hanji misses); 冤 (Japan stands apart once Korea no longer links the regions). A one-off script (not CI) diffs our partitions and stroke counts against hanji's for every shared row; every difference is explained (Taiwan's official counts, the 8 groups Korea linked) or fixed.
 
 **Done when** `dictionary-v8` builds in CI with the new tables and `verify-db` checks them.
 
 ### Phase 2 — Region fonts
 
-Subset Noto Sans CJK SC, TC, HK and JP to the characters each must draw (sharing by group), split by Unicode range, rename the families (for example "Jisho Regional Sans JP"; never "Hanji"), bundle them in the `.vsix`, and add the OFL notices.
+Subset Noto Sans CJK SC, TC, HK and JP to the characters each must draw (sharing by group), in chunks of about 300 characters split by Unicode range, with no OpenType layout closure (a single character never needs it, and dropping it halves the output). Rename the families (for example "Jisho Regional Sans JP"; never "Hanji"): Noto CJK reserves no font name under its OFL, but "Noto is a trademark of Google Inc." is in the font, and a modified subset should not present itself as Noto. Bundle them in the `.vsix` and add the OFL notices.
 
 **Done when** a test page renders each region's glyph for the phase 1 test characters from the bundled fonts, and the `.vsix` size delta is recorded.
 
@@ -272,7 +290,7 @@ The overprint (all behaviours, theme inks, non-colour labels, reduced motion), t
 
 ### Phase 4 — Stroke order by region
 
-Ingest AnimCJK's Simplified and Traditional Chinese drawings for the groups in scope, keep only drawings that differ from the Japanese one, let Hong Kong and the old form borrow per glyph group, and add the region switcher to the stroke-order view. Follow the delivery path and lessons of [STROKE-ORDER.md](../STROKE-ORDER.md).
+Ingest AnimCJK's Simplified and Traditional Chinese drawings for the groups in scope, let Hong Kong and the old form borrow per glyph group, and add the region switcher to the stroke-order view. AnimCJK publishes these as per-character SVG files in the same format as the Japanese set we use (`svgsZhHans/`, `svgsZhHant/`, named by decimal code point), so no SVG needs generating; our vendored Japanese SVGs carry an extra guides layer that these lack, which the player must handle. Follow the delivery path and lessons of [STROKE-ORDER.md](../STROKE-ORDER.md).
 
 **Done when** 学 plays China's and Japan's order, 學 plays Taiwan's, and a region with no drawing says so.
 
@@ -303,6 +321,7 @@ The "Regional differences" list in the Kanji browse tab, with the filters above,
 
 - **Size.** Fonts (about 5 MB at most) and extra drawings both grow the `.vsix`. Measure in phase 0; drawings may belong in the DB instead.
 - **Hong Kong is under-covered by Source Han**, so "only Hong Kong differs" is under-reported (hanji says the same). State it on the view.
+- **Our stroke counts differ from hanji's on purpose.** Taiwan's official counts (phase 0, finding 3) disagree with hanji's for 15% of Taiwan forms. The phase 1 diff must report these as explained, never "fix" them back to hanji's.
 - **The grouping logic is subtle.** hanji's build spends most of its length on edge cases; our adaptation will get some wrong. The diff against hanji (phase 1) and the Wiktionary cross-check (phase 6) are the safety nets.
 - **Hue-only inks** (see the overprint design) need the label channel to ship in the same phase.
 - **Taiwan's list may have no clearly licensed source.** Phase 0 brings the options back to the user rather than choosing one.
