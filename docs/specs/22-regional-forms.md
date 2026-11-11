@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phase 1 (data) built and in review, with its results recorded below; phase 2 next. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data) and 2 (fonts) built, with their results recorded below; phase 3 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -300,6 +300,15 @@ Known limits, left as they are: where Hong Kong's index holds two code points an
 Subset Noto Sans CJK SC, TC, HK and JP to the characters each must draw (sharing by group), in chunks of about 300 characters split by Unicode range, with no OpenType layout closure (a single character never needs it, and dropping it halves the output). Rename the families (for example "Jisho Regional Sans JP"; never "Hanji"): Noto CJK reserves no font name under its OFL, but "Noto is a trademark of Google Inc." is in the font, and a modified subset should not present itself as Noto. Bundle them in the `.vsix` and add the OFL notices.
 
 **Done when** a test page renders each region's glyph for the phase 1 test characters from the bundled fonts, and the `.vsix` size delta is recorded.
+
+**Results (2026-11-10).** `scripts/build-regional-fonts.ts` builds the fonts from Noto Sans CJK 2.004 at the commit hanji pins beside the Source Han CMaps, and computes the groups with phase 1's code, so the forms subset are the forms the data shows. Output is committed, like the stroke SVGs, and a rebuild is byte-identical.
+
+- **Size.** SC 8,190 characters, HK 5,128, TC 1,256, JP 4,841: 68 files, **4.65 MB**. The packaged `.vsix` is 33.09 MB with them, **+4.66 MB (+16%)**. Three forms have no glyph in Source Han, and so none in Noto (𡑍, 𣈶, 𥗽); they fall back to a system font.
+- **Names.** "Jisho Sans SC", "Jisho Sans HK", "Jisho Sans TC" and "Jisho Sans JP". The names are rewritten in place, so each must fit Noto's ("Noto Sans CJK JP" is 16 characters, and "Jisho Regional Sans JP" does not). Each file keeps its copyright and licence records and drops "Noto is a trademark of Google Inc.". THIRD_PARTY_NOTICES carries the full OFL.
+- **Which font draws a form** is one function, `fontRegionOf` in `src/shared/regionalFonts.ts`, read by both the build and the webview. Regions that write a form with the same glyph and code point share the first one's font, so a cell the view calls identical is drawn from one glyph. Japan's old form borrows the same way, or uses Japan's font.
+- **Delivery.** Vite bundles the fonts into `dist/webview/fonts/`. It needed two settings: `base: "./"`, because with the default "/" every font URL pointed at the webview origin's root and would 404 (the dev server serves both, so only the build shows it), and never inlining a font, because the CSP allows fonts only from the extension. A packaging test checks the built URLs, and CI's check job now builds the webview so the test runs there.
+- **Ranges.** Each chunk's `unicode-range` is one span, first to last code point. Listing every code point made the stylesheet 131 KB, parsed before the webview's first paint; spans make it 18 KB. Spans never overlap, and a form is drawn only in the family whose font holds it.
+- **The test page** is a Chromium component test: it loads the bundled faces for 晚, 返, 有, 學 and 一, then draws 返 in four different shapes and 有 differently in Taiwan alone.
 
 ### Phase 3 — The Regional forms view and the kanji page summary
 

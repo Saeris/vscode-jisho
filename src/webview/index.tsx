@@ -15,6 +15,8 @@ import "./styles/theme.css";
 import "./styles/posPalette.css";
 // After posPalette.css: that file defines the `--pos-*` values this one reads.
 import "./styles/posCategory.css";
+// The region fonts (spec 22). Each chunk loads only when a page draws a character in its range.
+import "./styles/regionalFonts.css";
 
 // Pre-warm the TTS voice list: getVoices() populates asynchronously (up to ~1s), and paying that
 // wait at startup instead of on the first Play/Speak click removes OUR share of TTS latency (the

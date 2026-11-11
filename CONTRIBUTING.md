@@ -117,6 +117,10 @@ Stroke drawings come from [AnimCJK][animcjk] and live in two directories, becaus
 
 The kana set differs from the kanji set in ways that have broken the shared transform before — implicit-lineto medians with decimal ordinates, and self-crossing strokes split into two clipped fragments. [docs/STROKE-ORDER.md](./docs/STROKE-ORDER.md) records those lessons in full. Read it before touching `scripts/build-strokes.ts`.
 
+## Region fonts
+
+The fonts that show how China, Hong Kong, Taiwan and Japan each write a character are subsets of Noto Sans CJK, renamed "Jisho Sans" and committed in `src/webview/fonts/regional/` with a generated `src/webview/styles/regionalFonts.css`. Regenerate them with `vp run build:regional-fonts` after a change to the grouping in `scripts/regional.ts` or to its pins: the fonts must hold the forms the data shows, drawn from the glyphs the CMaps measured. [Spec 22](./docs/specs/22-regional-forms.md) explains the choices.
+
 ## Where things are
 
 | Path           | What                                                    |
