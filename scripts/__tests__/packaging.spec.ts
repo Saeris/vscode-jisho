@@ -136,6 +136,26 @@ describe.skipIf(!hasBundle)("the packaged host bundle", () => {
   });
 });
 
+const WEBVIEW_CSS = join(DIST, "webview", "index.css");
+
+// Skipped without a webview build, for the reason above; CI's check job builds it before testing.
+describe.skipIf(!existsSync(WEBVIEW_CSS))("the packaged webview", () => {
+  it("points every font at a file beside its stylesheet", () => {
+    // WHY: a webview serves the bundle from the extension's folder under its own origin, so a font
+    // URL starting at "/" names that origin's root, where nothing is, and every region's glyph
+    // falls back to a system font. Vite writes such URLs unless `base` is relative, and its dev
+    // server serves both, so no component test can see the difference: only the build can.
+    const urls = [
+      ...readFileSync(WEBVIEW_CSS, "utf8").matchAll(/url\(([^)]+\.woff2)\)/gu)
+    ].map((m) => m[1] ?? "");
+    expect(urls.length).toBeGreaterThan(0);
+    const unresolved = urls.filter(
+      (url) => !url.startsWith("./") || !existsSync(join(DIST, "webview", url))
+    );
+    expect(unresolved).toEqual([]);
+  });
+});
+
 /**
  * The tokenizer dictionary must pass the same check the packager runs before it builds a .vsix.
  *

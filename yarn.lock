@@ -1815,6 +1815,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/subset-font@npm:^2":
+  version: 2.3.0
+  resolution: "@types/subset-font@npm:2.3.0"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/36bb8685d749af7c3a219e3fc1b1056211ec390b9b115619e2483bc251acf072e1a7a9093fe5ab33fee96e3ca27157df4071248879dec4a329d5959d6cbd885d
+  languageName: node
+  linkType: hard
+
 "@types/through@npm:*":
   version: 0.0.33
   resolution: "@types/through@npm:0.0.33"
@@ -3801,6 +3810,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fontverter@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "fontverter@npm:2.0.0"
+  dependencies:
+    wawoff2: "npm:^2.0.0"
+    woff2sfnt-sfnt2woff: "npm:^1.0.0"
+  checksum: 10/097e9856dfe464dc09f3887f920bb4a98fc2cd1b5af8bc33554d2fc9a486f103b09be96b395d9a5c60e07d09ec34220767431edae4fe7e67a7351cf5a35317b4
+  languageName: node
+  linkType: hard
+
 "form-data@npm:^4.0.0":
   version: 4.0.6
   resolution: "form-data@npm:4.0.6"
@@ -4000,6 +4019,13 @@ __metadata:
   version: 4.2.11
   resolution: "graceful-fs@npm:4.2.11"
   checksum: 10/bf152d0ed1dc159239db1ba1f74fdbc40cb02f626770dcd5815c427ce0688c2635a06ed69af364396da4636d0408fcf7d4afdf7881724c3307e46aff30ca49e2
+  languageName: node
+  linkType: hard
+
+"harfbuzzjs@npm:^1.6.1":
+  version: 1.6.4
+  resolution: "harfbuzzjs@npm:1.6.4"
+  checksum: 10/214b80d0f209da0b347affb24372c3ee87443d244b3f3051cc60e3e4f611b33b0527a7b9c9f22a3cc8d36c06bb81e889154bab7d20082ab3a1600903e01d3334
   languageName: node
   linkType: hard
 
@@ -5576,6 +5602,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"p-limit@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "p-limit@npm:3.1.0"
+  dependencies:
+    yocto-queue: "npm:^0.1.0"
+  checksum: 10/7c3690c4dbf62ef625671e20b7bdf1cbc9534e83352a2780f165b0d3ceba21907e77ad63401708145ca4e25bfc51636588d89a8c0aeb715e6c37d1c066430360
+  languageName: node
+  linkType: hard
+
 "p-map@npm:^7.0.3":
   version: 7.0.4
   resolution: "p-map@npm:7.0.4"
@@ -5583,7 +5618,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pako@npm:~1.0.2":
+"pako@npm:^1.0.7, pako@npm:~1.0.2":
   version: 1.0.11
   resolution: "pako@npm:1.0.11"
   checksum: 10/1ad07210e894472685564c4d39a08717e84c2a68a70d3c1d9e657d32394ef1670e22972a433cbfe48976cb98b154ba06855dcd3fcfba77f60f1777634bec48c0
@@ -6734,6 +6769,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"subset-font@npm:^2.9.0":
+  version: 2.9.0
+  resolution: "subset-font@npm:2.9.0"
+  dependencies:
+    fontverter: "npm:^2.0.0"
+    harfbuzzjs: "npm:^1.6.1"
+    p-limit: "npm:^3.1.0"
+  checksum: 10/0b152b1764226425592fcb8972f74d747331562d75d530d7b5257ed1d1fcba5a91bea7fadda25f01390a380b5ad01bbae505be111c4da0a683cf30465488b68a
+  languageName: node
+  linkType: hard
+
 "supports-color@npm:^7.0.0, supports-color@npm:^7.1.0":
   version: 7.2.0
   resolution: "supports-color@npm:7.2.0"
@@ -7534,6 +7580,7 @@ __metadata:
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
     "@types/react-dom": "npm:^19.3.0"
+    "@types/subset-font": "npm:^2"
     "@types/unbzip2-stream": "npm:^1.4.3"
     "@types/vscode": "npm:1.145.0"
     "@varlock/bumpy": "npm:^1.19.0"
@@ -7553,6 +7600,7 @@ __metadata:
     react: "npm:^19.3.1"
     react-aria-components: "npm:^1.22.1"
     react-dom: "npm:^19.3.1"
+    subset-font: "npm:^2.9.0"
     typescript: "npm:7.0.2"
     typescript-plugin-css-modules: "npm:^5.3.0"
     unbzip2-stream: "npm:^1.4.3"
@@ -7584,6 +7632,18 @@ __metadata:
   version: 5.3.1
   resolution: "wanakana@npm:5.3.1"
   checksum: 10/401c46ac51135d7a97315750af1b95cf7e1a8c6612b28c9c26d86983f967ca5f2c59def77a6ccfa85028dae383a92b4897c905b581cceb1f22928f4986d8db6c
+  languageName: node
+  linkType: hard
+
+"wawoff2@npm:^2.0.0":
+  version: 2.0.1
+  resolution: "wawoff2@npm:2.0.1"
+  dependencies:
+    argparse: "npm:^2.0.1"
+  bin:
+    woff2_compress.js: bin/woff2_compress.js
+    woff2_decompress.js: bin/woff2_decompress.js
+  checksum: 10/13b272466fe159a390371a02930c14900744dd842d6c8c3368329e82ef8351c31b13a0b2978f853acb675fefc7666dde390b26c67ebb2e7f6ff384b67f2eaa22
   languageName: node
   linkType: hard
 
@@ -7631,6 +7691,15 @@ __metadata:
   bin:
     why-is-node-running: cli.js
   checksum: 10/26eb50212cf6059756fe95a169a4ae6cbd12978ef42bd6d3348a39adcc82d5669486de81354267476a7a6cc09a156be914730485a954785d9f50b5a0e814aea8
+  languageName: node
+  linkType: hard
+
+"woff2sfnt-sfnt2woff@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "woff2sfnt-sfnt2woff@npm:1.0.0"
+  dependencies:
+    pako: "npm:^1.0.7"
+  checksum: 10/cb5894a4b0b44e75cf91b92b69896f771f06c6a86f9eab23bfed1c807537f96d25a63e7905b0c983f6546d385e825d6f71242af0b7c8878b1edc3ecaabe19c9a
   languageName: node
   linkType: hard
 
@@ -7757,6 +7826,13 @@ __metadata:
   dependencies:
     buffer-crc32: "npm:~0.2.3"
   checksum: 10/498ea4c6bca26130608c44db166e2f63b3437b94b7ad020ca0c161268d29517e8517146e91e51b78da100ad62feadc1a1a85aaa94aab0b2dc29b355ec75bc8f0
+  languageName: node
+  linkType: hard
+
+"yocto-queue@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "yocto-queue@npm:0.1.0"
+  checksum: 10/f77b3d8d00310def622123df93d4ee654fc6a0096182af8bd60679ddcdfb3474c56c6c7190817c84a2785648cdee9d721c0154eb45698c62176c322fb46fc700
   languageName: node
   linkType: hard
 
