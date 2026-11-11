@@ -31,6 +31,8 @@ export type View =
   | { name: "kanjiDetail"; literal: string }
   | { name: "strokeOrder"; literal: string }
   | { name: "componentTree"; literal: string }
+  /** How China, Hong Kong, Taiwan and Japan write a kanji (spec 22). */
+  | { name: "regionalForms"; literal: string }
   | { name: "nameDetail"; id: string }
   /** The classifier tree (#54). `group` drills into one group; absent shows the top level. */
   | { name: "browse"; group?: string }
@@ -144,6 +146,7 @@ export type NavEvent =
   | { type: "openKanji"; literal: string }
   | { type: "openStrokeOrder"; literal: string }
   | { type: "openComponentTree"; literal: string }
+  | { type: "openRegionalForms"; literal: string }
   | { type: "openName"; id: string }
   /** Open the classifier tree; `group` drills straight into one group (#54). */
   | { type: "openBrowse"; group?: string }
@@ -248,6 +251,15 @@ const define = (initial: NavContext, persist: Persist) =>
             ? [
                 ...context.stack,
                 { name: "componentTree", literal: event.literal } satisfies View
+              ]
+            : context.stack
+      }),
+      pushRegionalForms: assign({
+        stack: ({ context, event }) =>
+          event.type === "openRegionalForms"
+            ? [
+                ...context.stack,
+                { name: "regionalForms", literal: event.literal } satisfies View
               ]
             : context.stack
       }),
@@ -406,6 +418,9 @@ const define = (initial: NavContext, persist: Persist) =>
       openComponentTree: {
         actions: ["pushComponentTree", "clearForward", "persist"]
       },
+      openRegionalForms: {
+        actions: ["pushRegionalForms", "clearForward", "persist"]
+      },
       openName: { actions: ["pushName", "clearForward", "persist"] },
       openBrowse: { actions: ["pushBrowse", "clearForward", "persist"] },
       openWordList: { actions: ["pushWordList", "clearForward", "persist"] },
@@ -500,6 +515,7 @@ const VIEW_FIELDS = {
   kanjiDetail: text("literal"),
   strokeOrder: text("literal"),
   componentTree: text("literal"),
+  regionalForms: text("literal"),
   nameDetail: text("id"),
   browse: optionalText("group"),
   wordList: text("id"),

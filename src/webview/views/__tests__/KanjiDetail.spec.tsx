@@ -41,6 +41,11 @@ vi.mock("../../queries", () => ({
   strokeSvgQuery: (literal: string) => ({
     queryKey: ["strokeSvg", literal],
     queryFn: () => null
+  }),
+  // The page also asks for regional forms (spec 22); RegionalSummary.spec.tsx covers that block.
+  regionalFormsQuery: (literal: string) => ({
+    queryKey: ["regionalForms", literal],
+    queryFn: () => []
   })
 }));
 

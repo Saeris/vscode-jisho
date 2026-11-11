@@ -32,6 +32,7 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
     - [Conjugations](#conjugations)
   - [Searching for Kanji](#searching-for-kanji)
     - [Stroke order](#stroke-order)
+    - [Regional forms](#regional-forms)
   - [Finding a character you cannot type](#finding-a-character-you-cannot-type)
     - [By its radicals](#by-its-radicals)
     - [By drawing it](#by-drawing-it)
@@ -240,7 +241,26 @@ Drag the scrubber to move through the strokes one at a time, or let it play. The
 
 Below the player is a chart of the whole character, one frame per stroke, for when you want to see the order at a glance rather than watch it.
 
-<br clear="left" />
+<br clear="left" /><br/>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-forms-dark.png" />
+  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on." src="docs/images/regional-forms-light.png" />
+</picture>
+
+### Regional forms
+
+A kanji is not always written the way Japan writes it. China simplified many characters, Hong Kong and Taiwan keep traditional forms, and Japan changed some of its own forms in its postwar reform. Sometimes the difference is a different character with its own code point, as with 学 and 學. Sometimes it is one code point drawn differently: China, Hong Kong, Taiwan and Japan each draw 返 their own way.
+
+When other regions write a kanji differently, its page says which regions and how many forms there are. Select that line to open **Regional forms**:
+
+- The forms are overlaid in one place, each in its own ink, so the strokes they share pile up and the strokes only one form has stand out. Rest the pointer on them to fan them apart and light each form in turn, or drag across them to pull them apart.
+- **Separate** sets the forms side by side, each labelled with the regions that write it. **Outline** shows only their outlines.
+- Below, each form has a row: the regions that write it, its code point, its stroke count, and the official character lists it is on.
+
+Where Japan wrote the kanji differently before the reform, that form appears as **Japan's old form**. Each form is drawn in a font for its region, so the differences you see are the regions' own.
+
+<br clear="right" />
 
 ## Finding a character you cannot type
 
@@ -508,6 +528,8 @@ Jisho is built on open dictionary projects whose licences require attribution. F
 - **[Example sentences][tatoeba]**: from [Tatoeba][tatoeba], under [CC BY 2.0 FR][cc-by-fr].
 - **[AnimCJK][animcjk]**: stroke-order drawings, © FM&SH, under the [Arphic Public License][apl] (kanji) and [LGPL v3][lgpl] (kana).
 - **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]**: handwriting recognition and drawing, MIT.
+- **Regional forms**: the method of [hanji][hanji] (MIT); variant tables from [OpenCC][opencc] (Apache 2.0); glyph comparison from the character maps of [Source Han][source-han] (SIL OFL); character lists and stroke counts from [Unihan][unihan] (Unicode License) and, for Taiwan, [CNS 11643][cns11643] (Open Government Data License 1.0).
+- **[Noto Sans CJK][noto-cjk]**: the region fonts, © Adobe, under the [SIL Open Font License][ofl], renamed Jisho Sans.
 
 ## Contributing
 
@@ -542,6 +564,13 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [lgpl]: https://www.gnu.org/licenses/lgpl-3.0.html
 [kanjicanvas]: http://github.com/asdfjkl/kanjicanvas
 [perfect-freehand]: https://github.com/steveruizok/perfect-freehand
+[hanji]: https://github.com/sxzz/hanji
+[opencc]: https://github.com/BYVoid/OpenCC
+[source-han]: https://github.com/adobe-fonts/source-han-sans
+[unihan]: https://www.unicode.org/charts/unihan.html
+[cns11643]: https://www.cns11643.gov.tw/
+[noto-cjk]: https://github.com/notofonts/noto-cjk
+[ofl]: https://openfontlicense.org/
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [issues]: https://github.com/Saeris/vscode-jisho/issues
 [license]: ./LICENSE.md

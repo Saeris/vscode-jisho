@@ -138,6 +138,29 @@ export const About = (): React.ReactElement => {
             ) for the jōyō kanji, with a component-overlap heuristic filling in
             the rest — an approximation, not curated confusable pairs.
           </p>
+          <p>
+            Regional forms follow the method of{" "}
+            <a href="https://github.com/sxzz/hanji">hanji</a> (© Kevin Deng,
+            MIT): which forms belong together comes from{" "}
+            <a href="https://github.com/BYVoid/OpenCC">OpenCC</a> (Apache 2.0),
+            whether two regions draw a form alike from the character maps of{" "}
+            <a href="https://github.com/adobe-fonts/source-han-sans">
+              Source Han Sans and Serif
+            </a>{" "}
+            (© Adobe, SIL Open Font License), and the regions&apos; lists and
+            stroke counts from the{" "}
+            <a href="https://www.unicode.org/charts/unihan.html">
+              Unihan database
+            </a>{" "}
+            (© Unicode, Inc.) and, for Taiwan,{" "}
+            <a href="https://www.cns11643.gov.tw/">
+              CNS 11643 Chinese Standard Interchange Code
+            </a>{" "}
+            (National Development Council, Taiwan, Open Government Data License
+            1.0). The forms are drawn in subsets of{" "}
+            <a href="https://github.com/notofonts/noto-cjk">Noto Sans CJK</a> (©
+            Adobe, SIL Open Font License), renamed Jisho Sans.
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>

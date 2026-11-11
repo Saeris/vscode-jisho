@@ -445,6 +445,33 @@ test("capture: the kanji page", async () => {
   });
 });
 
+test("capture: regional forms", async () => {
+  // 学 rather than a rarer character: the reader knows it, and its row for 學 shows the old form.
+  const win = vscode!.window;
+  await captureBothThemes(vscode!, "regional-forms", async () => {
+    const frame = await jishoFrame(win);
+    await returnToSearch(frame);
+    await fillSearch(frame, "学");
+    await frame
+      .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+      .first()
+      .click();
+    await frame
+      .getByRole("button", {
+        name: /Written differently in Hong Kong and Taiwan/u
+      })
+      .click();
+    await expect(
+      frame.getByRole("img", { name: /^Overlaid: 学 \(China and Japan\), 學/u })
+    ).toBeVisible();
+    await expect(frame.getByText("2 forms", { exact: true })).toBeVisible();
+    // The view opens under the pointer that pressed the summary, which leaves the stack fanned and
+    // lit. The listing shows it at rest, so the pointer moves off it first.
+    await frame.getByRole("heading", { name: /regional forms/u }).hover();
+    return sidebar(win);
+  });
+});
+
 test("capture: stroke order, mid-animation", async () => {
   // Seeked to stroke 2 rather than left at 0: at the start the slider sits hard left and the
   // character is blank, which shows neither the progress control nor the drawing.

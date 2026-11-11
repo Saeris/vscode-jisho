@@ -755,6 +755,39 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(first).not.toBeNull();
   });
 
+  test("finds a kanji's regional forms, with Japan's old form", async () => {
+    // WHY: the kanji page's regional block reads this. 学 must come back as one group with the
+    // forms each region writes and 學 as Japan's old form; a join that lost the old form, or put a
+    // form in the wrong region's place, would show a reader the wrong character for a region.
+    const [learn, ...rest] = await dict.getRegionalForms("学");
+    expect(rest).toEqual([]);
+    expect(learn).toMatchObject({
+      key: "學",
+      chars: ["学", "學", "學", "学"],
+      old: "學",
+      glyphSig: "01101",
+      cpSig: "0110"
+    });
+    // Taiwan's official count and Japan's Kanjidic2 count, side by side.
+    expect(learn?.strokes).toEqual([8, 16, 16, 8, 16]);
+    // Kyōiku in Japan, common in Hong Kong and Taiwan, level 1 in China.
+    expect(learn?.tiers).toEqual([1, 1, 1, 2]);
+  });
+
+  test("lists every character Japan writes alike, the kanji's own first", async () => {
+    // WHY: Japan's reform made 予 stand for 豫 too. The page for 予 shows both groups, and the
+    // character itself must lead: opening 予 and seeing 豫 first would suggest 予 is only a
+    // shorthand. A page for an old form (學) reaches its group through the old form.
+    expect((await dict.getRegionalForms("予")).map((g) => g.key)).toEqual([
+      "予",
+      "豫"
+    ]);
+    expect((await dict.getRegionalForms("學")).map((g) => g.key)).toEqual([
+      "學"
+    ]);
+    await expect(dict.getRegionalForms("あ")).resolves.toEqual([]);
+  });
+
   test("builds the recursive component tree with intermediate nodes", async () => {
     // WHY: the whole reason for cjk-decomp over Kradfile. Kradfile gives 願 a FLAT set of atoms
     // (ハ 厂 小 白 目 貝 頁) with no 原; the tree must show 願 → 原 + 頁, i.e. the intermediate node

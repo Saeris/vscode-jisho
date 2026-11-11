@@ -1,0 +1,129 @@
+/* The Regional forms view (spec 22, phase 3). */
+
+.title {
+  font-size: 1.1em;
+  margin: 0 0 12px;
+}
+
+.title span[lang="ja"] {
+  font-size: 1.4em;
+  vertical-align: middle;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 12px;
+}
+
+.toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.toggleButton {
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toggleButton[data-hovered] {
+    background: var(--jisho-hover-bg);
+  }
+}
+
+.toggleButton[data-pressed] {
+  background: var(--jisho-hover-bg);
+}
+
+.toggleButton[data-selected] {
+  background: var(--jisho-input-bg);
+  border-color: var(--jisho-focus);
+}
+
+.toggleButton[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+.group + .group {
+  margin-block-start: 20px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--jisho-border);
+}
+
+.groupTitle {
+  margin: 0 0 4px;
+  font-size: 1.4em;
+  font-weight: 600;
+}
+
+.count {
+  margin: 4px 0 8px;
+  text-align: center;
+  color: var(--jisho-muted);
+}
+
+.chart {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One row per distinct form: the form in its region's font and ink, then who writes it and how. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  border-block-end: 1px solid var(--jisho-border);
+}
+
+.form {
+  flex: none;
+  inline-size: 1.15em;
+  font-size: 2.6em;
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+}
+
+.facts {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.regions {
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--jisho-muted);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 10px 0 0;
+}
+
+.link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.link a {
+  color: var(--jisho-link);
+}

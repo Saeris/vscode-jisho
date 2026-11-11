@@ -20,6 +20,8 @@ export interface Navigation {
   openKanji: (literal: string) => void;
   openStrokeOrder: (literal: string) => void;
   openComponentTree: (literal: string) => void;
+  /** How China, Hong Kong, Taiwan and Japan write a kanji (spec 22). */
+  openRegionalForms: (literal: string) => void;
   openName: (id: string) => void;
   /** The classifier tree; `group` drills straight into one group (#54). */
   openBrowse: (group?: string) => void;
@@ -95,6 +97,8 @@ export const makeNavigation = (
     send({ type: "openStrokeOrder", literal }),
   openComponentTree: (literal): void =>
     send({ type: "openComponentTree", literal }),
+  openRegionalForms: (literal): void =>
+    send({ type: "openRegionalForms", literal }),
   openName: (id): void => send({ type: "openName", id }),
   openBrowse: (group): void => send({ type: "openBrowse", group }),
   openWordList: (id): void => send({ type: "openWordList", id }),
