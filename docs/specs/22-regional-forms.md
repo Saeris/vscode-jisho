@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data) and 2 (fonts) built, with their results recorded below; phase 3 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts) and 3 (the view) built, with their results recorded below; phase 4 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -315,6 +315,16 @@ Subset Noto Sans CJK SC, TC, HK and JP to the characters each must draw (sharing
 The overprint (all behaviours, theme inks, non-colour labels, reduced motion), the narrow chart, the summary block on KanjiDetail, and English-language links. The README's "Data sources" and the About view gain the regional sources here, when users first see the data; THIRD_PARTY_NOTICES has had them since phase 1.
 
 **Done when** E2E in VS Code opens 学, sees the summary, opens the view, separates the stack, and finds 學 labelled with its regions, in both a light and a dark theme.
+
+**Results (2026-11-10).** `e2e/visual/regional-forms.e2e.ts` does exactly that in both themes, and checks that the forms are drawn in the bundled region fonts (the one test that can, since component tests run on Vite's dev server). The README has a "Regional forms" section with a generated screenshot pair, its claims asserted in `e2e/docs/claims.docs.e2e.ts`.
+
+- **Data.** `getRegionalForms(literal)` returns the groups in which the kanji is Japan's form or Japan's old form: one for 学, two for 予 (予 itself first, then 豫, which Japan also writes 予), and 學's page reaches its group through the old form.
+- **The kanji page** shows, under the readings, one button with a small overprint and a line per group ("Written differently in Hong Kong and Taiwan · 2 forms · old form 學"). When every region writes the kanji alike and there is no old form, one quiet line instead. Nothing for a kanji outside the lists, or while loading, so the page never jumps.
+- **The view** (`RegionalForms`) has the overprint, **Overprint** / **Separate** and **Outline** toggles, then per group a count, a chart with one row per distinct form (Japan's first: regions, code point, stroke count, lists) and Wiktionary and Unihan links per form. When every form is one code point, the count says so once ("4 forms of one code point, U+8FD4"); otherwise the note sits on the rows that share one.
+- **The overprint** keeps hanji's behaviours: resting the pointer fans the layers 3 px apart and lights each form in turn while a caption names it; press-and-drag pulls them apart, and they spring back with an overshoot; fill fades from 0.42 to 0.24 as strokes rise; text is not selectable. One registered clock (`--overprint-lit`) and two registered lengths (`--overprint-fan`, `--overprint-pull`) drive it all, and the drag script writes only the pull. Switching modes is a view transition. With reduced motion there is no fan, no spring and no transition; lighting each form in turn is a change of colour, so it stays.
+- **Inks.** Fixed, not derived from the foreground as planned: at a dark theme's foreground lightness, blue clips out of sRGB (CONVENTIONS.md). `--jisho-ink-*` in `theme.css` are five hues at L 0.74 C 0.13 on dark grounds and L 0.55 C 0.11 on light ones, in gamut for all five. The first two are orange and blue: two forms is the common case, and red against green, the order first tried, is the pair colour-vision deficiencies lose. The chart draws each row in its layer's ink.
+- **Not by colour alone.** The stack's accessible name lists every form and its regions; the caption names the lit form; Separate labels each form; the chart names everything.
+- React's `CSSProperties` gained an index type for `--` properties (`src/webview/react-css.d.ts`), so the components set custom properties without casts.
 
 ### Phase 4 — Stroke order by region
 

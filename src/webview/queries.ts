@@ -12,6 +12,7 @@ import type {
   NameResultDto,
   RadicalLookupDto,
   RecentSearchDto,
+  RegionalGroupDto,
   SearchResultDto,
   SegmentDto,
   WordDetailDto
@@ -25,6 +26,7 @@ import {
   getMoreExamples,
   getName,
   getComponentTree,
+  getRegionalForms,
   getRecentSearches,
   getStrokeSvg,
   getWord,
@@ -128,6 +130,17 @@ export const componentTreeQuery = (
   queryOptions({
     queryKey: ["componentTree", literal],
     queryFn: async () => (await getComponentTree(literal)).tree
+  });
+
+/** A kanji's regional forms (spec 22): the kanji page's summary and the view share one fetch. */
+export const regionalFormsQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<RegionalGroupDto[], Error, RegionalGroupDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["regionalForms", literal],
+    queryFn: async () => (await getRegionalForms(literal)).groups
   });
 
 export const wordQuery = (

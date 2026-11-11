@@ -6,6 +6,7 @@ import { kanjiQuery } from "../queries";
 import { Badge } from "../components/Badge";
 import { CopyButton } from "../components/CopyButton";
 import { DetailView } from "../components/DetailView";
+import { RegionalSummary } from "../components/RegionalSummary";
 import { SequencePlayButton } from "../components/PlayButton";
 import { Term } from "../components/Term";
 import { WaniKaniLink } from "../components/WaniKaniLink";
@@ -26,6 +27,7 @@ export const KanjiDetail = ({
     openWord,
     openStrokeOrder,
     openComponentTree,
+    openRegionalForms,
     openRadicals
   } = useNavigate();
   return (
@@ -37,6 +39,7 @@ export const KanjiDetail = ({
           openWord={openWord}
           openStrokeOrder={openStrokeOrder}
           openComponentTree={openComponentTree}
+          openRegionalForms={openRegionalForms}
           openRadicals={openRadicals}
         />
       )}
@@ -50,6 +53,7 @@ const KanjiBody = ({
   openWord,
   openStrokeOrder,
   openComponentTree,
+  openRegionalForms,
   openRadicals
 }: {
   kanji: KanjiDetailDto;
@@ -59,6 +63,7 @@ const KanjiBody = ({
   | "openWord"
   | "openStrokeOrder"
   | "openComponentTree"
+  | "openRegionalForms"
   | "openRadicals"
 >): React.ReactElement => (
   <>
@@ -102,6 +107,8 @@ const KanjiBody = ({
     <ReadingRow label="On" readings={kanji.on} />
     <ReadingRow label="Kun" readings={kanji.kun} />
     <ReadingRow label="Nanori" readings={kanji.nanori} />
+
+    <RegionalSummary literal={kanji.literal} onOpen={openRegionalForms} />
 
     <Button
       className={styles.strokeLink}

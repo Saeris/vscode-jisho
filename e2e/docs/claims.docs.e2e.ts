@@ -150,6 +150,37 @@ test("claim: kanji appear in their own section", async () => {
   await expect(section.getByRole("option").first()).toContainText("食");
 });
 
+test("claim: a kanji's page says who writes it differently, and the forms are labelled", async () => {
+  // README: "When other regions write a kanji differently, its page says which regions and how many
+  // forms there are." / "Separate sets the forms side by side, each labelled with the regions that
+  // write it." / "that form appears as Japan's old form" / "Each form is drawn in a font for its
+  // region".
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "学");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", {
+      name: /Written differently in Hong Kong and Taiwan · 2 forms/u
+    })
+    .click();
+  await jisho.getByRole("radio", { name: "Separate" }).click();
+  const forms = jisho.getByRole("img", { name: /^Side by side/u });
+  await expect(forms).toContainText("学China and Japan");
+  await expect(forms).toContainText("學Hong Kong, Taiwan and Japan's old form");
+  const loaded = await forms.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts]
+      .filter((face) => face.status === "loaded")
+      .map((face) => face.family.replaceAll('"', ""));
+  });
+  expect(loaded).toEqual(
+    expect.arrayContaining(["Jisho Sans SC", "Jisho Sans HK"])
+  );
+});
+
 /* ── Reading a word ──────────────────────────────────────────────────────── */
 
 test("claim: every word in an example links to its own entry", async () => {

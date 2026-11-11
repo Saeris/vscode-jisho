@@ -257,6 +257,33 @@ export interface ComponentTreeDto {
   children: ComponentTreeDto[];
 }
 
+/**
+ * One character as China, Hong Kong, Taiwan and Japan write it (spec 22): the forms, which of them
+ * share a glyph or a code point, each form's stroke count and list level, and Japan's old form.
+ */
+export interface RegionalGroupDto {
+  /** The group's name, usually its traditional form. */
+  key: string;
+  /** The forms of China, Hong Kong, Taiwan and Japan, in that order. */
+  chars: string[];
+  /** Japan's pre-reform form, when Japan writes a reformed one (眞 for 真). */
+  old?: string;
+  /**
+   * Which forms share a glyph, as a partition of (cn, hk, tw, jp), plus a fifth digit for `old`:
+   * the same digit, the same glyph. `"0123"` is four shapes; `"0010"` is Taiwan's alone differing.
+   */
+  glyphSig: string;
+  /** The same partition of (cn, hk, tw, jp), by code point. */
+  cpSig: string;
+  /** Stroke counts of (cn, hk, tw, jp), then `old`'s; null where no source counts the form. */
+  strokes: Array<number | null>;
+  /**
+   * List levels of (cn, hk, tw, jp): China 1–3, Hong Kong 1, Taiwan 1 (common) or 2 (less common),
+   * Japan 1 (jōyō) or 2 (kyōiku). 0 when the region's list does not enter the form.
+   */
+  tiers: number[];
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -462,6 +489,14 @@ export interface Protocol {
     request: { literal: string };
     /** The recursive tree, or `null` when the kanji has no meaningful decomposition. */
     response: { tree: ComponentTreeDto | null };
+  };
+  /**
+   * A kanji's regional forms (spec 22): the groups in which it is Japan's form or Japan's old form.
+   * Usually one; several when Japan writes several characters alike (弁 stands for 辨, 瓣, 辯, 辦).
+   */
+  getRegionalForms: {
+    request: { literal: string };
+    response: { groups: RegionalGroupDto[] };
   };
   /** Radical picker: the current selection (empty = show all radicals, no matches). */
   lookupRadicals: {
