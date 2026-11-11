@@ -133,6 +133,22 @@ export const strokeText = (group: RegionalGroupDto, row: FormRow): string => {
 export const joinNames = (names: readonly string[]): string =>
   new Intl.ListFormat("en-GB", { type: "conjunction" }).format(names);
 
+/**
+ * "as China and Japan write it", "as Taiwan writes it", and for the old form "as Japan wrote it
+ * before its reform", joined when a form is both.
+ */
+export const asWritten = (columns: readonly number[]): string => {
+  const regions = columns.filter((column) => column !== OLD_COLUMN);
+  const now =
+    regions.length === 0
+      ? ""
+      : `as ${joinNames(regions.map((column) => COLUMN_NAMES[column] ?? ""))} ${regions.length === 1 ? "writes" : "write"} it`;
+  const before = columns.includes(OLD_COLUMN)
+    ? "as Japan wrote it before its reform"
+    : "";
+  return [now, before].filter(Boolean).join(", and ");
+};
+
 /** The regions a row's columns name, with the old form last. */
 export const columnNames = (columns: readonly number[]): string =>
   joinNames(columns.map((column) => COLUMN_NAMES[column] ?? ""));

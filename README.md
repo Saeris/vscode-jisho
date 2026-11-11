@@ -241,6 +241,8 @@ Drag the scrubber to move through the strokes one at a time, or let it play. The
 
 Below the player is a chart of the whole character, one frame per stroke, for when you want to see the order at a glance rather than watch it.
 
+For a jōyō kanji that China, Hong Kong or Taiwan writes differently, buttons above the player choose whose order to play. China writes 右 with the same shape as Japan but in another order, so the two have separate drawings. Where a region has no drawing, the page says so instead of showing another region's order.
+
 <br clear="left" /><br/>
 
 <picture>

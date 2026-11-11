@@ -58,6 +58,7 @@ CNS 11643 Chinese Standard Interchange Code, National Development Council, Taiwa
 AnimCJK splits its own licensing, and this extension keeps the two sets in separate directories so each ships the terms that actually govern it:
 
 - **Kanji** (`assets/kanji-svgs/`) — glyph paths adapt the Arphic PL KaitiM fonts and [Makemeahanzi](https://github.com/skishore/makemeahanzi), used under the [Arphic Public License](https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE). `ARPHICPL.TXT` ships unaltered alongside the data, as the licence requires.
+- **Chinese** (`assets/hans-svgs/`, `assets/hant-svgs/`) — China's and Taiwan's stroke order for the jōyō kanji they write differently, from AnimCJK's Simplified and Traditional Chinese sets, under the same [Arphic Public License](https://ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE). `ARPHICPL.TXT` ships unaltered in each directory.
 - **Kana** (`assets/kana-svgs/`) — from AnimCJK's `svgsJaKana` set, used under the [GNU Lesser General Public License v3](https://www.gnu.org/licenses/lgpl-3.0.html) or later. `LGPL.txt` ships alongside it.
 
 Both are file-scoped copyleft with aggregation clauses, so bundling the data into this MIT-licensed extension does not relicense the extension — only the data carries those terms.

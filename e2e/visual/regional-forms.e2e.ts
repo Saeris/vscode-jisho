@@ -1,5 +1,5 @@
 import { expect, test } from "../fixtures";
-import { openKanjiResult, screenshotSidebar } from "../webview";
+import { openKanjiResult, returnToSearch, screenshotSidebar } from "../webview";
 
 /**
  * Regional forms (spec 22, phase 3) in VS Code, in a dark and a light theme: the kanji page's
@@ -86,4 +86,36 @@ test("capture: 返, one code point drawn four ways, fanned under the pointer", a
     vscode.window,
     "test-results/shots/33-regional-four-forms.png"
   );
+});
+
+test("stroke order by region: 学 for China and Japan, 學 for Taiwan, none for Taiwan's 返", async ({
+  vscode,
+  jisho
+}) => {
+  // Spec 22, phase 4: China writes 学 stroke for stroke as Japan does, so one drawing serves both;
+  // 學 has Taiwan's own drawing; and AnimCJK has no Taiwanese 返, which the view must say.
+  await openKanjiResult(jisho, "学");
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await expect(
+    jisho.getByRole("radio", { name: "China and Japan" })
+  ).toBeChecked();
+  await expect(jisho.getByText("8 strokes", { exact: true })).toBeVisible();
+  await jisho
+    .getByRole("radio", { name: "Hong Kong, Taiwan and Japan's old form" })
+    .click();
+  await expect(jisho.getByText("16 strokes", { exact: true })).toBeVisible();
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/34-regional-stroke-order.png"
+  );
+
+  await returnToSearch(jisho);
+  await openKanjiResult(jisho, "返");
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await jisho.getByRole("radio", { name: "Hong Kong and Taiwan" }).click();
+  await expect(
+    jisho.getByText(
+      "There is no stroke-order drawing for 返 as Hong Kong and Taiwan write it."
+    )
+  ).toBeVisible();
 });

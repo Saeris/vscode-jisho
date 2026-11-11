@@ -313,7 +313,7 @@ describe("shipped stroke SVG filenames", () => {
     // whose codepoint can name it, so this asserts the precondition rather than the output: a
     // drawing that slipped in under a two-character name would silently keep its non-ASCII name in
     // the bundle and reintroduce the collision.
-    for (const dir of ["kanji-svgs", "kana-svgs"]) {
+    for (const dir of ["kanji-svgs", "kana-svgs", "hans-svgs", "hant-svgs"]) {
       const names = readdirSync(join(process.cwd(), "assets", dir)).filter(
         (f) => f.endsWith(".svg")
       );

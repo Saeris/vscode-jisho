@@ -12,6 +12,7 @@ import type {
   NameResultDto,
   RadicalLookupDto,
   RecentSearchDto,
+  RegionalDrawingDto,
   RegionalGroupDto,
   SearchResultDto,
   SegmentDto,
@@ -27,6 +28,7 @@ import {
   getName,
   getComponentTree,
   getRegionalForms,
+  getRegionalStrokes,
   getRecentSearches,
   getStrokeSvg,
   getWord,
@@ -141,6 +143,22 @@ export const regionalFormsQuery = (
   queryOptions({
     queryKey: ["regionalForms", literal],
     queryFn: async () => (await getRegionalForms(literal)).groups
+  });
+
+/** Stroke order by region (spec 22, phase 4): the kanji group's drawings, Japan's first. */
+export const regionalStrokesQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<
+    RegionalDrawingDto[],
+    Error,
+    RegionalDrawingDto[],
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["regionalStrokes", literal],
+    queryFn: async () => (await getRegionalStrokes(literal)).drawings
   });
 
 export const wordQuery = (

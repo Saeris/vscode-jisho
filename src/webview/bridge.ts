@@ -288,6 +288,11 @@ export const getRegionalForms = async (
 ): Promise<ResponseOf<"getRegionalForms">> =>
   request("getRegionalForms", { literal });
 
+export const getRegionalStrokes = async (
+  literal: string
+): Promise<ResponseOf<"getRegionalStrokes">> =>
+  request("getRegionalStrokes", { literal });
+
 export const lookupRadicals = async (
   selected: string[]
 ): Promise<ResponseOf<"lookupRadicals">> =>
