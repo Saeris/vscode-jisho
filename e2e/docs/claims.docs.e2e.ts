@@ -181,6 +181,34 @@ test("claim: a kanji's page says who writes it differently, and the forms are la
   );
 });
 
+test("claim: stroke order can be played as each region writes it", async () => {
+  // README: "buttons above the player choose whose order to play. China writes 右 with the same
+  // shape as Japan but in another order, so the two have separate drawings. Where a region has no
+  // drawing, the page says so instead of showing another region's order."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "右");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await expect(jisho.getByRole("radio", { name: "Japan" })).toBeChecked();
+  await expect(jisho.getByRole("radio", { name: /^China/u })).toBeVisible();
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "返");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await jisho.getByRole("radio", { name: "Hong Kong and Taiwan" }).click();
+  await expect(
+    jisho.getByText(
+      /There is no stroke-order drawing for 返 as Hong Kong and Taiwan write it/u
+    )
+  ).toBeVisible();
+});
+
 /* ── Reading a word ──────────────────────────────────────────────────────── */
 
 test("claim: every word in an example links to its own entry", async () => {

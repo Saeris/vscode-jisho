@@ -40,6 +40,7 @@
     "build:icon": "vp exec node scripts/build-icon.ts",
     "build:strokes": "vp exec node scripts/build-strokes.ts",
     "build:regional-fonts": "vp exec node scripts/build-regional-fonts.ts",
+    "build:regional-strokes": "vp exec node scripts/build-regional-strokes.ts",
     "build:tokenizer-dict": "vp exec node scripts/build-tokenizer-dict.ts",
     "build:onig-wasm": "vp exec node scripts/build-onig-wasm.ts",
     "build:fts-extension": "vp exec node scripts/build-fts-extension.ts",

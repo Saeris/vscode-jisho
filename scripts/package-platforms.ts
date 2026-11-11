@@ -152,7 +152,13 @@ const fetchPlatformPackage = async (
  * Renamed only for packaging, then restored — `#strokeSvg` derives the same codepoint name when it
  * reads, so the extension resolves the shipped files while the repository keeps its readable ones.
  */
-const SVG_DIRS = ["kanji-svgs", "kana-svgs"] as const;
+const SVG_DIRS = [
+  "kanji-svgs",
+  "kana-svgs",
+  // China's and Taiwan's drawings (spec 22, phase 4), named the same way.
+  "hans-svgs",
+  "hant-svgs"
+] as const;
 
 /** Rename every drawing to `<codepoint>.svg`, returning the moves so they can be undone. */
 const toCodepointNames = (): Array<{ from: string; to: string }> => {

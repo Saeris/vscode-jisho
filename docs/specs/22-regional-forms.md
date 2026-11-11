@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts) and 3 (the view) built, with their results recorded below; phase 4 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view) and 4 (stroke order) built, with their results recorded below; phase 5 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -331,6 +331,15 @@ The overprint (all behaviours, theme inks, non-colour labels, reduced motion), t
 Ingest AnimCJK's Simplified and Traditional Chinese drawings for the groups in scope, let Hong Kong and the old form borrow per glyph group, and add the region switcher to the stroke-order view. AnimCJK publishes these as per-character SVG files in the same format as the Japanese set we use (`svgsZhHans/`, `svgsZhHant/`, named by decimal code point), so no SVG needs generating; our vendored Japanese SVGs carry an extra guides layer that these lack, which the player must handle. Follow the delivery path and lessons of [STROKE-ORDER.md](../STROKE-ORDER.md).
 
 **Done when** 学 plays China's and Japan's order, 學 plays Taiwan's, and a region with no drawing says so.
+
+**Results (2026-11-11).** `e2e/visual/regional-forms.e2e.ts` plays 学 as China and Japan write it, 學 as Taiwan does (16 strokes), and finds "There is no stroke-order drawing for 返 as Hong Kong and Taiwan write it."
+
+- **Scope, decided with the user on 2026-11-11: jōyō kanji only, as files.** Phase 0's size estimate was low: it measured AnimCJK's raw data, and our transformed SVGs, with outlines, clip paths and guides, are 2.7 times larger (8.2 KB each). Every group with a kanji page would have added 17.6 MB to the `.vsix`, and the dictionary download would have split the drawings across two delivery paths. The jōyō scope adds **5.5 MB** (China 4.00, Taiwan 1.51): the `.vsix` is 39.23 MB. A non-jōyō kanji's stroke page shows Japan's drawing only, as before.
+- **Shared drawings are checked, not assumed.** `scripts/build-regional-strokes.ts` compares AnimCJK's medians: two drawings take the same strokes in the same order when they have as many strokes and each starts and ends within 140 units (of 1024) of the other's. Of 2,154 jōyō groups, China has 1,518 drawings of its own and shares Japan's in 567; Taiwan has 464 of its own and shares 369. China writes some kanji with Japan's glyph in another order, 右 and 有 among them (Japan starts both with the left-falling stroke), and they get their own drawing. Where they share, `assets/regional-strokes.json` records it, beside the drawings it describes.
+- **Hong Kong** has no set of its own. It borrows the drawing of the region that writes the same glyph at the same code point, Taiwan first, then China, then Japan. **Japan's old form** borrows the same way, or has Japan's drawing of the old character.
+- **A form nothing draws stays undrawn.** The host groups the columns by drawing and lists undrawn forms with no SVG. The view says so in words ("…for 返 as Hong Kong and Taiwan write it") rather than play another region's order.
+- **The view** shows a button per drawing, labelled with its regions, Japan's first, only when there are two or more. The player starts the new drawing from stroke 0.
+- The Chinese drawings go through the same `transform` as Japan's, so the guides and chart work unchanged; they carry no part hit-targets, since AnimCJK's Chinese decompositions were not read. They are renamed to code points in the `.vsix` like the others, and `ARPHICPL.TXT` ships in each directory.
 
 ### Phase 5 — Readings and frequency by region
 

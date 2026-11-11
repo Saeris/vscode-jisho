@@ -48,6 +48,11 @@ assets/**
 # …as do the kana drawings, kept in their own directory because they are LGPL rather than APL and
 # ship the LGPL text that governs them.
 !assets/kana-svgs/**
+# …and China's and Taiwan's drawings for stroke order by region (spec 22, phase 4), each directory
+# with the Arphic PL text that governs it, plus the manifest saying which set draws each form.
+!assets/hans-svgs/**
+!assets/hant-svgs/**
+!assets/regional-strokes.json
 # …and the compiled IPADIC tokenizer dictionary IS bundled (loaded by path at runtime; ~55 MB,
 # compresses small in the .vsix zip). See docs/specs/14.
 !assets/lindera-ipadic/**

@@ -284,6 +284,19 @@ export interface RegionalGroupDto {
   tiers: number[];
 }
 
+/**
+ * One stroke-order drawing of a kanji's regional group (spec 22, phase 4), and the columns it shows:
+ * 0–3 the regions (China, Hong Kong, Taiwan, Japan), 4 Japan's old form. Columns that take the
+ * same strokes in the same order share one drawing; a form with no drawing has `svg: null`, so the
+ * view can say so rather than show another region's order.
+ */
+export interface RegionalDrawingDto {
+  columns: number[];
+  /** The form drawn. */
+  char: string;
+  svg: string | null;
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -497,6 +510,14 @@ export interface Protocol {
   getRegionalForms: {
     request: { literal: string };
     response: { groups: RegionalGroupDto[] };
+  };
+  /**
+   * Stroke order by region (spec 22, phase 4): the distinct drawings of the kanji's own regional
+   * group, Japan's first. Empty when the kanji is in no group.
+   */
+  getRegionalStrokes: {
+    request: { literal: string };
+    response: { drawings: RegionalDrawingDto[] };
   };
   /** Radical picker: the current selection (empty = show all radicals, no matches). */
   lookupRadicals: {
