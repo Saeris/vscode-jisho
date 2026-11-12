@@ -143,3 +143,32 @@ test("readings and frequency of 学: Mandarin, Cantonese, and a labelled rank fo
   ).toBeVisible();
   await expect(jisho.getByText("#5 on Japanese Wikipedia")).toBeVisible();
 });
+
+test("Wiktionary's notes on 学: simplified from 學, linked to its page, with the licence credit", async ({
+  vscode,
+  jisho
+}) => {
+  // Spec 22, phase 6: "Done when 学 shows the note that it was simplified from 學, linked to
+  // Wiktionary". The notes come from a pinned extraction, so the text is fixed.
+  await returnToSearch(jisho);
+  await openKanjiResult(jisho, "学");
+  await jisho
+    .getByRole("button", {
+      name: /Written differently in Hong Kong and Taiwan/u
+    })
+    .click();
+  await expect(jisho.getByText("From Wiktionary")).toBeVisible();
+  await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
+  await expect(
+    jisho.getByRole("link", { name: "Translingual section on Wiktionary" })
+  ).toHaveAttribute(
+    "href",
+    "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
+  );
+  await expect(jisho.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
+  await jisho.getByText("From Wiktionary").scrollIntoViewIfNeeded();
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/35-regional-wiktionary.png"
+  );
+});

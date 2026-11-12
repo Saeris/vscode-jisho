@@ -1,4 +1,4 @@
-import type { RegionalGroupDto } from "../../shared/messages";
+import type { RegionalGroupDto, RegionalNoteDto } from "../../shared/messages";
 import type { SqliteStore } from "../store";
 import { parseStrings } from "./parse";
 
@@ -58,7 +58,8 @@ export const getRegionalGroups = async (
         strokes: [null, null, null, null],
         tiers: [0, 0, 0, 0],
         readings: [null, null, null, null],
-        ranks: [null, null, null, null]
+        ranks: [null, null, null, null],
+        notes: []
       };
       groups.set(row.id, group);
     }
@@ -84,6 +85,17 @@ export const getRegionalGroups = async (
       ? [...parseStrings(kanji.on_json), ...parseStrings(kanji.kun_json)]
       : [];
     group.readings[3] = japanese.length > 0 ? japanese.join("、") : null;
+    // Wiktionary's notes on every character the group writes (spec 22, phase 6).
+    const chars = [
+      ...new Set(
+        group.old === undefined ? group.chars : [...group.chars, group.old]
+      )
+    ];
+    group.notes = await store.all<RegionalNoteDto>(
+      `SELECT char, section, text FROM regional_notes
+        WHERE char IN (${chars.map(() => "?").join(", ")})`,
+      ...chars
+    );
   }
   return [...groups.values()];
 };

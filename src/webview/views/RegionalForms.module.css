@@ -153,3 +153,30 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
+
+/* From Wiktionary (spec 22, phase 6): each note quoted, then its page and the licence credit. */
+.note {
+  margin: 0 0 10px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--jisho-border);
+}
+
+.note p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.note a,
+.credit a {
+  color: var(--jisho-link);
+}
+
+.noteChar {
+  color: var(--jisho-fg);
+  font-size: 1.15em;
+}
+
+.credit {
+  margin: 0;
+  font-size: 0.9em;
+}

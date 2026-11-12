@@ -172,7 +172,12 @@ export const About = (): React.ReactElement => {
             <a href="https://github.com/scriptin/kanji-frequency">
               kanji-frequency
             </a>{" "}
-            (CC BY 4.0). The forms are drawn in subsets of{" "}
+            (CC BY 4.0). The notes on the forms are quoted from{" "}
+            <a href="https://en.wiktionary.org/">English Wiktionary</a> (CC
+            BY-SA 4.0), extracted by{" "}
+            <a href="https://github.com/tatuylonen/wiktextract">Wiktextract</a>{" "}
+            (<a href="https://kaikki.org/">kaikki.org</a>). The forms are drawn
+            in subsets of{" "}
             <a href="https://github.com/notofonts/noto-cjk">Noto Sans CJK</a> (©
             Adobe, SIL Open Font License), renamed Jisho Sans.
           </p>

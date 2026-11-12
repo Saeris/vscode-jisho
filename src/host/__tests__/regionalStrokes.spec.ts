@@ -16,7 +16,8 @@ const learn: RegionalGroupDto = {
   strokes: [8, 16, 16, 8, 16],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
-  ranks: [null, null, null, null]
+  ranks: [null, null, null, null],
+  notes: []
 };
 const back: RegionalGroupDto = {
   key: "返",
@@ -26,7 +27,8 @@ const back: RegionalGroupDto = {
   strokes: [7, 7, 8, 7],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
-  ranks: [null, null, null, null]
+  ranks: [null, null, null, null],
+  notes: []
 };
 
 /** A file reader over a fixed set of drawings: `set:char` names each file that exists. */

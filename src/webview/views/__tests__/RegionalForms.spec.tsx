@@ -19,7 +19,19 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [8, 16, 16, 8, 16],
       tiers: [1, 1, 1, 2],
       readings: ["xué", "hok6", "xué", "ガク、まな.ぶ"],
-      ranks: [66, 84, 93, 5]
+      ranks: [66, 84, 93, 5],
+      notes: [
+        {
+          char: "學",
+          section: "Chinese",
+          text: "Possibly a phono-semantic compound.\nIn the modern form, 六 has corrupted to 冖."
+        },
+        {
+          char: "学",
+          section: "Translingual",
+          text: "Simplified from 學 (𦥯 → 𰃮) in simplified Chinese and Japanese shinjitai."
+        }
+      ]
     }
   ],
   園: [
@@ -31,7 +43,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [7, 13, 13, 13],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ],
   返: [
@@ -43,7 +56,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [7, 7, 8, 7],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ]
 };
@@ -167,6 +181,42 @@ describe("the Regional forms view", () => {
     expect(section?.textContent).toContain(
       "ガク、まな.ぶ (Japanese)#5 on Japanese Wikipedia"
     );
+  });
+
+  it("quotes Wiktionary with a link to each page and the licence credit", async () => {
+    // WHY: phase 6's point is that 学 says it was simplified from 學; and Wiktionary's licence
+    // (CC BY-SA 4.0) lets the text be shown only with a credit and a link to where it came from.
+    renderView("学");
+    const quote = (
+      await screen.findByText(
+        "Simplified from 學 (𦥯 → 𰃮) in simplified Chinese and Japanese shinjitai."
+      )
+    ).closest("blockquote");
+    expect(quote).toHaveAttribute(
+      "cite",
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
+    );
+    expect(
+      screen.getByRole("link", { name: "Translingual section on Wiktionary" })
+    ).toHaveAttribute(
+      "href",
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
+    );
+    // Each paragraph of 學's note is its own, after 学's.
+    expect(
+      screen.getByText("In the modern form, 六 has corrupted to 冖.")
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "CC BY-SA 4.0" })).toHaveAttribute(
+      "href",
+      "https://creativecommons.org/licenses/by-sa/4.0/"
+    );
+  });
+
+  it("leaves out the block when Wiktionary says nothing of the group", async () => {
+    // WHY: a heading and a licence credit with no text under them would credit nothing.
+    renderView("返");
+    await screen.findByText("4 forms of one code point, U+8FD4");
+    expect(screen.queryByText("From Wiktionary")).toBeNull();
   });
 
   it("pulls the layers apart while dragged, and lets them go on release", async () => {

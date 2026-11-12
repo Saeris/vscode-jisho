@@ -121,6 +121,16 @@ The kana set differs from the kanji set in ways that have broken the shared tran
 
 The fonts that show how China, Hong Kong, Taiwan and Japan each write a character are subsets of Noto Sans CJK, renamed "Jisho Sans" and committed in `src/webview/fonts/regional/` with a generated `src/webview/styles/regionalFonts.css`. Regenerate them with `vp run build:regional-fonts` after a change to the grouping in `scripts/regional.ts` or to its pins: the fonts must hold the forms the data shows, drawn from the glyphs the CMaps measured. [Spec 22](./docs/specs/22-regional-forms.md) explains the choices.
 
+## Wiktionary notes
+
+The Regional forms view quotes English Wiktionary. The data build does not read Wiktionary itself: it downloads a small extraction, published as a release asset and pinned by tag and checksum in `scripts/wiktionary.ts`. To take fresher notes:
+
+1. Run the **Wiktionary Extract** workflow. It streams Wiktextract's full dump from kaikki.org (2.9 GB) and publishes the result under a new `wiktionary-YYYY-MM-DD` tag.
+2. Copy the tag and checksum from the run's summary into `WIKTIONARY_TAG` and `WIKTIONARY_SHA256`.
+3. Build the dictionary. To try an extraction before it is published, run `vp exec node scripts/extract-wiktionary.ts <out-dir> [dump]` and point `JISHO_WIKTIONARY_FILE` at the result; the checksum must still match the pin.
+
+The data build also cross-checks the grouping against Wiktionary's labels, and fails on any difference not recorded in `EXPLAINED` in `scripts/wiktionary.ts`, or on a recorded one that no longer occurs. When it fails, look at each pair or group it names: fix the grouping if Wiktionary is right, or record the reason if it is not.
+
 ## Where things are
 
 | Path           | What                                                    |

@@ -127,6 +127,14 @@ if (isNames) {
     fail(
       `${missing} of 學's regional forms lack a frequency rank or a reading`
     );
+
+  // Wiktionary's notes (spec 22, phase 6): 学's page says it was simplified from 學, so a build that
+  // lost or misread the extraction fails here.
+  const learnNote = scalar(
+    "SELECT text FROM regional_notes WHERE char = '学' AND section = 'Translingual'"
+  );
+  if (typeof learnNote !== "string" || !learnNote.includes("學"))
+    fail(`学's Wiktionary note does not name 學: "${String(learnNote)}"`);
 }
 
 db.close();

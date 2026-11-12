@@ -65,6 +65,11 @@ National Academy for Educational Research, Taiwan, used under its website data o
 **[kanji-frequency](https://github.com/scriptin/kanji-frequency)** — Japan's ranks, counted on Japanese Wikipedia.
 © scriptin, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+The notes on how the forms relate and where a shape came from are quoted from Wiktionary:
+
+**[English Wiktionary](https://en.wiktionary.org/)** — the Translingual and Chinese sections of each character's page.
+Text by the Wiktionary contributors, used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The view shows each note with a link to the page it is quoted from. Pronunciation tables that the extraction left in a note are removed; the text is otherwise unchanged. Extracted with [Wiktextract](https://github.com/tatuylonen/wiktextract) through [kaikki.org](https://kaikki.org/), which asks to be cited as: Tatu Ylonen, "Wiktextract: Wiktionary as Machine-Readable Structured Data", Proceedings of the 13th Conference on Language Resources and Evaluation (LREC), pp. 1317–1325, Marseille, 20–25 June 2022.
+
 ## Stroke-order drawings
 
 **[AnimCJK](https://github.com/parsimonhi/animCJK)** — stroke-order animations, © FM&SH.

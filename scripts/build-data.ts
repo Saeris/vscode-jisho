@@ -71,6 +71,13 @@ import {
   type RegionalSources
 } from "./regional.ts";
 import { fetchFrequencies, type Frequencies } from "./frequency.ts";
+import {
+  WIKTIONARY_TAG,
+  crossCheck,
+  fetchWiktionary,
+  unexplained,
+  type Wiktionary
+} from "./wiktionary.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
@@ -1031,6 +1038,8 @@ interface Sources {
   regional: RegionalSources;
   /** Each region's character frequency, for the regional forms (spec 22, phase 5). */
   frequencies: Frequencies;
+  /** Wiktionary's notes and variant labels, for the regional forms (spec 22, phase 6). */
+  wiktionary: Wiktionary;
   /** The resolved jmdict-simplified release tag, recorded so a build says what it came from. */
   release: string;
 }
@@ -1057,7 +1066,8 @@ const downloadSources = async (): Promise<Sources> => {
     yenckenRadical,
     kanjiJlpt,
     regional,
-    frequencies
+    frequencies,
+    wiktionary
   ] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -1072,7 +1082,9 @@ const downloadSources = async (): Promise<Sources> => {
     fetchYencken(YENCKEN_RADICAL_URL),
     fetchKanjiJlpt(),
     fetchRegionalSources(fetchRetrying),
-    fetchFrequencies(fetchRetrying)
+    fetchFrequencies(fetchRetrying),
+    // `JISHO_WIKTIONARY_FILE` builds from an extraction on disk, before it is published.
+    fetchWiktionary(fetchRetrying, process.env.JISHO_WIKTIONARY_FILE)
   ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -1099,6 +1111,7 @@ const downloadSources = async (): Promise<Sources> => {
     yencken: { stroke: yenckenStroke, radical: yenckenRadical },
     regional,
     frequencies,
+    wiktionary,
     release: release.tag_name
   };
 };
@@ -1117,7 +1130,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     tatoeba,
     yencken,
     regional,
-    frequencies
+    frequencies,
+    wiktionary
   } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   // Clear only the STAGING path here. The destination is left alone until the promote at the end,
@@ -1443,10 +1457,42 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
         null
       );
   }
+  // Wiktionary's notes (spec 22, phase 6), for every character a group writes.
+  const insRegionalNote = db.prepare(
+    "INSERT INTO regional_notes(char, section, text) VALUES (?, ?, ?)"
+  );
+  const notedChars = new Set(
+    regionalGroups.flatMap((group) =>
+      group.old === undefined ? group.chars : [...group.chars, group.old]
+    )
+  );
+  let regionalNotes = 0;
+  for (const char of notedChars)
+    for (const [section, text] of Object.entries(
+      wiktionary.notes.get(char) ?? {}
+    )) {
+      insRegionalNote.run(char, section, text);
+      regionalNotes++;
+    }
   db.exec("COMMIT");
   const regionalOld = regionalGroups.filter((g) => g.old !== undefined).length;
   console.log(
-    `  regional: ${regionalGroups.length} character groups, ${regionalOld} with a Japanese old form`
+    `  regional: ${regionalGroups.length} character groups, ${regionalOld} with a Japanese old form, ${regionalNotes} Wiktionary notes`
+  );
+  // The grouping, cross-checked against Wiktionary's labels. Every difference must have a recorded
+  // reason (scripts/wiktionary.ts, EXPLAINED), and every reason a difference.
+  const found = crossCheck(regionalGroups, wiktionary);
+  const { differences, stale } = unexplained(found);
+  if (differences.length > 0 || stale.length > 0)
+    throw new Error(
+      [
+        "The regional grouping no longer matches its cross-check with Wiktionary (scripts/wiktionary.ts, EXPLAINED).",
+        ...differences.map((line) => `  new, with no reason: ${line}`),
+        ...stale.map((line) => `  explained, but no longer found: ${line}`)
+      ].join("\n")
+    );
+  console.log(
+    `  regional cross-check: ${found.split.length} pairs split and ${found.unconnected.length} groups unconnected, all explained`
   );
 
   // ── JLPT pass ─────────────────────────────────────────────────────────────
@@ -1587,7 +1633,11 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       "regionalFrequencySource",
       "Regional frequency: China, Jun Da's Modern Chinese Character Frequency List (© Jun Da, via hanziDB.csv, MIT); Hong Kong, words.hk character counts (public domain); Taiwan, National Academy for Educational Research, 2023 corpus character frequency; Japan, scriptin/kanji-frequency, Japanese Wikipedia (CC BY 4.0)"
     ],
-    ["regionalHongKongFrequencyFetched", frequencies.hongKongFetched]
+    ["regionalHongKongFrequencyFetched", frequencies.hongKongFetched],
+    [
+      "regionalNotesSource",
+      `Regional notes: English Wiktionary (CC BY-SA 4.0), extracted by Wiktextract (kaikki.org), release ${WIKTIONARY_TAG}`
+    ]
   ];
   for (const [key, value] of metaRows) insMeta.run(key, value);
 
@@ -1605,6 +1655,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   atLeast("pool sentences", tatoebaRows, FLOORS.poolSentences);
   atLeast("regional groups", regionalGroups.length, FLOORS.regionalGroups);
   atLeast("regional old forms", regionalOld, FLOORS.regionalOldForms);
+  atLeast("regional notes", regionalNotes, FLOORS.regionalNotes);
   // Not tracked in a local (it is written per sense inside importWord), so read it back.
   const tagRow: unknown = db
     .prepare("SELECT COUNT(*) AS n FROM sense_tags")
@@ -1728,6 +1779,8 @@ const FLOORS = {
   /** 8,418 groups, 378 with an old form (2026-11-10) — variant-independent (spec 22). */
   regionalGroups: 7500,
   regionalOldForms: 320,
+  /** 6,469 Wiktionary notes on the groups' characters (2026-11-12). */
+  regionalNotes: 6000,
   /** 743,538 names — the separate JMnedict build. */
   names: 600000
 };
