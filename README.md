@@ -260,6 +260,7 @@ When other regions write a kanji differently, its page says which regions and ho
 - **Separate** sets the forms side by side, each labelled with the regions that write it. **Outline** shows only their outlines.
 - Below, each form has a row: the regions that write it, its code point, its stroke count, and the official character lists it is on.
 - **Readings and frequency** gives each region's reading of its form, in Mandarin, Cantonese and Japanese, and how common the form is in that region. Each rank names the texts it was counted in, because the four regions' ranks come from different kinds of text and do not compare directly.
+- **From Wiktionary** quotes what English Wiktionary says of the forms: how they relate, such as 学 being simplified from 學, and where the shape came from. Each note links to the page it is quoted from.
 
 Where Japan wrote the kanji differently before the reform, that form appears as **Japan's old form**. Each form is drawn in a font for its region, so the differences you see are the regions' own.
 
@@ -533,6 +534,7 @@ Jisho is built on open dictionary projects whose licences require attribution. F
 - **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]**: handwriting recognition and drawing, MIT.
 - **Regional forms**: the method of [hanji][hanji] (MIT); variant tables from [OpenCC][opencc] (Apache 2.0); glyph comparison from the character maps of [Source Han][source-han] (SIL OFL); character lists, stroke counts and readings from [Unihan][unihan] (Unicode License) and, for Taiwan, [CNS 11643][cns11643] (Open Government Data License 1.0).
 - **Regional frequency**: China, [Jun Da's Modern Chinese Character Frequency List][jun-da] (© Jun Da, used with credit); Hong Kong, [words.hk][words-hk] (public domain); Taiwan, the [National Academy for Educational Research][naer] (open data, with credit); Japan, [kanji-frequency][kanji-frequency] (CC BY 4.0).
+- **Regional notes**: quoted from [English Wiktionary][wiktionary] by its contributors, under [CC BY-SA 4.0][cc-by-sa], through [Wiktextract][wiktextract] ([kaikki.org][kaikki]).
 - **[Noto Sans CJK][noto-cjk]**: the region fonts, © Adobe, under the [SIL Open Font License][ofl], renamed Jisho Sans.
 
 ## Contributing
@@ -579,6 +581,9 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [words-hk]: https://words.hk/faiman/analysis/
 [naer]: https://teric.naer.edu.tw/wSite/ct?ctNode=645&mp=teric_b&xItem=2068770
 [kanji-frequency]: https://github.com/scriptin/kanji-frequency
+[wiktionary]: https://en.wiktionary.org/
+[wiktextract]: https://github.com/tatuylonen/wiktextract
+[kaikki]: https://kaikki.org/
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [issues]: https://github.com/Saeris/vscode-jisho/issues
 [license]: ./LICENSE.md

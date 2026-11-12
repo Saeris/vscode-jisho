@@ -18,7 +18,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [8, 16, 16, 8, 16],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ],
   一: [
@@ -30,7 +31,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [1, 1, 1, 1],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ],
   研: [
@@ -43,7 +45,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [9, 9, 9, 9, 11],
       tiers: [1, 1, 1, 1],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ],
   予: [
@@ -55,7 +58,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [4, 4, 4, 4],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     },
     {
       key: "豫",
@@ -66,7 +70,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       strokes: [15, 16, 16, 4, 16],
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
-      ranks: [null, null, null, null]
+      ranks: [null, null, null, null],
+      notes: []
     }
   ]
 };

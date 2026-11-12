@@ -292,6 +292,20 @@ export interface RegionalGroupDto {
    * Four corpora, never one scale. Null where the corpus does not rank the form.
    */
   ranks: Array<number | null>;
+  /**
+   * What English Wiktionary says of the group's characters (spec 22, phase 6), CC BY-SA 4.0: shown
+   * with a credit and a link to each character's page. Empty when its pages say nothing we keep.
+   */
+  notes: RegionalNoteDto[];
+}
+
+/** One Wiktionary note on a character of a regional group. */
+export interface RegionalNoteDto {
+  char: string;
+  /** The page's section: Translingual (how the forms relate), Chinese (where the shape came from). */
+  section: "Translingual" | "Chinese";
+  /** Paragraphs, separated by newlines. */
+  text: string;
 }
 
 /**

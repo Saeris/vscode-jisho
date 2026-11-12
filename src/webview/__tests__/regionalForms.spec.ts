@@ -3,6 +3,7 @@ import type { RegionalGroupDto } from "../../shared/messages";
 import {
   columnNames,
   formRows,
+  noteRows,
   summaryLine,
   usageRows
 } from "../regionalForms";
@@ -17,7 +18,8 @@ const learn: RegionalGroupDto = {
   strokes: [8, 16, 16, 8, 16],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
-  ranks: [null, null, null, null]
+  ranks: [null, null, null, null],
+  notes: []
 };
 const back: RegionalGroupDto = {
   key: "返",
@@ -27,7 +29,8 @@ const back: RegionalGroupDto = {
   strokes: [7, 7, 8, 7],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
-  ranks: [null, null, null, null]
+  ranks: [null, null, null, null],
+  notes: []
 };
 const one: RegionalGroupDto = {
   key: "一",
@@ -37,7 +40,8 @@ const one: RegionalGroupDto = {
   strokes: [1, 1, 1, 1],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
-  ranks: [null, null, null, null]
+  ranks: [null, null, null, null],
+  notes: []
 };
 
 describe("a group's distinct forms", () => {
@@ -101,6 +105,46 @@ describe("readings and frequency", () => {
       ["Taiwan", "學", "Mandarin"],
       ["Japan", "学", "Japanese"]
     ]);
+  });
+});
+
+describe("wiktionary's notes", () => {
+  it("puts Japan's form first, and a character's cross-language note before its origin", () => {
+    // WHY: the reader comes from Japan's 学, so "Simplified from 學" must come before 學's account
+    // of its parts, whatever order the database returns them in; and each links to its own section.
+    const rows = noteRows({
+      ...learn,
+      notes: [
+        {
+          char: "學",
+          section: "Chinese",
+          text: "Possibly a compound.\nLater, 子 was added."
+        },
+        { char: "学", section: "Chinese", text: "See 學." },
+        { char: "学", section: "Translingual", text: "Simplified from 學." }
+      ]
+    });
+    expect(rows.map((row) => [row.char, row.section, row.paragraphs])).toEqual([
+      ["学", "Translingual", ["Simplified from 學."]],
+      ["学", "Chinese", ["See 學."]],
+      ["學", "Chinese", ["Possibly a compound.", "Later, 子 was added."]]
+    ]);
+    expect(rows.map((row) => row.url)).toEqual([
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual",
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Chinese",
+      "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese"
+    ]);
+  });
+
+  it("writes each character in the shape of the region it was quoted for", () => {
+    // WHY: 學 is quoted as Hong Kong's form, so it takes Hong Kong's language and font, not the
+    // sidebar's Japanese default, like its row in the chart.
+    const [row] = noteRows({
+      ...learn,
+      notes: [{ char: "學", section: "Chinese", text: "A compound." }]
+    });
+    const chartRow = formRows(learn).find((form) => form.char === "學");
+    expect([row?.lang, row?.family]).toEqual(["zh-HK", chartRow?.family]);
   });
 });
 

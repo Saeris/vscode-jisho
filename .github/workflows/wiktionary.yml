@@ -1,0 +1,64 @@
+name: Wiktionary Extract
+
+# The Wiktionary extraction job (spec 22, phase 6). Streams Wiktextract's full English Wiktionary dump
+# from kaikki.org (2.9 GB compressed) and keeps the Translingual, Chinese and Japanese entries of every
+# single Han character, pruned to the fields the regional-forms notes use. The result is published as
+# a release asset of its own tag (`wiktionary-YYYY-MM-DD`).
+#
+# Run by hand when fresher notes are wanted. The data build never reads the dump: it downloads the
+# asset that `scripts/wiktionary.ts` pins by tag and checksum, so a new extraction changes nothing
+# until that pin is updated in a commit. kaikki.org's per-language files are due to be removed, which
+# is why this reads the full dump.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    name: Extract and publish
+    # Never publish from a fork.
+    if: github.repository == 'Saeris/vscode-jisho'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "24.22"
+          cache: true
+
+      - name: Extract from the full dump
+        run: vp exec node scripts/extract-wiktionary.ts out
+
+      # A new tag for every run, never a replaced asset: a data build pinned to an older tag must
+      # keep reading exactly what it was pinned to.
+      - name: Publish the extraction
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="wiktionary-$(date -u +%Y-%m-%d)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::$tag already exists. Releases are never replaced; run again tomorrow, or delete the tag if nothing pins it."
+            exit 1
+          fi
+          # Which Wiktionary dump the data came from, as kaikki.org states it; "not stated" when the
+          # page changes its wording, which loses only this note.
+          source=$(curl -sfL https://kaikki.org/dictionary/rawdata.html \
+            | grep -o 'extracted on [0-9-]* from the enwiktionary dump dated [0-9-]*' | head -1 || true)
+          gh release create "$tag" --latest=false \
+            --title "Wiktionary extraction ($tag)" \
+            --notes "Single Han characters from English Wiktionary (Translingual, Chinese and Japanese), extracted by Wiktextract (kaikki.org): ${source:-source dump not stated}. Text CC BY-SA 4.0. Read by the data build for the regional-forms notes." \
+            out/wiktionary-han.jsonl.gz out/wiktionary-han.jsonl.gz.sha256
+          {
+            echo "### Pin this extraction"
+            echo
+            echo "In \`scripts/wiktionary.ts\`:"
+            echo
+            echo '```ts'
+            echo "export const WIKTIONARY_TAG = \"$tag\";"
+            echo "export const WIKTIONARY_SHA256 = \"$(cat out/wiktionary-han.jsonl.gz.sha256)\";"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

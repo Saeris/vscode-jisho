@@ -208,6 +208,29 @@ test("claim: each region's reading and rank, with the texts it was counted in", 
     await expect(jisho.getByText(corpus)).toBeVisible();
 });
 
+test("claim: the forms' notes are quoted from Wiktionary, each linked to its page", async () => {
+  // README: "From Wiktionary quotes what English Wiktionary says of the forms: how they relate, such
+  // as 学 being simplified from 學, and where the shape came from. Each note links to the page it is
+  // quoted from."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "学");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", {
+      name: /Written differently in Hong Kong and Taiwan/u
+    })
+    .click();
+  await expect(jisho.getByText("From Wiktionary")).toBeVisible();
+  await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
+  // 學's own page gives where the shape came from.
+  await expect(
+    jisho.getByRole("link", { name: "Chinese section on Wiktionary" })
+  ).toHaveAttribute("href", "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese");
+});
+
 test("claim: stroke order can be played as each region writes it", async () => {
   // README: "buttons above the player choose whose order to play. China writes 右 with the same
   // shape as Japan but in another order, so the two have separate drawings. Where a region has no

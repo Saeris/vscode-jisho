@@ -175,6 +175,46 @@ export const usageRows = (group: RegionalGroupDto): UsageRow[] =>
     };
   });
 
+/** One Wiktionary note as the view shows it (spec 22, phase 6). */
+export interface NoteRow {
+  char: string;
+  /** The language and family of the form's first column, so the character keeps its region's shape. */
+  lang: string;
+  family: string;
+  section: "Translingual" | "Chinese";
+  paragraphs: string[];
+  /** The section of the character's page the note is from. */
+  url: string;
+}
+
+/**
+ * The group's Wiktionary notes in the chart's order (Japan's form first), a character's Translingual
+ * note (how its forms relate) before its Chinese one (where the shape came from). So 学 reads
+ * "Simplified from 學" first, then 學's account of its parts.
+ */
+export const noteRows = (group: RegionalGroupDto): NoteRow[] => {
+  const rows = formRows(group);
+  const position = (char: string): number =>
+    rows.findIndex((row) => row.char === char);
+  return group.notes
+    .toSorted(
+      (a, b) =>
+        position(a.char) - position(b.char) ||
+        Number(a.section === "Chinese") - Number(b.section === "Chinese")
+    )
+    .map((note) => {
+      const row = rows.find((form) => form.char === note.char);
+      return {
+        char: note.char,
+        lang: COLUMN_LANGS[row?.columns[0] ?? JAPAN] ?? "ja",
+        family: row?.family ?? "",
+        section: note.section,
+        paragraphs: note.text.split("\n"),
+        url: `https://en.wiktionary.org/wiki/${encodeURIComponent(note.char)}#${note.section}`
+      };
+    });
+};
+
 /** "China, Hong Kong and Taiwan". */
 export const joinNames = (names: readonly string[]): string =>
   new Intl.ListFormat("en-GB", { type: "conjunction" }).format(names);

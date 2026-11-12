@@ -17,7 +17,7 @@
  * then installed versions depend on it, so a shape change must never ship under a version one of
  * them already trusts. A new version also publishes to a new release tag (`releaseTagFor`).
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /** The `meta` table key the build writes and the host reads the schema version from. */
 export const SCHEMA_VERSION_KEY = "schemaVersion";

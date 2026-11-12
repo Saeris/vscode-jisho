@@ -16,6 +16,7 @@ import {
   columnNames,
   formRows,
   inkOf,
+  noteRows,
   strokeText,
   usageRows
 } from "../regionalForms";
@@ -204,6 +205,7 @@ const GroupSection = ({
           </div>
         ))}
       </dl>
+      <WiktionaryNotes group={group} />
       <p className={styles.links}>
         {chars.map((char) => (
           <span key={char} className={styles.link}>
@@ -222,5 +224,51 @@ const GroupSection = ({
         ))}
       </p>
     </section>
+  );
+};
+
+/**
+ * "From Wiktionary" (spec 22, phase 6): what its pages say of how the forms relate and where the
+ * shape came from, quoted with a link to each page and the CC BY-SA credit its licence asks for.
+ */
+const WiktionaryNotes = ({
+  group
+}: {
+  group: RegionalGroupDto;
+}): React.ReactElement | null => {
+  const notes = noteRows(group);
+  if (notes.length === 0) return null;
+  return (
+    <>
+      <h3 className={styles.subheading}>From Wiktionary</h3>
+      {notes.map((note) => (
+        <blockquote
+          key={`${note.char}-${note.section}`}
+          className={styles.note}
+          cite={note.url}
+        >
+          {note.paragraphs.map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+          <footer className={styles.muted}>
+            <span
+              className={styles.noteChar}
+              lang={note.lang}
+              style={{ fontFamily: `"${note.family}"` }}
+            >
+              {note.char}
+            </span>{" "}
+            <a href={note.url}>{note.section} section on Wiktionary</a>
+          </footer>
+        </blockquote>
+      ))}
+      <p className={`${styles.credit} ${styles.muted}`}>
+        Text from English Wiktionary, under{" "}
+        <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+          CC BY-SA 4.0
+        </a>
+        .
+      </p>
+    </>
   );
 };

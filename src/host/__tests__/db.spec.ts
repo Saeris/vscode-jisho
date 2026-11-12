@@ -790,6 +790,18 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(learn?.ranks[1]).toBeLessThan(500);
   });
 
+  test("carries Wiktionary's notes on every character the group writes", async () => {
+    // WHY: phase 6's point. 学's own page only says it was simplified from 學; where the shape came
+    // from is on 學's page. The group must bring back both, by character and section, or the view
+    // shows the simplification with no origin, or the origin under the wrong character.
+    const [learn] = await dict.getRegionalForms("学");
+    const notes = new Map(
+      learn?.notes.map((note) => [`${note.char} ${note.section}`, note.text])
+    );
+    expect(notes.get("学 Translingual")).toMatch(/^Simplified from 學/u);
+    expect(notes.get("學 Chinese")).toMatch(/compound/u);
+  });
+
   test("lists every character Japan writes alike, the kanji's own first", async () => {
     // WHY: Japan's reform made 予 stand for 豫 too. The page for 予 shows both groups, and the
     // character itself must lead: opening 予 and seeing 豫 first would suggest 予 is only a
