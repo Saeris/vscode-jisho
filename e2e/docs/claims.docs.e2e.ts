@@ -181,6 +181,33 @@ test("claim: a kanji's page says who writes it differently, and the forms are la
   );
 });
 
+test("claim: each region's reading and rank, with the texts it was counted in", async () => {
+  // README: "Readings and frequency gives each region's reading of its form, in Mandarin, Cantonese
+  // and Japanese, and how common the form is in that region. Each rank names the texts it was
+  // counted in".
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "学");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", {
+      name: /Written differently in Hong Kong and Taiwan/u
+    })
+    .click();
+  await expect(jisho.getByText("Readings and frequency")).toBeVisible();
+  for (const reading of ["(Mandarin)", "(Cantonese)", "(Japanese)"])
+    await expect(jisho.getByText(reading).first()).toBeVisible();
+  for (const corpus of [
+    /in modern Chinese texts$/u,
+    /in Cantonese texts (words.hk)$/u,
+    /in news and social media (2023)$/u,
+    /on Japanese Wikipedia$/u
+  ])
+    await expect(jisho.getByText(corpus)).toBeVisible();
+});
+
 test("claim: stroke order can be played as each region writes it", async () => {
   // README: "buttons above the player choose whose order to play. China writes 右 with the same
   // shape as Japan but in another order, so the two have separate drawings. Where a region has no

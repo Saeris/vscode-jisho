@@ -66,9 +66,11 @@ import {
   buildGroups,
   fetchRegionalSources,
   regionalLists,
+  regionalReadings,
   strokeCounts,
   type RegionalSources
 } from "./regional.ts";
+import { fetchFrequencies, type Frequencies } from "./frequency.ts";
 import type { PartOfSpeech } from "../src/shared/messages.ts";
 
 // The `jmdict-examples-eng` variant adds an `examples` array per sense that the installed types
@@ -1027,6 +1029,8 @@ interface Sources {
   };
   /** Variant tables, region CMaps, Unihan and CNS 11643, for the regional forms (spec 22). */
   regional: RegionalSources;
+  /** Each region's character frequency, for the regional forms (spec 22, phase 5). */
+  frequencies: Frequencies;
   /** The resolved jmdict-simplified release tag, recorded so a build says what it came from. */
   release: string;
 }
@@ -1052,7 +1056,8 @@ const downloadSources = async (): Promise<Sources> => {
     yenckenStroke,
     yenckenRadical,
     kanjiJlpt,
-    regional
+    regional,
+    frequencies
   ] = await Promise.all([
     fetchAssetJson<JMdict>(release, ASSET_PATTERN),
     fetchAssetJson<Kanjidic2>(release, KANJIDIC_PATTERN),
@@ -1066,7 +1071,8 @@ const downloadSources = async (): Promise<Sources> => {
     fetchYencken(YENCKEN_STROKE_URL),
     fetchYencken(YENCKEN_RADICAL_URL),
     fetchKanjiJlpt(),
-    fetchRegionalSources(fetchRetrying)
+    fetchRegionalSources(fetchRetrying),
+    fetchFrequencies(fetchRetrying)
   ]);
   // Both variants download the full examples asset; the common fixture keeps only common entries
   // (a word with any common kanji/kana writing), matching what jmdict-eng-common used to contain.
@@ -1092,6 +1098,7 @@ const downloadSources = async (): Promise<Sources> => {
     tatoeba,
     yencken: { stroke: yenckenStroke, radical: yenckenRadical },
     regional,
+    frequencies,
     release: release.tag_name
   };
 };
@@ -1109,7 +1116,8 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     kanjiJlpt,
     tatoeba,
     yencken,
-    regional
+    regional,
+    frequencies
   } = sources;
   mkdirSync(dirname(OUT_DB), { recursive: true });
   // Clear only the STAGING path here. The destination is left alone until the promote at the end,
@@ -1396,7 +1404,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     "INSERT INTO regional_groups(id, key, glyph_sig, cp_sig) VALUES (?, ?, ?, ?)"
   );
   const insRegionalForm = db.prepare(
-    "INSERT INTO regional_forms(group_id, region, char, strokes, tier) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO regional_forms(group_id, region, char, strokes, tier, reading, freq) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
   for (const [index, group] of regionalGroups.entries()) {
     const id = index + 1;
@@ -1406,16 +1414,34 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
       taiwan: regional.taiwan.strokes,
       japan: japanStrokes
     });
+    const readings = regionalReadings(group, regional.unihan);
+    // Each region's rank comes from its own corpus, for its own form (spec 22, phase 5).
+    const ranks = [
+      frequencies.china,
+      frequencies.hongKong,
+      frequencies.taiwan,
+      frequencies.japan
+    ];
     for (const [position, region] of REGIONS.entries())
       insRegionalForm.run(
         id,
         region,
         group.chars[position],
         counts.strokes[position] ?? null,
-        group.tiers[position]
+        group.tiers[position],
+        readings[position],
+        ranks[position]?.get(group.chars[position]) ?? null
       );
     if (group.old !== undefined)
-      insRegionalForm.run(id, "old", group.old, counts.old ?? null, 0);
+      insRegionalForm.run(
+        id,
+        "old",
+        group.old,
+        counts.old ?? null,
+        0,
+        null,
+        null
+      );
   }
   db.exec("COMMIT");
   const regionalOld = regionalGroups.filter((g) => g.old !== undefined).length;
@@ -1556,7 +1582,12 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     // CNS 11643 updates its archives in place; their last-modified dates are its version.
     ["regionalTaiwanPropertiesDate", regional.taiwan.propertiesDate],
     ["regionalTaiwanMappingsDate", regional.taiwan.mappingsDate],
-    ["regionalGroups", String(regionalGroups.length)]
+    ["regionalGroups", String(regionalGroups.length)],
+    [
+      "regionalFrequencySource",
+      "Regional frequency: China, Jun Da's Modern Chinese Character Frequency List (© Jun Da, via hanziDB.csv, MIT); Hong Kong, words.hk character counts (public domain); Taiwan, National Academy for Educational Research, 2023 corpus character frequency; Japan, scriptin/kanji-frequency, Japanese Wikipedia (CC BY 4.0)"
+    ],
+    ["regionalHongKongFrequencyFetched", frequencies.hongKongFetched]
   ];
   for (const [key, value] of metaRows) insMeta.run(key, value);
 

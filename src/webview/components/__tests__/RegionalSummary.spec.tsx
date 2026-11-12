@@ -16,7 +16,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "01101",
       cpSig: "0110",
       strokes: [8, 16, 16, 8, 16],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ],
   一: [
@@ -26,7 +28,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "0000",
       cpSig: "0000",
       strokes: [1, 1, 1, 1],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ],
   研: [
@@ -37,7 +41,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "00001",
       cpSig: "0000",
       strokes: [9, 9, 9, 9, 11],
-      tiers: [1, 1, 1, 1]
+      tiers: [1, 1, 1, 1],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ],
   予: [
@@ -47,7 +53,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "0000",
       cpSig: "0000",
       strokes: [4, 4, 4, 4],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     },
     {
       key: "豫",
@@ -56,7 +64,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "01123",
       cpSig: "0001",
       strokes: [15, 16, 16, 4, 16],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ]
 };

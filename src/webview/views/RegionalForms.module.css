@@ -127,3 +127,29 @@
 .link a {
   color: var(--jisho-link);
 }
+
+/* Readings and frequency (spec 22, phase 5): one line per region; each rank names its corpus. */
+.subheading {
+  margin: 14px 0 6px;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jisho-muted);
+}
+
+.usage {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.usageRow {
+  display: grid;
+  gap: 1px;
+}
+
+.usageRow dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

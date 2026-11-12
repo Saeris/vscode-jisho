@@ -119,3 +119,27 @@ test("stroke order by region: 学 for China and Japan, 學 for Taiwan, none for 
     )
   ).toBeVisible();
 });
+
+test("readings and frequency of 学: Mandarin, Cantonese, and a labelled rank for each region", async ({
+  jisho
+}) => {
+  // Spec 22, phase 5. Hong Kong's corpus is live, so only its label is asserted, not its number.
+  await openKanjiResult(jisho, "学");
+  await jisho
+    .getByRole("button", {
+      name: /Written differently in Hong Kong and Taiwan/u
+    })
+    .click();
+  await expect(jisho.getByText("Readings and frequency")).toBeVisible();
+  await expect(jisho.getByText("hok6", { exact: true })).toBeVisible();
+  await expect(jisho.getByText("(Cantonese)")).toBeVisible();
+  await expect(jisho.getByText("xué", { exact: true }).first()).toBeVisible();
+  await expect(jisho.getByText("#66 in modern Chinese texts")).toBeVisible();
+  await expect(
+    jisho.getByText(/^#\d+ in Cantonese texts \(words\.hk\)$/u)
+  ).toBeVisible();
+  await expect(
+    jisho.getByText("#93 in news and social media (2023)")
+  ).toBeVisible();
+  await expect(jisho.getByText("#5 on Japanese Wikipedia")).toBeVisible();
+});

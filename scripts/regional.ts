@@ -136,6 +136,12 @@ export interface UnihanEntry {
   altStrokes?: Record<string, number>;
   /** kRSAdobe_Japan1_6: the count for the glyph in Adobe's Japanese collection, when its entries agree. */
   adobeStrokes?: number;
+  /** kMandarin: the most frequent reading; a second value, when there is one, is Taiwan's. */
+  mandarin?: string[];
+  /** kTGHZ2013: every reading China's 2013 standard gives a polyphone, alphabetically. */
+  mandarinStandard?: string[];
+  /** kCantonese: Jyutping readings. */
+  cantonese?: string[];
 }
 
 const ADOBE_ENTRY = /^C\+\d{1,5}\+\d{1,3}\.(\d{1,2})\.(\d{1,2})$/;
@@ -205,6 +211,23 @@ export const parseUnihan = (
           if (adobe !== undefined) entry().adobeStrokes = adobe;
           break;
         }
+        case "kMandarin":
+          entry().mandarin = value.trim().split(" ");
+          break;
+        // `047.150:chóng 481.090:zhòng`: page and position, then the reading.
+        case "kTGHZ2013":
+          entry().mandarinStandard = [
+            ...new Set(
+              value
+                .trim()
+                .split(" ")
+                .map((token) => token.slice(token.indexOf(":") + 1))
+            )
+          ];
+          break;
+        case "kCantonese":
+          entry().cantonese = value.trim().split(" ");
+          break;
         default:
       }
     }
@@ -863,6 +886,39 @@ const unihanStrokes = (
  * strokes there, 7 in China and Japan). Japan's comes from Kanjidic2. Hong Kong has no official
  * source here, so it takes the count of a region that writes the same glyph and code point.
  */
+/**
+ * Each region's reading of its own form (spec 22, phase 5): Mandarin for China and Taiwan, Cantonese
+ * (Jyutping) for Hong Kong, and null for Japan, whose readings are the kanji page's own
+ * (`kanji_characters`). China's lists every reading its 2013 standard gives a polyphone, the most
+ * frequent first (行: xíng, háng, héng), since kTGHZ2013 sorts them alphabetically. Taiwan's is
+ * Unihan's Taiwan value where it differs from China's (UAX #38, kMandarin).
+ */
+export const regionalReadings = (
+  group: RegionalGroup,
+  unihan: Map<string, UnihanEntry>
+): Tuple<string | null> => {
+  const list = (values: readonly string[] | undefined): string | null =>
+    values === undefined || values.length === 0 ? null : values.join(", ");
+  const china = unihan.get(group.chars[CN]);
+  const chinaReadings =
+    china?.mandarin === undefined
+      ? china?.mandarinStandard
+      : [
+          ...new Set([
+            ...china.mandarin.slice(0, 1),
+            ...(china.mandarinStandard ?? [])
+          ])
+        ];
+  const taiwan = unihan.get(group.chars[2])?.mandarin;
+  return [
+    list(chinaReadings),
+    list(unihan.get(group.chars[1])?.cantonese),
+    // The last value: Taiwan's when there are two, the only one otherwise.
+    list(taiwan?.slice(-1)),
+    null
+  ];
+};
+
 export const strokeCounts = (
   group: RegionalGroup,
   sources: StrokeSources

@@ -17,7 +17,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "01101",
       cpSig: "0110",
       strokes: [8, 16, 16, 8, 16],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: ["xué", "hok6", "xué", "ガク、まな.ぶ"],
+      ranks: [66, 84, 93, 5]
     }
   ],
   園: [
@@ -27,7 +29,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "0112",
       cpSig: "0111",
       strokes: [7, 13, 13, 13],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ],
   返: [
@@ -37,7 +41,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       glyphSig: "0123",
       cpSig: "0000",
       strokes: [7, 7, 8, 7],
-      tiers: [1, 1, 1, 2]
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null]
     }
   ]
 };
@@ -141,6 +147,26 @@ describe("the Regional forms view", () => {
       )
     ).resolves.toHaveLength(2);
     expect(screen.getByText("3 forms")).toBeVisible();
+  });
+
+  it("gives each region's reading and its rank in that region's corpus", async () => {
+    // WHY: phase 5's point: Mandarin and Cantonese beside Japan's readings, and four ranks that
+    // each name their corpus, since #66 in China and #5 in Japan count different texts.
+    renderView("学");
+    const section = (await screen.findByText("Readings and frequency"))
+      .nextElementSibling;
+    expect(section?.textContent).toContain(
+      "China 学xué (Mandarin)#66 in modern Chinese texts"
+    );
+    expect(section?.textContent).toContain(
+      "Hong Kong 學hok6 (Cantonese)#84 in Cantonese texts (words.hk)"
+    );
+    expect(section?.textContent).toContain(
+      "#93 in news and social media (2023)"
+    );
+    expect(section?.textContent).toContain(
+      "ガク、まな.ぶ (Japanese)#5 on Japanese Wikipedia"
+    );
   });
 
   it("pulls the layers apart while dragged, and lets them go on release", async () => {

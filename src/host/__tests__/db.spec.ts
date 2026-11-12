@@ -774,6 +774,22 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(learn?.tiers).toEqual([1, 1, 1, 2]);
   });
 
+  test("reads each region's form in its own language, ranked in its own corpus", async () => {
+    // WHY: phase 5's point. 学's group must carry China's Mandarin, Hong Kong's Cantonese, Taiwan's
+    // Mandarin and Japan's own readings, and each region's rank for ITS form: 學 in Hong Kong and
+    // Taiwan, 学 in China and Japan. A rank looked up for the wrong form would be absent or wrong.
+    const [learn] = await dict.getRegionalForms("学");
+    expect(learn?.readings.slice(0, 3)).toEqual(["xué", "hok6", "xué"]);
+    expect(learn?.readings[3]).toMatch(/ガク/u);
+    // Pinned or fixed sources: Jun Da (hanziDB at a commit), NAER's 2023 file, Japanese Wikipedia.
+    expect(learn?.ranks[0]).toBe(66);
+    expect(learn?.ranks[2]).toBe(93);
+    expect(learn?.ranks[3]).toBe(5);
+    // words.hk's counts are live, so only that 學 is among Hong Kong's common characters.
+    expect(learn?.ranks[1]).toBeGreaterThan(0);
+    expect(learn?.ranks[1]).toBeLessThan(500);
+  });
+
   test("lists every character Japan writes alike, the kanji's own first", async () => {
     // WHY: Japan's reform made 予 stand for 豫 too. The page for 予 shows both groups, and the
     // character itself must lead: opening 予 and seeing 豫 first would suggest 予 is only a

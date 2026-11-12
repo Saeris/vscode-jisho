@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view) and 4 (stroke order) built, with their results recorded below; phase 5 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view), 4 (stroke order) and 5 (readings and frequency) built, with their results recorded below; phase 6 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -24,6 +24,7 @@ The user wants to fold most of hanji into our kanji pages so that a learner can:
 5. **Lookup from a regional form comes later** in development, after the rest of this spec.
 6. **Readings in other languages and frequency per region are in scope** (phase 5).
 7. **Wiktionary is an added source** (user's suggestion): its character pages give variant forms, where a shape came from, and definitions and readings in English for each language (phase 6).
+8. **China's frequency uses Jun Da's list, with credit** (2026-11-12), although it states no licence; see phase 5's results.
 
 ## What hanji does
 
@@ -167,23 +168,23 @@ All character groups in the union of the four regions' official lists (China, Ho
 
 ### Sources and licences
 
-| Use                                        | Source                                                                                                                                                  | Licence                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Whether regions share a glyph              | Adobe Source Han Sans and Serif, region CMaps (8 small files for four regions)                                                                          | SIL OFL 1.1                                       |
-| Display fonts                              | Noto Sans CJK SC, TC, HK, JP, subset and renamed                                                                                                        | SIL OFL 1.1                                       |
-| Which forms belong together                | OpenCC variant tables                                                                                                                                   | Apache-2.0                                        |
-| China, Japan and Hong Kong list membership | Unihan: `kTGH` (China 2013 table, with its three levels by index: 1–3,500, 3,501–6,500, 6,501–8,105), `kJoyoKanji` (its `2010` values only), `kHKGlyph` | Unicode License v3                                |
-| Taiwan list membership                     | CNS 11643 open data (`CNS_source.txt`, mapped by its Unicode tables): see "Taiwan's list" below                                                         | Open Government Data License 1.0 (attribution)    |
-| Kyōiku grade                               | Kanjidic2 (already in our DB)                                                                                                                           | CC BY-SA 4.0 (already attributed)                 |
-| Stroke counts                              | Taiwan: CNS 11643. Japan: Kanjidic2, as on the kanji page. China: Unihan (phase 4's drawings may refine it). Hong Kong: a region drawing the same glyph | OGDL 1.0 / CC BY-SA 4.0 / Unicode License v3      |
-| Stroke order                               | AnimCJK: Simplified and Traditional Chinese sets, in addition to our Japanese set                                                                       | Arphic Public License (already shipped and noted) |
-| Mandarin and Cantonese readings            | Unihan `kMandarin`, `kCantonese`                                                                                                                        | Unicode License v3                                |
-| Frequency, China                           | Jun Da's Modern Chinese Character Frequency List (via hanziDB)                                                                                          | MIT                                               |
-| Frequency, Hong Kong                       | words.hk corpus character frequency                                                                                                                     | Public domain (credit requested)                  |
-| Frequency, Taiwan                          | National Academy for Educational Research, corpus character frequency (2023)                                                                            | Open-data declaration, attribution required       |
-| Frequency, Japan                           | scriptin/kanji-frequency (Japanese Wikipedia), beyond Kanjidic2's newspaper top 2,500                                                                   | CC BY 4.0                                         |
-| Shape history, definitions, cross-check    | English Wiktionary, via Wiktextract's extraction ([kaikki.org](https://kaikki.org/dictionary/rawdata.html))                                             | CC BY-SA 4.0                                      |
-| The method, and any ported code            | hanji                                                                                                                                                   | MIT (keep the notice)                             |
+| Use                                        | Source                                                                                                                                                  | Licence                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Whether regions share a glyph              | Adobe Source Han Sans and Serif, region CMaps (8 small files for four regions)                                                                          | SIL OFL 1.1                                                |
+| Display fonts                              | Noto Sans CJK SC, TC, HK, JP, subset and renamed                                                                                                        | SIL OFL 1.1                                                |
+| Which forms belong together                | OpenCC variant tables                                                                                                                                   | Apache-2.0                                                 |
+| China, Japan and Hong Kong list membership | Unihan: `kTGH` (China 2013 table, with its three levels by index: 1–3,500, 3,501–6,500, 6,501–8,105), `kJoyoKanji` (its `2010` values only), `kHKGlyph` | Unicode License v3                                         |
+| Taiwan list membership                     | CNS 11643 open data (`CNS_source.txt`, mapped by its Unicode tables): see "Taiwan's list" below                                                         | Open Government Data License 1.0 (attribution)             |
+| Kyōiku grade                               | Kanjidic2 (already in our DB)                                                                                                                           | CC BY-SA 4.0 (already attributed)                          |
+| Stroke counts                              | Taiwan: CNS 11643. Japan: Kanjidic2, as on the kanji page. China: Unihan (phase 4's drawings may refine it). Hong Kong: a region drawing the same glyph | OGDL 1.0 / CC BY-SA 4.0 / Unicode License v3               |
+| Stroke order                               | AnimCJK: Simplified and Traditional Chinese sets, in addition to our Japanese set                                                                       | Arphic Public License (already shipped and noted)          |
+| Mandarin and Cantonese readings            | Unihan `kMandarin`, `kCantonese`                                                                                                                        | Unicode License v3                                         |
+| Frequency, China                           | Jun Da's Modern Chinese Character Frequency List (via hanziDB)                                                                                          | © Jun Da, no licence stated; used with credit (decision 8) |
+| Frequency, Hong Kong                       | words.hk corpus character frequency                                                                                                                     | Public domain (credit requested)                           |
+| Frequency, Taiwan                          | National Academy for Educational Research, corpus character frequency (2023)                                                                            | Open-data declaration, attribution required                |
+| Frequency, Japan                           | scriptin/kanji-frequency (Japanese Wikipedia), beyond Kanjidic2's newspaper top 2,500                                                                   | CC BY 4.0                                                  |
+| Shape history, definitions, cross-check    | English Wiktionary, via Wiktextract's extraction ([kaikki.org](https://kaikki.org/dictionary/rawdata.html))                                             | CC BY-SA 4.0                                               |
+| The method, and any ported code            | hanji                                                                                                                                                   | MIT (keep the notice)                                      |
 
 Taking list membership from Unihan avoids the unlicensed transcription hanji uses. Every frequency source and Wiktionary need a line in THIRD_PARTY_NOTICES, and Wiktionary text needs a credit and link where it is shown.
 
@@ -346,6 +347,14 @@ Ingest AnimCJK's Simplified and Traditional Chinese drawings for the groups in s
 Mandarin and Cantonese readings from Unihan, and each region's frequency rank from the sources above, on the view and in the browse's sort.
 
 **Done when** 学 shows its Mandarin and Cantonese readings and a labelled rank for each region, and the new sources are in THIRD_PARTY_NOTICES.
+
+**Results (2026-11-12).** The view has a "Readings and frequency" section: one line per region with its form, its reading and its rank, and `e2e/visual/regional-forms.e2e.ts` finds xué, hok6 and the four labelled ranks for 学. Schema 9 adds `reading` and `freq` to `regional_forms`.
+
+- **China's frequency source had no licence (decision 8, 2026-11-12).** The plan listed Jun Da's list as MIT, but MIT covers only hanziDB's repository: Jun Da's page says "Copyright 1998-2026 Jun Da" and grants nothing. No clearly licensed alternative turned up: SUBTLEX-CH is "freely available for research purposes" only, and Chinese Wikipedia mixes simplified and traditional source text. The user chose to use Jun Da's list with credit; THIRD_PARTY_NOTICES says so plainly. The other three are clean: words.hk (public domain), NAER (open data with credit) and kanji-frequency (CC BY 4.0).
+- **Each region's rank is for its own form, from its own corpus**: China 学 #66 in modern Chinese texts, Hong Kong 學 in words.hk's Cantonese texts, Taiwan 學 #93 in news and social media (NAER, 2023), Japan 学 #5 on Japanese Wikipedia. Every rank in the view names its corpus, since four corpora are not one scale. Ranks are competition ranks over Han characters only: the count files also count punctuation and Latin letters. `scripts/frequency.ts` ports hanji's CSV, ranking and workbook readers, so NAER's Excel file is read with no spreadsheet library. hanziDB and kanji-frequency are pinned to commits; words.hk's file is live and unversioned, so the build records the day it was read.
+- **Readings come from Unihan.** China lists every reading its 2013 standard gives a polyphone, the most frequent first (行: xíng, háng, héng), because kTGHZ2013 sorts them alphabetically. Taiwan takes Unihan's Taiwan value where kMandarin has one. Hong Kong's are Jyutping, and Japan's are the kanji page's own on and kun readings, joined from `kanji_characters` rather than copied.
+- `verify-db` fails a build in which 學's group lacks a rank or a reading. Each source must yield thousands of characters, or the build fails (`scripts/frequency.ts`).
+- The browse's sort by region comes with phase 7.
 
 ### Phase 6 — Wiktionary notes
 

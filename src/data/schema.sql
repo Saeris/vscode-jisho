@@ -287,6 +287,14 @@ CREATE TABLE regional_forms (
   -- (common) or 2 (secondary), Japan 1 (jōyō) or 2 (kyōiku). 0: the list does not enter the form, and
   -- always for 'old'.
   tier     INTEGER NOT NULL,
+  -- How the region reads its form (spec 22, phase 5): Mandarin for China and Taiwan, Cantonese
+  -- (Jyutping) for Hong Kong, comma-separated when a character has several. NULL for Japan, whose
+  -- readings are kanji_characters', and for the old form.
+  reading  TEXT,
+  -- The form's frequency rank in its region's corpus, 1 the most frequent: China, modern Chinese
+  -- texts (Jun Da); Hong Kong, words.hk; Taiwan, NAER 2023; Japan, Japanese Wikipedia. Four corpora,
+  -- never one scale. NULL when the corpus does not rank the form, and for the old form.
+  freq     INTEGER,
   PRIMARY KEY (group_id, region)
 ) WITHOUT ROWID;
 

@@ -157,7 +157,22 @@ export const About = (): React.ReactElement => {
               CNS 11643 Chinese Standard Interchange Code
             </a>{" "}
             (National Development Council, Taiwan, Open Government Data License
-            1.0). The forms are drawn in subsets of{" "}
+            1.0). Each region's frequency ranks come from its own corpus:
+            China's from{" "}
+            <a href="https://lingua.mtsu.edu/chinese-computing/statistics/">
+              Jun Da&apos;s Modern Chinese Character Frequency List
+            </a>{" "}
+            (© Jun Da), Hong Kong&apos;s from{" "}
+            <a href="https://words.hk/faiman/analysis/">words.hk</a> (public
+            domain), Taiwan&apos;s from the{" "}
+            <a href="https://teric.naer.edu.tw/wSite/ct?ctNode=645&mp=teric_b&xItem=2068770">
+              National Academy for Educational Research
+            </a>{" "}
+            (open data) and Japan&apos;s from{" "}
+            <a href="https://github.com/scriptin/kanji-frequency">
+              kanji-frequency
+            </a>{" "}
+            (CC BY 4.0). The forms are drawn in subsets of{" "}
             <a href="https://github.com/notofonts/noto-cjk">Noto Sans CJK</a> (©
             Adobe, SIL Open Font License), renamed Jisho Sans.
           </p>

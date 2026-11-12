@@ -113,6 +113,20 @@ if (isNames) {
   );
   if (returnTw !== 8)
     fail(`Taiwan's stroke count for 返 is ${returnTw}, not 8 (CNS 11643)`);
+
+  // Readings and frequency (spec 22, phase 5): 學 is common in every region, so a missing rank or
+  // reading in its group means a corpus or Unihan field was misread, not that the data lacks it.
+  const missing = Number(
+    scalar(
+      `SELECT COUNT(*) FROM regional_forms f JOIN regional_groups g ON g.id = f.group_id
+        WHERE g.key = '學' AND f.region <> 'old'
+          AND (f.freq IS NULL OR (f.region <> 'jp' AND f.reading IS NULL))`
+    )
+  );
+  if (missing !== 0)
+    fail(
+      `${missing} of 學's regional forms lack a frequency rank or a reading`
+    );
 }
 
 db.close();
