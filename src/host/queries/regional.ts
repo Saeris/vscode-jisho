@@ -1,5 +1,6 @@
 import type { RegionalGroupDto } from "../../shared/messages";
 import type { SqliteStore } from "../store";
+import { parseStrings } from "./parse";
 
 /**
  * Regional forms (spec 22): the character groups a Japanese kanji belongs to, as built into
@@ -17,6 +18,8 @@ interface FormRow {
   char: string;
   strokes: number | null;
   tier: number;
+  reading: string | null;
+  freq: number | null;
   /** 0 when the kanji is the group's Japanese form, 1 when only its old form. */
   match: number;
 }
@@ -34,7 +37,7 @@ export const getRegionalGroups = async (
   literal: string
 ): Promise<RegionalGroupDto[]> => {
   const rows = await store.all<FormRow>(
-    `SELECT g.id, g.key, g.glyph_sig, g.cp_sig, f.region, f.char, f.strokes, f.tier, m.match
+    `SELECT g.id, g.key, g.glyph_sig, g.cp_sig, f.region, f.char, f.strokes, f.tier, f.reading, f.freq, m.match
        FROM (SELECT group_id, MIN(region = 'old') AS match FROM regional_forms
               WHERE char = ? AND region IN ('jp', 'old') GROUP BY group_id) m
        JOIN regional_groups g ON g.id = m.group_id
@@ -53,7 +56,9 @@ export const getRegionalGroups = async (
         glyphSig: row.glyph_sig,
         cpSig: row.cp_sig,
         strokes: [null, null, null, null],
-        tiers: [0, 0, 0, 0]
+        tiers: [0, 0, 0, 0],
+        readings: [null, null, null, null],
+        ranks: [null, null, null, null]
       };
       groups.set(row.id, group);
     }
@@ -65,7 +70,20 @@ export const getRegionalGroups = async (
       group.chars[region] = row.char;
       group.strokes[region] = row.strokes;
       group.tiers[region] = row.tier;
+      group.readings[region] = row.reading;
+      group.ranks[region] = row.freq;
     }
+  }
+  // Japan's readings are the kanji page's own, on then kun, rather than a second copy in the table.
+  for (const group of groups.values()) {
+    const kanji = await store.get<{ on_json: string; kun_json: string }>(
+      "SELECT on_json, kun_json FROM kanji_characters WHERE literal = ?",
+      group.chars[3] ?? ""
+    );
+    const japanese = kanji
+      ? [...parseStrings(kanji.on_json), ...parseStrings(kanji.kun_json)]
+      : [];
+    group.readings[3] = japanese.length > 0 ? japanese.join("、") : null;
   }
   return [...groups.values()];
 };

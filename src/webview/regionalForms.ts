@@ -129,6 +129,52 @@ export const strokeText = (group: RegionalGroupDto, row: FormRow): string => {
     .join(", ");
 };
 
+/** How each region's reading is written. */
+const READINGS = [
+  { name: "Mandarin", lang: "zh-Latn-pinyin" },
+  { name: "Cantonese", lang: "yue-Latn-jyutping" },
+  { name: "Mandarin", lang: "zh-Latn-pinyin" },
+  { name: "Japanese", lang: "ja" }
+] as const;
+
+/** Each region's corpus, as its rank's label: four corpora, so a rank never stands bare. */
+const CORPORA = [
+  "in modern Chinese texts",
+  "in Cantonese texts (words.hk)",
+  "in news and social media (2023)",
+  "on Japanese Wikipedia"
+] as const;
+
+/** One region's line: its form, how it reads it, and how common the form is in its corpus. */
+export interface UsageRow {
+  region: string;
+  char: string;
+  lang: string;
+  reading: string | null;
+  readingName: string;
+  readingLang: string;
+  /** "#66 in modern Chinese texts", or "Not ranked in …". */
+  rank: string;
+}
+
+/** The four regions' lines for "Readings and frequency" (spec 22, phase 5). */
+export const usageRows = (group: RegionalGroupDto): UsageRow[] =>
+  READINGS.map((reading, region) => {
+    const rank = group.ranks[region] ?? null;
+    return {
+      region: COLUMN_NAMES[region] ?? "",
+      char: group.chars[region] ?? "",
+      lang: COLUMN_LANGS[region] ?? "ja",
+      reading: group.readings[region] ?? null,
+      readingName: reading.name,
+      readingLang: reading.lang,
+      rank:
+        rank === null
+          ? `Not ranked ${CORPORA[region] ?? ""}`
+          : `#${rank.toLocaleString("en")} ${CORPORA[region] ?? ""}`
+    };
+  });
+
 /** "China, Hong Kong and Taiwan". */
 export const joinNames = (names: readonly string[]): string =>
   new Intl.ListFormat("en-GB", { type: "conjunction" }).format(names);

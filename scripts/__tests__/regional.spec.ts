@@ -9,6 +9,7 @@ import {
   parseOpenccDict,
   parseUnihan,
   regionalLists,
+  regionalReadings,
   reverseDict,
   strokeCounts,
   tghLevel,
@@ -463,6 +464,58 @@ describe("grouping", () => {
 });
 
 // ── Stroke counts ─────────────────────────────────────────────────────────────────────────────────
+
+describe("readings by region", () => {
+  const unihan = parseUnihan([
+    [
+      "U+884C\tkMandarin\txíng",
+      "U+884C\tkTGHZ2013\t131.140:háng 136.100:héng 408.120:xíng",
+      "U+884C\tkCantonese\thang4 hong4",
+      "U+5B78\tkMandarin\txué",
+      "U+5B78\tkCantonese\thok6",
+      "U+4E91\tkMandarin\tyún yūn"
+    ].join("\n")
+  ]);
+  const group = (chars: [string, string, string, string]): RegionalGroup => ({
+    key: chars[2],
+    chars,
+    glyphSig: "0000",
+    cpSig: "0000",
+    tiers: [1, 1, 1, 1]
+  });
+
+  it("gives China every reading of a polyphone, the most frequent first", () => {
+    // WHY: 行 is read xíng, háng and héng; the 2013 standard lists them alphabetically, which
+    // would lead with háng, the rarest, as if it were the character's main reading.
+    expect(regionalReadings(group(["行", "行", "行", "行"]), unihan)).toEqual([
+      "xíng, háng, héng",
+      "hang4, hong4",
+      "xíng",
+      null
+    ]);
+  });
+
+  it("gives Taiwan its own Mandarin reading where it differs from China's", () => {
+    // WHY: Unihan's second kMandarin value is Taiwan's; showing China's for Taiwan would claim
+    // they read it alike.
+    const [china, , taiwan] = regionalReadings(
+      group(["云", "云", "云", "云"]),
+      unihan
+    );
+    expect([china, taiwan]).toEqual(["yún", "yūn"]);
+  });
+
+  it("reads each region's own form, not the group's name", () => {
+    // WHY: Hong Kong writes 學, so its Cantonese reading is 學's; China's 学 has no Unihan reading
+    // in this fixture, and must not borrow 學's.
+    expect(regionalReadings(group(["学", "學", "學", "学"]), unihan)).toEqual([
+      null,
+      "hok6",
+      "xué",
+      null
+    ]);
+  });
+});
 
 describe("stroke counts", () => {
   const unihan = parseUnihan([

@@ -16,7 +16,8 @@ import {
   columnNames,
   formRows,
   inkOf,
-  strokeText
+  strokeText,
+  usageRows
 } from "../regionalForms";
 import styles from "./RegionalForms.module.css";
 
@@ -180,6 +181,29 @@ const GroupSection = ({
           </li>
         ))}
       </ul>
+      <h3 className={styles.subheading}>Readings and frequency</h3>
+      <dl className={styles.usage}>
+        {usageRows(group).map((row) => (
+          <div key={row.region} className={styles.usageRow}>
+            <dt className={styles.regions}>
+              {row.region} <span lang={row.lang}>{row.char}</span>
+            </dt>
+            <dd>
+              {row.reading === null ? (
+                <span className={styles.muted}>
+                  No {row.readingName} reading
+                </span>
+              ) : (
+                <>
+                  <span lang={row.readingLang}>{row.reading}</span>{" "}
+                  <span className={styles.muted}>({row.readingName})</span>
+                </>
+              )}
+            </dd>
+            <dd className={styles.muted}>{row.rank}</dd>
+          </div>
+        ))}
+      </dl>
       <p className={styles.links}>
         {chars.map((char) => (
           <span key={char} className={styles.link}>

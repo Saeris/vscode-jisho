@@ -282,6 +282,16 @@ export interface RegionalGroupDto {
    * Japan 1 (jōyō) or 2 (kyōiku). 0 when the region's list does not enter the form.
    */
   tiers: number[];
+  /**
+   * How each of (cn, hk, tw, jp) reads its form: Mandarin, Cantonese (Jyutping), Mandarin, and
+   * Japan's on and kun readings. Null where no source gives one.
+   */
+  readings: Array<string | null>;
+  /**
+   * Each of (cn, hk, tw, jp)'s frequency rank for its form, in its own corpus (1 = most frequent).
+   * Four corpora, never one scale. Null where the corpus does not rank the form.
+   */
+  ranks: Array<number | null>;
 }
 
 /**

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { RegionalGroupDto } from "../../shared/messages";
-import { columnNames, formRows, summaryLine } from "../regionalForms";
+import {
+  columnNames,
+  formRows,
+  summaryLine,
+  usageRows
+} from "../regionalForms";
 
 // Groups as the built database returns them (db.spec.ts checks 学 against the real data).
 const learn: RegionalGroupDto = {
@@ -10,7 +15,9 @@ const learn: RegionalGroupDto = {
   glyphSig: "01101",
   cpSig: "0110",
   strokes: [8, 16, 16, 8, 16],
-  tiers: [1, 1, 1, 2]
+  tiers: [1, 1, 1, 2],
+  readings: [null, null, null, null],
+  ranks: [null, null, null, null]
 };
 const back: RegionalGroupDto = {
   key: "返",
@@ -18,7 +25,9 @@ const back: RegionalGroupDto = {
   glyphSig: "0123",
   cpSig: "0000",
   strokes: [7, 7, 8, 7],
-  tiers: [1, 1, 1, 2]
+  tiers: [1, 1, 1, 2],
+  readings: [null, null, null, null],
+  ranks: [null, null, null, null]
 };
 const one: RegionalGroupDto = {
   key: "一",
@@ -26,7 +35,9 @@ const one: RegionalGroupDto = {
   glyphSig: "0000",
   cpSig: "0000",
   strokes: [1, 1, 1, 1],
-  tiers: [1, 1, 1, 2]
+  tiers: [1, 1, 1, 2],
+  readings: [null, null, null, null],
+  ranks: [null, null, null, null]
 };
 
 describe("a group's distinct forms", () => {
@@ -66,6 +77,30 @@ describe("a group's distinct forms", () => {
     ]);
     expect(rows.every((row) => row.sharesCodePoint)).toBe(true);
     expect(formRows(learn).some((row) => row.sharesCodePoint)).toBe(false);
+  });
+});
+
+describe("readings and frequency", () => {
+  it("labels every rank with its region's corpus, and says when there is none", () => {
+    // WHY: the four ranks come from four corpora; a bare "#66" beside a bare "#5" invites a
+    // comparison the numbers cannot bear.
+    const rows = usageRows({
+      ...learn,
+      readings: ["xué", "hok6", "xué", "ガク、まな.ぶ"],
+      ranks: [66, 84, null, 5]
+    });
+    expect(rows.map((row) => row.rank)).toEqual([
+      "#66 in modern Chinese texts",
+      "#84 in Cantonese texts (words.hk)",
+      "Not ranked in news and social media (2023)",
+      "#5 on Japanese Wikipedia"
+    ]);
+    expect(rows.map((row) => [row.region, row.char, row.readingName])).toEqual([
+      ["China", "学", "Mandarin"],
+      ["Hong Kong", "學", "Cantonese"],
+      ["Taiwan", "學", "Mandarin"],
+      ["Japan", "学", "Japanese"]
+    ]);
   });
 });
 

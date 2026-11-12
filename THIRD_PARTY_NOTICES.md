@@ -45,11 +45,25 @@ Which form of a character China, Hong Kong, Taiwan and Japan each write, whether
 **[Source Han Sans](https://github.com/adobe-fonts/source-han-sans) and [Source Han Serif](https://github.com/adobe-fonts/source-han-serif)** — their per-region character maps, which tell whether two regions draw a character with the same glyph.
 © Adobe, used under the [SIL Open Font License 1.1](https://openfontlicense.org/). Source is a trademark of Adobe in the United States and/or other countries.
 
-**[Unihan database](https://www.unicode.org/charts/unihan.html)** — China's 2013 table of general standard characters, Hong Kong's list of graphemes, the jōyō kanji list, and stroke counts.
+**[Unihan database](https://www.unicode.org/charts/unihan.html)** — China's 2013 table of general standard characters, Hong Kong's list of graphemes, the jōyō kanji list, stroke counts, and the Mandarin and Cantonese readings.
 © Unicode, Inc., used under the [Unicode License v3](https://www.unicode.org/license.txt).
 
 **[CNS 11643](https://www.cns11643.gov.tw/)** — Taiwan's lists of common and less-common characters, and Taiwan's official stroke counts.
 CNS 11643 Chinese Standard Interchange Code, National Development Council, Taiwan, used under the [Open Government Data License, version 1.0](https://data.gov.tw/license).
+
+The frequency ranks come from a different corpus in each region, and the view names each one:
+
+**[Modern Chinese Character Frequency List](https://lingua.mtsu.edu/chinese-computing/statistics/)** — China's ranks.
+© 1998-2026 Jun Da, Middle Tennessee State University. The list states no licence; it is used here with credit. It reaches us through [hanziDB.csv](https://github.com/ruddfawcett/hanziDB.csv), © 2017 Rudd Fawcett, [MIT](https://github.com/ruddfawcett/hanziDB.csv/blob/master/LICENSE).
+
+**[words.hk character counts](https://words.hk/faiman/analysis/)** — Hong Kong's ranks.
+Public domain. Credit to words.hk, as it asks.
+
+**[Corpus character frequency, 2023](https://teric.naer.edu.tw/wSite/ct?ctNode=645&mp=teric_b&xItem=2068770)** — Taiwan's ranks.
+National Academy for Educational Research, Taiwan, used under its website data open declaration, which allows reuse with the source credited.
+
+**[kanji-frequency](https://github.com/scriptin/kanji-frequency)** — Japan's ranks, counted on Japanese Wikipedia.
+© scriptin, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Stroke-order drawings
 
