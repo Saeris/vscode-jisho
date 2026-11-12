@@ -28,8 +28,8 @@ interface OverprintProps {
   mode?: "stack" | "separate";
   /** Outlines only: reads better than fills on a dense character. */
   outline?: boolean;
-  /** The large, interactive stack of the Regional forms view, or the kanji page's small one. */
-  size?: "large" | "small";
+  /** The large, interactive stack of the Regional forms view, the kanji page's small one, or a list row's. */
+  size?: "large" | "small" | "row";
   /** Unique on the page: names the layers for the view transition between the two modes. */
   name: string;
 }

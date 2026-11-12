@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "../navigation";
 import { kanjiListQuery } from "../queries";
 import { BrowseHeader } from "../components/BrowseHeader";
+import { RegionalBrowse } from "./RegionalBrowse";
 import styles from "./Browse.module.css";
 import kanjiStyles from "./KanjiBrowse.module.css";
 
@@ -20,13 +21,23 @@ import kanjiStyles from "./KanjiBrowse.module.css";
  * root, so drilling in must not push a view that would sit on top of the tab bar it lives inside.
  * Tapping a kanji does push, because that leaves the root for a detail page.
  */
+/** The "Regional differences" list (spec 22, phase 7), opened beside the lists. */
+const REGIONAL = "regional";
+
 export const KanjiBrowse = (): React.ReactElement => {
-  const [list, setList] = useState<KanjiListId | undefined>(undefined);
-  const active = list === undefined ? undefined : KANJI_LIST_BY_ID.get(list);
+  const [list, setList] = useState<KanjiListId | typeof REGIONAL | undefined>(
+    undefined
+  );
+  const active =
+    list === undefined || list === REGIONAL
+      ? undefined
+      : KANJI_LIST_BY_ID.get(list);
   return (
     <div className={styles.container}>
-      {active === undefined || list === undefined ? (
-        <GroupList onOpen={setList} />
+      {list === REGIONAL ? (
+        <RegionalBrowse onRoot={() => setList(undefined)} />
+      ) : active === undefined || list === undefined ? (
+        <GroupList onOpen={setList} onOpenRegional={() => setList(REGIONAL)} />
       ) : (
         // The trail replaces this level's heading and carries the count — same row, same component
         // as the Vocab tab and the word list, so the header's height never changes between them.
@@ -42,9 +53,11 @@ export const KanjiBrowse = (): React.ReactElement => {
 
 /** The top level: the groups, each with its lists. */
 const GroupList = ({
-  onOpen
+  onOpen,
+  onOpenRegional
 }: {
   onOpen: (id: KanjiListId) => void;
+  onOpenRegional: () => void;
 }): React.ReactElement => (
   <div className={styles.body}>
     <h1 className={styles.title}>Kanji</h1>
@@ -74,6 +87,22 @@ const GroupList = ({
         </ul>
       </section>
     ))}
+    <section>
+      <h2 className={kanjiStyles.groupTitle}>Regional forms</h2>
+      <p className={styles.note}>
+        How China, Hong Kong, Taiwan and Japan each write a character.
+      </p>
+      <ul className={styles.list}>
+        <li>
+          <Button className={styles.row} onPress={onOpenRegional}>
+            <span className={styles.rowLabel}>Regional differences</span>
+            <span className={styles.chevron} aria-hidden="true">
+              ›
+            </span>
+          </Button>
+        </li>
+      </ul>
+    </section>
   </div>
 );
 

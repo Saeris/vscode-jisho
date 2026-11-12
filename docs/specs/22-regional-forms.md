@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view), 4 (stroke order), 5 (readings and frequency) and 6 (Wiktionary notes) built, with their results recorded below; phase 7 next. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view), 4 (stroke order), 5 (readings and frequency), 6 (Wiktionary notes) and 7 (browse and filters) built, with their results recorded below. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -374,6 +374,14 @@ The extraction job, the pinned release asset, and the "From Wiktionary" block, w
 The "Regional differences" list in the Kanji browse tab, with the filters above, in the sidebar's width.
 
 **Done when** filtering to "Japan alone differs" and sorting by stroke count gives the expected first rows by test, and the list stays fast on the full table.
+
+**Results (2026-11-12).** The Kanji tab has a "Regional differences" entry below its lists. "Japan alone differs", sorted by Japan's stroke count, starts with 乃 (2 strokes), then 么, 之, 山, 广, 弓 and 才 (3): characters every region writes at one code point but Japan draws its own way. 1,157 groups match. `db.spec.ts` checks the first seven against the built dictionary, and `e2e/visual/regional-forms.e2e.ts` the first two in VS Code.
+
+- **The whole table goes to the webview once.** One request (`browseRegional`) returns all 8,418 groups in two queries, the forms and Japan's readings joined from `kanji_characters`: about 1.7 MB as JSON, read in 150 to 190 ms. TanStack Query keeps it for the session, and `src/shared/regionalBrowse.ts` filters it in memory: a pattern and a sort take about 6 ms; a reading search about 12 ms, once each group's readings are folded (the first search folds them; folding on every keystroke took 200 ms).
+- **Only the rows in view are rendered**, by React Aria's `Virtualizer`: fewer than 60 of 8,000 in the component test. React Aria turns virtualizing off in tests unless `process.env.VIRT_ON` is set, and reads `process.env` at run time, which a browser has none of; the component project defines both, so the test virtualizes against Chromium's real layout, as the webview does.
+- **The filters, adapted to the sidebar.** The search stays in view; a **Filters** disclosure, at most half the sidebar's height, holds the rest: the number of forms, where two or three open their exact splits (7 and 6 of them, named in words: "Japan alone differs", "China and Japan versus Hong Kong and Taiwan", "Only China and Hong Kong agree"), then one region for both the stroke range and the order, the order (frequency, strokes, code point), the stroke range, and the lists. hanji's "compare by glyph or code point" is left out: the patterns are by glyph, as the overprint is.
+- **The search** finds a group by any form it writes (the old form too: 眞 finds 真), by code point (`U+5B66` or `5b66`), or by reading, with tone marks and kana script folded and the kun reading's dot ignored. Voicing marks stay (`gaku` finds ガク but not か.く), and romaji is read as kana for Japanese readings. The webview already bundled wanakana, so this adds nothing to its size.
+- A row opens the Regional forms view for its Japanese form.
 
 ### Later
 

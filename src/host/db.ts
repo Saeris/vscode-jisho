@@ -6,7 +6,7 @@
 import { DisposableStore, SqliteStore } from "./store";
 import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
-import { getRegionalGroups } from "./queries/regional";
+import { browseRegionalGroups, getRegionalGroups } from "./queries/regional";
 import { getMoreExamples, getWord } from "./queries/words";
 import {
   kanjiResults,
@@ -213,6 +213,11 @@ export class Dictionary {
 
   async getRegionalForms(literal: string): Promise<RegionalGroupDto[]> {
     return getRegionalGroups(this.#store, literal);
+  }
+
+  /** Every regional group, for the "Regional differences" list (spec 22, phase 7). */
+  async browseRegional(): Promise<RegionalGroupDto[]> {
+    return browseRegionalGroups(this.#store);
   }
 
   /**

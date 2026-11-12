@@ -20,6 +20,7 @@ import type {
 } from "../shared/messages";
 import {
   browse,
+  browseRegional,
   kanjiList,
   browseCounts,
   getAbout,
@@ -143,6 +144,19 @@ export const regionalFormsQuery = (
   queryOptions({
     queryKey: ["regionalForms", literal],
     queryFn: async () => (await getRegionalForms(literal)).groups
+  });
+
+/**
+ * Every regional group, for the "Regional differences" list (spec 22, phase 7). Fetched once: it
+ * changes only when the dictionary is replaced, and the list filters it in memory.
+ */
+export const regionalBrowseQuery = (): ReturnType<
+  typeof queryOptions<RegionalGroupDto[], Error, RegionalGroupDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["regionalBrowse"],
+    queryFn: async () => (await browseRegional()).groups,
+    staleTime: Infinity
   });
 
 /** Stroke order by region (spec 22, phase 4): the kanji group's drawings, Japan's first. */

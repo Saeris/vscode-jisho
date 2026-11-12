@@ -136,6 +136,13 @@ const componentProject: TestProjectConfiguration = {
     // Stubs `acquireVsCodeApi` (bridge.ts calls it at module load) and registers cleanup between
     // tests. A property of the project rather than a preamble each spec remembers.
     setupFiles: ["src/webview/__tests__/setup.ts"]
+  },
+  // React Aria's Virtualizer reads `process.env` at runtime, which a production build replaces and
+  // a browser has none of. In a test it also renders every row unless `VIRT_ON` is set; with it,
+  // the list virtualizes against Chromium's real layout, as in the webview.
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("test"),
+    "process.env.VIRT_ON": JSON.stringify("1")
   }
 };
 

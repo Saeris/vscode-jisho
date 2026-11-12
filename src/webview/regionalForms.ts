@@ -4,6 +4,7 @@ import {
   REGIONAL_FONT_FAMILIES,
   fontRegionOf
 } from "../shared/regionalFonts";
+import { REGION_NAMES } from "../shared/regionalBrowse";
 
 /**
  * What the regional-forms views show (spec 22), worked out from a group as the build stored it:
@@ -11,18 +12,14 @@ import {
  */
 
 /** Column names: the four regions, then Japan's old form. */
-export const COLUMN_NAMES = [
-  "China",
-  "Hong Kong",
-  "Taiwan",
-  "Japan",
-  "Japan's old form"
-] as const;
+export const COLUMN_NAMES = [...REGION_NAMES, "Japan's old form"] as const;
 /**
  * Each column's language tag. It picks the fallback font for a form the region fonts cannot draw,
  * which must still be that region's shape, and how a screen reader pronounces the character.
  */
 export const COLUMN_LANGS = ["zh-CN", "zh-HK", "zh-TW", "ja", "ja"] as const;
+/** Each column's short name, where a list row has no room for the full one. */
+export const COLUMN_CODES = ["CN", "HK", "TW", "JP", "old"] as const;
 const JAPAN = 3;
 
 /** The ink of the `index`-th distinct form (`--jisho-ink-*`, theme.css): the overprint layer and its chart row match. */

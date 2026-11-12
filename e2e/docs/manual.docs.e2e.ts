@@ -20,7 +20,9 @@ import {
   fillSearch,
   hoverEditorWord,
   jishoFrame,
+  leaveKanjiTabAtRoot,
   openJishoSidebar,
+  openRegionalDifferences,
   returnToSearch
 } from "../webview";
 import {
@@ -470,6 +472,28 @@ test("capture: regional forms", async () => {
     await frame.getByRole("heading", { name: /regional forms/u }).hover();
     return sidebar(win);
   });
+});
+
+test("capture: regional differences", async () => {
+  // Filtered to "Japan alone differs" with the filters open: the shot shows how the list is
+  // narrowed as well as what a row holds. Left at the Kanji tab's root afterwards, where the
+  // Kanji browse capture expects to find its lists.
+  const win = vscode!.window;
+  await captureBothThemes(vscode!, "regional-browse", async () => {
+    const frame = await jishoFrame(win);
+    await openRegionalDifferences(frame);
+    await frame.getByRole("button", { name: /^Filters/u }).click();
+    await frame.getByRole("radio", { name: "Two forms" }).click();
+    await frame.getByRole("radio", { name: "Japan alone differs" }).click();
+    await expect(
+      frame
+        .getByRole("listbox", { name: "Regional differences" })
+        .getByRole("option")
+        .first()
+    ).toBeVisible();
+    return sidebar(win);
+  });
+  await leaveKanjiTabAtRoot(await jishoFrame(win));
 });
 
 test("capture: stroke order, mid-animation", async () => {

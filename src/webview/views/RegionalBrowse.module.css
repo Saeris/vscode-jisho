@@ -1,0 +1,250 @@
+/* The Kanji tab's "Regional differences" list (spec 22, phase 7): the filters stay put above a list
+   that scrolls, and only the rows in view are rendered. */
+
+.filters {
+  display: grid;
+  gap: 8px;
+  padding: var(--jisho-gap);
+  border-block-end: 1px solid var(--jisho-border);
+}
+
+.search {
+  display: flex;
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 4px 8px;
+  color: var(--jisho-input-fg);
+  background: var(--jisho-input-bg);
+  border: 1px solid var(--jisho-input-border);
+  border-radius: var(--jisho-radius);
+  font: inherit;
+}
+
+.input[data-focused] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+/* Chips wrap at any sidebar width rather than scroll sideways. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid var(--jisho-border);
+  border-radius: var(--jisho-radius);
+  color: inherit;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip[data-hovered] {
+    background: var(--jisho-hover-bg);
+  }
+}
+
+.chip[data-pressed] {
+  background: var(--jisho-hover-bg);
+}
+
+.chip[data-selected] {
+  background: var(--jisho-input-bg);
+  border-color: var(--jisho-focus);
+}
+
+.chip[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+.more {
+  display: grid;
+  gap: 8px;
+}
+
+.moreHeading {
+  margin: 0;
+  font: inherit;
+}
+
+.moreTrigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: var(--jisho-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.moreTrigger[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+}
+
+.moreTrigger[data-pressed] {
+  color: var(--jisho-fg);
+}
+
+.moreChevron {
+  display: inline-block;
+}
+
+.more[data-expanded] .moreChevron {
+  rotate: 90deg;
+}
+
+/* At most half the sidebar, scrolling down on its own past that, so the list always keeps room.
+   Never sideways: the slider's end thumb reaches half its width past the track. */
+.morePanel {
+  display: grid;
+  gap: 8px;
+  max-block-size: 50vh;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+.hint {
+  margin: -4px 0 0;
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+}
+
+.slider {
+  display: grid;
+  gap: 4px;
+}
+
+.sliderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85em;
+  color: var(--jisho-muted);
+}
+
+.sliderValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.sliderTrack {
+  position: relative;
+  block-size: 18px;
+  margin-inline: 6px;
+}
+
+/* The rail, as a pseudo-element so the track keeps a comfortable hit area around it. */
+.sliderTrack::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  block-size: 3px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  background: var(--jisho-border);
+}
+
+.sliderFill {
+  position: absolute;
+  inset-block-start: 50%;
+  block-size: 3px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  background: var(--jisho-focus);
+}
+
+/* Centred on the rail: React Aria places the thumb with `top: 0`, so the origin is moved to the
+   rail and the library's own translate keeps the horizontal position (as StrokePlayer does). */
+.sliderThumb {
+  inset-block-start: 50%;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--jisho-fg);
+  border: 1px solid var(--jisho-border);
+}
+
+.sliderThumb[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: 2px;
+}
+
+/* The list fills what the filters leave and scrolls on its own; the Virtualizer positions rows. */
+.results {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  padding-inline: var(--jisho-gap);
+  border-block-end: 1px solid var(--jisho-border);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .result[data-hovered] {
+    background: var(--jisho-hover-bg);
+  }
+}
+
+.result[data-pressed] {
+  background: var(--jisho-hover-bg);
+}
+
+.result[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: -1px;
+}
+
+.strip {
+  display: flex;
+  flex: 1;
+  gap: 14px;
+  min-inline-size: 0;
+  overflow: clip;
+}
+
+/* Each form underlined in its layer's ink, so the strip reads against the overprint beside it. */
+.form {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding-block-end: 2px;
+  border-block-end: 2px solid var(--ink);
+}
+
+.formChar {
+  font-size: 1.35em;
+  line-height: 1.1;
+}
+
+.formRegions {
+  color: var(--jisho-muted);
+  font-size: 0.75em;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.value {
+  color: var(--jisho-muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
