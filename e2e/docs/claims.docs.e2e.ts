@@ -201,8 +201,8 @@ test("claim: each region's reading and rank, with the texts it was counted in", 
     await expect(jisho.getByText(reading).first()).toBeVisible();
   for (const corpus of [
     /in modern Chinese texts$/u,
-    /in Cantonese texts (words.hk)$/u,
-    /in news and social media (2023)$/u,
+    /in Cantonese texts \(words\.hk\)$/u,
+    /in news and social media \(2023\)$/u,
     /on Japanese Wikipedia$/u
   ])
     await expect(jisho.getByText(corpus)).toBeVisible();
