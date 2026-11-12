@@ -22,7 +22,9 @@ import {
   fillSearch,
   hoverEditorWord,
   jishoFrame,
+  leaveKanjiTabAtRoot,
   openJishoSidebar,
+  openRegionalDifferences,
   returnToSearch
 } from "../webview";
 import { assertFullDictionary } from "./capture";
@@ -229,6 +231,42 @@ test("claim: the forms' notes are quoted from Wiktionary, each linked to its pag
   await expect(
     jisho.getByRole("link", { name: "Chinese section on Wiktionary" })
   ).toHaveAttribute("href", "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese");
+});
+
+test("claim: Regional differences lists the characters, searched, filtered and sorted", async () => {
+  // README: "Regional differences, below the Kanji tab's lists, lists every character that Regional
+  // forms covers" / "Search by character, reading or code point (U+5B66) … gaku finds 学" /
+  // "Filters chooses how the regions differ, such as Japan alone differs, which official lists the
+  // character is on, a stroke range, and the order: frequency, stroke count or code point, each in
+  // one region." / "Selecting a row opens its Regional forms."
+  await openRegionalDifferences(jisho);
+  const list = jisho.getByRole("listbox", { name: "Regional differences" });
+  const learn = list.getByRole("option", {
+    name: "学, China and Japan; 學, Hong Kong, Taiwan and Japan's old form"
+  });
+  const search = jisho.getByRole("searchbox", {
+    name: "Search the regional forms"
+  });
+  for (const query of ["学", "U+5B66", "gaku"]) {
+    await search.fill(query);
+    await expect(learn).toBeVisible();
+  }
+  await search.fill("");
+  await jisho.getByRole("button", { name: /^Filters/u }).click();
+  await jisho.getByRole("radio", { name: "Two forms" }).click();
+  await jisho.getByRole("radio", { name: "Japan alone differs" }).click();
+  for (const order of ["Frequency", "Strokes", "Code point"])
+    await expect(jisho.getByRole("radio", { name: order })).toBeVisible();
+  await expect(jisho.getByRole("button", { name: "Jōyō kanji" })).toBeVisible();
+  await expect(
+    jisho.getByRole("slider", { name: /Fewest strokes/u })
+  ).toBeAttached();
+  await jisho.getByRole("radio", { name: "Strokes" }).click();
+  await list.getByRole("option").first().click();
+  await expect(
+    jisho.getByRole("heading", { name: "乃 regional forms" })
+  ).toBeVisible();
+  await leaveKanjiTabAtRoot(jisho);
 });
 
 test("claim: stroke order can be played as each region writes it", async () => {

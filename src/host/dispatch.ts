@@ -134,6 +134,7 @@ export type WordRequestType =
   | "getKanji"
   | "getComponentTree"
   | "getRegionalForms"
+  | "browseRegional"
   | "lookupRadicals"
   | "getKanjiPreviews"
   | "getAbout";
@@ -219,6 +220,9 @@ export const wordHandlers = (
   }),
   getRegionalForms: async ({ literal }) => ({
     groups: await (await sources.dict()).getRegionalForms(literal)
+  }),
+  browseRegional: async () => ({
+    groups: await (await sources.dict()).browseRegional()
   }),
   lookupRadicals: async ({ selected }) => ({
     result: await (await sources.dict()).lookupRadicals(selected)

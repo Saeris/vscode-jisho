@@ -39,6 +39,7 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
   - [Browsing](#browsing)
     - [Vocabulary](#vocabulary)
     - [Kanji](#kanji)
+    - [Regional differences](#regional-differences)
     - [Kana](#kana)
   - [Working in the editor](#working-in-the-editor)
     - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
@@ -247,7 +248,7 @@ For a jōyō kanji that China, Hong Kong or Taiwan writes differently, buttons a
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-forms-dark.png" />
-  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on." src="docs/images/regional-forms-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on. Below, each region's reading and frequency rank." src="docs/images/regional-forms-light.png" />
 </picture>
 
 ### Regional forms
@@ -354,6 +355,22 @@ The grid fits far more on screen than a list would, which suits browsing a level
 Each tile carries a short meaning under the character, so the set is scannable without opening anything.
 
 Selecting a tile opens that character's page.
+
+<br clear="right" /><br />
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-browse-dark.png" />
+  <img align="right" hspace="12" width="42%" alt="The Regional differences list, filtered to characters Japan alone writes differently. Each row overlays the forms in two inks, then shows the Japanese form above JP and the form China, Hong Kong and Taiwan share above CN HK TW." src="docs/images/regional-browse-light.png" />
+</picture>
+
+### Regional differences
+
+**Regional differences**, below the Kanji tab's lists, lists every character that [Regional forms](#regional-forms) covers: its forms overlaid, then each form with the regions that write it.
+
+- Search by character, reading or code point (`U+5B66`). Readings match without their tone marks, and Japanese readings can be typed in kana or romaji, so `gaku` finds 学.
+- **Filters** chooses how the regions differ, such as **Japan alone differs**, which official lists the character is on, a stroke range, and the order: frequency, stroke count or code point, each in one region.
+
+Selecting a row opens its **Regional forms**.
 
 <br clear="right" /><br />
 

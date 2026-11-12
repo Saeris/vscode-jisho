@@ -543,6 +543,14 @@ export interface Protocol {
     request: { literal: string };
     response: { drawings: RegionalDrawingDto[] };
   };
+  /**
+   * Every regional group, for the Kanji tab's "Regional differences" list (spec 22, phase 7), which
+   * filters and sorts them itself. `notes` is empty: the list does not show them.
+   */
+  browseRegional: {
+    request: Record<string, never>;
+    response: { groups: RegionalGroupDto[] };
+  };
   /** Radical picker: the current selection (empty = show all radicals, no matches). */
   lookupRadicals: {
     request: { selected: string[] };

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { Dictionary, SchemaVersionError } from "../db";
 import { SCHEMA_VERSION } from "../../shared/schema";
 import { exampleText } from "../../shared/exampleLinks";
+import { DEFAULT_FILTERS, filterRegional } from "../../shared/regionalBrowse";
 
 // These tests run against the real database produced by `vp run build:data`. If it hasn't been
 // built yet, skip rather than fail — the build is an occasional, network-dependent step.
@@ -800,6 +801,38 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     );
     expect(notes.get("学 Translingual")).toMatch(/^Simplified from 學/u);
     expect(notes.get("學 Chinese")).toMatch(/compound/u);
+  });
+
+  test("lists every regional group for the browse, and finds where Japan alone differs", async () => {
+    // WHY: spec 22, phase 7's "done when". The browse filters the whole table in the webview, so the
+    // host must hand over every group with its readings, Japan's joined from the kanji page. Japan
+    // alone differing, by Japan's stroke count, starts with characters every region writes at one
+    // code point but Japan draws its own way (山), the fewest strokes first and equal counts by code
+    // point, so the list reads the same on every load.
+    const groups = await dict.browseRegional();
+    expect(groups.length).toBeGreaterThan(8000);
+    const learn = groups.find((group) => group.key === "學");
+    expect(learn?.readings[3]).toMatch(/ガク/u);
+    const japanAlone = filterRegional(groups, {
+      ...DEFAULT_FILTERS,
+      pattern: "0001",
+      sort: "strokes",
+      region: 3
+    });
+    expect(
+      japanAlone.slice(0, 7).map((group) => [group.chars[3], group.strokes[3]])
+    ).toEqual([
+      ["乃", 2],
+      ["么", 3],
+      ["之", 3],
+      ["山", 3],
+      ["广", 3],
+      ["弓", 3],
+      ["才", 3]
+    ]);
+    expect(japanAlone.every((group) => group.glyphSig.startsWith("0001"))).toBe(
+      true
+    );
   });
 
   test("lists every character Japan writes alike, the kanji's own first", async () => {

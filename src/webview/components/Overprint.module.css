@@ -52,6 +52,10 @@
   font-size: 2.75rem;
 }
 
+.overprint[data-size="row"] .forms {
+  font-size: 2rem;
+}
+
 .form {
   /* 1 for the lit form, 0 for the rest: a step, since rounding `--overprint-lit` down names one
      index at a time while the clock runs continuously. */

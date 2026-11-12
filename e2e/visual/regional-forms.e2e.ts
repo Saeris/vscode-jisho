@@ -1,5 +1,11 @@
 import { expect, test } from "../fixtures";
-import { openKanjiResult, returnToSearch, screenshotSidebar } from "../webview";
+import {
+  leaveKanjiTabAtRoot,
+  openKanjiResult,
+  openRegionalDifferences,
+  returnToSearch,
+  screenshotSidebar
+} from "../webview";
 
 /**
  * Regional forms (spec 22, phase 3) in VS Code, in a dark and a light theme: the kanji page's
@@ -171,4 +177,46 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
     vscode.window,
     "test-results/shots/35-regional-wiktionary.png"
   );
+});
+
+test("regional differences: Japan alone differs, fewest strokes first, and a row opens its forms", async ({
+  vscode,
+  jisho
+}) => {
+  // Spec 22, phase 7's "done when", in the app: the filters reach the list, the list is sorted by
+  // Japan's stroke count, and a row leads to the Regional forms view.
+  await openRegionalDifferences(jisho);
+  await jisho.getByRole("button", { name: /^Filters/u }).click();
+  await jisho.getByRole("radio", { name: "Two forms" }).click();
+  await jisho.getByRole("radio", { name: "Japan alone differs" }).click();
+  await jisho.getByRole("radio", { name: "Strokes" }).click();
+  // The row's value follows the sort: a stroke count now, not a frequency rank.
+  await expect(
+    jisho
+      .getByRole("listbox", { name: "Regional differences" })
+      .getByRole("option")
+      .first()
+  ).toContainText("2 strokes");
+  await jisho.getByRole("button", { name: /^Filters/u }).click();
+  const list = jisho.getByRole("listbox", { name: "Regional differences" });
+  const first = list.getByRole("option").first();
+  await expect(first).toHaveAccessibleName(
+    "乃, Japan; 乃, China, Hong Kong and Taiwan"
+  );
+  await expect(list.getByRole("option").nth(1)).toHaveAccessibleName(
+    "么, Japan; 么, China, Hong Kong and Taiwan"
+  );
+  // Rendered rows are the ones in view, not all 1,157: the list stays fast on the whole table.
+  expect(await list.getByRole("option").count()).toBeLessThan(60);
+  await screenshotSidebar(
+    vscode.window,
+    "test-results/shots/36-regional-browse.png"
+  );
+
+  await first.click();
+  await expect(
+    jisho.getByRole("heading", { name: "乃 regional forms" })
+  ).toBeVisible();
+
+  await leaveKanjiTabAtRoot(jisho);
 });

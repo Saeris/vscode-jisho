@@ -293,6 +293,9 @@ export const getRegionalStrokes = async (
 ): Promise<ResponseOf<"getRegionalStrokes">> =>
   request("getRegionalStrokes", { literal });
 
+export const browseRegional = async (): Promise<ResponseOf<"browseRegional">> =>
+  request("browseRegional", {});
+
 export const lookupRadicals = async (
   selected: string[]
 ): Promise<ResponseOf<"lookupRadicals">> =>
