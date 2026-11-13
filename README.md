@@ -248,7 +248,7 @@ For a jōyō kanji that China, Hong Kong or Taiwan writes differently, buttons a
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-forms-dark.png" />
-  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on. Below, each region's reading and frequency rank." src="docs/images/regional-forms-light.png" />
+  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on. Below, Details: Wiktionary's note that 学 is simplified from 學, then Japan's reading, frequency rank and meaning." src="docs/images/regional-forms-light.png" />
 </picture>
 
 ### Regional forms
