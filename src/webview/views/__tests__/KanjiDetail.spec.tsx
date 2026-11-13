@@ -6,7 +6,10 @@ import { userEvent } from "@testing-library/user-event";
 import { renderWithNavigation as render } from "../../__tests__/navigationHarness";
 import type { NavEvent } from "../../machines/navigation";
 import { KanjiDetail } from "../KanjiDetail";
-import type { KanjiDetailDto } from "../../../shared/messages";
+import type {
+  KanjiDetailDto,
+  RegionalGroupDto
+} from "../../../shared/messages";
 
 // 久 as Kradfile actually decomposes it: 入 and 久 are real kanji, ノ is a stroke-shape proxy with
 // no Kanjidic entry. Mocked so the test is about the routing decision, not the host round-trip.
@@ -33,24 +36,46 @@ const kanji: KanjiDetailDto = {
   words: []
 };
 
+// 学, for the page's links: a component tree, and regions that write it differently.
+const learn: KanjiDetailDto = {
+  ...kanji,
+  literal: "学",
+  components: [],
+  similar: [],
+  hasTree: true
+};
+const learnGroup: RegionalGroupDto = {
+  key: "學",
+  chars: ["学", "學", "學", "学"],
+  old: "學",
+  glyphSig: "01101",
+  cpSig: "0110",
+  strokes: [8, 16, 16, 8, 16],
+  tiers: [1, 1, 1, 2],
+  readings: [null, null, null, null],
+  ranks: [null, null, null, null],
+  notes: []
+};
+
 vi.mock("../../queries", () => ({
   kanjiQuery: (literal: string) => ({
     queryKey: ["kanji", literal],
-    queryFn: () => kanji
+    queryFn: () => (literal === "学" ? learn : kanji)
   }),
   strokeSvgQuery: (literal: string) => ({
     queryKey: ["strokeSvg", literal],
     queryFn: () => null
   }),
-  // The page also asks for regional forms (spec 22); RegionalSummary.spec.tsx covers that block.
+  // The page also asks for regional forms (spec 22); RegionalSummary.spec.tsx covers that block,
+  // and the links test below where it sits.
   regionalFormsQuery: (literal: string) => ({
     queryKey: ["regionalForms", literal],
-    queryFn: () => []
+    queryFn: () => (literal === "学" ? [learnGroup] : [])
   })
 }));
 
 /** Render the view and return the navigation events it dispatched. */
-const renderView = (): NavEvent[] => {
+const renderView = (literal = "久"): NavEvent[] => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
@@ -59,8 +84,25 @@ const renderView = (): NavEvent[] => {
   );
   // Navigation now comes from context, so assertions are on the EVENTS the view dispatches rather
   // than on which callback prop fired — which is closer to what the user experiences anyway.
-  return render(wrapper(<KanjiDetail literal="久" />)).sent;
+  return render(wrapper(<KanjiDetail literal={literal} />)).sent;
 };
+
+describe("kanji detail links", () => {
+  it("lists Regional forms third, after Stroke order and Component tree", async () => {
+    // WHY: the links go from the kanji itself outward: how to write it, what it is built from, and
+    // then how other regions write it. Regional forms used to sit above the two about the kanji.
+    renderView("学");
+    const regional = await screen.findByRole("button", {
+      name: /^Regional forms/u
+    });
+    const stroke = screen.getByRole("button", { name: "Stroke order" });
+    const tree = screen.getByRole("button", { name: "Component tree" });
+    const follows = (a: Element, b: Element): boolean =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(stroke, tree)).toBe(true);
+    expect(follows(tree, regional)).toBe(true);
+  });
+});
 
 describe("kanji detail parts", () => {
   it("opens the kanji detail for a part that is a real kanji", async () => {

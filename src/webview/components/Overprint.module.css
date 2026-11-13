@@ -48,10 +48,6 @@
   font-size: 7rem;
 }
 
-.overprint[data-size="small"] .forms {
-  font-size: 2.75rem;
-}
-
 .overprint[data-size="row"] .forms {
   font-size: 2rem;
 }

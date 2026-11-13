@@ -108,8 +108,6 @@ const KanjiBody = ({
     <ReadingRow label="Kun" readings={kanji.kun} />
     <ReadingRow label="Nanori" readings={kanji.nanori} />
 
-    <RegionalSummary literal={kanji.literal} onOpen={openRegionalForms} />
-
     <Button
       className={styles.strokeLink}
       onPress={() => openStrokeOrder(kanji.literal)}
@@ -133,6 +131,8 @@ const KanjiBody = ({
         </span>
       </Button>
     ) : null}
+
+    <RegionalSummary literal={kanji.literal} onOpen={openRegionalForms} />
 
     {kanji.components.length > 0 ? (
       <div className={styles.section}>

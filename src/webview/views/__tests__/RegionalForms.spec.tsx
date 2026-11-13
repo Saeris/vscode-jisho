@@ -62,6 +62,14 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
   ]
 };
 
+// The clipboard write goes through the host; the test is about WHAT the chart hands it.
+const copied: string[] = [];
+vi.mock("../../bridge", () => ({
+  copyText: async (text: string) => {
+    copied.push(text);
+  }
+}));
+
 vi.mock("../../queries", () => ({
   regionalFormsQuery: (literal: string) => ({
     queryKey: ["regionalForms", literal],
@@ -163,6 +171,20 @@ describe("the Regional forms view", () => {
     expect(screen.getByText("3 forms")).toBeVisible();
   });
 
+  it("copies a form when it is clicked, as the kanji page copies its character", async () => {
+    // WHY: a reader who finds Taiwan's form usually wants it in the document beside the sidebar.
+    // The chart is where they see it, so it must hand over the character itself, not leave them
+    // to retype it from the code point next to it.
+    renderView("学");
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Copy 學 (Hong Kong, Taiwan and Japan's old form)"
+      })
+    );
+    expect(copied).toEqual(["學"]);
+    await expect(screen.findByText("Copied")).resolves.toBeVisible();
+  });
+
   it("gives each region's reading and its rank in that region's corpus", async () => {
     // WHY: phase 5's point: Mandarin and Cantonese beside Japan's readings, and four ranks that
     // each name their corpus, since #66 in China and #5 in Japan count different texts.
@@ -180,6 +202,21 @@ describe("the Regional forms view", () => {
     );
     expect(section?.textContent).toContain(
       "ガク、まな.ぶ (Japanese)#5 on Japanese Wikipedia"
+    );
+  });
+
+  it("raises the Cantonese tone digit and says what it is", async () => {
+    // WHY (reported): "hok6" reads as a word with a number in it to anyone who has not met Jyutping.
+    // Raised, as Wiktionary sets it, and explained by the "Cantonese" label beside it.
+    renderView("学");
+    const tone = await screen.findByText("6", { selector: "sup" });
+    expect(tone.parentElement).toHaveTextContent("hok6");
+    // Tooltips open on KEYBOARD focus, and earlier tests' clicks left the modality on the pointer.
+    // Not Shift: React Aria ignores modifier keys when it decides the modality.
+    await userEvent.keyboard("{Escape}");
+    screen.getByRole("button", { name: "Cantonese" }).focus();
+    await expect(screen.findByRole("tooltip")).resolves.toMatchTextContent(
+      /small number after each syllable is its tone/u
     );
   });
 

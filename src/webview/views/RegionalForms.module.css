@@ -87,8 +87,12 @@
   border-block-end: 1px solid var(--jisho-border);
 }
 
-.form {
+.formCopy {
   flex: none;
+  padding: 2px;
+}
+
+.form {
   inline-size: 1.15em;
   font-size: 2.6em;
   line-height: 1;

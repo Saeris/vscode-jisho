@@ -94,16 +94,22 @@ describe("readings and frequency", () => {
       ranks: [66, 84, null, 5]
     });
     expect(rows.map((row) => row.rank)).toEqual([
+      "#5 on Japanese Wikipedia",
       "#66 in modern Chinese texts",
       "#84 in Cantonese texts (words.hk)",
-      "Not ranked in news and social media (2023)",
-      "#5 on Japanese Wikipedia"
+      "Not ranked in news and social media (2023)"
     ]);
+  });
+
+  it("starts with Japan, then the other regions in the chart's order", () => {
+    // WHY: this is a Japanese dictionary: the reader comes with Japan's reading in mind and reads
+    // the others against it, as the chart above puts Japan's form first.
+    const rows = usageRows(learn);
     expect(rows.map((row) => [row.region, row.char, row.readingName])).toEqual([
+      ["Japan", "学", "Japanese"],
       ["China", "学", "Mandarin"],
       ["Hong Kong", "學", "Cantonese"],
-      ["Taiwan", "學", "Mandarin"],
-      ["Japan", "学", "Japanese"]
+      ["Taiwan", "學", "Mandarin"]
     ]);
   });
 });

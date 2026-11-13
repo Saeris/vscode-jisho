@@ -154,9 +154,13 @@ export interface UsageRow {
   rank: string;
 }
 
+/** The order of "Readings and frequency": Japan's first, as in the chart, since this is a Japanese dictionary. */
+const USAGE_ORDER = [JAPAN, 0, 1, 2] as const;
+
 /** The four regions' lines for "Readings and frequency" (spec 22, phase 5). */
 export const usageRows = (group: RegionalGroupDto): UsageRow[] =>
-  READINGS.map((reading, region) => {
+  USAGE_ORDER.map((region) => {
+    const reading = READINGS[region];
     const rank = group.ranks[region] ?? null;
     return {
       region: COLUMN_NAMES[region] ?? "",

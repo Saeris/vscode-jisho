@@ -7,8 +7,10 @@ import {
   type Selection
 } from "react-aria-components";
 import type { RegionalGroupDto } from "../../shared/messages";
+import { CopyButton } from "../components/CopyButton";
 import { DetailView } from "../components/DetailView";
 import { Overprint } from "../components/Overprint";
+import { Term } from "../components/Term";
 import { regionalFormsQuery } from "../queries";
 import {
   COLUMN_LANGS,
@@ -153,16 +155,24 @@ const GroupSection = ({
             key={`${row.char}-${row.columns.join("")}`}
             className={styles.row}
           >
-            <span
-              className={styles.form}
-              lang={COLUMN_LANGS[row.columns[0] ?? 3]}
-              style={{
-                fontFamily: `"${row.family}"`,
-                "--ink": inkOf(rowIndex)
-              }}
+            {/* Copied on a click, as the kanji page's character is: the form is what a reader came
+                for, and its code point stays in the facts beside it. */}
+            <CopyButton
+              className={styles.formCopy}
+              value={row.char}
+              label={`Copy ${row.char} (${columnNames(row.columns)})`}
             >
-              {row.char}
-            </span>
+              <span
+                className={styles.form}
+                lang={COLUMN_LANGS[row.columns[0] ?? 3]}
+                style={{
+                  fontFamily: `"${row.family}"`,
+                  "--ink": inkOf(rowIndex)
+                }}
+              >
+                {row.char}
+              </span>
+            </CopyButton>
             <span className={styles.facts}>
               <span className={styles.regions}>{columnNames(row.columns)}</span>
               <span>
@@ -196,8 +206,16 @@ const GroupSection = ({
                 </span>
               ) : (
                 <>
-                  <span lang={row.readingLang}>{row.reading}</span>{" "}
-                  <span className={styles.muted}>({row.readingName})</span>
+                  <span lang={row.readingLang}>
+                    {row.readingLang === "yue-Latn-jyutping" ? (
+                      <Jyutping reading={row.reading} />
+                    ) : (
+                      row.reading
+                    )}
+                  </span>{" "}
+                  <span className={styles.muted}>
+                    (<Term>{row.readingName}</Term>)
+                  </span>
                 </>
               )}
             </dd>
@@ -226,6 +244,20 @@ const GroupSection = ({
     </section>
   );
 };
+
+/**
+ * A Jyutping reading with each tone digit raised, as Wiktionary sets it: "gwok3" otherwise reads as
+ * a word with a number in it. The "Cantonese" label beside it says what the number is.
+ */
+const Jyutping = ({ reading }: { reading: string }): React.ReactElement => (
+  <>
+    {reading
+      .split(/([1-6])/u)
+      .map((part, index) =>
+        index % 2 === 1 ? <sup key={index}>{part}</sup> : part
+      )}
+  </>
+);
 
 /**
  * "From Wiktionary" (spec 22, phase 6): what its pages say of how the forms relate and where the

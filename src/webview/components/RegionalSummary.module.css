@@ -1,5 +1,5 @@
 /* The kanji page's regional block (spec 22): the same row shape as the page's Stroke order and
-   Component tree links, holding a small overprint and its line. */
+   Component tree links, with the summary line under its name. */
 
 .summary {
   display: flex;
@@ -7,7 +7,7 @@
   gap: 8px;
   inline-size: 100%;
   margin-block-start: 12px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   background: var(--jisho-input-bg);
   border: 1px solid var(--jisho-border);
   border-radius: var(--jisho-radius);
@@ -32,25 +32,22 @@
   outline-offset: -1px;
 }
 
-.groups {
+.text {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   min-inline-size: 0;
-}
-
-.group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .line {
   display: flex;
   flex-wrap: wrap;
   gap: 0 6px;
+  color: var(--jisho-muted);
+  font-size: 0.9em;
 }
 
 .key {
+  color: var(--jisho-fg);
   font-weight: 600;
 }
 
