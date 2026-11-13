@@ -132,7 +132,7 @@
   color: var(--jisho-link);
 }
 
-/* Readings and frequency (spec 22, phase 5): one line per region; each rank names its corpus. */
+/* A pronunciation line per region (spec 22, phase 5); each rank names its corpus. */
 .subheading {
   margin: 14px 0 6px;
   font-size: 0.85em;
@@ -158,17 +158,46 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* From Wiktionary (spec 22, phase 6): each language's notes under its name, each note quoted, then
-   its page and the licence credit. */
-.noteLanguage {
-  margin: 10px 0 4px;
+/* Details: how the forms relate across languages, then one entry per language, each with its
+   pronunciation and frequency, meaning and etymology. */
+.language {
+  margin: 14px 0 2px;
   font-size: 1em;
   font-weight: 600;
 }
+
+.part {
+  margin: 8px 0 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--jisho-muted);
+}
+
+.meaning {
+  margin: 0;
+}
+
+/* A quote from Wiktionary, padded on every side: VS Code gives a blockquote a ground of its own,
+   and text set against its edge read as running off the view (reported). */
 .note {
-  margin: 0 0 10px;
-  padding-inline-start: 10px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
   border-inline-start: 2px solid var(--jisho-border);
+}
+
+/* A character in quoted text that has a kanji page. Underlined, so it reads as a link by more than
+   its colour. */
+.kanjiLink {
+  color: var(--jisho-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.kanjiLink[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: 1px;
 }
 
 .note p,
@@ -201,52 +230,7 @@
   padding-inline-start: 12px;
 }
 
-/* "More from Wiktionary": the rest of a note, folded under its lead. */
-.more {
-  margin-block-end: 6px;
-}
-
-.moreHeading {
-  margin: 0;
-  font: inherit;
-}
-
-.moreTrigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-  background: transparent;
-  border: none;
-  color: var(--jisho-link);
-  font: inherit;
-  cursor: pointer;
-}
-
-.moreTrigger[data-pressed] {
-  color: var(--jisho-fg);
-}
-
-.moreTrigger[data-focus-visible] {
-  outline: 1px solid var(--jisho-focus);
-  outline-offset: 2px;
-}
-
-.moreChevron {
-  display: inline-block;
-}
-
-.more[data-expanded] .moreChevron {
-  rotate: 90deg;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .moreChevron {
-    transition: rotate 150ms ease-out;
-  }
-}
-
-/* Meanings in Chinese: numbered, as Wiktionary numbers them. */
+/* The Chinese meanings: numbered, as Wiktionary numbers them. */
 .meanings {
   display: grid;
   gap: 3px;

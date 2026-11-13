@@ -822,6 +822,17 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(labels).toEqual(expect.arrayContaining(["くに", "こく"]));
   });
 
+  test("carries Japan's meanings, and the quoted characters that have a kanji page", async () => {
+    // WHY: Details sets Japan's meaning beside the Chinese one, from the kanji page's own data; and
+    // the view links a quoted character only when the host has found its page, so the set must
+    // hold 學 (named in 学's note) and nothing the dictionary lacks.
+    const [learn] = await dict.getRegionalForms("学");
+    expect(learn?.japaneseMeanings).toContain("study");
+    expect(learn?.kanjiLinks).toContain("學");
+    for (const literal of learn?.kanjiLinks ?? [])
+      await expect(dict.getKanji(literal)).resolves.not.toBeNull();
+  });
+
   test("carries the group's meanings in Chinese from the page that defines them", async () => {
     // WHY: 学's Chinese page points at 學's, so the meanings are on 學's row; the host must bring
     // back every character's, for the view to choose the page that has them.

@@ -14,7 +14,13 @@
  * are (see docs/specs/19-documentation-drift-tests.md, which also records the claims that are NOT
  * checkable, so this suite is not mistaken for total coverage).
  */
-import { expect, test, type FrameLocator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type FrameLocator,
+  type Locator,
+  type Page
+} from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { launchVSCode, type Launched } from "../launch";
@@ -192,12 +198,10 @@ test("claim: a kanji's page says who writes it differently, and the forms are la
   );
 });
 
-test("claim: each region's reading and rank, with the texts it was counted in", async () => {
-  // README: "Readings and frequency gives each region's reading of its form, Japan's first, then
-  // Mandarin and Cantonese, and how common the form is in that region. Each rank names the texts it
-  // was counted in" / "Rest the pointer on Mandarin or Cantonese to see how its tones are written".
+/** Open a kanji's Regional forms view from the search. */
+const openRegionalForms = async (literal: string): Promise<void> => {
   await returnToSearch(jisho);
-  await fillSearch(jisho, "学");
+  await fillSearch(jisho, literal);
   await jisho
     .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
     .first()
@@ -205,105 +209,85 @@ test("claim: each region's reading and rank, with the texts it was counted in", 
   await jisho
     .getByRole("button", { name: "Regional forms", exact: true })
     .click();
-  await expect(jisho.getByText("Readings and frequency")).toBeVisible();
-  for (const reading of ["(Mandarin)", "(Cantonese)", "(Japanese)"])
-    await expect(jisho.getByText(reading).first()).toBeVisible();
+};
+
+/** A language's entry under Details: the section its heading opens. */
+const languageEntry = (language: string): Locator =>
+  jisho
+    .getByRole("heading", { name: language, exact: true, level: 4 })
+    .locator("..");
+
+test("claim: each region's reading and rank, with the texts it was counted in", async () => {
+  // README: "Pronunciation and frequency gives each region's reading of its form, Japan's under
+  // Japanese and the Mandarin and Cantonese readings under Chinese, and how common the form is in
+  // that region. Each rank names the texts it was counted in" / "Rest the pointer on Mandarin or
+  // Cantonese to see how its tones are written".
+  await openRegionalForms("学");
+  await expect(jisho.getByRole("heading", { name: "Details" })).toBeVisible();
+  const japanese = languageEntry("Japanese");
+  const chinese = languageEntry("Chinese");
+  await expect(japanese).toContainText("(Japanese)");
+  await expect(japanese).toContainText(/on Japanese Wikipedia/u);
+  for (const reading of ["(Mandarin)", "(Cantonese)"])
+    await expect(chinese).toContainText(reading);
   for (const corpus of [
-    /in modern Chinese texts$/u,
-    /in Cantonese texts \(words\.hk\)$/u,
-    /in news and social media \(2023\)$/u,
-    /on Japanese Wikipedia$/u
+    /in modern Chinese texts/u,
+    /in Cantonese texts \(words\.hk\)/u,
+    /in news and social media \(2023\)/u
   ])
-    await expect(jisho.getByText(corpus)).toBeVisible();
-  await expect(
-    jisho.getByRole("term").first(),
-    "Japan's reading comes first"
-  ).toHaveText(/^Japan/u);
-  await jisho.getByRole("button", { name: "Cantonese" }).hover();
+    await expect(chinese).toContainText(corpus);
+  await chinese.getByRole("button", { name: "Cantonese" }).hover();
   await expect(jisho.getByRole("tooltip")).toContainText(
     "small number after each syllable is its tone"
   );
 });
 
-test("claim: the character's meanings in Chinese, from Wiktionary", async () => {
-  // README: "Meanings in Chinese lists the first meanings English Wiktionary gives the character in
-  // Chinese … 湯 is "broth; soup" in Chinese, and "hot or boiling water", its everyday meaning in
-  // Japanese, is marked literary."
-  await returnToSearch(jisho);
-  await fillSearch(jisho, "湯");
-  await jisho
-    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
-    .first()
-    .click();
-  await jisho
-    .getByRole("button", { name: "Regional forms", exact: true })
-    .click();
-  await expect(
-    jisho.getByRole("heading", { name: "Meanings in Chinese" })
-  ).toBeVisible();
-  const meanings = jisho.locator("ol", {
-    has: jisho.getByText(/^hot or boiling water/u)
-  });
+test("claim: the kanji's meanings beside its meanings in Chinese", async () => {
+  // README: "Meaning gives the kanji's meanings under Japanese, and the first meanings English
+  // Wiktionary gives it under Chinese … 湯 is "broth; soup" in Chinese, and "hot or boiling water",
+  // its everyday meaning in Japanese, is marked literary."
+  await openRegionalForms("湯");
+  await expect(languageEntry("Japanese")).toContainText(/Meaning.*hot water/u);
+  const meanings = languageEntry("Chinese").locator("ol");
   await expect(meanings).toContainText("hot or boiling water · literary");
   await expect(meanings).toContainText("broth; stock");
   await expect(meanings).toContainText("soup");
 });
 
-test("claim: the forms' notes are quoted from Wiktionary, each linked to its page", async () => {
-  // README: "From Wiktionary quotes the etymologies English Wiktionary gives, under a heading for each
-  // language. Across languages says how the forms relate, such as 学 being simplified from 學 …
-  // Chinese says where the shape came from. Select More from Wiktionary under a note for the rest of
-  // it. Each note links to the page it is quoted from."
-  await returnToSearch(jisho);
-  await fillSearch(jisho, "学");
-  await jisho
-    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
-    .first()
-    .click();
-  await jisho
-    .getByRole("button", { name: "Regional forms", exact: true })
-    .click();
-  await expect(
-    jisho.getByRole("heading", { name: "From Wiktionary", exact: true })
-  ).toBeVisible();
+test("claim: Details quotes Wiktionary, each quote linked to its page and its kanji to theirs", async () => {
+  // README: "Details starts with Across languages, how the forms relate, such as 学 being simplified
+  // from 學. Then it has an entry for Japanese and one for Chinese" / "Under Chinese, it says where
+  // the shape came from." / "Each quote links to the Wiktionary page it is from. Select a kanji in a
+  // quote to open its page."
+  await openRegionalForms("学");
   await expect(
     jisho.getByRole("heading", { level: 4 }),
-    "a heading for each language, Japanese before Chinese"
+    "Across languages, then an entry per language, Japanese before Chinese"
   ).toHaveText(["Across languages", "Japanese", "Chinese"]);
-  await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
-  // 學's own page gives where the shape came from: a phono-semantic compound, and then the word's
-  // history (a derivation of 覺), which waits behind More.
-  const origin = jisho.locator("blockquote", {
+  const across = languageEntry("Across languages");
+  await expect(across).toContainText(/Simplified from 學/u);
+  // 學's own page gives where the shape came from, whole: the history is not folded away.
+  const origin = languageEntry("Chinese").locator("blockquote", {
     has: jisho.getByText(/phono-semantic compound/u)
   });
+  await expect(origin.getByText(/derivation of 覺/u)).toBeVisible();
   await expect(
     origin.getByRole("link", { name: "Chinese section on Wiktionary" })
   ).toHaveAttribute("href", "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese");
-  const history = origin.getByText(/derivation of 覺/u);
-  await expect(history).toBeHidden();
-  await origin.getByRole("button", { name: "More from Wiktionary" }).click();
-  await expect(history).toBeVisible();
+  await across.getByRole("link", { name: "學", exact: true }).click();
+  await expect(jisho.getByRole("button", { name: "Copy 學" })).toBeVisible();
 });
 
 test("claim: each Japanese word's etymology, by its reading", async () => {
-  // README: "Japanese says where each Japanese word written with the kanji came from, by its
-  // reading: for 国, くに is from Old Japanese and こく from Middle Chinese."
-  await returnToSearch(jisho);
-  await fillSearch(jisho, "国");
-  await jisho
-    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
-    .first()
-    .click();
-  await jisho
-    .getByRole("button", { name: "Regional forms", exact: true })
-    .click();
-  const japanese = jisho.locator("blockquote", {
+  // README: "Under Japanese, it says where each Japanese word written with the kanji came from, by
+  // its reading: for 国, くに is from Old Japanese and こく from Middle Chinese."
+  await openRegionalForms("国");
+  const japanese = languageEntry("Japanese").locator("blockquote", {
     has: jisho.getByText("くに", { exact: true })
   });
   await expect(japanese.getByText(/^From Old Japanese/u)).toBeVisible();
-  await japanese.getByRole("button", { name: "More from Wiktionary" }).click();
   await expect(japanese.getByText("こく", { exact: true })).toBeVisible();
-  await expect(japanese.getByText(/^From Middle Chinese 國/u)).toBeVisible();
+  await expect(japanese.getByText(/^From Middle Chinese/u)).toBeVisible();
   await expect(
     japanese.getByRole("link", { name: "Japanese section on Wiktionary" })
   ).toHaveAttribute(

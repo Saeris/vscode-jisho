@@ -1,11 +1,8 @@
-import { Fragment, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Button,
-  Disclosure,
-  DisclosurePanel,
-  Heading,
+  Link,
   ToggleButton,
   ToggleButtonGroup,
   type Selection
@@ -13,13 +10,13 @@ import {
 import type {
   NoteBlock,
   NoteItem,
-  RegionalGroupDto,
-  RegionalNoteDto
+  RegionalGroupDto
 } from "../../shared/messages";
 import { CopyButton } from "../components/CopyButton";
 import { DetailView } from "../components/DetailView";
 import { Overprint } from "../components/Overprint";
 import { Term } from "../components/Term";
+import { useNavigate } from "../navigation";
 import { regionalFormsQuery } from "../queries";
 import {
   COLUMN_LANGS,
@@ -30,7 +27,10 @@ import {
   meaningsOf,
   noteRows,
   strokeText,
-  usageRows
+  usageRows,
+  type MeaningsRow,
+  type NoteRow,
+  type UsageRow
 } from "../regionalForms";
 import styles from "./RegionalForms.module.css";
 
@@ -202,40 +202,7 @@ const GroupSection = ({
           </li>
         ))}
       </ul>
-      <h3 className={styles.subheading}>Readings and frequency</h3>
-      <dl className={styles.usage}>
-        {usageRows(group).map((row) => (
-          <div key={row.region} className={styles.usageRow}>
-            <dt className={styles.regions}>
-              {row.region} <span lang={row.lang}>{row.char}</span>
-            </dt>
-            <dd>
-              {row.reading === null ? (
-                <span className={styles.muted}>
-                  No {row.readingName} reading
-                </span>
-              ) : (
-                <>
-                  <span lang={row.readingLang}>
-                    {row.readingLang === "yue-Latn-jyutping" ? (
-                      <Jyutping reading={row.reading} />
-                    ) : (
-                      row.reading
-                    )}
-                  </span>{" "}
-                  <span className={styles.muted}>
-                    (<Term>{row.readingName}</Term>)
-                  </span>
-                </>
-              )}
-            </dd>
-            <dd className={styles.muted}>{row.rank}</dd>
-          </div>
-        ))}
-      </dl>
-      <ChineseMeanings group={group} />
-      <WiktionaryNotes group={group} />
-      <WiktionaryCredit group={group} />
+      <Details group={group} />
       <p className={styles.links}>
         {chars.map((char) => (
           <span key={char} className={styles.link}>
@@ -297,42 +264,64 @@ const Source = ({
   </>
 );
 
+/** The characters quoted text may link, and how to open one: provided once by `Details`. */
+const KanjiLinks = createContext<{
+  links: ReadonlySet<string>;
+  open: (literal: string) => void;
+}>({ links: new Set(), open: () => undefined });
+
 /**
- * "Meanings in Chinese": the first few senses of a form's Chinese section, where the reader can see a
- * meaning drift from the kanji's (娘 is "woman; mother" in Chinese, "daughter" in Japanese).
+ * Quoted text with each character that has a kanji page as a link to it (asked for): 学's note names
+ * 學, and 學 is a page one tap away. The host sends only characters the dictionary has, so a link
+ * never leads nowhere; the rest (a component like 𦥑) stays plain text.
  */
-const ChineseMeanings = ({
-  group
-}: {
-  group: RegionalGroupDto;
-}): React.ReactElement | null => {
-  const meanings = meaningsOf(group);
-  if (meanings === null) return null;
-  // Quoted like the notes below, and credited the same way: from a page, with its link.
-  return (
-    <>
-      <h3 className={styles.subheading}>Meanings in Chinese</h3>
-      <blockquote className={styles.note} cite={meanings.url}>
-        <ol className={styles.meanings}>
-          {meanings.senses.map((sense) => (
-            <li key={sense.gloss}>
-              {sense.gloss}
-              {sense.labels.length > 0 ? (
-                <span className={styles.muted}>
-                  {" "}
-                  · {sense.labels.join(", ")}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-        <footer className={styles.muted}>
-          <Source {...meanings} section="Chinese" />
-        </footer>
-      </blockquote>
-    </>
-  );
+const Quoted = ({ text }: { text: string }): React.ReactElement => {
+  const { links, open } = useContext(KanjiLinks);
+  const parts: React.ReactNode[] = [];
+  let plain = "";
+  for (const char of text) {
+    if (!links.has(char)) {
+      plain += char;
+      continue;
+    }
+    if (plain !== "") parts.push(plain);
+    plain = "";
+    parts.push(
+      <Link
+        key={parts.length}
+        className={styles.kanjiLink}
+        onPress={() => open(char)}
+      >
+        {char}
+      </Link>
+    );
+  }
+  if (plain !== "") parts.push(plain);
+  return <>{parts}</>;
 };
+
+/** The Chinese meanings, quoted and credited like the notes: from a page, with its link. */
+const ChineseMeanings = ({
+  meanings
+}: {
+  meanings: MeaningsRow;
+}): React.ReactElement => (
+  <blockquote className={styles.note} cite={meanings.url}>
+    <ol className={styles.meanings}>
+      {meanings.senses.map((sense) => (
+        <li key={sense.gloss}>
+          <Quoted text={sense.gloss} />
+          {sense.labels.length > 0 ? (
+            <span className={styles.muted}> · {sense.labels.join(", ")}</span>
+          ) : null}
+        </li>
+      ))}
+    </ol>
+    <footer className={styles.muted}>
+      <Source {...meanings} section="Chinese" />
+    </footer>
+  </blockquote>
+);
 
 /** A note's items, nested as the page nests them. */
 const NoteItems = ({
@@ -347,7 +336,7 @@ const NoteItems = ({
     <List className={styles.noteList}>
       {items.map((item, index) => (
         <li key={index}>
-          {item.text}
+          <Quoted text={item.text} />
           {item.items.length > 0 ? (
             <NoteItems items={item.items} ordered={ordered} />
           ) : null}
@@ -378,80 +367,142 @@ const NoteBlocks = ({
                 : undefined
           }
         >
-          {block.text}
+          <Quoted text={block.text} />
         </p>
       )
     )}
   </>
 );
 
+/** A Wiktionary note quoted whole, with a link to the section it is from. */
+const Note = ({ note }: { note: NoteRow }): React.ReactElement => (
+  <blockquote className={styles.note} cite={note.url}>
+    <NoteBlocks blocks={note.blocks} />
+    <footer className={styles.muted}>
+      <Source {...note} />
+    </footer>
+  </blockquote>
+);
+
+/** Each region's pronunciation of its form, and how common the form is in its region's corpus. */
+const Usage = ({ rows }: { rows: readonly UsageRow[] }): React.ReactElement => (
+  <dl className={styles.usage}>
+    {rows.map((row) => (
+      <div key={row.region} className={styles.usageRow}>
+        <dt className={styles.regions}>
+          {row.region} <span lang={row.lang}>{row.char}</span>
+        </dt>
+        <dd>
+          {row.reading === null ? (
+            <span className={styles.muted}>No {row.readingName} reading</span>
+          ) : (
+            <>
+              <span lang={row.readingLang}>
+                {row.readingLang === "yue-Latn-jyutping" ? (
+                  <Jyutping reading={row.reading} />
+                ) : (
+                  row.reading
+                )}
+              </span>{" "}
+              <span className={styles.muted}>
+                (<Term>{row.readingName}</Term>)
+              </span>
+            </>
+          )}
+        </dd>
+        <dd className={styles.muted}>{row.rank}</dd>
+      </div>
+    ))}
+  </dl>
+);
+
+/** One of a language entry's parts, left out when it has nothing to say. */
+const Part = ({
+  title,
+  children
+}: {
+  title: string;
+  children: React.ReactNode;
+}): React.ReactElement => (
+  <>
+    <h5 className={styles.part}>{title}</h5>
+    {children}
+  </>
+);
+
 /**
- * "From Wiktionary" (spec 22, phase 6): what its pages say of how the forms relate and where the
- * shape came from, quoted with a link to each page. Each note shows how the character is formed and
- * folds the rest, which is mostly the Chinese word's history: Old Chinese, cognates, sound changes.
+ * Details (asked for): how the forms relate across languages, then one entry per language, Japanese
+ * first. Each gives its pronunciations (a region's reading and frequency), its meaning and its
+ * etymology. By language, not by region: a meaning and an etymology belong to a character in a
+ * language, so Hong Kong and Taiwan, who both write 學, would otherwise repeat them. A part with
+ * nothing to show is left out.
  */
-const WiktionaryNotes = ({
+const Details = ({
   group
 }: {
   group: RegionalGroupDto;
-}): React.ReactElement | null => {
+}): React.ReactElement => {
+  const { openKanji } = useNavigate();
   const notes = noteRows(group);
-  if (notes.length === 0) return null;
+  const usage = usageRows(group);
+  const chineseMeanings = meaningsOf(group);
+  const notesIn = (section: NoteRow["section"]): React.ReactNode =>
+    notes
+      .filter((note) => note.section === section)
+      .map((note) => <Note key={note.char} note={note} />);
+  const across = notes.filter((note) => note.section === "Translingual");
+  const japanese = notes.filter((note) => note.section === "Japanese");
+  const chinese = notes.filter((note) => note.section === "Chinese");
   return (
-    <>
-      <h3 className={styles.subheading}>From Wiktionary</h3>
-      {notes.map((note, index) => (
-        <Fragment key={`${note.char}-${note.section}`}>
-          {/* One heading per language, over its notes: each language's etymology is its own. */}
-          {notes[index - 1]?.section === note.section ? null : (
-            <h4 className={styles.noteLanguage}>
-              {SECTION_NAMES[note.section]}
-            </h4>
-          )}
-          <blockquote className={styles.note} cite={note.url}>
-            <NoteBlocks blocks={note.lead} />
-            {note.more.length > 0 ? (
-              <Disclosure className={styles.more}>
-                <Heading level={5} className={styles.moreHeading}>
-                  <Button slot="trigger" className={styles.moreTrigger}>
-                    <span aria-hidden="true" className={styles.moreChevron}>
-                      ›
-                    </span>
-                    More from Wiktionary
-                  </Button>
-                </Heading>
-                <DisclosurePanel>
-                  <NoteBlocks blocks={note.more} />
-                </DisclosurePanel>
-              </Disclosure>
-            ) : null}
-            <footer className={styles.muted}>
-              <Source {...note} />
-            </footer>
-          </blockquote>
-        </Fragment>
-      ))}
-    </>
+    <KanjiLinks.Provider
+      value={{ links: new Set(group.kanjiLinks), open: openKanji }}
+    >
+      <h3 className={styles.subheading}>Details</h3>
+      {across.length > 0 ? (
+        <section>
+          <h4 className={styles.language}>Across languages</h4>
+          {notesIn("Translingual")}
+        </section>
+      ) : null}
+      <section>
+        <h4 className={styles.language}>Japanese</h4>
+        <Part title="Pronunciation and frequency">
+          <Usage rows={usage.filter((row) => row.language === "Japanese")} />
+        </Part>
+        {group.japaneseMeanings.length > 0 ? (
+          <Part title="Meaning">
+            <p className={styles.meaning}>
+              {group.japaneseMeanings.join(", ")}
+            </p>
+          </Part>
+        ) : null}
+        {japanese.length > 0 ? (
+          <Part title="Etymology">{notesIn("Japanese")}</Part>
+        ) : null}
+      </section>
+      <section>
+        <h4 className={styles.language}>Chinese</h4>
+        <Part title="Pronunciation and frequency">
+          <Usage rows={usage.filter((row) => row.language === "Chinese")} />
+        </Part>
+        {chineseMeanings === null ? null : (
+          <Part title="Meaning">
+            <ChineseMeanings meanings={chineseMeanings} />
+          </Part>
+        )}
+        {chinese.length > 0 ? (
+          <Part title="Etymology">{notesIn("Chinese")}</Part>
+        ) : null}
+      </section>
+      {notes.length > 0 || chineseMeanings !== null ? (
+        <p className={`${styles.credit} ${styles.muted}`}>
+          Text from English Wiktionary, under{" "}
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+            CC BY-SA 4.0
+          </a>
+          .
+        </p>
+      ) : null}
+    </KanjiLinks.Provider>
   );
 };
-
-/** Each language's heading: Wiktionary's section names, but its "Translingual" said plainly. */
-const SECTION_NAMES = {
-  Translingual: "Across languages",
-  Japanese: "Japanese",
-  Chinese: "Chinese"
-} as const satisfies Record<RegionalNoteDto["section"], string>;
-
-/** The credit Wiktionary's licence asks for, once under whatever the view quoted from it. */
-const WiktionaryCredit = ({
-  group
-}: {
-  group: RegionalGroupDto;
-}): React.ReactElement | null =>
-  group.notes.length === 0 && meaningsOf(group) === null ? null : (
-    <p className={`${styles.credit} ${styles.muted}`}>
-      Text from English Wiktionary, under{" "}
-      <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
-      .
-    </p>
-  );

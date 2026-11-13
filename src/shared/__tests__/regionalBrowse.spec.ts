@@ -20,6 +20,8 @@ const group = (
   ranks: [null, null, null, null],
   notes: [],
   meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: [],
   ...fields
 });
 

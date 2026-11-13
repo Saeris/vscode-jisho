@@ -5,6 +5,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import type { RegionalGroupDto } from "../../../shared/messages";
 import { renderWithNavigation } from "../../__tests__/navigationHarness";
+import type { NavEvent } from "../../machines/navigation";
 import { RegionalForms } from "../RegionalForms";
 
 // As the built database returns them (db.spec.ts checks 学 against the real data).
@@ -80,7 +81,10 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
             { gloss: "school", labels: [] }
           ]
         }
-      ]
+      ],
+      japaneseMeanings: ["study", "learning", "science"],
+      // As the host finds them: the characters the notes name that have a kanji page.
+      kanjiLinks: ["學", "六", "覺"]
     }
   ],
   国: [
@@ -126,7 +130,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
           ]
         }
       ],
-      meanings: []
+      meanings: [],
+      japaneseMeanings: [],
+      kanjiLinks: []
     }
   ],
   湯: [
@@ -151,7 +157,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
             { gloss: "broth; stock", labels: [] }
           ]
         }
-      ]
+      ],
+      japaneseMeanings: ["hot water", "bath", "hot spring"],
+      kanjiLinks: []
     }
   ],
   園: [
@@ -165,7 +173,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       readings: [null, null, null, null],
       ranks: [null, null, null, null],
       notes: [],
-      meanings: []
+      meanings: [],
+      japaneseMeanings: [],
+      kanjiLinks: []
     }
   ],
   返: [
@@ -179,7 +189,9 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       readings: [null, null, null, null],
       ranks: [null, null, null, null],
       notes: [],
-      meanings: []
+      meanings: [],
+      japaneseMeanings: [],
+      kanjiLinks: []
     }
   ]
 };
@@ -199,15 +211,33 @@ vi.mock("../../queries", () => ({
   })
 }));
 
-const renderView = (literal: string): void => {
+/** Render the view, and return the navigation events it sends. */
+const renderView = (literal: string): NavEvent[] => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
   const wrap = (ui: ReactElement): ReactElement => (
     <QueryClientProvider client={client}>{ui}</QueryClientProvider>
   );
-  renderWithNavigation(wrap(<RegionalForms literal={literal} />));
+  return renderWithNavigation(wrap(<RegionalForms literal={literal} />)).sent;
 };
+
+/** The section under Details that a language's heading opens. */
+const languageSection = async (language: string): Promise<HTMLElement> => {
+  const heading = await screen.findByRole("heading", {
+    name: language,
+    level: 4
+  });
+  const section = heading.closest("section");
+  if (section === null) throw new Error(`no section for ${language}`);
+  return section;
+};
+
+/** The parts a language's entry has, by their headings. */
+const partsOf = (section: HTMLElement): string[] =>
+  within(section)
+    .getAllByRole("heading", { level: 5 })
+    .map((heading) => heading.textContent);
 
 /** Stand in for the reader's motion preference. */
 const prefersReducedMotion = (reduce: boolean): void => {
@@ -307,24 +337,26 @@ describe("the Regional forms view", () => {
     await expect(screen.findByText("Copied")).resolves.toBeVisible();
   });
 
-  it("gives each region's reading and its rank in that region's corpus", async () => {
+  it("gives each region's reading and its rank in that region's corpus, under its language", async () => {
     // WHY: phase 5's point: Mandarin and Cantonese beside Japan's readings, and four ranks that
-    // each name their corpus, since #66 in China and #5 in Japan count different texts.
+    // each name their corpus, since #66 in China and #5 in Japan count different texts. Japan's
+    // line is the Japanese entry's; the three others are the Chinese entry's.
     renderView("学");
-    const section = (await screen.findByText("Readings and frequency"))
-      .nextElementSibling;
-    expect(section?.textContent).toContain(
-      "China 学xué (Mandarin)#66 in modern Chinese texts"
-    );
-    expect(section?.textContent).toContain(
-      "Hong Kong 學hok6 (Cantonese)#84 in Cantonese texts (words.hk)"
-    );
-    expect(section?.textContent).toContain(
-      "#93 in news and social media (2023)"
-    );
-    expect(section?.textContent).toContain(
+    const japanese = await languageSection("Japanese");
+    const chinese = await languageSection("Chinese");
+    expect(japanese.textContent).toContain(
       "ガク、まな.ぶ (Japanese)#5 on Japanese Wikipedia"
     );
+    expect(chinese.textContent).toContain(
+      "China 学xué (Mandarin)#66 in modern Chinese texts"
+    );
+    expect(chinese.textContent).toContain(
+      "Hong Kong 學hok6 (Cantonese)#84 in Cantonese texts (words.hk)"
+    );
+    expect(chinese.textContent).toContain(
+      "#93 in news and social media (2023)"
+    );
+    expect(japanese.textContent).not.toContain("Mandarin");
   });
 
   it("raises the Cantonese tone digit and says what it is", async () => {
@@ -346,11 +378,13 @@ describe("the Regional forms view", () => {
     // WHY: phase 6's point is that 学 says it was simplified from 學; and Wiktionary's licence
     // (CC BY-SA 4.0) lets the text be shown only with a credit and a link to where it came from.
     renderView("学");
-    const quote = (
-      await screen.findByText(
-        "Simplified from 學 (𦥯 → 𰃮) in simplified Chinese and Japanese shinjitai."
-      )
-    ).closest("blockquote");
+    // 學 is a link inside the sentence, so the sentence is found by its start and read whole.
+    const quote = (await screen.findByText(/^Simplified from/u)).closest(
+      "blockquote"
+    );
+    expect(quote).toMatchTextContent(
+      /^Simplified from 學 \(𦥯 → 𰃮\) in simplified Chinese and Japanese shinjitai\./u
+    );
     expect(quote).toHaveAttribute(
       "cite",
       "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
@@ -367,20 +401,29 @@ describe("the Regional forms view", () => {
     );
   });
 
-  it("gives each language's etymology under its own heading, Japanese before Chinese", async () => {
-    // WHY (asked for): the view covers Chinese and Japanese, and each language's words have their
-    // own history: 学's Japanese がく came from Middle Chinese, 學's shape from its parts. Under one
-    // heading per language, a reader can tell which history is which.
+  it("gives Details by language: across languages, then Japanese, then Chinese, each in parts", async () => {
+    // WHY (asked for): pronunciation, meaning and etymology together for each language the view
+    // covers, Japanese first. By language, not region: Hong Kong and Taiwan both write 學, and its
+    // etymology and meanings would otherwise appear twice.
     renderView("学");
-    const headings = await screen.findAllByRole("heading", { level: 4 });
-    expect(headings.map((heading) => heading.textContent)).toEqual([
-      "Across languages",
-      "Japanese",
-      "Chinese"
+    await screen.findByRole("heading", { name: "Details" });
+    expect(
+      screen
+        .getAllByRole("heading", { level: 4 })
+        .map((heading) => heading.textContent)
+    ).toEqual(["Across languages", "Japanese", "Chinese"]);
+    const japanese = await languageSection("Japanese");
+    expect(partsOf(japanese)).toEqual([
+      "Pronunciation and frequency",
+      "Meaning",
+      "Etymology"
     ]);
-    const japanese = headings[1]?.nextElementSibling;
-    if (!(japanese instanceof HTMLElement)) throw new Error("no Japanese note");
-    expect(japanese).toMatchTextContent(/^がくFrom Middle Chinese 學/u);
+    // Japan's meaning is the dictionary's own, to set beside the Chinese one.
+    expect(japanese).toMatchTextContent(/Meaningstudy, learning, science/u);
+    const etymology = within(japanese).getByText(/^From Middle Chinese/u);
+    expect(etymology.closest("blockquote")).toMatchTextContent(
+      /^がくFrom Middle Chinese 學/u
+    );
     expect(
       within(japanese).getByRole("link", {
         name: "Japanese section on Wiktionary"
@@ -391,71 +434,94 @@ describe("the Regional forms view", () => {
     );
   });
 
-  it("sets every note of one language under that language's one heading", async () => {
-    // WHY: 国's Chinese section and 國's are both Chinese; a heading over each would read as two
-    // languages. Japan's 国 comes first within the language, as in the chart.
+  it("puts every Chinese note under the one Chinese entry, and leaves out a part with nothing", async () => {
+    // WHY: 国's Chinese section and 國's are both Chinese, so one etymology part holds both, Japan's
+    // 国 first as in the chart; and Wiktionary gives 国's group no meanings here, so the entry has
+    // no Meaning heading over nothing.
     renderView("国");
-    const headings = await screen.findAllByRole("heading", { level: 4 });
-    expect(headings.map((heading) => heading.textContent)).toEqual([
-      "Japanese",
-      "Chinese"
+    const chinese = await languageSection("Chinese");
+    expect(partsOf(chinese)).toEqual([
+      "Pronunciation and frequency",
+      "Etymology"
     ]);
-    const chinese = headings[1];
-    const first = chinese?.nextElementSibling;
-    const second = first?.nextElementSibling;
-    expect(first).toMatchTextContent(/^Simplified from 國/u);
-    expect(second).toMatchTextContent(/^Phono-semantic compound/u);
+    const notes = [...chinese.querySelectorAll("blockquote")];
+    expect(notes.map((note) => note.textContent)).toEqual([
+      expect.stringMatching(/^Simplified from 國/u),
+      expect.stringMatching(/^Phono-semantic compound/u)
+    ]);
   });
 
-  it("sets out the page's lists as lists, and folds the word's history", async () => {
+  it("sets out the page's lists as lists, and shows the whole note", async () => {
     // WHY (reported): the notes showed the page's wiki markup ("# Inverted triangle…", ";dynasty's
-    // name") as text, and 國's ran on into Old Chinese cognates. The lead says how the character is
-    // formed, with the list under it as a list; the rest opens on request.
+    // name") as text; and a fold showed one line and hid the rest, or hid a single line, so the
+    // whole note shows.
     renderView("学");
     const parts = (await screen.findByText("phonetic 爻")).closest("ul");
     if (parts === null) throw new Error("the parts are not a list");
-    expect(
-      within(parts)
-        .getAllByRole("listitem")
-        .map((item) => item.firstChild?.textContent)
-    ).toEqual(["phonetic 爻", "phonetic 六", "corrupted to 冖"]);
-    const history = screen.getByText(
-      "Endopassive derivation of 覺 (OC *kruːɡ, “to become aware”)."
-    );
-    expect(history).not.toBeVisible();
-    await userEvent.click(
-      screen.getByRole("button", { name: "More from Wiktionary" })
-    );
-    expect(history).toBeVisible();
+    // Each item's own text, without the list nested in it (六 is a link inside its item's text).
+    const ownText = (item: HTMLElement): string =>
+      [...item.childNodes]
+        .filter((node) => node.nodeName !== "UL" && node.nodeName !== "OL")
+        .map((node) => node.textContent)
+        .join("");
+    expect(within(parts).getAllByRole("listitem").map(ownText)).toEqual([
+      "phonetic 爻",
+      "phonetic 六",
+      "corrupted to 冖"
+    ]);
+    expect(screen.getByText(/^Endopassive derivation of/u)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /More from/u })).toBeNull();
   });
 
-  it("gives the character's meanings in Chinese, with their register", async () => {
+  it("links a quoted character to its kanji page, and only one that has a page", async () => {
+    // WHY (asked for): 学's note names 學, and 學 is a page one tap away. The host sends the
+    // characters the dictionary has; 𦥯 is not among them, so it stays text rather than a link
+    // to nothing.
+    const sent = renderView("学");
+    const note = (await screen.findByText(/^Simplified from/u)).closest(
+      "blockquote"
+    );
+    if (!(note instanceof HTMLElement)) throw new Error("no note");
+    expect(
+      within(note)
+        .getAllByRole("link")
+        .map((link) => link.textContent)
+    ).toEqual(["學", "Translingual section on Wiktionary"]);
+    await userEvent.click(within(note).getByRole("link", { name: "學" }));
+    expect(sent).toContainEqual({ type: "openKanji", literal: "學" });
+  });
+
+  it("gives the character's meanings in Chinese, with their register, beside Japan's", async () => {
     // WHY: where a meaning drifts is a regional difference too: 湯 is "broth; soup" in Chinese,
     // and its literary sense, "hot or boiling water", is the one Japanese kept.
     renderView("湯");
-    const heading = await screen.findByRole("heading", {
-      name: "Meanings in Chinese"
-    });
-    const list = heading.nextElementSibling;
+    const chinese = await languageSection("Chinese");
     expect(
-      [...(list?.querySelectorAll("li") ?? [])].map((item) => item.textContent)
+      [...chinese.querySelectorAll("ol li")].map((item) => item.textContent)
     ).toEqual(["hot or boiling water · literary, regional", "broth; stock"]);
     expect(
-      screen.getByRole("link", { name: "Chinese section on Wiktionary" })
+      within(chinese).getByRole("link", {
+        name: "Chinese section on Wiktionary"
+      })
     ).toHaveAttribute(
       "href",
       "https://en.wiktionary.org/wiki/%E6%B9%AF#Chinese"
+    );
+    await expect(languageSection("Japanese")).resolves.toMatchTextContent(
+      /Meaninghot water, bath, hot spring/u
     );
     // Quoted from Wiktionary with no notes beside it: the credit still applies.
     expect(screen.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
   });
 
-  it("leaves out the block when Wiktionary says nothing of the group", async () => {
-    // WHY: a heading and a licence credit with no text under them would credit nothing.
+  it("leaves out what Wiktionary does not give, and its credit", async () => {
+    // WHY: a heading with nothing under it says nothing, and a licence credit under no quoted text
+    // credits nothing.
     renderView("返");
     await screen.findByText("4 forms of one code point, U+8FD4");
-    expect(screen.queryByText("From Wiktionary")).toBeNull();
-    expect(screen.queryByText("Meanings in Chinese")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Etymology" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Meaning" })).toBeNull();
+    expect(screen.queryByText("Across languages")).toBeNull();
     expect(screen.queryByRole("link", { name: "CC BY-SA 4.0" })).toBeNull();
   });
 

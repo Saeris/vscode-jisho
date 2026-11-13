@@ -44,7 +44,9 @@ const assemble = (rows: readonly FormRow[]): RegionalGroupDto[] => {
         readings: [null, null, null, null],
         ranks: [null, null, null, null],
         notes: [],
-        meanings: []
+        meanings: [],
+        japaneseMeanings: [],
+        kanjiLinks: []
       };
       groups.set(row.id, group);
     }
@@ -165,12 +167,18 @@ export const getRegionalGroups = async (
     )
   );
   for (const group of groups) {
-    group.readings[3] = japaneseReading(
-      await store.get<{ on_json: string; kun_json: string }>(
-        "SELECT on_json, kun_json FROM kanji_characters WHERE literal = ?",
-        group.chars[3] ?? ""
-      )
+    const kanji = await store.get<{
+      on_json: string;
+      kun_json: string;
+      meanings_json: string;
+    }>(
+      "SELECT on_json, kun_json, meanings_json FROM kanji_characters WHERE literal = ?",
+      group.chars[3] ?? ""
     );
+    group.readings[3] = japaneseReading(kanji);
+    // Japan's meanings are the kanji page's own, beside Wiktionary's Chinese ones.
+    group.japaneseMeanings =
+      kanji === undefined ? [] : parseStrings(kanji.meanings_json);
     // Wiktionary's notes on every character the group writes (spec 22, phase 6).
     const chars = [
       ...new Set(
@@ -203,8 +211,37 @@ export const getRegionalGroups = async (
       char,
       senses: parseSenses(senses_json)
     }));
+    // The characters the quoted text names that have a kanji page, so the view links only those:
+    // a component with no entry (𦥑) stays plain, and no link can lead nowhere.
+    const named = [...new Set(quotedText(group).match(HAN) ?? [])];
+    group.kanjiLinks =
+      named.length === 0
+        ? []
+        : (
+            await store.all<{ literal: string }>(
+              `SELECT literal FROM kanji_characters
+                WHERE literal IN (${named.map(() => "?").join(", ")})`,
+              ...named
+            )
+          ).map(({ literal }) => literal);
   }
   return groups;
+};
+
+const HAN = /\p{Script=Han}/gu;
+
+/** Every text the view quotes from Wiktionary for a group: its notes, their lists, its meanings. */
+const quotedText = (group: RegionalGroupDto): string => {
+  const items = (list: readonly NoteItem[]): string[] =>
+    list.flatMap((item) => [item.text, ...items(item.items)]);
+  return [
+    ...group.notes.flatMap((note) =>
+      note.blocks.flatMap((block) =>
+        block.kind === "list" ? items(block.items) : [block.text]
+      )
+    ),
+    ...group.meanings.flatMap((m) => m.senses.map((sense) => sense.gloss))
+  ].join("\n");
 };
 
 /**

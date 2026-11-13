@@ -55,7 +55,9 @@ const learnGroup: RegionalGroupDto = {
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
-  meanings: []
+  meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: []
 };
 
 vi.mock("../../queries", () => ({

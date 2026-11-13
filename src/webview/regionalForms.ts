@@ -149,6 +149,8 @@ const CORPORA = [
 
 /** One region's line: its form, how it reads it, and how common the form is in its corpus. */
 export interface UsageRow {
+  /** The language whose entry under Details it belongs to: Japan's is Japanese, the rest Chinese. */
+  language: "Japanese" | "Chinese";
   region: string;
   char: string;
   lang: string;
@@ -159,15 +161,16 @@ export interface UsageRow {
   rank: string;
 }
 
-/** The order of "Readings and frequency": Japan's first, as in the chart, since this is a Japanese dictionary. */
+/** The regions' order: Japan's first, as in the chart, since this is a Japanese dictionary. */
 const USAGE_ORDER = [JAPAN, 0, 1, 2] as const;
 
-/** The four regions' lines for "Readings and frequency" (spec 22, phase 5). */
+/** The four regions' pronunciation and frequency lines (spec 22, phase 5). */
 export const usageRows = (group: RegionalGroupDto): UsageRow[] =>
   USAGE_ORDER.map((region) => {
     const reading = READINGS[region];
     const rank = group.ranks[region] ?? null;
     return {
+      language: region === JAPAN ? "Japanese" : "Chinese",
       region: COLUMN_NAMES[region] ?? "",
       char: group.chars[region] ?? "",
       lang: COLUMN_LANGS[region] ?? "ja",
@@ -188,24 +191,11 @@ export interface NoteRow {
   lang: string;
   family: string;
   section: RegionalNoteDto["section"];
-  /** What shows: the note's first paragraph, which nearly always says how the character is formed. */
-  lead: NoteBlock[];
-  /** What folds under "More from Wiktionary": mostly the word's history, older forms and cognates. */
-  more: NoteBlock[];
+  /** The whole note: a fold showed too little before it, or hid one line after it (reported). */
+  blocks: NoteBlock[];
   /** The section of the character's page the note is from. */
   url: string;
 }
-
-/**
- * Where a note's lead ends: after its first paragraph (with a label, the paragraph it labels) and any
- * lists under it, so 商's six shapes stay with the sentence that introduces them. 83% of the Chinese
- * notes open with how the character is formed ("Phono-semantic compound", "Simplified from").
- */
-export const leadLength = (blocks: readonly NoteBlock[]): number => {
-  let end = blocks[0]?.kind === "label" ? 2 : 1;
-  while (blocks[end]?.kind === "list") end++;
-  return Math.min(end, blocks.length);
-};
 
 /**
  * The order of the notes' languages: how the forms relate across languages, then Japanese (this is
@@ -230,14 +220,12 @@ export const noteRows = (group: RegionalGroupDto): NoteRow[] => {
     )
     .map((note) => {
       const row = rows.find((form) => form.char === note.char);
-      const lead = leadLength(note.blocks);
       return {
         char: note.char,
         lang: COLUMN_LANGS[row?.columns[0] ?? JAPAN] ?? "ja",
         family: row?.family ?? "",
         section: note.section,
-        lead: note.blocks.slice(0, lead),
-        more: note.blocks.slice(lead),
+        blocks: note.blocks,
         url: wiktionaryUrl(note.char, note.section)
       };
     });

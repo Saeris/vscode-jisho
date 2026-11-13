@@ -18,7 +18,9 @@ const learn: RegionalGroupDto = {
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
-  meanings: []
+  meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: []
 };
 const back: RegionalGroupDto = {
   key: "返",
@@ -30,7 +32,9 @@ const back: RegionalGroupDto = {
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
-  meanings: []
+  meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: []
 };
 
 /** A file reader over a fixed set of drawings: `set:char` names each file that exists. */

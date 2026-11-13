@@ -133,7 +133,9 @@ test("readings and frequency of 学: Mandarin, Cantonese, and a labelled rank fo
   await jisho
     .getByRole("button", { name: "Regional forms", exact: true })
     .click();
-  await expect(jisho.getByText("Readings and frequency")).toBeVisible();
+  await expect(
+    jisho.getByRole("heading", { name: "Pronunciation and frequency" }).first()
+  ).toBeVisible();
   await expect(jisho.getByText("hok6", { exact: true })).toBeVisible();
   await expect(jisho.getByText("(Cantonese)")).toBeVisible();
   await expect(jisho.getByText("xué", { exact: true }).first()).toBeVisible();
@@ -158,9 +160,8 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
   await jisho
     .getByRole("button", { name: "Regional forms", exact: true })
     .click();
-  // A heading, by role: "More from Wiktionary" holds the same words.
   const heading = jisho.getByRole("heading", {
-    name: "From Wiktionary",
+    name: "Across languages",
     exact: true
   });
   await expect(heading).toBeVisible();
@@ -172,7 +173,11 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
     "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
   );
   await expect(jisho.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
-  await heading.scrollIntoViewIfNeeded();
+  // The capture shows the entries' parts: Japanese's etymology and what follows.
+  await jisho
+    .getByRole("heading", { name: "Etymology", exact: true })
+    .first()
+    .scrollIntoViewIfNeeded();
   await screenshotSidebar(
     vscode.window,
     "test-results/shots/35-regional-wiktionary.png"

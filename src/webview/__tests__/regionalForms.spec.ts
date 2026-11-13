@@ -3,7 +3,6 @@ import type { NoteBlock, RegionalGroupDto } from "../../shared/messages";
 import {
   columnNames,
   formRows,
-  leadLength,
   meaningsOf,
   noteRows,
   usageRows
@@ -27,7 +26,9 @@ const learn: RegionalGroupDto = {
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
-  meanings: []
+  meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: []
 };
 const back: RegionalGroupDto = {
   key: "返",
@@ -39,7 +40,9 @@ const back: RegionalGroupDto = {
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
-  meanings: []
+  meanings: [],
+  japaneseMeanings: [],
+  kanjiLinks: []
 };
 
 describe("a group's distinct forms", () => {
@@ -109,6 +112,13 @@ describe("readings and frequency", () => {
       ["Hong Kong", "學", "Cantonese"],
       ["Taiwan", "學", "Mandarin"]
     ]);
+    // Details gives Japan's line under Japanese, and the other three under Chinese.
+    expect(rows.map((row) => row.language)).toEqual([
+      "Japanese",
+      "Chinese",
+      "Chinese",
+      "Chinese"
+    ]);
   });
 });
 
@@ -156,8 +166,9 @@ describe("wiktionary's notes", () => {
     ]);
   });
 
-  it("keeps a Japanese etymology's readings with it, and folds the next reading's", () => {
-    // WHY: a label without its etymology says nothing; 国's こく waits behind More, with its label.
+  it("hands over the whole note, every reading's etymology", () => {
+    // WHY (reported): a fold showed one line and hid the rest, or hid a single line; the note is
+    // short enough to show whole, and 国's こく matters as much as its くに.
     const blocks: NoteBlock[] = [
       { kind: "label", text: "くに" },
       para("From Old Japanese."),
@@ -168,8 +179,7 @@ describe("wiktionary's notes", () => {
       ...learn,
       notes: [{ char: "学", section: "Japanese", blocks }]
     });
-    expect(row?.lead).toEqual(blocks.slice(0, 2));
-    expect(row?.more).toEqual(blocks.slice(2));
+    expect(row?.blocks).toEqual(blocks);
   });
 
   it("writes each character in the shape of the region it was quoted for", () => {
@@ -181,39 +191,6 @@ describe("wiktionary's notes", () => {
     });
     const chartRow = formRows(learn).find((form) => form.char === "學");
     expect([row?.lang, row?.family]).toEqual(["zh-HK", chartRow?.family]);
-  });
-
-  it("shows how the character is formed, with the list under it, and folds the rest", () => {
-    // WHY (reported): 國's note runs from its formation into Old Chinese cognates and Cantonese sound
-    // changes. The first paragraph answers the view's question (where the shape came from); a list
-    // under it belongs to it (商's six shapes); the word's history waits behind "More".
-    const shapes: NoteBlock = {
-      kind: "list",
-      ordered: true,
-      items: [{ text: "Inverted triangle.", items: [] }]
-    };
-    const blocks = [
-      para("The formation is unclear. The element atop 丙 varies:"),
-      shapes,
-      para("In oracle bone script, 賞 is written as 商 over 貝.")
-    ];
-    expect(leadLength(blocks)).toBe(2);
-    const [row] = noteRows({
-      ...learn,
-      notes: [{ char: "學", section: "Chinese", blocks }]
-    });
-    expect(row?.lead).toEqual(blocks.slice(0, 2));
-    expect(row?.more).toEqual(blocks.slice(2));
-  });
-
-  it("keeps a label with the paragraph it labels", () => {
-    // WHY: a note can open on the label of a sense; alone, the lead would be a heading over nothing.
-    const blocks: NoteBlock[] = [
-      { kind: "label", text: "“target” > “prince”" },
-      para("Schuessler proposes an Austroasiatic etymology."),
-      para("Its derivatives mean “to watch”.")
-    ];
-    expect(leadLength(blocks)).toBe(2);
   });
 });
 
@@ -231,7 +208,9 @@ describe("meanings in Chinese", () => {
     meanings: [
       { char: "円", senses: [{ gloss: "Japanese yen", labels: [] }] },
       { char: "圓", senses: [{ gloss: "circle; round", labels: [] }] }
-    ]
+    ],
+    japaneseMeanings: [],
+    kanjiLinks: []
   } satisfies RegionalGroupDto;
 
   it("takes them from a form a Chinese-writing region uses, before Japan's", () => {

@@ -303,6 +303,13 @@ export interface RegionalGroupDto {
    * traditional form, since a simplified form's page points at it.
    */
   meanings: RegionalMeaningsDto[];
+  /** The English meanings of Japan's form, the kanji page's own: beside the Chinese ones above. */
+  japaneseMeanings: string[];
+  /**
+   * The Han characters in `notes` and `meanings` that have a kanji page, so the view can link them:
+   * checked against the dictionary, so a link never leads nowhere. Empty in the browse list.
+   */
+  kanjiLinks: string[];
 }
 
 /** One Wiktionary note on a character of a regional group. */
