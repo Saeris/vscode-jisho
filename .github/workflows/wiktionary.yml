@@ -2,7 +2,7 @@ name: Wiktionary Extract
 
 # The Wiktionary extraction job (spec 22, phase 6). Streams Wiktextract's full English Wiktionary dump
 # from kaikki.org (2.9 GB compressed) and keeps the Translingual, Chinese and Japanese entries of every
-# single Han character, pruned to the fields the regional-forms notes use. The result is published as
+# single Han character, pruned to the fields the regional-forms notes and meanings use. The result is published as
 # a release asset of its own tag (`wiktionary-YYYY-MM-DD`).
 #
 # Run by hand when fresher notes are wanted. The data build never reads the dump: it downloads the
@@ -50,7 +50,7 @@ jobs:
             | grep -o 'extracted on [0-9-]* from the enwiktionary dump dated [0-9-]*' | head -1 || true)
           gh release create "$tag" --latest=false \
             --title "Wiktionary extraction ($tag)" \
-            --notes "Single Han characters from English Wiktionary (Translingual, Chinese and Japanese), extracted by Wiktextract (kaikki.org): ${source:-source dump not stated}. Text CC BY-SA 4.0. Read by the data build for the regional-forms notes." \
+            --notes "Single Han characters from English Wiktionary (Translingual, Chinese and Japanese), extracted by Wiktextract (kaikki.org): ${source:-source dump not stated}. Text CC BY-SA 4.0. Read by the data build for the regional-forms notes and meanings in Chinese." \
             out/wiktionary-han.jsonl.gz out/wiktionary-han.jsonl.gz.sha256
           {
             echo "### Pin this extraction"

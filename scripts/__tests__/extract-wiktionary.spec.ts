@@ -53,4 +53,27 @@ describe("pruning a Wiktextract entry", () => {
       forms: [{ form: "學", tags: ["kyūjitai"] }]
     });
   });
+
+  it("keeps a Chinese entry's senses, with what the data build filters them by", () => {
+    // WHY: "Meanings in Chinese" is built from these. The build drops a sense by its tags (a
+    // dialect, obsolete) and sets its raw tags before it ("of devices"), so both must survive;
+    // a sense with no gloss ("For pronunciation and definitions of …") has nothing to show.
+    expect(
+      pruneEntry({
+        word: "走",
+        lang: "Chinese",
+        pos: "character",
+        senses: [
+          { glosses: ["to go; to walk"], links: [["go", "go#English"]] },
+          { glosses: ["to run; to work"], raw_tags: ["of devices"] },
+          { glosses: ["to run; to jog"], tags: ["Cantonese", "literary"] },
+          { tags: ["no-gloss"] }
+        ]
+      })?.senses
+    ).toEqual([
+      { glosses: ["to go; to walk"] },
+      { glosses: ["to run; to work"], raw_tags: ["of devices"] },
+      { glosses: ["to run; to jog"], tags: ["Cantonese", "literary"] }
+    ]);
+  });
 });

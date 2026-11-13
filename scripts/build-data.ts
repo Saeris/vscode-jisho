@@ -1457,9 +1457,12 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
         null
       );
   }
-  // Wiktionary's notes (spec 22, phase 6), for every character a group writes.
+  // Wiktionary's notes (spec 22, phase 6) and meanings in Chinese, for every character a group writes.
   const insRegionalNote = db.prepare(
-    "INSERT INTO regional_notes(char, section, text) VALUES (?, ?, ?)"
+    "INSERT INTO regional_notes(char, section, blocks_json) VALUES (?, ?, ?)"
+  );
+  const insRegionalMeanings = db.prepare(
+    "INSERT INTO regional_meanings(char, senses_json) VALUES (?, ?)"
   );
   const notedChars = new Set(
     regionalGroups.flatMap((group) =>
@@ -1467,17 +1470,24 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     )
   );
   let regionalNotes = 0;
-  for (const char of notedChars)
-    for (const [section, text] of Object.entries(
+  let regionalMeanings = 0;
+  for (const char of notedChars) {
+    for (const [section, blocks] of Object.entries(
       wiktionary.notes.get(char) ?? {}
     )) {
-      insRegionalNote.run(char, section, text);
+      insRegionalNote.run(char, section, JSON.stringify(blocks));
       regionalNotes++;
     }
+    const senses = wiktionary.meanings.get(char);
+    if (senses !== undefined) {
+      insRegionalMeanings.run(char, JSON.stringify(senses));
+      regionalMeanings++;
+    }
+  }
   db.exec("COMMIT");
   const regionalOld = regionalGroups.filter((g) => g.old !== undefined).length;
   console.log(
-    `  regional: ${regionalGroups.length} character groups, ${regionalOld} with a Japanese old form, ${regionalNotes} Wiktionary notes`
+    `  regional: ${regionalGroups.length} character groups, ${regionalOld} with a Japanese old form, ${regionalNotes} Wiktionary notes, ${regionalMeanings} with meanings in Chinese`
   );
   // The grouping, cross-checked against Wiktionary's labels. Every difference must have a recorded
   // reason (scripts/wiktionary.ts, EXPLAINED), and every reason a difference.
@@ -1636,7 +1646,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
     ["regionalHongKongFrequencyFetched", frequencies.hongKongFetched],
     [
       "regionalNotesSource",
-      `Regional notes: English Wiktionary (CC BY-SA 4.0), extracted by Wiktextract (kaikki.org), release ${WIKTIONARY_TAG}`
+      `Regional notes and meanings in Chinese: English Wiktionary (CC BY-SA 4.0), extracted by Wiktextract (kaikki.org), release ${WIKTIONARY_TAG}`
     ]
   ];
   for (const [key, value] of metaRows) insMeta.run(key, value);
@@ -1656,6 +1666,7 @@ const buildDatabase = async (sources: Sources): Promise<void> => {
   atLeast("regional groups", regionalGroups.length, FLOORS.regionalGroups);
   atLeast("regional old forms", regionalOld, FLOORS.regionalOldForms);
   atLeast("regional notes", regionalNotes, FLOORS.regionalNotes);
+  atLeast("regional meanings", regionalMeanings, FLOORS.regionalMeanings);
   // Not tracked in a local (it is written per sense inside importWord), so read it back.
   const tagRow: unknown = db
     .prepare("SELECT COUNT(*) AS n FROM sense_tags")
@@ -1779,8 +1790,13 @@ const FLOORS = {
   /** 8,418 groups, 378 with an old form (2026-11-10) — variant-independent (spec 22). */
   regionalGroups: 7500,
   regionalOldForms: 320,
-  /** 6,469 Wiktionary notes on the groups' characters (2026-11-12). */
+  /**
+   * 6,458 Wiktionary notes on the groups' characters (2026-11-13; 6,469 before notes that were only
+   * a pronunciation table or bare labels were dropped).
+   */
   regionalNotes: 6000,
+  /** 6,801 of the groups' characters with meanings in Chinese (2026-11-13). */
+  regionalMeanings: 6300,
   /** 743,538 names — the separate JMnedict build. */
   names: 600000
 };

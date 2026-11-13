@@ -1,6 +1,6 @@
 # Spec 22 — Regional forms: one kanji across Japan, China, Hong Kong and Taiwan
 
-> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view), 4 (stroke order), 5 (readings and frequency), 6 (Wiktionary notes) and 7 (browse and filters) built, with their results recorded below. The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
+> **Status:** phase 0 (spikes) done on 2026-11-10; phases 1 (data), 2 (fonts), 3 (the view), 4 (stroke order), 5 (readings and frequency), 6 (Wiktionary notes) and 7 (browse and filters) built, with their results recorded below, and the user's review changes on top of them (2026-11-13). The phases ship as one stack of pull requests, released together. Decisions made with the user on 2026-11-10 (see "Decisions"). **Backlog:** #56. **Based on** a study of [hanji](https://github.com/sxzz/hanji) (code MIT, compiled data CC BY 4.0) on 2026-11-10: its live site, explored with Playwright, and its source at commit `f0ae600`. hanji is a **reference, not a template**: port what fits our setup, adapt the rest, and do not copy it one for one.
 
 ## Why
 
@@ -121,7 +121,7 @@ So Taiwan and Hong Kong will have no drawing for most characters, which is why h
 
 ### Where it lives
 
-- **A summary on the kanji page.** When a kanji has regional forms that differ, KanjiDetail gets a compact block under the readings: a small overprint, a line such as "Written differently in China and Taiwan · 3 forms", and a button into the full view. When every region writes it the same way, a single quiet line says so.
+- **A summary on the kanji page.** When a kanji has regional forms that differ, KanjiDetail gets a "🌏 Regional forms" link after Stroke order and Component tree, with a line such as "Written differently in China and Taiwan · 3 forms". When every region writes it the same way, a single quiet line says so. (The first build put a small overprint above Stroke order; review moved it, see "Review changes".)
 - **A "Regional forms" view.** Opened from that block, the same way the stroke-order and component-tree views open today: the overprint, the chart, stroke order by region, readings and frequency, the Wiktionary notes, and links.
 
 ### The overprint
@@ -154,7 +154,7 @@ The view lists Mandarin and Cantonese readings beside our Japanese ones, and eac
 
 ### Where the shape came from (Wiktionary)
 
-A short "From Wiktionary" block: the cross-language note on the character's forms (for example, that 学 was simplified from 學) and, where Wiktionary has one, its "glyph origin" note, with a link to the page and the CC BY-SA credit. Simplified pages on Wiktionary often only point at the traditional form ("see 學"), so the build takes the note from the traditional form's page when the simplified one has none.
+A short "From Wiktionary" block: the cross-language note on the character's forms (for example, that 学 was simplified from 學) and, where Wiktionary has one, its "glyph origin" note, with a link to the page and the CC BY-SA credit. Simplified pages on Wiktionary often only point at the traditional form ("see 學"), so the build takes the note from the traditional form's page when the simplified one has none. Above it, "Meanings in Chinese" lists the first few senses of the character's Chinese section, so a reader sees where a meaning has moved (娘 is "woman; mother" in Chinese, "daughter" in Japanese).
 
 ### Browse and filters
 
@@ -382,6 +382,18 @@ The "Regional differences" list in the Kanji browse tab, with the filters above,
 - **The filters, adapted to the sidebar.** The search stays in view; a **Filters** disclosure, at most half the sidebar's height, holds the rest: the number of forms, where two or three open their exact splits (7 and 6 of them, named in words: "Japan alone differs", "China and Japan versus Hong Kong and Taiwan", "Only China and Hong Kong agree"), then one region for both the stroke range and the order, the order (frequency, strokes, code point), the stroke range, and the lists. hanji's "compare by glyph or code point" is left out: the patterns are by glyph, as the overprint is.
 - **The search** finds a group by any form it writes (the old form too: 眞 finds 真), by code point (`U+5B66` or `5b66`), or by reading, with tone marks and kana script folded and the kun reading's dot ignored. Voicing marks stay (`gaku` finds ガク but not か.く), and romaji is read as kana for Japanese readings. The webview already bundled wanakana, so this adds nothing to its size.
 - A row opens the Regional forms view for its Japanese form.
+
+### Review changes (2026-11-13)
+
+The user's review of the built stack, made on top of it (schema 11):
+
+- **The kanji page's link.** "Regional forms" is the third link, after Stroke order and Component tree, with a 🌏 like their ✏️ and 🌳, and its summary line under its name. The small overprint left the link, and with it Overprint's "small" size.
+- **Copy a form.** Each form in the chart is a copy button, as the kanji page's character is; the code point stays beside it.
+- **Japan first** in Readings and frequency, as in the chart.
+- **Tone digits.** Jyutping's tone digit is raised (gwok³), as Wiktionary sets it, and "Mandarin" and "Cantonese" explain their tone notation on hover or focus. The readings stay Unihan's: one per region, not Wiktionary's dozens (Wiktextract has 136 pronunciation entries for 國, across Chinese varieties).
+- **The notes are parsed, not quoted raw.** Wiktextract keeps each line's wiki markup, and the view showed it as text ("# Inverted triangle…", ";dynasty's name"). `noteBlocks` in `scripts/wiktionary.ts` now turns it into blocks, stored as `regional_notes.blocks_json`: `#` and `*` lists (nested by `**`, an item continued by `*:`), `:` paragraphs set in, and `;` labels kept only with text under them (Wiktextract keeps 商's labels but not the paragraphs under them). A list that opens on a bare variety name ("Mandarin", "Cantonese (Jyutping): gaan¹") is a pronunciation table Wiktextract left in the text (31 notes; 奸's ran to 78 lines) and goes, with a "Note:" on its readings after it. The old filter dropped every `*` line to lose those tables, and with them the pages' real bullets, such as 西's cognates; they are back. 6,458 notes (6,469 before: 11 were only a table or bare labels).
+- **The notes fold.** 83% of the Chinese notes open with how the character is formed ("Phono-semantic compound" 5,424 times, "Simplified from" 1,048, "Ideogrammic compound" 528, "Pictogram" 350), and what follows is mostly the Chinese word's history: Old Chinese reconstructions, cognates, sound changes (國's runs on to why Cantonese reads it gwok3). The view shows the first paragraph and any list under it, and folds the rest under "More from Wiktionary". Wiktextract does not keep Wiktionary's "Glyph origin" and "Etymology" headings apart, so the first paragraph is the only reliable split.
+- **Meanings in Chinese.** The extraction now keeps each Chinese entry's senses (2.3 MB compressed, from 1.5 MB), released as [`wiktionary-2026-11-13`](https://github.com/Saeris/vscode-jisho/releases/tag/wiktionary-2026-11-13) from the same dump as the first. `chineseSenses` keeps a character's first five top-level senses whose tags are all on an allow-list of registers and our three regions (literary, colloquial, figurative, Classical Chinese, in compounds, regional, Taiwan, mainland China, Hong Kong; transitive and the like count but show nothing): Wiktionary tags senses with some 150 varieties and places, and an allow-list drops a new one rather than letting it in. A sense that names a use rather than a meaning ("a surname", "Classifier for…", "synonym of 日元") goes too, and a sense's context ("of devices") is set before it, as on the page. The view takes the meanings from Taiwan's form first, then Hong Kong's, China's and Japan's: a simplified page points at the traditional one, and a form only Japan writes can have a Chinese page about Japan (円's only sense is "Japanese yen"; 圓's is "circle; round"). 6,801 of the groups' characters have meanings, in `regional_meanings`.
 
 ### Later
 

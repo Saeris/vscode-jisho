@@ -12,12 +12,17 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
+import type {
+  ChineseSense,
+  NoteBlock,
+  NoteItem
+} from "../src/shared/messages.ts";
 import { ASSET_NAME, type WiktionaryEntry } from "./extract-wiktionary.ts";
 import type { RegionalGroup } from "./regional.ts";
 
-export const WIKTIONARY_TAG = "wiktionary-2026-11-12";
+export const WIKTIONARY_TAG = "wiktionary-2026-11-13";
 export const WIKTIONARY_SHA256 =
-  "61ccaa604b59558a5c34986dd11c50419669e07906751a58e87f97b6f4489a85";
+  "e397e9ec6f4641c83617f02daaddf2f0552084cbc7650924657b0d6ceadb46cf";
 const WIKTIONARY_URL = `https://github.com/Saeris/vscode-jisho/releases/download/${WIKTIONARY_TAG}/${ASSET_NAME}`;
 
 /** The section of the page a note is from. */
@@ -29,7 +34,9 @@ export interface Wiktionary {
    * (学: "Simplified from 學 … in simplified Chinese and Japanese shinjitai"), Chinese where the
    * shape came from (學: "Possibly a phono-semantic compound …").
    */
-  notes: Map<string, Partial<Record<NoteSection, string>>>;
+  notes: Map<string, Partial<Record<NoteSection, NoteBlock[]>>>;
+  /** Each character's meanings in Chinese, as `chineseSenses` keeps them. */
+  meanings: Map<string, ChineseSense[]>;
   /** The pairs Wiktionary labels as Japan's new and old form, as `[shinjitai, kyūjitai]`. */
   reformPairs: Array<[string, string]>;
   /** Each character's page, and the characters it names: as a form, a redirect, or in a note. */
@@ -39,17 +46,179 @@ export interface Wiktionary {
 const HAN = /\p{Script=Han}/gu;
 
 /**
- * A note's prose. Wiktextract sometimes leaves a pronunciation table in the etymology (lines starting
- * with `*`), and a page that only sends the reader elsewhere ("For pronunciation and definitions of
- * 台 – see 鮐") says nothing of the shape; neither is a note.
+ * A list item that only names a Chinese variety ("Mandarin", "Cantonese (Jyutping): gaan¹"): the
+ * first line of a pronunciation table. Wiktextract leaves these in 31 etymologies (奸's runs to 78
+ * lines), and they say nothing of the character's shape or history.
  */
-export const noteText = (etymology: string): string | null => {
+const VARIETY =
+  /^(?:Mandarin|Cantonese|Hakka|Wu|Gan|Xiang|Jin|Hokkien|Teochew|Taishanese|Dungan|(?:Eastern|Northern|Southern|Central|Puxian) Min|Middle Chinese|Old Chinese)(?:\s*\([^)]*\))?(?::.*)?$/u;
+
+/** One line of the etymology: its leading wiki markup (`#`, `*`, `:`, `;`) and its text. */
+interface MarkedLine {
+  marks: string;
+  text: string;
+}
+
+/**
+ * A list's lines as nested items. Each `*` or `#` in a line's marks is one level; marks ending in `:`
+ * (`*:`) continue the item above at that level rather than starting one.
+ */
+const listItems = (lines: readonly MarkedLine[]): NoteItem[] => {
+  const top: NoteItem[] = [];
+  // The last item at each level, so a deeper line knows its parent.
+  const last: NoteItem[] = [];
+  for (const { marks, text } of lines) {
+    // At least 1: every line here holds a `*` or `#`, so `at` never counts from the end.
+    const levels = marks.replaceAll(":", "").length;
+    const above = last.at(levels - 1);
+    if (marks.endsWith(":") && above !== undefined) {
+      above.text = `${above.text} ${text}`;
+      continue;
+    }
+    const item: NoteItem = { text, items: [] };
+    // A level with no parent above it (a page that starts at `**`) joins the deepest one there is.
+    const parent = last.slice(0, levels - 1).findLast(Boolean);
+    (parent?.items ?? top).push(item);
+    last.length = levels - 1;
+    last.push(item);
+  }
+  return top;
+};
+
+/**
+ * A note as blocks, from Wiktextract's etymology text, which keeps the page's wiki markup at the start
+ * of each line: `#` numbered and `*` bulleted list items (`**` one level in), `:` a paragraph set in,
+ * and `;` the label of a sense the following lines discuss. Null when nothing is left to show.
+ *
+ * Left out: a page that only sends the reader elsewhere ("For pronunciation and definitions of 台 –
+ * see 鮐"), a pronunciation table left in the text, and a label with nothing after it. Wiktextract
+ * keeps the labels of 商's etymology ("dynasty's name") but not the paragraphs under them.
+ */
+export const noteBlocks = (etymology: string): NoteBlock[] | null => {
   if (etymology.startsWith("For pronunciation and definitions of")) return null;
-  const prose = etymology
+  const lines = etymology
     .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("*"));
-  return prose.length > 0 ? prose.join("\n") : null;
+    .map((line): MarkedLine => {
+      const marks = /^[#*:;]*/u.exec(line)?.[0] ?? "";
+      return { marks, text: line.slice(marks.length).trim() };
+    })
+    .filter((line) => line.text.length > 0);
+  const blocks: NoteBlock[] = [];
+  for (let i = 0; i < lines.length;) {
+    const { marks, text } = lines[i];
+    if (marks === "") {
+      blocks.push({ kind: "paragraph", text, indent: false });
+      i++;
+    } else if (marks.startsWith(";")) {
+      blocks.push({ kind: "label", text });
+      i++;
+    } else if (!/^:*[*#]/u.test(marks)) {
+      // `:`, or any other run of marks that starts no list: a paragraph set in. Every line must be
+      // consumed here or below, or the loop would never end.
+      blocks.push({ kind: "paragraph", text, indent: true });
+      i++;
+    } else {
+      // A list: every line from here whose marks hold a `*` or `#` (`:*` is a list set in).
+      const run: MarkedLine[] = [];
+      for (; i < lines.length && /^:*[*#]/u.test(lines[i].marks); i++)
+        run.push({ ...lines[i], marks: lines[i].marks.replace(/^:+/u, "") });
+      const items = listItems(run);
+      if (!items.some((item) => VARIETY.test(item.text))) {
+        blocks.push({
+          kind: "list",
+          ordered: run[0]?.marks.startsWith("#") ?? false,
+          items
+        });
+        continue;
+      }
+      // A table can end in a "Note:" on its readings ("¹ke - vernacular; ¹ji - literary"), and a
+      // list under it: part of the table, so it goes too.
+      if (lines[i]?.marks === "" && /^Note:?$/u.test(lines[i].text))
+        for (i++; i < lines.length && /^[*#]/u.test(lines[i].marks); i++);
+    }
+  }
+  const kept = blocks.filter((block, index) => {
+    const next = blocks.at(index + 1);
+    return (
+      block.kind !== "label" || (next !== undefined && next.kind !== "label")
+    );
+  });
+  return kept.length > 0 ? kept : null;
+};
+
+/**
+ * The tags a kept sense may carry, and the label each shows ("" for none). Any other tag drops the
+ * sense: Wiktionary tags a sense with its variety (Cantonese, Hokkien and some 150 places), its age
+ * (obsolete, archaic, historical) or what it points at (alt-of, abbreviation), and "Meanings in
+ * Chinese" is the standard language's living meanings. An allow-list, so a new tag drops rather than
+ * slips in. The three regions this view compares keep their names: a sense used only in Taiwan is
+ * a regional difference too.
+ */
+const SENSE_TAGS: ReadonlyMap<string, string> = new Map([
+  ["literary", "literary"],
+  ["regional", "regional"],
+  ["Mandarin", ""],
+  ["Taiwan", "Taiwan"],
+  ["Taiwanese-Mandarin", "Taiwan"],
+  ["Mainland-China", "mainland China"],
+  ["Hong-Kong", "Hong Kong"],
+  ["colloquial", "colloquial"],
+  ["figuratively", "figurative"],
+  ["Classical", "Classical Chinese"],
+  ["in-compounds", "in compounds"],
+  ["formal", "formal"],
+  ["informal", "informal"],
+  ["honorific", "honorific"],
+  ["humble", "humble"],
+  ["polite", "polite"],
+  ["transitive", ""],
+  ["intransitive", ""],
+  ["broadly", ""],
+  ["usually", ""],
+  ["often", ""],
+  ["especially", ""],
+  ["specifically", ""]
+]);
+
+/** Glosses that name a use rather than a meaning: a surname, a classifier, another form, a compound. */
+const NOT_A_MEANING =
+  /^(?:a surname|surname|used in |only used in |Classifier |\(Chinese linguistics\)|(?:alternative|original|variant|synonym|simplified|traditional)(?: (?:form|spelling|character|variant))? of )/iu;
+
+/** How many meanings a character keeps: the first few, as Wiktionary orders them. */
+export const MAX_SENSES = 5;
+
+/**
+ * A character's meanings in Chinese from its entries' senses, in the page's order: top-level senses
+ * only (a sub-sense refines one above it), with an allowed register, that say what it means. A
+ * sense's raw tags are its context ("of devices", "used in the negative"), set before the gloss as
+ * Wiktionary sets them: "to run; to work" alone would misdescribe 走.
+ */
+export const chineseSenses = (
+  senses: NonNullable<WiktionaryEntry["senses"]>
+): ChineseSense[] => {
+  const kept: ChineseSense[] = [];
+  for (const { glosses, tags = [], raw_tags: context = [] } of senses) {
+    const meaning = glosses.at(0);
+    if (glosses.length !== 1 || meaning === undefined) continue;
+    if (NOT_A_MEANING.test(meaning)) continue;
+    if (!tags.every((tag) => SENSE_TAGS.has(tag))) continue;
+    const gloss =
+      context.length > 0 ? `(${context.join(", ")}) ${meaning}` : meaning;
+    if (kept.some((sense) => sense.gloss === gloss)) continue;
+    kept.push({
+      gloss,
+      labels: [
+        ...new Set(
+          tags.flatMap((tag) => {
+            const label = SENSE_TAGS.get(tag);
+            return label === undefined || label === "" ? [] : [label];
+          })
+        )
+      ]
+    });
+    if (kept.length === MAX_SENSES) break;
+  }
+  return kept;
 };
 
 const addLink = (
@@ -63,11 +232,15 @@ const addLink = (
   links.set(from, held);
 };
 
-/** Read the extraction's entries into notes, Japan's reform pairs and the links between pages. */
+/**
+ * Read the extraction's entries into notes, meanings, Japan's reform pairs and the links between
+ * pages.
+ */
 export const parseWiktionary = (
   entries: Iterable<WiktionaryEntry>
 ): Wiktionary => {
-  const notes = new Map<string, Partial<Record<NoteSection, string>>>();
+  const notes = new Map<string, Partial<Record<NoteSection, NoteBlock[]>>>();
+  const senses = new Map<string, NonNullable<WiktionaryEntry["senses"]>>();
   const reformPairs: Array<[string, string]> = [];
   const links = new Map<string, Set<string>>();
   for (const entry of entries) {
@@ -83,12 +256,15 @@ export const parseWiktionary = (
       entry.etymology_text !== undefined
     ) {
       const held = notes.get(word) ?? {};
-      const text = noteText(entry.etymology_text);
-      if (held[lang] === undefined && text !== null) {
-        held[lang] = text;
+      const blocks = noteBlocks(entry.etymology_text);
+      if (held[lang] === undefined && blocks !== null) {
+        held[lang] = blocks;
         notes.set(word, held);
       }
     }
+    // Every Chinese entry's senses, in the page's order (one entry per etymology); filtered below.
+    if (lang === "Chinese" && entry.senses !== undefined)
+      senses.set(word, [...(senses.get(word) ?? []), ...entry.senses]);
     // Japan's labels are on the character entry: 学 lists 學 as its kyūjitai, 學 lists 学 as its
     // shinjitai. Both directions name the same pair; the cross-check dedupes.
     if (lang === "Japanese" && entry.pos === "character")
@@ -97,7 +273,12 @@ export const parseWiktionary = (
         if (tags.includes("shinjitai")) reformPairs.push([form, word]);
       }
   }
-  return { notes, reformPairs, links };
+  const meanings = new Map<string, ChineseSense[]>();
+  for (const [word, all] of senses) {
+    const kept = chineseSenses(all);
+    if (kept.length > 0) meanings.set(word, kept);
+  }
+  return { notes, meanings, reformPairs, links };
 };
 
 /** What the cross-check found, in a stable order. */

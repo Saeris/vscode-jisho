@@ -2,11 +2,19 @@ import { useState } from "react";
 import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Button,
+  Disclosure,
+  DisclosurePanel,
+  Heading,
   ToggleButton,
   ToggleButtonGroup,
   type Selection
 } from "react-aria-components";
-import type { RegionalGroupDto } from "../../shared/messages";
+import type {
+  NoteBlock,
+  NoteItem,
+  RegionalGroupDto
+} from "../../shared/messages";
 import { CopyButton } from "../components/CopyButton";
 import { DetailView } from "../components/DetailView";
 import { Overprint } from "../components/Overprint";
@@ -18,6 +26,7 @@ import {
   columnNames,
   formRows,
   inkOf,
+  meaningsOf,
   noteRows,
   strokeText,
   usageRows
@@ -223,7 +232,9 @@ const GroupSection = ({
           </div>
         ))}
       </dl>
+      <ChineseMeanings group={group} />
       <WiktionaryNotes group={group} />
+      <WiktionaryCredit group={group} />
       <p className={styles.links}>
         {chars.map((char) => (
           <span key={char} className={styles.link}>
@@ -259,9 +270,124 @@ const Jyutping = ({ reading }: { reading: string }): React.ReactElement => (
   </>
 );
 
+/** The character a quote is from, in its region's font, and a link to that section of its page. */
+const Source = ({
+  char,
+  lang,
+  family,
+  url,
+  section
+}: {
+  char: string;
+  lang: string;
+  family: string;
+  url: string;
+  section: string;
+}): React.ReactElement => (
+  <>
+    <span
+      className={styles.noteChar}
+      lang={lang}
+      style={{ fontFamily: `"${family}"` }}
+    >
+      {char}
+    </span>{" "}
+    <a href={url}>{section} section on Wiktionary</a>
+  </>
+);
+
+/**
+ * "Meanings in Chinese": the first few senses of a form's Chinese section, where the reader can see a
+ * meaning drift from the kanji's (娘 is "woman; mother" in Chinese, "daughter" in Japanese).
+ */
+const ChineseMeanings = ({
+  group
+}: {
+  group: RegionalGroupDto;
+}): React.ReactElement | null => {
+  const meanings = meaningsOf(group);
+  if (meanings === null) return null;
+  // Quoted like the notes below, and credited the same way: from a page, with its link.
+  return (
+    <>
+      <h3 className={styles.subheading}>Meanings in Chinese</h3>
+      <blockquote className={styles.note} cite={meanings.url}>
+        <ol className={styles.meanings}>
+          {meanings.senses.map((sense) => (
+            <li key={sense.gloss}>
+              {sense.gloss}
+              {sense.labels.length > 0 ? (
+                <span className={styles.muted}>
+                  {" "}
+                  · {sense.labels.join(", ")}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+        <footer className={styles.muted}>
+          <Source {...meanings} section="Chinese" />
+        </footer>
+      </blockquote>
+    </>
+  );
+};
+
+/** A note's items, nested as the page nests them. */
+const NoteItems = ({
+  items,
+  ordered
+}: {
+  items: readonly NoteItem[];
+  ordered: boolean;
+}): React.ReactElement => {
+  const List = ordered ? "ol" : "ul";
+  return (
+    <List className={styles.noteList}>
+      {items.map((item, index) => (
+        <li key={index}>
+          {item.text}
+          {item.items.length > 0 ? (
+            <NoteItems items={item.items} ordered={ordered} />
+          ) : null}
+        </li>
+      ))}
+    </List>
+  );
+};
+
+/** A note's blocks: paragraphs, the labels of the senses it discusses, and lists. */
+const NoteBlocks = ({
+  blocks
+}: {
+  blocks: readonly NoteBlock[];
+}): React.ReactElement => (
+  <>
+    {blocks.map((block, index) =>
+      block.kind === "list" ? (
+        <NoteItems key={index} items={block.items} ordered={block.ordered} />
+      ) : (
+        <p
+          key={index}
+          className={
+            block.kind === "label"
+              ? styles.noteLabel
+              : block.indent
+                ? styles.noteIndent
+                : undefined
+          }
+        >
+          {block.text}
+        </p>
+      )
+    )}
+  </>
+);
+
 /**
  * "From Wiktionary" (spec 22, phase 6): what its pages say of how the forms relate and where the
- * shape came from, quoted with a link to each page and the CC BY-SA credit its licence asks for.
+ * shape came from, quoted with a link to each page. Each note shows how the character is formed and
+ * folds the rest, which is mostly the Chinese word's history: Old Chinese, cognates, sound changes.
  */
 const WiktionaryNotes = ({
   group
@@ -279,28 +405,41 @@ const WiktionaryNotes = ({
           className={styles.note}
           cite={note.url}
         >
-          {note.paragraphs.map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
+          <NoteBlocks blocks={note.lead} />
+          {note.more.length > 0 ? (
+            <Disclosure className={styles.more}>
+              <Heading className={styles.moreHeading}>
+                <Button slot="trigger" className={styles.moreTrigger}>
+                  <span aria-hidden="true" className={styles.moreChevron}>
+                    ›
+                  </span>
+                  More from Wiktionary
+                </Button>
+              </Heading>
+              <DisclosurePanel>
+                <NoteBlocks blocks={note.more} />
+              </DisclosurePanel>
+            </Disclosure>
+          ) : null}
           <footer className={styles.muted}>
-            <span
-              className={styles.noteChar}
-              lang={note.lang}
-              style={{ fontFamily: `"${note.family}"` }}
-            >
-              {note.char}
-            </span>{" "}
-            <a href={note.url}>{note.section} section on Wiktionary</a>
+            <Source {...note} />
           </footer>
         </blockquote>
       ))}
-      <p className={`${styles.credit} ${styles.muted}`}>
-        Text from English Wiktionary, under{" "}
-        <a href="https://creativecommons.org/licenses/by-sa/4.0/">
-          CC BY-SA 4.0
-        </a>
-        .
-      </p>
     </>
   );
 };
+
+/** The credit Wiktionary's licence asks for, once under whatever the view quoted from it. */
+const WiktionaryCredit = ({
+  group
+}: {
+  group: RegionalGroupDto;
+}): React.ReactElement | null =>
+  group.notes.length === 0 && meaningsOf(group) === null ? null : (
+    <p className={`${styles.credit} ${styles.muted}`}>
+      Text from English Wiktionary, under{" "}
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
+      .
+    </p>
+  );

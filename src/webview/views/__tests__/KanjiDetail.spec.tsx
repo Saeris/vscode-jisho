@@ -54,7 +54,8 @@ const learnGroup: RegionalGroupDto = {
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
-  notes: []
+  notes: [],
+  meanings: []
 };
 
 vi.mock("../../queries", () => ({

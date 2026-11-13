@@ -165,9 +165,87 @@
   border-inline-start: 2px solid var(--jisho-border);
 }
 
+.note p,
+.note li {
+  overflow-wrap: anywhere;
+}
+
 .note p {
   margin: 0 0 6px;
-  overflow-wrap: anywhere;
+}
+
+/* The page's own lists: 商's six shapes are numbered, a list of cognates is not. */
+.noteList {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 6px;
+  padding-inline-start: 20px;
+}
+
+.noteList .noteList {
+  margin-block: 3px 0;
+}
+
+/* The sense a passage goes on to discuss (侯: "target" > "prince, marquis"). */
+.noteLabel {
+  font-weight: 600;
+}
+
+.noteIndent {
+  padding-inline-start: 12px;
+}
+
+/* "More from Wiktionary": the rest of a note, folded under its lead. */
+.more {
+  margin-block-end: 6px;
+}
+
+.moreHeading {
+  margin: 0;
+  font: inherit;
+}
+
+.moreTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: var(--jisho-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.moreTrigger[data-pressed] {
+  color: var(--jisho-fg);
+}
+
+.moreTrigger[data-focus-visible] {
+  outline: 1px solid var(--jisho-focus);
+  outline-offset: 2px;
+}
+
+.moreChevron {
+  display: inline-block;
+}
+
+.more[data-expanded] .moreChevron {
+  rotate: 90deg;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .moreChevron {
+    transition: rotate 150ms ease-out;
+  }
+}
+
+/* Meanings in Chinese: numbered, as Wiktionary numbers them. */
+.meanings {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 6px;
+  padding-inline-start: 22px;
 }
 
 .note a,

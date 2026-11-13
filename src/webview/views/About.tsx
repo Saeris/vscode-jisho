@@ -172,7 +172,8 @@ export const About = (): React.ReactElement => {
             <a href="https://github.com/scriptin/kanji-frequency">
               kanji-frequency
             </a>{" "}
-            (CC BY 4.0). The notes on the forms are quoted from{" "}
+            (CC BY 4.0). The notes on the forms and their meanings in Chinese
+            are quoted from{" "}
             <a href="https://en.wiktionary.org/">English Wiktionary</a> (CC
             BY-SA 4.0), extracted by{" "}
             <a href="https://github.com/tatuylonen/wiktextract">Wiktextract</a>{" "}

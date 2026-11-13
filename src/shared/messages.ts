@@ -297,6 +297,12 @@ export interface RegionalGroupDto {
    * with a credit and a link to each character's page. Empty when its pages say nothing we keep.
    */
   notes: RegionalNoteDto[];
+  /**
+   * What Wiktionary's Chinese sections say the group's characters mean, from the same source and
+   * under the same licence as `notes`. Only characters whose page defines them; often just the
+   * traditional form, since a simplified form's page points at it.
+   */
+  meanings: RegionalMeaningsDto[];
 }
 
 /** One Wiktionary note on a character of a regional group. */
@@ -304,8 +310,34 @@ export interface RegionalNoteDto {
   char: string;
   /** The page's section: Translingual (how the forms relate), Chinese (where the shape came from). */
   section: "Translingual" | "Chinese";
-  /** Paragraphs, separated by newlines. */
+  /** The note as the build parsed the page's markup (scripts/wiktionary.ts, `noteBlocks`). */
+  blocks: NoteBlock[];
+}
+
+/**
+ * One block of a Wiktionary note: a paragraph (`indent` for one the page sets in), the label of a
+ * sense the text goes on to discuss, or a list, numbered or not, whose items can hold lists.
+ */
+export type NoteBlock =
+  | { kind: "paragraph"; text: string; indent: boolean }
+  | { kind: "label"; text: string }
+  | { kind: "list"; ordered: boolean; items: NoteItem[] };
+
+export interface NoteItem {
   text: string;
+  items: NoteItem[];
+}
+
+/** A character's meanings in Chinese, as its Wiktionary page lists them (spec 22). */
+export interface RegionalMeaningsDto {
+  char: string;
+  senses: ChineseSense[];
+}
+
+/** One meaning, and its register when Wiktionary marks one ("literary", "colloquial"). */
+export interface ChineseSense {
+  gloss: string;
+  labels: string[];
 }
 
 /**

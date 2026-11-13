@@ -1,4 +1,9 @@
-import type { RegionalGroupDto, RegionalNoteDto } from "../../shared/messages";
+import type {
+  ChineseSense,
+  NoteBlock,
+  NoteItem,
+  RegionalGroupDto
+} from "../../shared/messages";
 import type { SqliteStore } from "../store";
 import { parseStrings } from "./parse";
 
@@ -37,7 +42,8 @@ const assemble = (rows: readonly FormRow[]): RegionalGroupDto[] => {
         tiers: [0, 0, 0, 0],
         readings: [null, null, null, null],
         ranks: [null, null, null, null],
-        notes: []
+        notes: [],
+        meanings: []
       };
       groups.set(row.id, group);
     }
@@ -64,6 +70,70 @@ const japaneseReading = (
     ? [...parseStrings(kanji.on_json), ...parseStrings(kanji.kun_json)]
     : [];
   return readings.length > 0 ? readings.join("、") : null;
+};
+
+/** A string field of an object read from JSON, or undefined. */
+const stringOf = (value: object, key: string): string | undefined => {
+  const field: unknown = Reflect.get(value, key);
+  return typeof field === "string" ? field : undefined;
+};
+
+const parseItems = (value: unknown): NoteItem[] =>
+  Array.isArray(value)
+    ? value.flatMap((item: unknown) => {
+        if (typeof item !== "object" || item === null) return [];
+        const text = stringOf(item, "text");
+        return text === undefined
+          ? []
+          : [{ text, items: parseItems(Reflect.get(item, "items")) }];
+      })
+    : [];
+
+/**
+ * A note's blocks from `regional_notes.blocks_json`, as the build wrote them. Tolerant, as the other
+ * column parsers are: a block of an unknown shape is left out rather than failing the lookup.
+ */
+const parseBlocks = (json: string): NoteBlock[] => {
+  const value: unknown = JSON.parse(json);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((block: unknown): NoteBlock[] => {
+    if (typeof block !== "object" || block === null) return [];
+    const kind = stringOf(block, "kind");
+    const text = stringOf(block, "text") ?? "";
+    if (kind === "paragraph")
+      return [{ kind, text, indent: Reflect.get(block, "indent") === true }];
+    if (kind === "label") return [{ kind, text }];
+    if (kind === "list")
+      return [
+        {
+          kind,
+          ordered: Reflect.get(block, "ordered") === true,
+          items: parseItems(Reflect.get(block, "items"))
+        }
+      ];
+    return [];
+  });
+};
+
+/** A character's senses from `regional_meanings.senses_json`. */
+const parseSenses = (json: string): ChineseSense[] => {
+  const value: unknown = JSON.parse(json);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((sense: unknown) => {
+    if (typeof sense !== "object" || sense === null) return [];
+    const gloss = stringOf(sense, "gloss");
+    const labels: unknown = Reflect.get(sense, "labels");
+    return gloss === undefined
+      ? []
+      : [
+          {
+            gloss,
+            labels: Array.isArray(labels)
+              ? labels.filter((label) => typeof label === "string")
+              : []
+          }
+        ];
+  });
 };
 
 const FORM_COLUMNS =
@@ -106,11 +176,32 @@ export const getRegionalGroups = async (
         group.old === undefined ? group.chars : [...group.chars, group.old]
       )
     ];
-    group.notes = await store.all<RegionalNoteDto>(
-      `SELECT char, section, text FROM regional_notes
-        WHERE char IN (${chars.map(() => "?").join(", ")})`,
-      ...chars
-    );
+    const placeholders = chars.map(() => "?").join(", ");
+    group.notes = (
+      await store.all<{
+        char: string;
+        section: "Translingual" | "Chinese";
+        blocks_json: string;
+      }>(
+        `SELECT char, section, blocks_json FROM regional_notes
+          WHERE char IN (${placeholders})`,
+        ...chars
+      )
+    ).map(({ char, section, blocks_json }) => ({
+      char,
+      section,
+      blocks: parseBlocks(blocks_json)
+    }));
+    group.meanings = (
+      await store.all<{ char: string; senses_json: string }>(
+        `SELECT char, senses_json FROM regional_meanings
+          WHERE char IN (${placeholders})`,
+        ...chars
+      )
+    ).map(({ char, senses_json }) => ({
+      char,
+      senses: parseSenses(senses_json)
+    }));
   }
   return groups;
 };
@@ -118,7 +209,7 @@ export const getRegionalGroups = async (
 /**
  * Every group, for the Kanji tab's "Regional differences" list (spec 22, phase 7), which filters and
  * sorts them in the webview. One query for the forms and one for Japan's readings, rather than one
- * per group: there are 8,418. Without notes, which the list does not show.
+ * per group: there are 8,418. Without notes or meanings, which the list does not show.
  */
 export const browseRegionalGroups = async (
   store: SqliteStore

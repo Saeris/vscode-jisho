@@ -305,10 +305,20 @@ CREATE INDEX idx_regional_forms_char ON regional_forms(char);
 -- where the shape came from. Keyed by character, since one can be a form in several groups. The text
 -- is CC BY-SA 4.0, so the view shows it with a credit and a link to the character's page.
 CREATE TABLE regional_notes (
-  char    TEXT NOT NULL,
-  section TEXT NOT NULL,           -- 'Translingual' | 'Chinese': the page's section the note is from
-  text    TEXT NOT NULL,           -- paragraphs, separated by newlines
+  char        TEXT NOT NULL,
+  section     TEXT NOT NULL,       -- 'Translingual' | 'Chinese': the page's section the note is from
+  -- The note as paragraphs, sense labels and nested lists, parsed from the page's wiki markup at
+  -- build time (NoteBlock in src/shared/messages.ts).
+  blocks_json TEXT NOT NULL,
   PRIMARY KEY (char, section)
+) WITHOUT ROWID;
+
+-- What the character means in Chinese, from the same pages and licence as regional_notes: the first
+-- few living, standard senses of its Chinese section (ChineseSense in src/shared/messages.ts). 娘
+-- reads "woman; mother" here, where Japanese reads it "daughter".
+CREATE TABLE regional_meanings (
+  char        TEXT PRIMARY KEY,
+  senses_json TEXT NOT NULL
 ) WITHOUT ROWID;
 
 -- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a

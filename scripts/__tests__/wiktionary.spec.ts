@@ -1,11 +1,14 @@
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vite-plus/test";
+import type { NoteBlock, NoteItem } from "../../src/shared/messages";
 import type { WiktionaryEntry } from "../extract-wiktionary";
 import type { RegionalGroup } from "../regional";
 import {
+  MAX_SENSES,
+  chineseSenses,
   crossCheck,
   fetchWiktionary,
-  noteText,
+  noteBlocks,
   parseWiktionary,
   unexplained,
   type CrossCheck
@@ -30,23 +33,101 @@ const entry = (
   fields: Partial<WiktionaryEntry> = {}
 ): WiktionaryEntry => ({ word, lang, pos: "character", ...fields });
 
+const para = (text: string, indent = false): NoteBlock => ({
+  kind: "paragraph",
+  text,
+  indent
+});
+const item = (text: string, items: NoteItem[] = []): NoteItem => ({
+  text,
+  items
+});
+
 describe("wiktionary's notes", () => {
-  it("keeps the prose of an etymology and drops a pronunciation table left in it", () => {
-    // WHY: Wiktextract sometimes leaves a page's pronunciation list in the etymology (嫂 has 92
-    // such lines). Shown as a note, it would bury the one sentence about the shape.
+  it("drops a pronunciation table left in the etymology, in either of its shapes", () => {
+    // WHY: Wiktextract leaves a page's pronunciation table in 31 etymologies (奸's runs to 78
+    // lines, ending in a note on its Wu readings). Shown as a note, it would bury the one
+    // sentence about the shape.
+    const shape = "Phono-semantic compound: semantic 女 + phonetic 干";
     expect(
-      noteText(
-        "Phono-semantic compound: semantic 女 + phonetic 叟\n* Mandarin\n*:(Pinyin): sǎo"
+      noteBlocks(
+        `${shape}\n* Mandarin\n*:(Pinyin): jiān (jian¹)\n* Cantonese (Jyutping): gaan¹`
       )
-    ).toBe("Phono-semantic compound: semantic 女 + phonetic 叟");
-    expect(noteText("* Mandarin\n*:(Pinyin): sháo")).toBeNull();
+    ).toEqual([para(shape)]);
+    expect(
+      noteBlocks(
+        `${shape}\n* Wu\n** (Northern: Shanghai)\n*** Wugniu: ¹ke\nNote:\n* ¹ke - vernacular;\n* ¹ji - literary.`
+      )
+    ).toEqual([para(shape)]);
+    expect(noteBlocks("* Mandarin\n*:(Pinyin): sháo")).toBeNull();
+  });
+
+  it("keeps the page's own bullets, which the old filter threw away with the tables", () => {
+    // WHY: many of the Chinese notes' `*` lines are bullets of real content (西: "Related to
+    // Tibetan ner ba"); dropping every `*` line to lose the tables lost them too.
+    expect(
+      noteBlocks(
+        "From Proto-Sino-Tibetan *nup.\n* Related to Tibetan ནེར་བ (ner ba).\n** Also Chepang nelʔ-."
+      )
+    ).toEqual([
+      para("From Proto-Sino-Tibetan *nup."),
+      {
+        kind: "list",
+        ordered: false,
+        items: [
+          item("Related to Tibetan ནེར་བ (ner ba).", [
+            item("Also Chepang nelʔ-.")
+          ])
+        ]
+      }
+    ]);
+  });
+
+  it("numbers a numbered list and joins a line that continues an item", () => {
+    // WHY (reported): 商's note showed "# Inverted triangle…" as text. `#` is the page's numbered
+    // list, and `*:` (東) carries on the item above rather than starting one.
+    expect(
+      noteBlocks(
+        "The element atop 丙 varies:\n# Inverted triangle.\n# 辛-like form.\n#: See type 1."
+      )
+    ).toEqual([
+      para("The element atop 丙 varies:"),
+      {
+        kind: "list",
+        ordered: true,
+        items: [item("Inverted triangle."), item("辛-like form. See type 1.")]
+      }
+    ]);
+  });
+
+  it("keeps a sense's label with what is said under it, and drops one with nothing under it", () => {
+    // WHY (reported): Wiktextract keeps the labels of 商's etymology (";dynasty's name") but not
+    // the paragraphs under them, so they showed as bare headings. 侯's label has its text (`:`).
+    expect(
+      noteBlocks(
+        'Pictogram – a target for arrows.\n;"target" > "prince"\n:Schuessler proposes an etymology.\n;dynasty\'s name\n;“to discuss”'
+      )
+    ).toEqual([
+      para("Pictogram – a target for arrows."),
+      { kind: "label", text: '"target" > "prince"' },
+      para("Schuessler proposes an etymology.", true)
+    ]);
+  });
+
+  it("sets in a line whose markup it does not know, rather than stopping on it", () => {
+    // WHY: the build parses every page, and a line that no rule consumes (`:;`) would leave the
+    // parser looping on it forever, hanging the build. Shown set in, its text is still quoted.
+    expect(noteBlocks("A compound.\n:;An odd line.")).toEqual([
+      para("A compound."),
+      para("An odd line.", true)
+    ]);
   });
 
   it("is not taken from a page that only sends the reader elsewhere", () => {
     // WHY: "see 鮐" says nothing of where 台's shape came from, and out of Wiktionary it reads as a
     // broken instruction.
     expect(
-      noteText(
+      noteBlocks(
         "For pronunciation and definitions of 台 – see 鮐.\n(This character is a variant form of 鮐)."
       )
     ).toBeNull();
@@ -69,9 +150,87 @@ describe("wiktionary's notes", () => {
       })
     ]);
     expect(Object.fromEntries(notes)).toEqual({
-      學: { Chinese: "Possibly a phono-semantic compound." },
-      学: { Translingual: "Simplified from 學 (𦥯 → 𰃮)." }
+      學: { Chinese: [para("Possibly a phono-semantic compound.")] },
+      学: { Translingual: [para("Simplified from 學 (𦥯 → 𰃮).")] }
     });
+  });
+});
+
+describe("meanings in Chinese", () => {
+  it("keeps the living, standard senses, with their register", () => {
+    // WHY: "Meanings in Chinese" sets the standard language's meanings beside the kanji's. A
+    // dialect's sense (Hokkien, Cantonese and some 150 places), a dead one, or one that only points
+    // at another character would each misstate what the character means.
+    expect(
+      chineseSenses([
+        { glosses: ["hot or boiling water"], tags: ["literary", "regional"] },
+        { glosses: ["broth; stock"] },
+        { glosses: ["pus"], tags: ["Min", "Southern"] },
+        { glosses: ["capital"], tags: ["obsolete"] },
+        {
+          glosses: ["alternative form of 蕩"],
+          tags: ["alt-of", "alternative"]
+        },
+        { glosses: ["dinner; meal"], tags: ["Mandarin", "dialectal"] },
+        { glosses: ["to learn; to study"], tags: ["transitive"] }
+      ])
+    ).toEqual([
+      { gloss: "hot or boiling water", labels: ["literary", "regional"] },
+      { gloss: "broth; stock", labels: [] },
+      { gloss: "to learn; to study", labels: [] }
+    ]);
+  });
+
+  it("leaves out a use that is not a meaning, and a sub-sense", () => {
+    // WHY: "a surname", "Classifier for countries" or "synonym of 日元" say how the character is
+    // used, not what it means (円's only sense is the last); and a sub-sense refines the one above.
+    expect(
+      chineseSenses([
+        { glosses: ["a surname"] },
+        { glosses: ["Classifier for countries (quasi-measure word)."] },
+        { glosses: ["synonym of 日元 (rìyuán, “Japanese yen”)"] },
+        { glosses: ["used in 學鳩"] },
+        { glosses: ["to issue"] },
+        { glosses: ["to issue", "to publish"] }
+      ])
+    ).toEqual([{ gloss: "to issue", labels: [] }]);
+  });
+
+  it("sets a sense's context before it, as Wiktionary does", () => {
+    // WHY: 走's "to run; to work" is said of devices; without that, the gloss tells a learner 走
+    // means "to run", the meaning Japanese has and Chinese lost.
+    expect(
+      chineseSenses([
+        { glosses: ["to run; to work"], raw_tags: ["of devices"] }
+      ])
+    ).toEqual([{ gloss: "(of devices) to run; to work", labels: [] }]);
+  });
+
+  it("takes the first few, across the page's entries, in its order", () => {
+    // WHY: Wiktionary orders a page's senses from its first etymology on; the view has room for
+    // a few, so the page's first ones, not a sample.
+    const { meanings } = parseWiktionary([
+      entry("湯", "Chinese", {
+        senses: [{ glosses: ["broth; stock"] }, { glosses: ["soup"] }]
+      }),
+      entry("湯", "Chinese", {
+        senses: [
+          { glosses: ["to touch"] },
+          { glosses: ["to meet with"] },
+          { glosses: ["rushing; great"] },
+          { glosses: ["hot spring"] }
+        ]
+      }),
+      entry("湯", "Japanese", { senses: [{ glosses: ["hot water"] }] })
+    ]);
+    expect(meanings.get("湯")?.map((sense) => sense.gloss)).toEqual([
+      "broth; stock",
+      "soup",
+      "to touch",
+      "to meet with",
+      "rushing; great"
+    ]);
+    expect(MAX_SENSES).toBe(5);
   });
 });
 

@@ -796,11 +796,28 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // from is on 學's page. The group must bring back both, by character and section, or the view
     // shows the simplification with no origin, or the origin under the wrong character.
     const [learn] = await dict.getRegionalForms("学");
-    const notes = new Map(
-      learn?.notes.map((note) => [`${note.char} ${note.section}`, note.text])
+    const lead = new Map(
+      learn?.notes.map((note) => {
+        const [first] = note.blocks;
+        return [
+          `${note.char} ${note.section}`,
+          first?.kind === "paragraph" ? first.text : ""
+        ];
+      })
     );
-    expect(notes.get("学 Translingual")).toMatch(/^Simplified from 學/u);
-    expect(notes.get("學 Chinese")).toMatch(/compound/u);
+    expect(lead.get("学 Translingual")).toMatch(/^Simplified from 學/u);
+    expect(lead.get("學 Chinese")).toMatch(/compound/u);
+  });
+
+  test("carries the group's meanings in Chinese from the page that defines them", async () => {
+    // WHY: 学's Chinese page points at 學's, so the meanings are on 學's row; the host must bring
+    // back every character's, for the view to choose the page that has them.
+    const [learn] = await dict.getRegionalForms("学");
+    const meanings = learn?.meanings.find((m) => m.char === "學");
+    expect(meanings?.senses.map((sense) => sense.gloss)).toContain(
+      "to learn; to study"
+    );
+    expect(learn?.meanings.some((m) => m.char === "学")).toBe(false);
   });
 
   test("lists every regional group for the browse, and finds where Japan alone differs", async () => {

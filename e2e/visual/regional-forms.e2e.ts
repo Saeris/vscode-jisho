@@ -163,7 +163,12 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
       name: /Written differently in Hong Kong and Taiwan/u
     })
     .click();
-  await expect(jisho.getByText("From Wiktionary")).toBeVisible();
+  // A heading, by role: "More from Wiktionary" holds the same words.
+  const heading = jisho.getByRole("heading", {
+    name: "From Wiktionary",
+    exact: true
+  });
+  await expect(heading).toBeVisible();
   await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
   await expect(
     jisho.getByRole("link", { name: "Translingual section on Wiktionary" })
@@ -172,7 +177,7 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
     "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
   );
   await expect(jisho.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
-  await jisho.getByText("From Wiktionary").scrollIntoViewIfNeeded();
+  await heading.scrollIntoViewIfNeeded();
   await screenshotSidebar(
     vscode.window,
     "test-results/shots/35-regional-wiktionary.png"

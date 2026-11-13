@@ -1,4 +1,8 @@
-import type { RegionalGroupDto } from "../shared/messages";
+import type {
+  ChineseSense,
+  NoteBlock,
+  RegionalGroupDto
+} from "../shared/messages";
 import {
   OLD_COLUMN,
   REGIONAL_FONT_FAMILIES,
@@ -183,10 +187,24 @@ export interface NoteRow {
   lang: string;
   family: string;
   section: "Translingual" | "Chinese";
-  paragraphs: string[];
+  /** What shows: the note's first paragraph, which nearly always says how the character is formed. */
+  lead: NoteBlock[];
+  /** What folds under "More from Wiktionary": mostly the word's history, older forms and cognates. */
+  more: NoteBlock[];
   /** The section of the character's page the note is from. */
   url: string;
 }
+
+/**
+ * Where a note's lead ends: after its first paragraph (with a label, the paragraph it labels) and any
+ * lists under it, so 商's six shapes stay with the sentence that introduces them. 83% of the Chinese
+ * notes open with how the character is formed ("Phono-semantic compound", "Simplified from").
+ */
+export const leadLength = (blocks: readonly NoteBlock[]): number => {
+  let end = blocks[0]?.kind === "label" ? 2 : 1;
+  while (blocks[end]?.kind === "list") end++;
+  return Math.min(end, blocks.length);
+};
 
 /**
  * The group's Wiktionary notes in the chart's order (Japan's form first), a character's Translingual
@@ -205,15 +223,56 @@ export const noteRows = (group: RegionalGroupDto): NoteRow[] => {
     )
     .map((note) => {
       const row = rows.find((form) => form.char === note.char);
+      const lead = leadLength(note.blocks);
       return {
         char: note.char,
         lang: COLUMN_LANGS[row?.columns[0] ?? JAPAN] ?? "ja",
         family: row?.family ?? "",
         section: note.section,
-        paragraphs: note.text.split("\n"),
-        url: `https://en.wiktionary.org/wiki/${encodeURIComponent(note.char)}#${note.section}`
+        lead: note.blocks.slice(0, lead),
+        more: note.blocks.slice(lead),
+        url: wiktionaryUrl(note.char, note.section)
       };
     });
+};
+
+const wiktionaryUrl = (char: string, section: string): string =>
+  `https://en.wiktionary.org/wiki/${encodeURIComponent(char)}#${section}`;
+
+/** The group's meanings in Chinese as the view shows them, from one form's page. */
+export interface MeaningsRow {
+  char: string;
+  lang: string;
+  family: string;
+  senses: ChineseSense[];
+  url: string;
+}
+
+/**
+ * Whose page the meanings come from: Taiwan's form first, then Hong Kong's, China's, Japan's and the
+ * old form. A traditional form's page holds the definitions (a simplified one's points at it), and a
+ * form only Japan writes can have a Chinese page about Japan: 円's says "Japanese yen", where 圓's
+ * says "circle; round".
+ */
+const MEANING_ORDER = [2, 1, 0, JAPAN, OLD_COLUMN] as const;
+
+/** The group's meanings in Chinese, or null when no form's page defines it. */
+export const meaningsOf = (group: RegionalGroupDto): MeaningsRow | null => {
+  const rows = formRows(group);
+  for (const column of MEANING_ORDER) {
+    const char = charOf(group, column);
+    const meanings = group.meanings.find((m) => m.char === char);
+    if (meanings === undefined || meanings.senses.length === 0) continue;
+    const row = rows.find((form) => form.char === char);
+    return {
+      char,
+      lang: COLUMN_LANGS[row?.columns[0] ?? column] ?? "ja",
+      family: row?.family ?? "",
+      senses: meanings.senses,
+      url: wiktionaryUrl(char, "Chinese")
+    };
+  }
+  return null;
 };
 
 /** "China, Hong Kong and Taiwan". */

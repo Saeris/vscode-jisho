@@ -17,6 +17,7 @@ const group = (
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
   notes: [],
+  meanings: [],
   ...fields
 });
 

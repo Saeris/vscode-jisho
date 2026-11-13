@@ -32,7 +32,8 @@ const SCHEMA_HASHES: Record<number, string> = {
   7: "433fcce6aab35b4c329d8ee9e1438d8db095925a409dbacd9d5bf7006485e2d3",
   8: "44f84000b76f7b33cd127b061271f4d1dd797571dcb036104bae17a9a0db01f6",
   9: "e889161dbe73469e57ba7da621606c7b7caa926054ab609d3ae0a60108e63078",
-  10: "e6bb8e0bcfe2fff81fe4dc1b61f568c3b4e821c184d25de8a34d9fd2b1b3e00d"
+  10: "e6bb8e0bcfe2fff81fe4dc1b61f568c3b4e821c184d25de8a34d9fd2b1b3e00d",
+  11: "bd20ee951d82d131f76aacbe01270b7876160489c04b9a61d5b3b836d13e2a21"
 };
 
 /** The schema the first published versions (0.1 to 0.3) shipped with. Pinned from here on. */

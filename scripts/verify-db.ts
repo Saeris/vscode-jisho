@@ -131,10 +131,18 @@ if (isNames) {
   // Wiktionary's notes (spec 22, phase 6): 学's page says it was simplified from 學, so a build that
   // lost or misread the extraction fails here.
   const learnNote = scalar(
-    "SELECT text FROM regional_notes WHERE char = '学' AND section = 'Translingual'"
+    "SELECT blocks_json FROM regional_notes WHERE char = '学' AND section = 'Translingual'"
   );
   if (typeof learnNote !== "string" || !learnNote.includes("學"))
     fail(`学's Wiktionary note does not name 學: "${String(learnNote)}"`);
+  // And its meanings in Chinese: 學's page defines it ("to learn; to study"), where 学's points at it.
+  const learnMeanings = scalar(
+    "SELECT senses_json FROM regional_meanings WHERE char = '學'"
+  );
+  if (typeof learnMeanings !== "string" || !learnMeanings.includes("to learn"))
+    fail(
+      `學's meanings in Chinese do not say "to learn": "${String(learnMeanings)}"`
+    );
 }
 
 db.close();

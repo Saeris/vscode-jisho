@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import type { RegionalGroupDto } from "../../../shared/messages";
 import { renderWithNavigation } from "../../__tests__/navigationHarness";
@@ -24,12 +24,74 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
         {
           char: "學",
           section: "Chinese",
-          text: "Possibly a phono-semantic compound.\nIn the modern form, 六 has corrupted to 冖."
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "Possibly a phono-semantic compound:",
+              indent: false
+            },
+            {
+              kind: "list",
+              ordered: false,
+              items: [
+                { text: "phonetic 爻", items: [] },
+                {
+                  text: "phonetic 六",
+                  items: [{ text: "corrupted to 冖", items: [] }]
+                }
+              ]
+            },
+            {
+              kind: "paragraph",
+              text: "Endopassive derivation of 覺 (OC *kruːɡ, “to become aware”).",
+              indent: false
+            }
+          ]
         },
         {
           char: "学",
           section: "Translingual",
-          text: "Simplified from 學 (𦥯 → 𰃮) in simplified Chinese and Japanese shinjitai."
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "Simplified from 學 (𦥯 → 𰃮) in simplified Chinese and Japanese shinjitai.",
+              indent: false
+            }
+          ]
+        }
+      ],
+      meanings: [
+        {
+          char: "學",
+          senses: [
+            { gloss: "to learn; to study", labels: [] },
+            { gloss: "school", labels: [] }
+          ]
+        }
+      ]
+    }
+  ],
+  湯: [
+    {
+      key: "湯",
+      chars: ["汤", "湯", "湯", "湯"],
+      glyphSig: "0111",
+      cpSig: "0111",
+      strokes: [6, 12, 12, 12],
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null],
+      notes: [],
+      meanings: [
+        {
+          char: "湯",
+          senses: [
+            {
+              gloss: "hot or boiling water",
+              labels: ["literary", "regional"]
+            },
+            { gloss: "broth; stock", labels: [] }
+          ]
         }
       ]
     }
@@ -44,7 +106,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
       ranks: [null, null, null, null],
-      notes: []
+      notes: [],
+      meanings: []
     }
   ],
   返: [
@@ -57,7 +120,8 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
       tiers: [1, 1, 1, 2],
       readings: [null, null, null, null],
       ranks: [null, null, null, null],
-      notes: []
+      notes: [],
+      meanings: []
     }
   ]
 };
@@ -239,14 +303,53 @@ describe("the Regional forms view", () => {
       "href",
       "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual"
     );
-    // Each paragraph of 學's note is its own, after 学's.
-    expect(
-      screen.getByText("In the modern form, 六 has corrupted to 冖.")
-    ).toBeVisible();
     expect(screen.getByRole("link", { name: "CC BY-SA 4.0" })).toHaveAttribute(
       "href",
       "https://creativecommons.org/licenses/by-sa/4.0/"
     );
+  });
+
+  it("sets out the page's lists as lists, and folds the word's history", async () => {
+    // WHY (reported): the notes showed the page's wiki markup ("# Inverted triangle…", ";dynasty's
+    // name") as text, and 國's ran on into Old Chinese cognates. The lead says how the character is
+    // formed, with the list under it as a list; the rest opens on request.
+    renderView("学");
+    const parts = (await screen.findByText("phonetic 爻")).closest("ul");
+    if (parts === null) throw new Error("the parts are not a list");
+    expect(
+      within(parts)
+        .getAllByRole("listitem")
+        .map((item) => item.firstChild?.textContent)
+    ).toEqual(["phonetic 爻", "phonetic 六", "corrupted to 冖"]);
+    const history = screen.getByText(
+      "Endopassive derivation of 覺 (OC *kruːɡ, “to become aware”)."
+    );
+    expect(history).not.toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More from Wiktionary" })
+    );
+    expect(history).toBeVisible();
+  });
+
+  it("gives the character's meanings in Chinese, with their register", async () => {
+    // WHY: where a meaning drifts is a regional difference too: 湯 is "broth; soup" in Chinese,
+    // and its literary sense, "hot or boiling water", is the one Japanese kept.
+    renderView("湯");
+    const heading = await screen.findByRole("heading", {
+      name: "Meanings in Chinese"
+    });
+    const list = heading.nextElementSibling;
+    expect(
+      [...(list?.querySelectorAll("li") ?? [])].map((item) => item.textContent)
+    ).toEqual(["hot or boiling water · literary, regional", "broth; stock"]);
+    expect(
+      screen.getByRole("link", { name: "Chinese section on Wiktionary" })
+    ).toHaveAttribute(
+      "href",
+      "https://en.wiktionary.org/wiki/%E6%B9%AF#Chinese"
+    );
+    // Quoted from Wiktionary with no notes beside it: the credit still applies.
+    expect(screen.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
   });
 
   it("leaves out the block when Wiktionary says nothing of the group", async () => {
@@ -254,6 +357,8 @@ describe("the Regional forms view", () => {
     renderView("返");
     await screen.findByText("4 forms of one code point, U+8FD4");
     expect(screen.queryByText("From Wiktionary")).toBeNull();
+    expect(screen.queryByText("Meanings in Chinese")).toBeNull();
+    expect(screen.queryByRole("link", { name: "CC BY-SA 4.0" })).toBeNull();
   });
 
   it("pulls the layers apart while dragged, and lets them go on release", async () => {

@@ -1,6 +1,7 @@
 /**
  * The Wiktionary extraction job (spec 22, phase 6): stream Wiktextract's full English Wiktionary dump
- * once and keep what the regional-forms notes use, for every single Han character.
+ * once and keep what the regional-forms notes and meanings in Chinese use, for every single Han
+ * character.
  *
  *   vp exec node scripts/extract-wiktionary.ts <out-dir> [dump-path-or-url]
  *
@@ -37,7 +38,15 @@ export interface WiktionaryEntry {
   /** A Chinese "soft redirect": a variant page that only points at its standard form. */
   redirects?: string[];
   forms?: Array<{ form: string; tags: string[] }>;
+  /** A Chinese entry's definitions, for "Meanings in Chinese"; `glosses` runs from general to specific. */
+  senses?: Array<{ glosses: string[]; tags?: string[]; raw_tags?: string[] }>;
 }
+
+/** The strings of an array field, or none: the dump is untrusted JSON. */
+const strings = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 
 /** One Han character, as one code point. */
 const HAN = /^\p{Script=Han}$/u;
@@ -91,6 +100,25 @@ export const pruneEntry = (raw: unknown): WiktionaryEntry | null => {
       ];
     });
     if (forms.length > 0) kept.forms = forms;
+  }
+  // Only Chinese senses: Japanese meanings are the dictionary's own, and Translingual has none.
+  const allSenses = field("senses");
+  if (lang === "Chinese" && Array.isArray(allSenses)) {
+    const senses = allSenses.flatMap((sense: unknown) => {
+      if (typeof sense !== "object" || sense === null) return [];
+      const glosses = strings(Reflect.get(sense, "glosses"));
+      if (glosses.length === 0) return [];
+      const tags = strings(Reflect.get(sense, "tags"));
+      const rawTags = strings(Reflect.get(sense, "raw_tags"));
+      return [
+        {
+          glosses,
+          ...(tags.length > 0 ? { tags } : {}),
+          ...(rawTags.length > 0 ? { raw_tags: rawTags } : {})
+        }
+      ];
+    });
+    if (senses.length > 0) kept.senses = senses;
   }
   return kept;
 };

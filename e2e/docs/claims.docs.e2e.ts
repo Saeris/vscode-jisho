@@ -153,21 +153,32 @@ test("claim: kanji appear in their own section", async () => {
 });
 
 test("claim: a kanji's page says who writes it differently, and the forms are labelled", async () => {
-  // README: "When other regions write a kanji differently, its page says which regions and how many
-  // forms there are." / "Separate sets the forms side by side, each labelled with the regions that
-  // write it." / "that form appears as Japan's old form" / "Each form is drawn in a font for its
-  // region".
+  // README: "its page has a Regional forms link, after Stroke order and Component tree, that says
+  // which regions and how many forms there are." / "Separate sets the forms side by side, each
+  // labelled with the regions that write it." / "that form appears as Japan's old form" / "Each
+  // form is drawn in a font for its region". / "Select a form to copy it."
   await returnToSearch(jisho);
   await fillSearch(jisho, "学");
   await jisho
     .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
     .first()
     .click();
+  const links = jisho.getByRole("button", {
+    name: /^(?:Stroke order|Component tree|Regional forms)/u
+  });
+  await expect(links.first()).toHaveText(/Stroke order/u);
+  await expect(links.last()).toHaveText(/^🌏Regional forms/u);
   await jisho
     .getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan · 2 forms/u
+      name: /^Regional forms.*Written differently in Hong Kong and Taiwan · 2 forms/u
     })
     .click();
+  // The clipboard is not readable from the workbench, so check what the form would copy.
+  await expect(
+    jisho.getByRole("button", {
+      name: "Copy 學 (Hong Kong, Taiwan and Japan's old form)"
+    })
+  ).toHaveAttribute("data-value", "學");
   await jisho.getByRole("radio", { name: "Separate" }).click();
   const forms = jisho.getByRole("img", { name: /^Side by side/u });
   await expect(forms).toContainText("学China and Japan");
@@ -184,9 +195,9 @@ test("claim: a kanji's page says who writes it differently, and the forms are la
 });
 
 test("claim: each region's reading and rank, with the texts it was counted in", async () => {
-  // README: "Readings and frequency gives each region's reading of its form, in Mandarin, Cantonese
-  // and Japanese, and how common the form is in that region. Each rank names the texts it was
-  // counted in".
+  // README: "Readings and frequency gives each region's reading of its form, Japan's first, then
+  // Mandarin and Cantonese, and how common the form is in that region. Each rank names the texts it
+  // was counted in" / "Rest the pointer on Mandarin or Cantonese to see how its tones are written".
   await returnToSearch(jisho);
   await fillSearch(jisho, "学");
   await jisho
@@ -208,12 +219,45 @@ test("claim: each region's reading and rank, with the texts it was counted in", 
     /on Japanese Wikipedia$/u
   ])
     await expect(jisho.getByText(corpus)).toBeVisible();
+  await expect(
+    jisho.getByRole("term").first(),
+    "Japan's reading comes first"
+  ).toHaveText(/^Japan/u);
+  await jisho.getByRole("button", { name: "Cantonese" }).hover();
+  await expect(jisho.getByRole("tooltip")).toContainText(
+    "small number after each syllable is its tone"
+  );
+});
+
+test("claim: the character's meanings in Chinese, from Wiktionary", async () => {
+  // README: "Meanings in Chinese lists the first meanings English Wiktionary gives the character in
+  // Chinese … 湯 is "broth; soup" in Chinese, and "hot or boiling water", its everyday meaning in
+  // Japanese, is marked literary."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "湯");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", { name: /^Regional forms.*Written differently/u })
+    .click();
+  await expect(
+    jisho.getByRole("heading", { name: "Meanings in Chinese" })
+  ).toBeVisible();
+  const meanings = jisho.locator("ol", {
+    has: jisho.getByText(/^hot or boiling water/u)
+  });
+  await expect(meanings).toContainText("hot or boiling water · literary");
+  await expect(meanings).toContainText("broth; stock");
+  await expect(meanings).toContainText("soup");
 });
 
 test("claim: the forms' notes are quoted from Wiktionary, each linked to its page", async () => {
   // README: "From Wiktionary quotes what English Wiktionary says of the forms: how they relate, such
-  // as 学 being simplified from 學, and where the shape came from. Each note links to the page it is
-  // quoted from."
+  // as 学 being simplified from 學, and where the shape came from. Select More from Wiktionary under
+  // a note for the rest of it, mostly the history of the Chinese word. Each note links to the page
+  // it is quoted from."
   await returnToSearch(jisho);
   await fillSearch(jisho, "学");
   await jisho
@@ -225,12 +269,22 @@ test("claim: the forms' notes are quoted from Wiktionary, each linked to its pag
       name: /Written differently in Hong Kong and Taiwan/u
     })
     .click();
-  await expect(jisho.getByText("From Wiktionary")).toBeVisible();
-  await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
-  // 學's own page gives where the shape came from.
   await expect(
-    jisho.getByRole("link", { name: "Chinese section on Wiktionary" })
+    jisho.getByRole("heading", { name: "From Wiktionary", exact: true })
+  ).toBeVisible();
+  await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
+  // 學's own page gives where the shape came from: a phono-semantic compound, and then the word's
+  // history (a derivation of 覺), which waits behind More.
+  const origin = jisho.locator("blockquote", {
+    has: jisho.getByText(/phono-semantic compound/u)
+  });
+  await expect(
+    origin.getByRole("link", { name: "Chinese section on Wiktionary" })
   ).toHaveAttribute("href", "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese");
+  const history = origin.getByText(/derivation of 覺/u);
+  await expect(history).toBeHidden();
+  await origin.getByRole("button", { name: "More from Wiktionary" }).click();
+  await expect(history).toBeVisible();
 });
 
 test("claim: Regional differences lists the characters, searched, filtered and sorted", async () => {
