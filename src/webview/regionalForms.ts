@@ -1,7 +1,8 @@
 import type {
   ChineseSense,
   NoteBlock,
-  RegionalGroupDto
+  RegionalGroupDto,
+  RegionalNoteDto
 } from "../shared/messages";
 import {
   OLD_COLUMN,
@@ -186,7 +187,7 @@ export interface NoteRow {
   /** The language and family of the form's first column, so the character keeps its region's shape. */
   lang: string;
   family: string;
-  section: "Translingual" | "Chinese";
+  section: RegionalNoteDto["section"];
   /** What shows: the note's first paragraph, which nearly always says how the character is formed. */
   lead: NoteBlock[];
   /** What folds under "More from Wiktionary": mostly the word's history, older forms and cognates. */
@@ -207,9 +208,15 @@ export const leadLength = (blocks: readonly NoteBlock[]): number => {
 };
 
 /**
- * The group's Wiktionary notes in the chart's order (Japan's form first), a character's Translingual
- * note (how its forms relate) before its Chinese one (where the shape came from). So 学 reads
- * "Simplified from 學" first, then 學's account of its parts.
+ * The order of the notes' languages: how the forms relate across languages, then Japanese (this is
+ * a Japanese dictionary, and Japan's form leads the chart too), then Chinese.
+ */
+export const NOTE_SECTIONS = ["Translingual", "Japanese", "Chinese"] as const;
+
+/**
+ * The group's Wiktionary notes by language (`NOTE_SECTIONS`), and within one in the chart's order
+ * (Japan's form first). So 学 reads "Simplified from 學" first, then where Japanese がく came from,
+ * then 學's account of its parts.
  */
 export const noteRows = (group: RegionalGroupDto): NoteRow[] => {
   const rows = formRows(group);
@@ -218,8 +225,8 @@ export const noteRows = (group: RegionalGroupDto): NoteRow[] => {
   return group.notes
     .toSorted(
       (a, b) =>
-        position(a.char) - position(b.char) ||
-        Number(a.section === "Chinese") - Number(b.section === "Chinese")
+        NOTE_SECTIONS.indexOf(a.section) - NOTE_SECTIONS.indexOf(b.section) ||
+        position(a.char) - position(b.char)
     )
     .map((note) => {
       const row = rows.find((form) => form.char === note.char);
@@ -298,19 +305,3 @@ export const asWritten = (columns: readonly number[]): string => {
 /** The regions a row's columns name, with the old form last. */
 export const columnNames = (columns: readonly number[]): string =>
   joinNames(columns.map((column) => COLUMN_NAMES[column] ?? ""));
-
-/**
- * The kanji page's line for a group: whom Japan's form differs from, and how many forms there are.
- * The old form is not a region, so it is named but does not count as a region writing it otherwise.
- */
-export const summaryLine = (group: RegionalGroupDto): string => {
-  const regionalGlyphs = new Set(group.glyphSig.slice(0, 4));
-  const japan = group.glyphSig[JAPAN];
-  const others = [0, 1, 2].filter((region) => group.glyphSig[region] !== japan);
-  const old = group.old === undefined ? "" : ` · old form ${group.old}`;
-  if (others.length === 0)
-    return `Written the same way in China, Hong Kong, Taiwan and Japan${old}`;
-  return `Written differently in ${joinNames(
-    others.map((region) => COLUMN_NAMES[region] ?? "")
-  )} · ${regionalGlyphs.size} forms${old}`;
-};

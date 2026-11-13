@@ -8,6 +8,7 @@ import {
   chineseSenses,
   crossCheck,
   fetchWiktionary,
+  japaneseReadings,
   noteBlocks,
   parseWiktionary,
   unexplained,
@@ -133,9 +134,9 @@ describe("wiktionary's notes", () => {
     ).toBeNull();
   });
 
-  it("takes each section's first note, and never the Japanese section's", () => {
-    // WHY: 學 has three Chinese etymologies and only the first explains its parts; and a Japanese
-    // entry's etymology is the word's history ("From Middle Chinese 學"), not the shape's.
+  it("takes the first Translingual and Chinese note of a page", () => {
+    // WHY: 學 has three Chinese etymologies and only the first explains its parts; the others
+    // ("Alternative form of 斆") are about other words written 學.
     const { notes } = parseWiktionary([
       entry("學", "Chinese", {
         etymology_text: "Possibly a phono-semantic compound."
@@ -143,16 +144,89 @@ describe("wiktionary's notes", () => {
       entry("學", "Chinese", { etymology_text: "Alternative form of 斆." }),
       entry("学", "Translingual", {
         etymology_text: "Simplified from 學 (𦥯 → 𰃮)."
-      }),
-      entry("学", "Japanese", {
-        pos: "noun",
-        etymology_text: "From Middle Chinese 學 (MC haewk)."
       })
     ]);
     expect(Object.fromEntries(notes)).toEqual({
       學: { Chinese: [para("Possibly a phono-semantic compound.")] },
       学: { Translingual: [para("Simplified from 學 (𦥯 → 𰃮).")] }
     });
+  });
+
+  it("gives every Japanese etymology, each under the readings it is the history of", () => {
+    // WHY (asked for): the view gives each language's etymology, and a kanji's Japanese words come
+    // from different places: 国's くに from Old Japanese, its こく from Middle Chinese. The page has one
+    // entry per reading and part of speech, so a text shared by several entries is shown once, under
+    // all their readings.
+    const head = (reading: string): WiktionaryEntry["head_templates"] => [
+      { expansion: `国(${reading}) • (romaji)` }
+    ];
+    const { notes } = parseWiktionary([
+      entry("国", "Japanese", { pos: "character", forms: [] }),
+      entry("国", "Japanese", {
+        pos: "noun",
+        etymology_text: "From Old Japanese.",
+        head_templates: head("くに")
+      }),
+      entry("国", "Japanese", {
+        pos: "noun",
+        etymology_text: "From Middle Chinese 國.",
+        head_templates: head("こく")
+      }),
+      entry("国", "Japanese", {
+        pos: "suffix",
+        etymology_text: "From Middle Chinese 國.",
+        head_templates: head("ごく")
+      })
+    ]);
+    expect(notes.get("国")?.Japanese).toEqual([
+      { kind: "label", text: "くに" },
+      para("From Old Japanese."),
+      { kind: "label", text: "こく、ごく" },
+      para("From Middle Chinese 國.")
+    ]);
+  });
+
+  it("leaves out a Japanese entry that only points elsewhere, and a given name", () => {
+    // WHY: 後's "Uncommon alternative spelling" is about another word's spelling, and 学's given
+    // names (さとる, まなぶ) would put names among the readings of the character's own words.
+    const { notes } = parseWiktionary([
+      entry("学", "Japanese", {
+        pos: "noun",
+        etymology_text: "From Middle Chinese 學.",
+        head_templates: [{ expansion: "学(がく) • (gaku)" }]
+      }),
+      entry("学", "Japanese", {
+        pos: "name",
+        etymology_text: "From Middle Chinese 學.",
+        head_templates: [
+          { expansion: "学(さとる) or 学(まなぶ) • (Satoru or Manabu)" }
+        ]
+      }),
+      entry("学", "Japanese", {
+        pos: "character",
+        etymology_text: "Uncommon alternative spelling.",
+        redirects: ["學"]
+      })
+    ]);
+    expect(notes.get("学")?.Japanese).toEqual([
+      { kind: "label", text: "がく" },
+      para("From Middle Chinese 學.")
+    ]);
+  });
+});
+
+describe("a Japanese headword's readings", () => {
+  it("takes the kana in brackets, not the romanization or a historical spelling", () => {
+    // WHY: the headword line carries the reading three ways; the label is the one a learner reads.
+    expect(
+      japaneseReadings(
+        entry("商", "Japanese", {
+          head_templates: [
+            { expansion: "商(しょう) • (shō) ^(←しやう (syau)?)" }
+          ]
+        })
+      )
+    ).toEqual(["しょう"]);
   });
 });
 

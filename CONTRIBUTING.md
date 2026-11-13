@@ -123,7 +123,7 @@ The fonts that show how China, Hong Kong, Taiwan and Japan each write a characte
 
 ## Wiktionary notes
 
-The Regional forms view quotes English Wiktionary: notes on each form, and the character's meanings in Chinese. The data build does not read Wiktionary itself: it downloads a small extraction, published as a release asset and pinned by tag and checksum in `scripts/wiktionary.ts`. There, `noteBlocks` turns an etymology's wiki markup into paragraphs and lists, and `chineseSenses` keeps a character's first living, standard senses by an allow-list of tags. To take fresher notes:
+The Regional forms view quotes English Wiktionary: each language's etymologies of a form (Translingual, Japanese by reading, Chinese), and the character's meanings in Chinese. The data build does not read Wiktionary itself: it downloads a small extraction, published as a release asset and pinned by tag and checksum in `scripts/wiktionary.ts`. There, `noteBlocks` turns an etymology's wiki markup into paragraphs and lists, and `chineseSenses` keeps a character's first living, standard senses by an allow-list of tags. To take fresher notes:
 
 1. Run the **Wiktionary Extract** workflow. It streams Wiktextract's full dump from kaikki.org (2.9 GB) and publishes the result under a new `wiktionary-YYYY-MM-DD` tag.
 2. Copy the tag and checksum from the run's summary into `WIKTIONARY_TAG` and `WIKTIONARY_SHA256`.

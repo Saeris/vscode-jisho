@@ -158,7 +158,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* From Wiktionary (spec 22, phase 6): each note quoted, then its page and the licence credit. */
+/* From Wiktionary (spec 22, phase 6): each language's notes under its name, each note quoted, then
+   its page and the licence credit. */
+.noteLanguage {
+  margin: 10px 0 4px;
+  font-size: 1em;
+  font-weight: 600;
+}
 .note {
   margin: 0 0 10px;
   padding-inline-start: 10px;

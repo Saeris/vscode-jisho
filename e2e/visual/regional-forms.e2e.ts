@@ -28,7 +28,8 @@ for (const theme of ["dark", "light"] as const) {
     await openKanjiResult(jisho, "学");
 
     const summary = jisho.getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan · 2 forms · old form 學/u
+      name: "Regional forms",
+      exact: true
     });
     await expect(summary).toBeVisible();
     await screenshotSidebar(
@@ -74,9 +75,7 @@ test("capture: 返, one code point drawn four ways, fanned under the pointer", a
 }) => {
   await openKanjiResult(jisho, "返");
   await jisho
-    .getByRole("button", {
-      name: /Written differently in China, Hong Kong and Taiwan · 4 forms/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   const overprint = jisho.getByRole("img", {
     name: /^Overlaid: 返 \(Japan\)/u
@@ -132,9 +131,7 @@ test("readings and frequency of 学: Mandarin, Cantonese, and a labelled rank fo
   // Spec 22, phase 5. Hong Kong's corpus is live, so only its label is asserted, not its number.
   await openKanjiResult(jisho, "学");
   await jisho
-    .getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   await expect(jisho.getByText("Readings and frequency")).toBeVisible();
   await expect(jisho.getByText("hok6", { exact: true })).toBeVisible();
@@ -159,9 +156,7 @@ test("Wiktionary's notes on 学: simplified from 學, linked to its page, with t
   await returnToSearch(jisho);
   await openKanjiResult(jisho, "学");
   await jisho
-    .getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   // A heading, by role: "More from Wiktionary" holds the same words.
   const heading = jisho.getByRole("heading", {

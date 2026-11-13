@@ -301,12 +301,14 @@ CREATE TABLE regional_forms (
 CREATE INDEX idx_regional_forms_char ON regional_forms(char);
 
 -- What English Wiktionary says of a character in a regional group (spec 22, phase 6): its
--- Translingual section on how the forms relate (学: "Simplified from 學"), and its Chinese section on
--- where the shape came from. Keyed by character, since one can be a form in several groups. The text
+-- Translingual section on how the forms relate (学: "Simplified from 學"), its Chinese section on
+-- where the shape came from, and its Japanese section on where each Japanese word written with it came
+-- from, labelled by reading. Keyed by character, since one can be a form in several groups. The text
 -- is CC BY-SA 4.0, so the view shows it with a credit and a link to the character's page.
 CREATE TABLE regional_notes (
   char        TEXT NOT NULL,
-  section     TEXT NOT NULL,       -- 'Translingual' | 'Chinese': the page's section the note is from
+  -- 'Translingual' | 'Chinese' | 'Japanese': the page's section the note is from
+  section     TEXT NOT NULL,
   -- The note as paragraphs, sense labels and nested lists, parsed from the page's wiki markup at
   -- build time (NoteBlock in src/shared/messages.ts).
   blocks_json TEXT NOT NULL,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,7 +13,8 @@ import {
 import type {
   NoteBlock,
   NoteItem,
-  RegionalGroupDto
+  RegionalGroupDto,
+  RegionalNoteDto
 } from "../../shared/messages";
 import { CopyButton } from "../components/CopyButton";
 import { DetailView } from "../components/DetailView";
@@ -399,36 +400,47 @@ const WiktionaryNotes = ({
   return (
     <>
       <h3 className={styles.subheading}>From Wiktionary</h3>
-      {notes.map((note) => (
-        <blockquote
-          key={`${note.char}-${note.section}`}
-          className={styles.note}
-          cite={note.url}
-        >
-          <NoteBlocks blocks={note.lead} />
-          {note.more.length > 0 ? (
-            <Disclosure className={styles.more}>
-              <Heading className={styles.moreHeading}>
-                <Button slot="trigger" className={styles.moreTrigger}>
-                  <span aria-hidden="true" className={styles.moreChevron}>
-                    ›
-                  </span>
-                  More from Wiktionary
-                </Button>
-              </Heading>
-              <DisclosurePanel>
-                <NoteBlocks blocks={note.more} />
-              </DisclosurePanel>
-            </Disclosure>
-          ) : null}
-          <footer className={styles.muted}>
-            <Source {...note} />
-          </footer>
-        </blockquote>
+      {notes.map((note, index) => (
+        <Fragment key={`${note.char}-${note.section}`}>
+          {/* One heading per language, over its notes: each language's etymology is its own. */}
+          {notes[index - 1]?.section === note.section ? null : (
+            <h4 className={styles.noteLanguage}>
+              {SECTION_NAMES[note.section]}
+            </h4>
+          )}
+          <blockquote className={styles.note} cite={note.url}>
+            <NoteBlocks blocks={note.lead} />
+            {note.more.length > 0 ? (
+              <Disclosure className={styles.more}>
+                <Heading level={5} className={styles.moreHeading}>
+                  <Button slot="trigger" className={styles.moreTrigger}>
+                    <span aria-hidden="true" className={styles.moreChevron}>
+                      ›
+                    </span>
+                    More from Wiktionary
+                  </Button>
+                </Heading>
+                <DisclosurePanel>
+                  <NoteBlocks blocks={note.more} />
+                </DisclosurePanel>
+              </Disclosure>
+            ) : null}
+            <footer className={styles.muted}>
+              <Source {...note} />
+            </footer>
+          </blockquote>
+        </Fragment>
       ))}
     </>
   );
 };
+
+/** Each language's heading: Wiktionary's section names, but its "Translingual" said plainly. */
+const SECTION_NAMES = {
+  Translingual: "Across languages",
+  Japanese: "Japanese",
+  Chinese: "Chinese"
+} as const satisfies Record<RegionalNoteDto["section"], string>;
 
 /** The credit Wiktionary's licence asks for, once under whatever the view quoted from it. */
 const WiktionaryCredit = ({

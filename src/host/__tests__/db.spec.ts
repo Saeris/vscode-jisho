@@ -809,6 +809,19 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     expect(lead.get("學 Chinese")).toMatch(/compound/u);
   });
 
+  test("carries each Japanese etymology of Japan's form, labelled by its reading", async () => {
+    // WHY: the view gives each language's etymology; 国's Japanese words come from two places, くに
+    // from Old Japanese and こく from Middle Chinese, and only the label says which is which.
+    const [country] = await dict.getRegionalForms("国");
+    const japanese = country?.notes.find(
+      (note) => note.char === "国" && note.section === "Japanese"
+    );
+    const labels = japanese?.blocks.flatMap((block) =>
+      block.kind === "label" ? [block.text] : []
+    );
+    expect(labels).toEqual(expect.arrayContaining(["くに", "こく"]));
+  });
+
   test("carries the group's meanings in Chinese from the page that defines them", async () => {
     // WHY: 学's Chinese page points at 學's, so the meanings are on 學's row; the host must bring
     // back every character's, for the view to choose the page that has them.

@@ -2,7 +2,8 @@ import type {
   ChineseSense,
   NoteBlock,
   NoteItem,
-  RegionalGroupDto
+  RegionalGroupDto,
+  RegionalNoteDto
 } from "../../shared/messages";
 import type { SqliteStore } from "../store";
 import { parseStrings } from "./parse";
@@ -180,7 +181,7 @@ export const getRegionalGroups = async (
     group.notes = (
       await store.all<{
         char: string;
-        section: "Translingual" | "Chinese";
+        section: RegionalNoteDto["section"];
         blocks_json: string;
       }>(
         `SELECT char, section, blocks_json FROM regional_notes

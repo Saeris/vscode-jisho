@@ -153,10 +153,10 @@ test("claim: kanji appear in their own section", async () => {
 });
 
 test("claim: a kanji's page says who writes it differently, and the forms are labelled", async () => {
-  // README: "its page has a Regional forms link, after Stroke order and Component tree, that says
-  // which regions and how many forms there are." / "Separate sets the forms side by side, each
-  // labelled with the regions that write it." / "that form appears as Japan's old form" / "Each
-  // form is drawn in a font for its region". / "Select a form to copy it."
+  // README: "its page has a Regional forms link, after Stroke order and Component tree." /
+  // "Separate sets the forms side by side, each labelled with the regions that write it." / "that
+  // form appears as Japan's old form" / "Each form is drawn in a font for its region". / "Select a
+  // form to copy it."
   await returnToSearch(jisho);
   await fillSearch(jisho, "学");
   await jisho
@@ -169,9 +169,7 @@ test("claim: a kanji's page says who writes it differently, and the forms are la
   await expect(links.first()).toHaveText(/Stroke order/u);
   await expect(links.last()).toHaveText(/^🌏Regional forms/u);
   await jisho
-    .getByRole("button", {
-      name: /^Regional forms.*Written differently in Hong Kong and Taiwan · 2 forms/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   // The clipboard is not readable from the workbench, so check what the form would copy.
   await expect(
@@ -205,9 +203,7 @@ test("claim: each region's reading and rank, with the texts it was counted in", 
     .first()
     .click();
   await jisho
-    .getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   await expect(jisho.getByText("Readings and frequency")).toBeVisible();
   for (const reading of ["(Mandarin)", "(Cantonese)", "(Japanese)"])
@@ -240,7 +236,7 @@ test("claim: the character's meanings in Chinese, from Wiktionary", async () => 
     .first()
     .click();
   await jisho
-    .getByRole("button", { name: /^Regional forms.*Written differently/u })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   await expect(
     jisho.getByRole("heading", { name: "Meanings in Chinese" })
@@ -254,10 +250,10 @@ test("claim: the character's meanings in Chinese, from Wiktionary", async () => 
 });
 
 test("claim: the forms' notes are quoted from Wiktionary, each linked to its page", async () => {
-  // README: "From Wiktionary quotes what English Wiktionary says of the forms: how they relate, such
-  // as 学 being simplified from 學, and where the shape came from. Select More from Wiktionary under
-  // a note for the rest of it, mostly the history of the Chinese word. Each note links to the page
-  // it is quoted from."
+  // README: "From Wiktionary quotes the etymologies English Wiktionary gives, under a heading for each
+  // language. Across languages says how the forms relate, such as 学 being simplified from 學 …
+  // Chinese says where the shape came from. Select More from Wiktionary under a note for the rest of
+  // it. Each note links to the page it is quoted from."
   await returnToSearch(jisho);
   await fillSearch(jisho, "学");
   await jisho
@@ -265,13 +261,15 @@ test("claim: the forms' notes are quoted from Wiktionary, each linked to its pag
     .first()
     .click();
   await jisho
-    .getByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan/u
-    })
+    .getByRole("button", { name: "Regional forms", exact: true })
     .click();
   await expect(
     jisho.getByRole("heading", { name: "From Wiktionary", exact: true })
   ).toBeVisible();
+  await expect(
+    jisho.getByRole("heading", { level: 4 }),
+    "a heading for each language, Japanese before Chinese"
+  ).toHaveText(["Across languages", "Japanese", "Chinese"]);
   await expect(jisho.getByText(/^Simplified from 學/u)).toBeVisible();
   // 學's own page gives where the shape came from: a phono-semantic compound, and then the word's
   // history (a derivation of 覺), which waits behind More.
@@ -285,6 +283,33 @@ test("claim: the forms' notes are quoted from Wiktionary, each linked to its pag
   await expect(history).toBeHidden();
   await origin.getByRole("button", { name: "More from Wiktionary" }).click();
   await expect(history).toBeVisible();
+});
+
+test("claim: each Japanese word's etymology, by its reading", async () => {
+  // README: "Japanese says where each Japanese word written with the kanji came from, by its
+  // reading: for 国, くに is from Old Japanese and こく from Middle Chinese."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "国");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", { name: "Regional forms", exact: true })
+    .click();
+  const japanese = jisho.locator("blockquote", {
+    has: jisho.getByText("くに", { exact: true })
+  });
+  await expect(japanese.getByText(/^From Old Japanese/u)).toBeVisible();
+  await japanese.getByRole("button", { name: "More from Wiktionary" }).click();
+  await expect(japanese.getByText("こく", { exact: true })).toBeVisible();
+  await expect(japanese.getByText(/^From Middle Chinese 國/u)).toBeVisible();
+  await expect(
+    japanese.getByRole("link", { name: "Japanese section on Wiktionary" })
+  ).toHaveAttribute(
+    "href",
+    "https://en.wiktionary.org/wiki/%E5%9B%BD#Japanese"
+  );
 });
 
 test("claim: Regional differences lists the characters, searched, filtered and sorted", async () => {

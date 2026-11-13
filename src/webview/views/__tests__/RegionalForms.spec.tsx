@@ -58,6 +58,18 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
               indent: false
             }
           ]
+        },
+        {
+          char: "学",
+          section: "Japanese",
+          blocks: [
+            { kind: "label", text: "がく" },
+            {
+              kind: "paragraph",
+              text: "From Middle Chinese 學 (MC haewk, “learning”).",
+              indent: false
+            }
+          ]
         }
       ],
       meanings: [
@@ -69,6 +81,52 @@ const GROUPS: Record<string, RegionalGroupDto[]> = {
           ]
         }
       ]
+    }
+  ],
+  国: [
+    {
+      key: "國",
+      chars: ["国", "國", "國", "国"],
+      old: "國",
+      glyphSig: "01101",
+      cpSig: "0110",
+      strokes: [8, 11, 11, 8, 11],
+      tiers: [1, 1, 1, 2],
+      readings: [null, null, null, null],
+      ranks: [null, null, null, null],
+      notes: [
+        {
+          char: "國",
+          section: "Chinese",
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "Phono-semantic compound: semantic 囗 (“closure”) + phonetic 或.",
+              indent: false
+            }
+          ]
+        },
+        {
+          char: "国",
+          section: "Japanese",
+          blocks: [
+            { kind: "label", text: "くに" },
+            { kind: "paragraph", text: "From Old Japanese.", indent: false }
+          ]
+        },
+        {
+          char: "国",
+          section: "Chinese",
+          blocks: [
+            {
+              kind: "paragraph",
+              text: "Simplified from 國 (或 → 玉).",
+              indent: false
+            }
+          ]
+        }
+      ],
+      meanings: []
     }
   ],
   湯: [
@@ -307,6 +365,46 @@ describe("the Regional forms view", () => {
       "href",
       "https://creativecommons.org/licenses/by-sa/4.0/"
     );
+  });
+
+  it("gives each language's etymology under its own heading, Japanese before Chinese", async () => {
+    // WHY (asked for): the view covers Chinese and Japanese, and each language's words have their
+    // own history: 学's Japanese がく came from Middle Chinese, 學's shape from its parts. Under one
+    // heading per language, a reader can tell which history is which.
+    renderView("学");
+    const headings = await screen.findAllByRole("heading", { level: 4 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Across languages",
+      "Japanese",
+      "Chinese"
+    ]);
+    const japanese = headings[1]?.nextElementSibling;
+    if (!(japanese instanceof HTMLElement)) throw new Error("no Japanese note");
+    expect(japanese).toMatchTextContent(/^がくFrom Middle Chinese 學/u);
+    expect(
+      within(japanese).getByRole("link", {
+        name: "Japanese section on Wiktionary"
+      })
+    ).toHaveAttribute(
+      "href",
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Japanese"
+    );
+  });
+
+  it("sets every note of one language under that language's one heading", async () => {
+    // WHY: 国's Chinese section and 國's are both Chinese; a heading over each would read as two
+    // languages. Japan's 国 comes first within the language, as in the chart.
+    renderView("国");
+    const headings = await screen.findAllByRole("heading", { level: 4 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Japanese",
+      "Chinese"
+    ]);
+    const chinese = headings[1];
+    const first = chinese?.nextElementSibling;
+    const second = first?.nextElementSibling;
+    expect(first).toMatchTextContent(/^Simplified from 國/u);
+    expect(second).toMatchTextContent(/^Phono-semantic compound/u);
   });
 
   it("sets out the page's lists as lists, and folds the word's history", async () => {

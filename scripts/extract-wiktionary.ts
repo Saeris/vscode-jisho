@@ -40,6 +40,11 @@ export interface WiktionaryEntry {
   forms?: Array<{ form: string; tags: string[] }>;
   /** A Chinese entry's definitions, for "Meanings in Chinese"; `glosses` runs from general to specific. */
   senses?: Array<{ glosses: string[]; tags?: string[]; raw_tags?: string[] }>;
+  /**
+   * A Japanese entry's headword lines ("国(くに) • (kuni)"): the reading its etymology is of, which
+   * the Japanese notes label each etymology with.
+   */
+  head_templates?: Array<{ expansion: string }>;
 }
 
 /** The strings of an array field, or none: the dump is untrusted JSON. */
@@ -119,6 +124,15 @@ export const pruneEntry = (raw: unknown): WiktionaryEntry | null => {
       ];
     });
     if (senses.length > 0) kept.senses = senses;
+  }
+  const heads = field("head_templates");
+  if (lang === "Japanese" && Array.isArray(heads)) {
+    const expansions = heads.flatMap((head: unknown) => {
+      if (typeof head !== "object" || head === null) return [];
+      const expansion: unknown = Reflect.get(head, "expansion");
+      return typeof expansion === "string" ? [{ expansion }] : [];
+    });
+    if (expansions.length > 0) kept.head_templates = expansions;
   }
   return kept;
 };

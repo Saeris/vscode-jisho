@@ -308,8 +308,11 @@ export interface RegionalGroupDto {
 /** One Wiktionary note on a character of a regional group. */
 export interface RegionalNoteDto {
   char: string;
-  /** The page's section: Translingual (how the forms relate), Chinese (where the shape came from). */
-  section: "Translingual" | "Chinese";
+  /**
+   * The page's section: Translingual (how the forms relate), Chinese (where the shape came from),
+   * Japanese (where each Japanese word written with it came from, labelled by its reading).
+   */
+  section: "Translingual" | "Chinese" | "Japanese";
   /** The note as the build parsed the page's markup (scripts/wiktionary.ts, `noteBlocks`). */
   blocks: NoteBlock[];
 }

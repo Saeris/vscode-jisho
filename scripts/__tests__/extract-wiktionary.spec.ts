@@ -54,6 +54,26 @@ describe("pruning a Wiktextract entry", () => {
     });
   });
 
+  it("keeps a Japanese entry's headword line, which names the reading its etymology is of", () => {
+    // WHY: 国 has two Japanese etymologies, くに from Old Japanese and こく from Middle Chinese; the
+    // reading is only in the headword line, and without it the two read as one word's history.
+    expect(
+      pruneEntry({
+        word: "国",
+        lang: "Japanese",
+        pos: "noun",
+        etymology_text: "From Middle Chinese 國 (MC kwok, “country, nation”).",
+        head_templates: [
+          {
+            name: "ja-noun",
+            args: { 1: "こく" },
+            expansion: "国(こく) • (koku)"
+          }
+        ]
+      })?.head_templates
+    ).toEqual([{ expansion: "国(こく) • (koku)" }]);
+  });
+
   it("keeps a Chinese entry's senses, with what the data build filters them by", () => {
     // WHY: "Meanings in Chinese" is built from these. The build drops a sense by its tags (a
     // dialect, obsolete) and sets its raw tags before it ("of devices"), so both must survive;

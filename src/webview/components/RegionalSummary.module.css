@@ -1,5 +1,5 @@
-/* The kanji page's regional block (spec 22): the same row shape as the page's Stroke order and
-   Component tree links, with the summary line under its name. */
+/* The kanji page's regional link (spec 22): the same row shape as the page's Stroke order and
+   Component tree links. */
 
 .summary {
   display: flex;
@@ -30,25 +30,6 @@
 .summary[data-focus-visible] {
   outline: 1px solid var(--jisho-focus);
   outline-offset: -1px;
-}
-
-.text {
-  display: grid;
-  gap: 2px;
-  min-inline-size: 0;
-}
-
-.line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 6px;
-  color: var(--jisho-muted);
-  font-size: 0.9em;
-}
-
-.key {
-  color: var(--jisho-fg);
-  font-weight: 600;
 }
 
 .chevron {

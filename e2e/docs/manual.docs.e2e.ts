@@ -459,9 +459,7 @@ test("capture: regional forms", async () => {
       .first()
       .click();
     await frame
-      .getByRole("button", {
-        name: /Written differently in Hong Kong and Taiwan/u
-      })
+      .getByRole("button", { name: "Regional forms", exact: true })
       .click();
     await expect(
       frame.getByRole("img", { name: /^Overlaid: 学 \(China and Japan\), 學/u })

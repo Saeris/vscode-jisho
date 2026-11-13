@@ -255,14 +255,14 @@ For a jōyō kanji that China, Hong Kong or Taiwan writes differently, buttons a
 
 A kanji is not always written the way Japan writes it. China simplified many characters, Hong Kong and Taiwan keep traditional forms, and Japan changed some of its own forms in its postwar reform. Sometimes the difference is a different character with its own code point, as with 学 and 學. Sometimes it is one code point drawn differently: China, Hong Kong, Taiwan and Japan each draw 返 their own way.
 
-When other regions write a kanji differently, its page has a **Regional forms** link, after **Stroke order** and **Component tree**, that says which regions and how many forms there are. Select it to open **Regional forms**:
+When other regions write a kanji differently, its page has a **Regional forms** link, after **Stroke order** and **Component tree**. Select it to open the view:
 
 - The forms are overlaid in one place, each in its own ink, so the strokes they share pile up and the strokes only one form has stand out. Rest the pointer on them to fan them apart and light each form in turn, or drag across them to pull them apart.
 - **Separate** sets the forms side by side, each labelled with the regions that write it. **Outline** shows only their outlines.
 - Below, each form has a row: the regions that write it, its code point, its stroke count, and the official character lists it is on. Select a form to copy it.
 - **Readings and frequency** gives each region's reading of its form, Japan's first, then Mandarin and Cantonese, and how common the form is in that region. Each rank names the texts it was counted in, because the four regions' ranks come from different kinds of text and do not compare directly. Rest the pointer on **Mandarin** or **Cantonese** to see how its tones are written: Cantonese readings are in Jyutping, where the small number after a syllable is its tone.
 - **Meanings in Chinese** lists the first meanings English Wiktionary gives the character in Chinese, so you can see where a meaning has moved: 湯 is "broth; soup" in Chinese, and "hot or boiling water", its everyday meaning in Japanese, is marked literary.
-- **From Wiktionary** quotes what English Wiktionary says of the forms: how they relate, such as 学 being simplified from 學, and where the shape came from. Select **More from Wiktionary** under a note for the rest of it, mostly the history of the Chinese word. Each note links to the page it is quoted from.
+- **From Wiktionary** quotes the etymologies English Wiktionary gives, under a heading for each language. **Across languages** says how the forms relate, such as 学 being simplified from 學. **Japanese** says where each Japanese word written with the kanji came from, by its reading: for 国, くに is from Old Japanese and こく from Middle Chinese. **Chinese** says where the shape came from. Select **More from Wiktionary** under a note for the rest of it. Each note links to the page it is quoted from.
 
 Where Japan wrote the kanji differently before the reform, that form appears as **Japan's old form**. Each form is drawn in a font for its region, so the differences you see are the regions' own.
 

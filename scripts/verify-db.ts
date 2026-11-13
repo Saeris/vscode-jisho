@@ -135,6 +135,18 @@ if (isNames) {
   );
   if (typeof learnNote !== "string" || !learnNote.includes("學"))
     fail(`学's Wiktionary note does not name 學: "${String(learnNote)}"`);
+  // Japanese etymologies, by reading: 国's page gives くに (Old Japanese) and こく (Middle Chinese).
+  const countryNote = scalar(
+    "SELECT blocks_json FROM regional_notes WHERE char = '国' AND section = 'Japanese'"
+  );
+  if (
+    typeof countryNote !== "string" ||
+    !countryNote.includes("くに") ||
+    !countryNote.includes("こく")
+  )
+    fail(
+      `国's Japanese note does not give くに and こく: "${String(countryNote)}"`
+    );
   // And its meanings in Chinese: 學's page defines it ("to learn; to study"), where 学's points at it.
   const learnMeanings = scalar(
     "SELECT senses_json FROM regional_meanings WHERE char = '學'"

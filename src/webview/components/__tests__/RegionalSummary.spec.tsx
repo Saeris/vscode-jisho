@@ -103,14 +103,13 @@ const renderSummary = (literal: string): string[] => {
 };
 
 describe("the kanji page's regional forms", () => {
-  it("says who writes the kanji differently, and opens the full view", async () => {
-    // WHY: the block's one job is the answer from Japan's side (who writes 学 otherwise, how many
-    // forms, the old form) and the way into the chart and overprint.
+  it("is a link named like the page's others, opening the full view", async () => {
+    // WHY (reported): the link sits with Stroke order and Component tree, and is named as they are.
+    // It only appears when the forms differ, so a line saying how they differ repeated the view.
     const opened = renderSummary("学");
-    const block = await screen.findByRole("button", {
-      name: /Written differently in Hong Kong and Taiwan · 2 forms · old form 學/u
-    });
-    await userEvent.click(block);
+    const link = await screen.findByRole("button", { name: "Regional forms" });
+    expect(link.textContent).toBe("🌏Regional forms›");
+    await userEvent.click(link);
     expect(opened).toEqual(["学"]);
   });
 
@@ -131,22 +130,18 @@ describe("the kanji page's regional forms", () => {
     // in the full view, so the quiet line would hide it.
     renderSummary("研");
     await expect(
-      screen.findByRole("button", {
-        name: /Written the same way in China, Hong Kong, Taiwan and Japan · old form 硏/u
-      })
+      screen.findByRole("button", { name: "Regional forms" })
     ).resolves.toBeVisible();
+    expect(screen.queryByText(/Written the same way/u)).toBeNull();
   });
 
-  it("names each character Japan writes alike", async () => {
-    // WHY: 予 also stands for 豫; two unnamed lines would not say which character each describes.
+  it("is one link when Japan writes several characters alike", async () => {
+    // WHY: 予 also stands for 豫, which other regions write differently; the view shows both groups,
+    // so the page needs one way in, not one per group.
     renderSummary("予");
-    const block = await screen.findByRole("button");
-    expect(block.textContent).toContain(
-      "予Written the same way in China, Hong Kong, Taiwan and Japan"
-    );
-    expect(block.textContent).toContain(
-      "豫Written differently in China, Hong Kong and Taiwan · 3 forms · old form 豫"
-    );
+    await expect(
+      screen.findAllByRole("button", { name: "Regional forms" })
+    ).resolves.toHaveLength(1);
   });
 
   it("shows nothing for a kanji outside the regions' lists", async () => {

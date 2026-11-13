@@ -6,7 +6,6 @@ import {
   leadLength,
   meaningsOf,
   noteRows,
-  summaryLine,
   usageRows
 } from "../regionalForms";
 
@@ -36,18 +35,6 @@ const back: RegionalGroupDto = {
   glyphSig: "0123",
   cpSig: "0000",
   strokes: [7, 7, 8, 7],
-  tiers: [1, 1, 1, 2],
-  readings: [null, null, null, null],
-  ranks: [null, null, null, null],
-  notes: [],
-  meanings: []
-};
-const one: RegionalGroupDto = {
-  key: "一",
-  chars: ["一", "一", "一", "一"],
-  glyphSig: "0000",
-  cpSig: "0000",
-  strokes: [1, 1, 1, 1],
   tiers: [1, 1, 1, 2],
   readings: [null, null, null, null],
   ranks: [null, null, null, null],
@@ -126,9 +113,11 @@ describe("readings and frequency", () => {
 });
 
 describe("wiktionary's notes", () => {
-  it("puts Japan's form first, and a character's cross-language note before its origin", () => {
-    // WHY: the reader comes from Japan's 学, so "Simplified from 學" must come before 學's account
-    // of its parts, whatever order the database returns them in; and each links to its own section.
+  it("groups the notes by language, Japanese before Chinese, and Japan's form first in each", () => {
+    // WHY: the view gives each language's etymology under its own heading, so a language's notes
+    // must sit together: how the forms relate, then Japanese (this is a Japanese dictionary), then
+    // Chinese, whatever order the database returns them in. Within one, the reader comes from
+    // Japan's 学, so 学 before 學. Each links to its own section.
     const rows = noteRows({
       ...learn,
       notes: [
@@ -140,21 +129,47 @@ describe("wiktionary's notes", () => {
         { char: "学", section: "Chinese", blocks: [para("See 學.")] },
         {
           char: "学",
+          section: "Japanese",
+          blocks: [
+            { kind: "label", text: "がく" },
+            para("From Middle Chinese 學.")
+          ]
+        },
+        {
+          char: "学",
           section: "Translingual",
           blocks: [para("Simplified from 學.")]
         }
       ]
     });
-    expect(rows.map((row) => [row.char, row.section, row.lead])).toEqual([
-      ["学", "Translingual", [para("Simplified from 學.")]],
-      ["学", "Chinese", [para("See 學.")]],
-      ["學", "Chinese", [para("Possibly a compound.")]]
+    expect(rows.map((row) => [row.char, row.section])).toEqual([
+      ["学", "Translingual"],
+      ["学", "Japanese"],
+      ["学", "Chinese"],
+      ["學", "Chinese"]
     ]);
     expect(rows.map((row) => row.url)).toEqual([
       "https://en.wiktionary.org/wiki/%E5%AD%A6#Translingual",
+      "https://en.wiktionary.org/wiki/%E5%AD%A6#Japanese",
       "https://en.wiktionary.org/wiki/%E5%AD%A6#Chinese",
       "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese"
     ]);
+  });
+
+  it("keeps a Japanese etymology's readings with it, and folds the next reading's", () => {
+    // WHY: a label without its etymology says nothing; 国's こく waits behind More, with its label.
+    const blocks: NoteBlock[] = [
+      { kind: "label", text: "くに" },
+      para("From Old Japanese."),
+      { kind: "label", text: "こく" },
+      para("From Middle Chinese 國.")
+    ];
+    const [row] = noteRows({
+      ...learn,
+      notes: [{ char: "学", section: "Japanese", blocks }]
+    });
+    expect(row?.lead).toEqual(blocks.slice(0, 2));
+    expect(row?.more).toEqual(blocks.slice(2));
   });
 
   it("writes each character in the shape of the region it was quoted for", () => {
@@ -237,25 +252,5 @@ describe("meanings in Chinese", () => {
       meaningsOf({ ...circle, meanings: circle.meanings.slice(0, 1) })?.char
     ).toBe("円");
     expect(meaningsOf({ ...circle, meanings: [] })).toBeNull();
-  });
-});
-
-describe("the kanji page's line", () => {
-  it("names the regions that write the kanji differently from Japan", () => {
-    // WHY: the line answers the reader's question from the Japanese side: who writes this
-    // differently, how many forms there are, and what Japan wrote before the reform.
-    expect(summaryLine(learn)).toBe(
-      "Written differently in Hong Kong and Taiwan · 2 forms · old form 學"
-    );
-    expect(summaryLine(back)).toBe(
-      "Written differently in China, Hong Kong and Taiwan · 4 forms"
-    );
-  });
-
-  it("says plainly when every region writes it the same way", () => {
-    // WHY: most kanji look the same everywhere; that is worth one quiet line, not a chart.
-    expect(summaryLine(one)).toBe(
-      "Written the same way in China, Hong Kong, Taiwan and Japan"
-    );
   });
 });

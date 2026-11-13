@@ -22,17 +22,19 @@ import type { RegionalGroup } from "./regional.ts";
 
 export const WIKTIONARY_TAG = "wiktionary-2026-11-13";
 export const WIKTIONARY_SHA256 =
-  "e397e9ec6f4641c83617f02daaddf2f0552084cbc7650924657b0d6ceadb46cf";
+  "7d8c248eaadcff7a1b207c037a53debdc6205c56829e0d4b17facb62507fe790";
 const WIKTIONARY_URL = `https://github.com/Saeris/vscode-jisho/releases/download/${WIKTIONARY_TAG}/${ASSET_NAME}`;
 
 /** The section of the page a note is from. */
-export type NoteSection = "Translingual" | "Chinese";
+export type NoteSection = "Translingual" | "Chinese" | "Japanese";
 
 export interface Wiktionary {
   /**
    * Each character's notes by section: Translingual says how its forms relate across languages
    * (学: "Simplified from 學 … in simplified Chinese and Japanese shinjitai"), Chinese where the
-   * shape came from (學: "Possibly a phono-semantic compound …").
+   * shape came from (學: "Possibly a phono-semantic compound …"), and Japanese where each of its
+   * Japanese words came from, labelled by reading (国: くに from Old Japanese, こく from Middle
+   * Chinese).
    */
   notes: Map<string, Partial<Record<NoteSection, NoteBlock[]>>>;
   /** Each character's meanings in Chinese, as `chineseSenses` keeps them. */
@@ -241,6 +243,10 @@ export const parseWiktionary = (
 ): Wiktionary => {
   const notes = new Map<string, Partial<Record<NoteSection, NoteBlock[]>>>();
   const senses = new Map<string, NonNullable<WiktionaryEntry["senses"]>>();
+  const japanese = new Map<
+    string,
+    Array<{ text: string; readings: Set<string> }>
+  >();
   const reformPairs: Array<[string, string]> = [];
   const links = new Map<string, Set<string>>();
   for (const entry of entries) {
@@ -265,6 +271,24 @@ export const parseWiktionary = (
     // Every Chinese entry's senses, in the page's order (one entry per etymology); filtered below.
     if (lang === "Chinese" && entry.senses !== undefined)
       senses.set(word, [...(senses.get(word) ?? []), ...entry.senses]);
+    // Every Japanese word's etymology on the page, with the readings it is the history of: one entry
+    // per reading and part of speech, so 後's あと repeats its text as noun, adverb and conjunction.
+    // Left out: an entry that only points at another spelling, and a given name, whose readings
+    // (学: さとる, まなぶ) are names rather than the character's words.
+    if (
+      lang === "Japanese" &&
+      entry.etymology_text !== undefined &&
+      entry.redirects === undefined &&
+      entry.pos !== "name"
+    ) {
+      const held = japanese.get(word) ?? [];
+      const readings = japaneseReadings(entry);
+      const same = held.find(({ text }) => text === entry.etymology_text);
+      if (same === undefined)
+        held.push({ text: entry.etymology_text, readings: new Set(readings) });
+      else for (const reading of readings) same.readings.add(reading);
+      japanese.set(word, held);
+    }
     // Japan's labels are on the character entry: 学 lists 學 as its kyūjitai, 學 lists 学 as its
     // shinjitai. Both directions name the same pair; the cross-check dedupes.
     if (lang === "Japanese" && entry.pos === "character")
@@ -273,6 +297,18 @@ export const parseWiktionary = (
         if (tags.includes("shinjitai")) reformPairs.push([form, word]);
       }
   }
+  for (const [word, etymologies] of japanese) {
+    // Each etymology under the label of its readings, in the page's order.
+    const blocks = etymologies.flatMap(({ text, readings }): NoteBlock[] => {
+      const body = noteBlocks(text);
+      if (body === null) return [];
+      return readings.size === 0
+        ? body
+        : [{ kind: "label", text: [...readings].join("、") }, ...body];
+    });
+    if (blocks.length > 0)
+      notes.set(word, { ...notes.get(word), Japanese: blocks });
+  }
   const meanings = new Map<string, ChineseSense[]>();
   for (const [word, all] of senses) {
     const kept = chineseSenses(all);
@@ -280,6 +316,18 @@ export const parseWiktionary = (
   }
   return { notes, meanings, reformPairs, links };
 };
+
+/** Kana in brackets, as a Japanese headword line gives its reading: "国(くに) • (kuni)". */
+const KANA_READING = /\(([\p{Script=Hiragana}\p{Script=Katakana}ー]+)\)/gu;
+
+/** The readings a Japanese entry is of, from its headword lines: 国's two nouns give くに and こく. */
+export const japaneseReadings = (entry: WiktionaryEntry): string[] => [
+  ...new Set(
+    (entry.head_templates ?? []).flatMap(({ expansion }) =>
+      Array.from(expansion.matchAll(KANA_READING), ([, kana]) => kana)
+    )
+  )
+];
 
 /** What the cross-check found, in a stable order. */
 export interface CrossCheck {

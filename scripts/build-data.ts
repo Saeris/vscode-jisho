@@ -1791,10 +1791,10 @@ const FLOORS = {
   regionalGroups: 7500,
   regionalOldForms: 320,
   /**
-   * 6,458 Wiktionary notes on the groups' characters (2026-11-13; 6,469 before notes that were only
-   * a pronunciation table or bare labels were dropped).
+   * 8,027 Wiktionary notes on the groups' characters (2026-11-13): 111 Translingual, 1,569 Japanese
+   * and 6,347 Chinese.
    */
-  regionalNotes: 6000,
+  regionalNotes: 7500,
   /** 6,801 of the groups' characters with meanings in Chinese (2026-11-13). */
   regionalMeanings: 6300,
   /** 743,538 names — the separate JMnedict build. */
