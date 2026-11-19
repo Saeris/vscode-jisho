@@ -7,6 +7,23 @@
 
 
 
+
+## 0.5.0
+<sub>2026-11-19</sub>
+
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **See how China, Hong Kong, Taiwan and Japan write a kanji.** A kanji's page now says when other regions write it differently: 学 is 學 in Hong Kong and Taiwan, and 返 is one character that each region draws its own way. Select that line to open **Regional forms**, where the forms are overlaid in one place so the strokes that differ stand out. Rest the pointer on them to fan them apart, drag across them to pull them apart, or choose **Separate** to set them side by side with the regions that write each one. A chart lists each form's code point, its stroke count (Taiwan's official count where it differs, such as 8 strokes for 返), the official character lists it is on, and Japan's form from before its postwar reform. Each form is drawn in a font for its region, so the differences you see are the regions' own. The dictionary updates once to add this.
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Play stroke order as China and Taiwan write it.** For a jōyō kanji that other regions write differently, the stroke-order page now has a button per region's drawing. China writes 右 and 有 with the same shapes as Japan but starting with a different stroke, and Taiwan writes 學 in its own order; choose a region to play its order. Hong Kong uses the drawing of the region whose form it shares. Where no drawing exists, such as Taiwan's 返, the page says so instead of showing another region's order.
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Hear and weigh a kanji across regions.** The Regional forms view now gives each region's reading of its form, Mandarin for China and Taiwan and Cantonese for Hong Kong, beside Japan's own readings, and how common the form is in each region. 学 is xué in Mandarin, hok6 in Cantonese, and among the most common characters everywhere. Each rank names the texts it was counted in (modern Chinese texts, Cantonese texts, Taiwanese news and social media, Japanese Wikipedia), because the four do not compare directly. A character with several Mandarin readings lists them all, most common first.
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Read where a form came from.** The Regional forms view now quotes English Wiktionary on a kanji's forms: how they relate, and where the shape came from. For 学 it says the form was simplified from 學, then how 學's parts came together. Each note links to the section of the Wiktionary page it is quoted from.
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Browse how the regions differ.** The Kanji tab has a new **Regional differences** list: every character the Regional forms view covers, each row its forms overlaid and the regions that write each. Search it by character, reading or code point, and filter it by how the regions differ (such as Japan alone), by official list or by stroke count, sorted by frequency, stroke count or code point in a region of your choice. Selecting a row opens its Regional forms.
+- [#49](https://github.com/Saeris/vscode-jisho/pull/49)  *(minor)* Thanks [@Saeris](https://github.com/Saeris)!
+  **Compare a kanji across languages in one place.** The Regional forms view now has a **Details** section. It starts with how the forms relate, then gives Japanese and Chinese each their pronunciation and frequency, meaning, and etymology. Compare the kanji's meanings with the meanings English Wiktionary gives it in Chinese: 湯 is "broth; soup" in Chinese, and "hot or boiling water" is marked literary. Read where each Japanese word written with the kanji came from, by its reading: 国's くに is from Old Japanese, こく from Middle Chinese. Select a kanji in a quote to open its page. Select a form in the chart to copy it. Cantonese tone numbers are raised and explained. On a kanji's page, **Regional forms** is now a plain link after **Stroke order** and **Component tree**.
+
 ## 0.4.0
 <sub>2026-11-10</sub>
 
