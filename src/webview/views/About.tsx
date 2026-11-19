@@ -138,6 +138,50 @@ export const About = (): React.ReactElement => {
             ) for the jōyō kanji, with a component-overlap heuristic filling in
             the rest — an approximation, not curated confusable pairs.
           </p>
+          <p>
+            Regional forms follow the method of{" "}
+            <a href="https://github.com/sxzz/hanji">hanji</a> (© Kevin Deng,
+            MIT): which forms belong together comes from{" "}
+            <a href="https://github.com/BYVoid/OpenCC">OpenCC</a> (Apache 2.0),
+            whether two regions draw a form alike from the character maps of{" "}
+            <a href="https://github.com/adobe-fonts/source-han-sans">
+              Source Han Sans and Serif
+            </a>{" "}
+            (© Adobe, SIL Open Font License), and the regions&apos; lists and
+            stroke counts from the{" "}
+            <a href="https://www.unicode.org/charts/unihan.html">
+              Unihan database
+            </a>{" "}
+            (© Unicode, Inc.) and, for Taiwan,{" "}
+            <a href="https://www.cns11643.gov.tw/">
+              CNS 11643 Chinese Standard Interchange Code
+            </a>{" "}
+            (National Development Council, Taiwan, Open Government Data License
+            1.0). Each region's frequency ranks come from its own corpus:
+            China's from{" "}
+            <a href="https://lingua.mtsu.edu/chinese-computing/statistics/">
+              Jun Da&apos;s Modern Chinese Character Frequency List
+            </a>{" "}
+            (© Jun Da), Hong Kong&apos;s from{" "}
+            <a href="https://words.hk/faiman/analysis/">words.hk</a> (public
+            domain), Taiwan&apos;s from the{" "}
+            <a href="https://teric.naer.edu.tw/wSite/ct?ctNode=645&mp=teric_b&xItem=2068770">
+              National Academy for Educational Research
+            </a>{" "}
+            (open data) and Japan&apos;s from{" "}
+            <a href="https://github.com/scriptin/kanji-frequency">
+              kanji-frequency
+            </a>{" "}
+            (CC BY 4.0). The etymologies of the forms and their meanings in
+            Chinese are quoted from{" "}
+            <a href="https://en.wiktionary.org/">English Wiktionary</a> (CC
+            BY-SA 4.0), extracted by{" "}
+            <a href="https://github.com/tatuylonen/wiktextract">Wiktextract</a>{" "}
+            (<a href="https://kaikki.org/">kaikki.org</a>). The forms are drawn
+            in subsets of{" "}
+            <a href="https://github.com/notofonts/noto-cjk">Noto Sans CJK</a> (©
+            Adobe, SIL Open Font License), renamed Jisho Sans.
+          </p>
           {meta ? (
             <table className={styles.metaTable}>
               <tbody>

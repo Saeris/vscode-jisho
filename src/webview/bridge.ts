@@ -283,6 +283,19 @@ export const getComponentTree = async (
 ): Promise<ResponseOf<"getComponentTree">> =>
   request("getComponentTree", { literal });
 
+export const getRegionalForms = async (
+  literal: string
+): Promise<ResponseOf<"getRegionalForms">> =>
+  request("getRegionalForms", { literal });
+
+export const getRegionalStrokes = async (
+  literal: string
+): Promise<ResponseOf<"getRegionalStrokes">> =>
+  request("getRegionalStrokes", { literal });
+
+export const browseRegional = async (): Promise<ResponseOf<"browseRegional">> =>
+  request("browseRegional", {});
+
 export const lookupRadicals = async (
   selected: string[]
 ): Promise<ResponseOf<"lookupRadicals">> =>

@@ -36,6 +36,12 @@ import type { NamesDictionary } from "./names";
 import { clearRecent, readRecent, recordRecent } from "./recentSearches";
 import { segment, warmTokenizer } from "./tokenizer";
 import { CLASSIFIER_BY_ID } from "../shared/classifiers";
+import { lazy } from "../shared/lazy";
+import {
+  regionalDrawings,
+  type DrawingSet,
+  type StrokeManifest
+} from "./regionalStrokes";
 import type {
   Answer,
   DictionaryStatusPush,
@@ -512,6 +518,7 @@ export class JishoViewProvider
           ? this.#browseNames(request)
           : words.browse(request),
       getStrokeSvg: async (request) => this.#strokeSvg(request),
+      getRegionalStrokes: async (request) => this.#regionalStrokes(request),
       openSettings,
       copyText,
       reportCrash: async ({ message, stack }) => {
@@ -574,30 +581,38 @@ export class JishoViewProvider
   async #strokeSvg(
     request: RequestOf<"getStrokeSvg">
   ): Promise<Answer<"getStrokeSvg">> {
-    let svg: string | null = null;
+    // Two directories because the two sets carry different licences (Arphic PL vs LGPL — see
+    // build-strokes.ts). A literal belongs to exactly one of them, so trying both in turn keeps
+    // that split invisible to callers rather than making every caller classify the character.
+    return {
+      svg: await this.#readDrawing(["kanji-svgs", "kana-svgs"], request.literal)
+    };
+  }
+
+  /** One drawing from the first of `dirs` (under `assets/`) that has it, or null. */
+  async #readDrawing(
+    dirs: readonly string[],
+    char: string
+  ): Promise<string | null> {
     // Only the unified drawing ships (its compat twin would collide on a normalizing filesystem —
     // see build-strokes.ts), so fold compat codepoints onto it rather than 404 the 37 Kanjidic
     // literals that use them.
-    const literal = request.literal.normalize("NFC");
+    const literal = char.normalize("NFC");
     // The literal names a file, so insist on exactly one code point before touching the filesystem.
-    if (Array.from(literal).length === 1) {
-      // TWO candidate names, because the drawings are stored under different names in the two places
-      // this code runs:
-      //
-      //  - In the repo (F5 development) they keep their readable literal names — `水.svg` is what a
-      //    contributor greps for.
-      //  - In the .vsix they are renamed to their decimal codepoint by package-platforms.ts, because
-      //    the Marketplace rejected non-ASCII entry names as duplicate dictionary keys.
-      //
-      // Codepoint first: that is what ships, so the packaged extension finds its file on the first
-      // try and the literal is only reached during development.
-      const names = [`${literal.codePointAt(0)}.svg`, `${literal}.svg`];
-      // Two directories because the two sets carry different licences (Arphic PL vs LGPL — see
-      // build-strokes.ts). A literal belongs to exactly one of them, so trying both in turn keeps
-      // that split invisible to callers rather than making every caller classify the character.
-      for (const [dir, name] of ["kanji-svgs", "kana-svgs"].flatMap((d) =>
-        names.map((n) => [d, n] as const)
-      )) {
+    if (Array.from(literal).length !== 1) return null;
+    // TWO candidate names, because the drawings are stored under different names in the two places
+    // this code runs:
+    //
+    //  - In the repo (F5 development) they keep their readable literal names — `水.svg` is what a
+    //    contributor greps for.
+    //  - In the .vsix they are renamed to their decimal codepoint by package-platforms.ts, because
+    //    the Marketplace rejected non-ASCII entry names as duplicate dictionary keys.
+    //
+    // Codepoint first: that is what ships, so the packaged extension finds its file on the first
+    // try and the literal is only reached during development.
+    const names = [`${literal.codePointAt(0)}.svg`, `${literal}.svg`];
+    for (const dir of dirs)
+      for (const name of names) {
         try {
           const uri = vscode.Uri.joinPath(
             this.#context.extensionUri,
@@ -605,16 +620,56 @@ export class JishoViewProvider
             dir,
             name
           );
-          svg = new TextDecoder().decode(
+          return new TextDecoder().decode(
             await vscode.workspace.fs.readFile(uri)
           );
-          break;
         } catch {
-          svg = null; // not in this set; try the next
+          // not in this set; try the next
         }
       }
-    }
-    return { svg };
+    return null;
+  }
+
+  /**
+   * Which set draws China's and Taiwan's forms (spec 22, phase 4), read once. It ships beside the
+   * drawings it describes, so the two cannot disagree. A failed read is kept: the file is part of
+   * the package, and a package without it will not grow one.
+   */
+  readonly #strokeManifest = lazy(
+    async (): Promise<StrokeManifest> => {
+      const uri = vscode.Uri.joinPath(
+        this.#context.extensionUri,
+        "assets",
+        "regional-strokes.json"
+      );
+      const manifest: StrokeManifest = JSON.parse(
+        new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))
+      );
+      return manifest;
+    },
+    { onFailure: "keep" }
+  );
+
+  /** Stroke order by region: the drawings of the kanji's own regional group, Japan's first. */
+  async #regionalStrokes(
+    request: RequestOf<"getRegionalStrokes">
+  ): Promise<Answer<"getRegionalStrokes">> {
+    const group = (
+      await (await this.#dict()).getRegionalForms(request.literal)
+    ).at(0);
+    if (group === undefined) return { drawings: [] };
+    const dirs: Record<DrawingSet, string> = {
+      ja: "kanji-svgs",
+      hans: "hans-svgs",
+      hant: "hant-svgs"
+    };
+    return {
+      drawings: await regionalDrawings(
+        group,
+        await this.#strokeManifest.get(),
+        async ({ set, char }) => this.#readDrawing([dirs[set]], char)
+      )
+    };
   }
 
   async dispose(): Promise<void> {

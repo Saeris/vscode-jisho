@@ -260,6 +260,69 @@ CREATE TABLE radicals (
   position     TEXT
 );
 
+-- ── Regional forms (spec 22) ────────────────────────────────────────────────
+-- One character as China, Hong Kong, Taiwan and Japan write it: 学 in China and Japan, 學 in Hong
+-- Kong and Taiwan, and 學 also Japan's pre-reform form. Built by scripts/regional.ts (method adapted
+-- from hanji, MIT). Not limited to kanji_characters: a group whose Japanese form we have no entry for
+-- still answers a lookup by its Chinese form.
+CREATE TABLE regional_groups (
+  id        INTEGER PRIMARY KEY,
+  key       TEXT NOT NULL UNIQUE, -- the group's name, usually its traditional form
+  -- Which forms share a GLYPH, as a partition of (cn, hk, tw, jp), plus a fifth digit for the old form
+  -- when there is one: '0123' is four shapes, '0010' Taiwan's alone differs. Same digits, same glyph.
+  -- Code points cannot say this: 返 is one code point written four ways.
+  glyph_sig TEXT NOT NULL,
+  cp_sig    TEXT NOT NULL         -- the same partition of (cn, hk, tw, jp) by code point
+);
+
+-- One row per region, plus 'old' for Japan's pre-reform form (眞 for 真).
+CREATE TABLE regional_forms (
+  group_id INTEGER NOT NULL REFERENCES regional_groups(id),
+  region   TEXT NOT NULL,          -- 'cn' | 'hk' | 'tw' | 'jp' | 'old'
+  char     TEXT NOT NULL,
+  -- The region's own count where it has one (Taiwan from CNS 11643, Japan from Kanjidic2), so 返 is
+  -- 8 strokes in Taiwan and 7 in Japan. NULL when no source counts the form.
+  strokes  INTEGER,
+  -- The form's level on the region's list: China 1-3 (its 2013 table), Hong Kong 1, Taiwan 1
+  -- (common) or 2 (secondary), Japan 1 (jōyō) or 2 (kyōiku). 0: the list does not enter the form, and
+  -- always for 'old'.
+  tier     INTEGER NOT NULL,
+  -- How the region reads its form (spec 22, phase 5): Mandarin for China and Taiwan, Cantonese
+  -- (Jyutping) for Hong Kong, comma-separated when a character has several. NULL for Japan, whose
+  -- readings are kanji_characters', and for the old form.
+  reading  TEXT,
+  -- The form's frequency rank in its region's corpus, 1 the most frequent: China, modern Chinese
+  -- texts (Jun Da); Hong Kong, words.hk; Taiwan, NAER 2023; Japan, Japanese Wikipedia. Four corpora,
+  -- never one scale. NULL when the corpus does not rank the form, and for the old form.
+  freq     INTEGER,
+  PRIMARY KEY (group_id, region)
+) WITHOUT ROWID;
+
+CREATE INDEX idx_regional_forms_char ON regional_forms(char);
+
+-- What English Wiktionary says of a character in a regional group (spec 22, phase 6): its
+-- Translingual section on how the forms relate (学: "Simplified from 學"), its Chinese section on
+-- where the shape came from, and its Japanese section on where each Japanese word written with it came
+-- from, labelled by reading. Keyed by character, since one can be a form in several groups. The text
+-- is CC BY-SA 4.0, so the view shows it with a credit and a link to the character's page.
+CREATE TABLE regional_notes (
+  char        TEXT NOT NULL,
+  -- 'Translingual' | 'Chinese' | 'Japanese': the page's section the note is from
+  section     TEXT NOT NULL,
+  -- The note as paragraphs, sense labels and nested lists, parsed from the page's wiki markup at
+  -- build time (NoteBlock in src/shared/messages.ts).
+  blocks_json TEXT NOT NULL,
+  PRIMARY KEY (char, section)
+) WITHOUT ROWID;
+
+-- What the character means in Chinese, from the same pages and licence as regional_notes: the first
+-- few living, standard senses of its Chinese section (ChineseSense in src/shared/messages.ts). 娘
+-- reads "woman; mother" here, where Japanese reads it "daughter".
+CREATE TABLE regional_meanings (
+  char        TEXT PRIMARY KEY,
+  senses_json TEXT NOT NULL
+) WITHOUT ROWID;
+
 -- Denormalized, indexed search surface. One row per searchable term of a word OR a kanji so a
 -- single indexed range scan covers Japanese (kanji/kana), English (gloss), and Hepburn romaji.
 --   kind ∈ ('kanji', 'kana', 'gloss', 'romaji', 'word', 'char',  -- word entries

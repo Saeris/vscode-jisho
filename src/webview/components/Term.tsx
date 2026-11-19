@@ -9,13 +9,18 @@ import styles from "./Term.module.css";
  *
  * Conjugation-form labels are NOT here: they moved to `FORM_NOTES` in shared/grammar.ts, where the
  * hover can reach them too, and where each gained a worked example. This map keeps the terms that
- * are dictionary jargon rather than grammar (On/Kun/Nanori).
+ * are dictionary jargon rather than grammar (On/Kun/Nanori, and how the regional forms view writes
+ * Chinese readings).
  */
 const GLOSSARY: Record<string, string | undefined> = {
   On: "On'yomi — the reading derived from the original Chinese pronunciation, used mostly in compound words.",
   Kun: "Kun'yomi — the native Japanese reading, used when the kanji stands alone or with kana endings.",
   Nanori:
-    "Readings used only in names (people and places), often differing from the on/kun readings."
+    "Readings used only in names (people and places), often differing from the on/kun readings.",
+  Mandarin:
+    "Written in pinyin. The mark over the vowel is the tone: ā high and level, á rising, ǎ dipping, à falling.",
+  Cantonese:
+    "Written in Jyutping. The small number after each syllable is its tone, one of six: 1 is high, 6 is low."
 };
 
 interface TermProps {

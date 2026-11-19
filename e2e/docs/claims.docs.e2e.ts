@@ -14,7 +14,13 @@
  * are (see docs/specs/19-documentation-drift-tests.md, which also records the claims that are NOT
  * checkable, so this suite is not mistaken for total coverage).
  */
-import { expect, test, type FrameLocator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type FrameLocator,
+  type Locator,
+  type Page
+} from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { launchVSCode, type Launched } from "../launch";
@@ -22,7 +28,9 @@ import {
   fillSearch,
   hoverEditorWord,
   jishoFrame,
+  leaveKanjiTabAtRoot,
   openJishoSidebar,
+  openRegionalDifferences,
   returnToSearch
 } from "../webview";
 import { assertFullDictionary } from "./capture";
@@ -148,6 +156,208 @@ test("claim: kanji appear in their own section", async () => {
   const section = jisho.getByRole("listbox", { name: /kanji results/i });
   await expect(section).toBeVisible({ timeout: 20_000 });
   await expect(section.getByRole("option").first()).toContainText("食");
+});
+
+test("claim: a kanji's page says who writes it differently, and the forms are labelled", async () => {
+  // README: "its page has a Regional forms link, after Stroke order and Component tree." /
+  // "Separate sets the forms side by side, each labelled with the regions that write it." / "that
+  // form appears as Japan's old form" / "Each form is drawn in a font for its region". / "Select a
+  // form to copy it."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "学");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  const links = jisho.getByRole("button", {
+    name: /^(?:Stroke order|Component tree|Regional forms)/u
+  });
+  await expect(links.first()).toHaveText(/Stroke order/u);
+  await expect(links.last()).toHaveText(/^🌏Regional forms/u);
+  await jisho
+    .getByRole("button", { name: "Regional forms", exact: true })
+    .click();
+  // The clipboard is not readable from the workbench, so check what the form would copy.
+  await expect(
+    jisho.getByRole("button", {
+      name: "Copy 學 (Hong Kong, Taiwan and Japan's old form)"
+    })
+  ).toHaveAttribute("data-value", "學");
+  await jisho.getByRole("radio", { name: "Separate" }).click();
+  const forms = jisho.getByRole("img", { name: /^Side by side/u });
+  await expect(forms).toContainText("学China and Japan");
+  await expect(forms).toContainText("學Hong Kong, Taiwan and Japan's old form");
+  const loaded = await forms.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts]
+      .filter((face) => face.status === "loaded")
+      .map((face) => face.family.replaceAll('"', ""));
+  });
+  expect(loaded).toEqual(
+    expect.arrayContaining(["Jisho Sans SC", "Jisho Sans HK"])
+  );
+});
+
+/** Open a kanji's Regional forms view from the search. */
+const openRegionalForms = async (literal: string): Promise<void> => {
+  await returnToSearch(jisho);
+  await fillSearch(jisho, literal);
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho
+    .getByRole("button", { name: "Regional forms", exact: true })
+    .click();
+};
+
+/** A language's entry under Details: the section its heading opens. */
+const languageEntry = (language: string): Locator =>
+  jisho
+    .getByRole("heading", { name: language, exact: true, level: 4 })
+    .locator("..");
+
+test("claim: each region's reading and rank, with the texts it was counted in", async () => {
+  // README: "Pronunciation and frequency gives each region's reading of its form, Japan's under
+  // Japanese and the Mandarin and Cantonese readings under Chinese, and how common the form is in
+  // that region. Each rank names the texts it was counted in" / "Rest the pointer on Mandarin or
+  // Cantonese to see how its tones are written".
+  await openRegionalForms("学");
+  await expect(jisho.getByRole("heading", { name: "Details" })).toBeVisible();
+  const japanese = languageEntry("Japanese");
+  const chinese = languageEntry("Chinese");
+  await expect(japanese).toContainText("(Japanese)");
+  await expect(japanese).toContainText(/on Japanese Wikipedia/u);
+  for (const reading of ["(Mandarin)", "(Cantonese)"])
+    await expect(chinese).toContainText(reading);
+  for (const corpus of [
+    /in modern Chinese texts/u,
+    /in Cantonese texts \(words\.hk\)/u,
+    /in news and social media \(2023\)/u
+  ])
+    await expect(chinese).toContainText(corpus);
+  await chinese.getByRole("button", { name: "Cantonese" }).hover();
+  await expect(jisho.getByRole("tooltip")).toContainText(
+    "small number after each syllable is its tone"
+  );
+});
+
+test("claim: the kanji's meanings beside its meanings in Chinese", async () => {
+  // README: "Meaning gives the kanji's meanings under Japanese, and the first meanings English
+  // Wiktionary gives it under Chinese … 湯 is "broth; soup" in Chinese, and "hot or boiling water",
+  // its everyday meaning in Japanese, is marked literary."
+  await openRegionalForms("湯");
+  await expect(languageEntry("Japanese")).toContainText(/Meaning.*hot water/u);
+  const meanings = languageEntry("Chinese").locator("ol");
+  await expect(meanings).toContainText("hot or boiling water · literary");
+  await expect(meanings).toContainText("broth; stock");
+  await expect(meanings).toContainText("soup");
+});
+
+test("claim: Details quotes Wiktionary, each quote linked to its page and its kanji to theirs", async () => {
+  // README: "Details starts with Across languages, how the forms relate, such as 学 being simplified
+  // from 學. Then it has an entry for Japanese and one for Chinese" / "Under Chinese, it says where
+  // the shape came from." / "Each quote links to the Wiktionary page it is from. Select a kanji in a
+  // quote to open its page."
+  await openRegionalForms("学");
+  await expect(
+    jisho.getByRole("heading", { level: 4 }),
+    "Across languages, then an entry per language, Japanese before Chinese"
+  ).toHaveText(["Across languages", "Japanese", "Chinese"]);
+  const across = languageEntry("Across languages");
+  await expect(across).toContainText(/Simplified from 學/u);
+  // 學's own page gives where the shape came from, whole: the history is not folded away.
+  const origin = languageEntry("Chinese").locator("blockquote", {
+    has: jisho.getByText(/phono-semantic compound/u)
+  });
+  await expect(origin.getByText(/derivation of 覺/u)).toBeVisible();
+  await expect(
+    origin.getByRole("link", { name: "Chinese section on Wiktionary" })
+  ).toHaveAttribute("href", "https://en.wiktionary.org/wiki/%E5%AD%B8#Chinese");
+  await across.getByRole("link", { name: "學", exact: true }).click();
+  await expect(jisho.getByRole("button", { name: "Copy 學" })).toBeVisible();
+});
+
+test("claim: each Japanese word's etymology, by its reading", async () => {
+  // README: "Under Japanese, it says where each Japanese word written with the kanji came from, by
+  // its reading: for 国, くに is from Old Japanese and こく from Middle Chinese."
+  await openRegionalForms("国");
+  const japanese = languageEntry("Japanese").locator("blockquote", {
+    has: jisho.getByText("くに", { exact: true })
+  });
+  await expect(japanese.getByText(/^From Old Japanese/u)).toBeVisible();
+  await expect(japanese.getByText("こく", { exact: true })).toBeVisible();
+  await expect(japanese.getByText(/^From Middle Chinese/u)).toBeVisible();
+  await expect(
+    japanese.getByRole("link", { name: "Japanese section on Wiktionary" })
+  ).toHaveAttribute(
+    "href",
+    "https://en.wiktionary.org/wiki/%E5%9B%BD#Japanese"
+  );
+});
+
+test("claim: Regional differences lists the characters, searched, filtered and sorted", async () => {
+  // README: "Regional differences, below the Kanji tab's lists, lists every character that Regional
+  // forms covers" / "Search by character, reading or code point (U+5B66) … gaku finds 学" /
+  // "Filters chooses how the regions differ, such as Japan alone differs, which official lists the
+  // character is on, a stroke range, and the order: frequency, stroke count or code point, each in
+  // one region." / "Selecting a row opens its Regional forms."
+  await openRegionalDifferences(jisho);
+  const list = jisho.getByRole("listbox", { name: "Regional differences" });
+  const learn = list.getByRole("option", {
+    name: "学, China and Japan; 學, Hong Kong, Taiwan and Japan's old form"
+  });
+  const search = jisho.getByRole("searchbox", {
+    name: "Search the regional forms"
+  });
+  for (const query of ["学", "U+5B66", "gaku"]) {
+    await search.fill(query);
+    await expect(learn).toBeVisible();
+  }
+  await search.fill("");
+  await jisho.getByRole("button", { name: /^Filters/u }).click();
+  await jisho.getByRole("radio", { name: "Two forms" }).click();
+  await jisho.getByRole("radio", { name: "Japan alone differs" }).click();
+  for (const order of ["Frequency", "Strokes", "Code point"])
+    await expect(jisho.getByRole("radio", { name: order })).toBeVisible();
+  await expect(jisho.getByRole("button", { name: "Jōyō kanji" })).toBeVisible();
+  await expect(
+    jisho.getByRole("slider", { name: /Fewest strokes/u })
+  ).toBeAttached();
+  await jisho.getByRole("radio", { name: "Strokes" }).click();
+  await list.getByRole("option").first().click();
+  await expect(
+    jisho.getByRole("heading", { name: "乃 regional forms" })
+  ).toBeVisible();
+  await leaveKanjiTabAtRoot(jisho);
+});
+
+test("claim: stroke order can be played as each region writes it", async () => {
+  // README: "buttons above the player choose whose order to play. China writes 右 with the same
+  // shape as Japan but in another order, so the two have separate drawings. Where a region has no
+  // drawing, the page says so instead of showing another region's order."
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "右");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await expect(jisho.getByRole("radio", { name: "Japan" })).toBeChecked();
+  await expect(jisho.getByRole("radio", { name: /^China/u })).toBeVisible();
+  await returnToSearch(jisho);
+  await fillSearch(jisho, "返");
+  await jisho
+    .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+    .first()
+    .click();
+  await jisho.getByRole("button", { name: /stroke order/i }).click();
+  await jisho.getByRole("radio", { name: "Hong Kong and Taiwan" }).click();
+  await expect(
+    jisho.getByText(
+      /There is no stroke-order drawing for 返 as Hong Kong and Taiwan write it/u
+    )
+  ).toBeVisible();
 });
 
 /* ── Reading a word ──────────────────────────────────────────────────────── */

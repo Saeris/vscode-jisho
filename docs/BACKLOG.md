@@ -666,6 +666,14 @@ Full spec: [specs/16-tabbed-navigation-and-browse.md](specs/16-tabbed-navigation
 
 **Kana:** `GOJUON_ROWS` is a flat list for the jump rail; the grid needs its own small static table (5 columns, dakuten/handakuten, digraphs). One toggle, no drill-down.
 
+## Kanji across regions
+
+### 56. Regional forms — compare a kanji across Japan, China, Hong Kong and Taiwan (feature — large)
+
+Full plan: [specs/22-regional-forms.md](specs/22-regional-forms.md). Decisions made with the user on 2026-11-10; phase 0 (spikes) done the same day, phase 1 (data) next.
+
+A kanji seen outside a Japanese textbook is often not Japan's form: simplified or traditional Chinese, or Japan's own pre-reform forms (kyūjitai). Fold most of [hanji](https://github.com/sxzz/hanji) (code MIT, used as a reference rather than copied) into the kanji pages: a stacked comparison of each region's form, a chart of code points, stroke counts and official list status, stroke order by region, Mandarin and Cantonese readings and frequency by region, notes from Wiktionary on where the shape came from, and a browse with hanji's filters. Korea, and lookup from a form seen in the wild, come later.
+
 ## Suggested sequencing
 
 **Superseded — every item this section ordered is shipped.** It read "1. #1 (relevance ranking) — highest leverage, do this first" long after #1 shipped in M2, which is exactly the trap the numbering warning at the top of this file exists to prevent. Kept as a record of the original M1-era plan; do not read it as a plan.

@@ -257,6 +257,112 @@ export interface ComponentTreeDto {
   children: ComponentTreeDto[];
 }
 
+/**
+ * One character as China, Hong Kong, Taiwan and Japan write it (spec 22): the forms, which of them
+ * share a glyph or a code point, each form's stroke count and list level, and Japan's old form.
+ */
+export interface RegionalGroupDto {
+  /** The group's name, usually its traditional form. */
+  key: string;
+  /** The forms of China, Hong Kong, Taiwan and Japan, in that order. */
+  chars: string[];
+  /** Japan's pre-reform form, when Japan writes a reformed one (眞 for 真). */
+  old?: string;
+  /**
+   * Which forms share a glyph, as a partition of (cn, hk, tw, jp), plus a fifth digit for `old`:
+   * the same digit, the same glyph. `"0123"` is four shapes; `"0010"` is Taiwan's alone differing.
+   */
+  glyphSig: string;
+  /** The same partition of (cn, hk, tw, jp), by code point. */
+  cpSig: string;
+  /** Stroke counts of (cn, hk, tw, jp), then `old`'s; null where no source counts the form. */
+  strokes: Array<number | null>;
+  /**
+   * List levels of (cn, hk, tw, jp): China 1–3, Hong Kong 1, Taiwan 1 (common) or 2 (less common),
+   * Japan 1 (jōyō) or 2 (kyōiku). 0 when the region's list does not enter the form.
+   */
+  tiers: number[];
+  /**
+   * How each of (cn, hk, tw, jp) reads its form: Mandarin, Cantonese (Jyutping), Mandarin, and
+   * Japan's on and kun readings. Null where no source gives one.
+   */
+  readings: Array<string | null>;
+  /**
+   * Each of (cn, hk, tw, jp)'s frequency rank for its form, in its own corpus (1 = most frequent).
+   * Four corpora, never one scale. Null where the corpus does not rank the form.
+   */
+  ranks: Array<number | null>;
+  /**
+   * What English Wiktionary says of the group's characters (spec 22, phase 6), CC BY-SA 4.0: shown
+   * with a credit and a link to each character's page. Empty when its pages say nothing we keep.
+   */
+  notes: RegionalNoteDto[];
+  /**
+   * What Wiktionary's Chinese sections say the group's characters mean, from the same source and
+   * under the same licence as `notes`. Only characters whose page defines them; often just the
+   * traditional form, since a simplified form's page points at it.
+   */
+  meanings: RegionalMeaningsDto[];
+  /** The English meanings of Japan's form, the kanji page's own: beside the Chinese ones above. */
+  japaneseMeanings: string[];
+  /**
+   * The Han characters in `notes` and `meanings` that have a kanji page, so the view can link them:
+   * checked against the dictionary, so a link never leads nowhere. Empty in the browse list.
+   */
+  kanjiLinks: string[];
+}
+
+/** One Wiktionary note on a character of a regional group. */
+export interface RegionalNoteDto {
+  char: string;
+  /**
+   * The page's section: Translingual (how the forms relate), Chinese (where the shape came from),
+   * Japanese (where each Japanese word written with it came from, labelled by its reading).
+   */
+  section: "Translingual" | "Chinese" | "Japanese";
+  /** The note as the build parsed the page's markup (scripts/wiktionary.ts, `noteBlocks`). */
+  blocks: NoteBlock[];
+}
+
+/**
+ * One block of a Wiktionary note: a paragraph (`indent` for one the page sets in), the label of a
+ * sense the text goes on to discuss, or a list, numbered or not, whose items can hold lists.
+ */
+export type NoteBlock =
+  | { kind: "paragraph"; text: string; indent: boolean }
+  | { kind: "label"; text: string }
+  | { kind: "list"; ordered: boolean; items: NoteItem[] };
+
+export interface NoteItem {
+  text: string;
+  items: NoteItem[];
+}
+
+/** A character's meanings in Chinese, as its Wiktionary page lists them (spec 22). */
+export interface RegionalMeaningsDto {
+  char: string;
+  senses: ChineseSense[];
+}
+
+/** One meaning, and its register when Wiktionary marks one ("literary", "colloquial"). */
+export interface ChineseSense {
+  gloss: string;
+  labels: string[];
+}
+
+/**
+ * One stroke-order drawing of a kanji's regional group (spec 22, phase 4), and the columns it shows:
+ * 0–3 the regions (China, Hong Kong, Taiwan, Japan), 4 Japan's old form. Columns that take the
+ * same strokes in the same order share one drawing; a form with no drawing has `svg: null`, so the
+ * view can say so rather than show another region's order.
+ */
+export interface RegionalDrawingDto {
+  columns: number[];
+  /** The form drawn. */
+  char: string;
+  svg: string | null;
+}
+
 /** The full kanji detail. */
 export interface KanjiDetailDto {
   literal: string;
@@ -462,6 +568,30 @@ export interface Protocol {
     request: { literal: string };
     /** The recursive tree, or `null` when the kanji has no meaningful decomposition. */
     response: { tree: ComponentTreeDto | null };
+  };
+  /**
+   * A kanji's regional forms (spec 22): the groups in which it is Japan's form or Japan's old form.
+   * Usually one; several when Japan writes several characters alike (弁 stands for 辨, 瓣, 辯, 辦).
+   */
+  getRegionalForms: {
+    request: { literal: string };
+    response: { groups: RegionalGroupDto[] };
+  };
+  /**
+   * Stroke order by region (spec 22, phase 4): the distinct drawings of the kanji's own regional
+   * group, Japan's first. Empty when the kanji is in no group.
+   */
+  getRegionalStrokes: {
+    request: { literal: string };
+    response: { drawings: RegionalDrawingDto[] };
+  };
+  /**
+   * Every regional group, for the Kanji tab's "Regional differences" list (spec 22, phase 7), which
+   * filters and sorts them itself. `notes` is empty: the list does not show them.
+   */
+  browseRegional: {
+    request: Record<string, never>;
+    response: { groups: RegionalGroupDto[] };
   };
   /** Radical picker: the current selection (empty = show all radicals, no matches). */
   lookupRadicals: {

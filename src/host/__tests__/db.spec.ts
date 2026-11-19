@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { Dictionary, SchemaVersionError } from "../db";
 import { SCHEMA_VERSION } from "../../shared/schema";
 import { exampleText } from "../../shared/exampleLinks";
+import { DEFAULT_FILTERS, filterRegional } from "../../shared/regionalBrowse";
 
 // These tests run against the real database produced by `vp run build:data`. If it hasn't been
 // built yet, skip rather than fail — the build is an occasional, network-dependent step.
@@ -753,6 +754,140 @@ describeIfDb("Dictionary (against built jisho.db)", () => {
     // Every similar kanji resolves to its own detail (the table FK-references kanji_characters).
     const first = await dict.getKanji(top?.literal ?? "");
     expect(first).not.toBeNull();
+  });
+
+  test("finds a kanji's regional forms, with Japan's old form", async () => {
+    // WHY: the kanji page's regional block reads this. 学 must come back as one group with the
+    // forms each region writes and 學 as Japan's old form; a join that lost the old form, or put a
+    // form in the wrong region's place, would show a reader the wrong character for a region.
+    const [learn, ...rest] = await dict.getRegionalForms("学");
+    expect(rest).toEqual([]);
+    expect(learn).toMatchObject({
+      key: "學",
+      chars: ["学", "學", "學", "学"],
+      old: "學",
+      glyphSig: "01101",
+      cpSig: "0110"
+    });
+    // Taiwan's official count and Japan's Kanjidic2 count, side by side.
+    expect(learn?.strokes).toEqual([8, 16, 16, 8, 16]);
+    // Kyōiku in Japan, common in Hong Kong and Taiwan, level 1 in China.
+    expect(learn?.tiers).toEqual([1, 1, 1, 2]);
+  });
+
+  test("reads each region's form in its own language, ranked in its own corpus", async () => {
+    // WHY: phase 5's point. 学's group must carry China's Mandarin, Hong Kong's Cantonese, Taiwan's
+    // Mandarin and Japan's own readings, and each region's rank for ITS form: 學 in Hong Kong and
+    // Taiwan, 学 in China and Japan. A rank looked up for the wrong form would be absent or wrong.
+    const [learn] = await dict.getRegionalForms("学");
+    expect(learn?.readings.slice(0, 3)).toEqual(["xué", "hok6", "xué"]);
+    expect(learn?.readings[3]).toMatch(/ガク/u);
+    // Pinned or fixed sources: Jun Da (hanziDB at a commit), NAER's 2023 file, Japanese Wikipedia.
+    expect(learn?.ranks[0]).toBe(66);
+    expect(learn?.ranks[2]).toBe(93);
+    expect(learn?.ranks[3]).toBe(5);
+    // words.hk's counts are live, so only that 學 is among Hong Kong's common characters.
+    expect(learn?.ranks[1]).toBeGreaterThan(0);
+    expect(learn?.ranks[1]).toBeLessThan(500);
+  });
+
+  test("carries Wiktionary's notes on every character the group writes", async () => {
+    // WHY: phase 6's point. 学's own page only says it was simplified from 學; where the shape came
+    // from is on 學's page. The group must bring back both, by character and section, or the view
+    // shows the simplification with no origin, or the origin under the wrong character.
+    const [learn] = await dict.getRegionalForms("学");
+    const lead = new Map(
+      learn?.notes.map((note) => {
+        const [first] = note.blocks;
+        return [
+          `${note.char} ${note.section}`,
+          first?.kind === "paragraph" ? first.text : ""
+        ];
+      })
+    );
+    expect(lead.get("学 Translingual")).toMatch(/^Simplified from 學/u);
+    expect(lead.get("學 Chinese")).toMatch(/compound/u);
+  });
+
+  test("carries each Japanese etymology of Japan's form, labelled by its reading", async () => {
+    // WHY: the view gives each language's etymology; 国's Japanese words come from two places, くに
+    // from Old Japanese and こく from Middle Chinese, and only the label says which is which.
+    const [country] = await dict.getRegionalForms("国");
+    const japanese = country?.notes.find(
+      (note) => note.char === "国" && note.section === "Japanese"
+    );
+    const labels = japanese?.blocks.flatMap((block) =>
+      block.kind === "label" ? [block.text] : []
+    );
+    expect(labels).toEqual(expect.arrayContaining(["くに", "こく"]));
+  });
+
+  test("carries Japan's meanings, and the quoted characters that have a kanji page", async () => {
+    // WHY: Details sets Japan's meaning beside the Chinese one, from the kanji page's own data; and
+    // the view links a quoted character only when the host has found its page, so the set must
+    // hold 學 (named in 学's note) and nothing the dictionary lacks.
+    const [learn] = await dict.getRegionalForms("学");
+    expect(learn?.japaneseMeanings).toContain("study");
+    expect(learn?.kanjiLinks).toContain("學");
+    for (const literal of learn?.kanjiLinks ?? [])
+      await expect(dict.getKanji(literal)).resolves.not.toBeNull();
+  });
+
+  test("carries the group's meanings in Chinese from the page that defines them", async () => {
+    // WHY: 学's Chinese page points at 學's, so the meanings are on 學's row; the host must bring
+    // back every character's, for the view to choose the page that has them.
+    const [learn] = await dict.getRegionalForms("学");
+    const meanings = learn?.meanings.find((m) => m.char === "學");
+    expect(meanings?.senses.map((sense) => sense.gloss)).toContain(
+      "to learn; to study"
+    );
+    expect(learn?.meanings.some((m) => m.char === "学")).toBe(false);
+  });
+
+  test("lists every regional group for the browse, and finds where Japan alone differs", async () => {
+    // WHY: spec 22, phase 7's "done when". The browse filters the whole table in the webview, so the
+    // host must hand over every group with its readings, Japan's joined from the kanji page. Japan
+    // alone differing, by Japan's stroke count, starts with characters every region writes at one
+    // code point but Japan draws its own way (山), the fewest strokes first and equal counts by code
+    // point, so the list reads the same on every load.
+    const groups = await dict.browseRegional();
+    expect(groups.length).toBeGreaterThan(8000);
+    const learn = groups.find((group) => group.key === "學");
+    expect(learn?.readings[3]).toMatch(/ガク/u);
+    const japanAlone = filterRegional(groups, {
+      ...DEFAULT_FILTERS,
+      pattern: "0001",
+      sort: "strokes",
+      region: 3
+    });
+    expect(
+      japanAlone.slice(0, 7).map((group) => [group.chars[3], group.strokes[3]])
+    ).toEqual([
+      ["乃", 2],
+      ["么", 3],
+      ["之", 3],
+      ["山", 3],
+      ["广", 3],
+      ["弓", 3],
+      ["才", 3]
+    ]);
+    expect(japanAlone.every((group) => group.glyphSig.startsWith("0001"))).toBe(
+      true
+    );
+  });
+
+  test("lists every character Japan writes alike, the kanji's own first", async () => {
+    // WHY: Japan's reform made 予 stand for 豫 too. The page for 予 shows both groups, and the
+    // character itself must lead: opening 予 and seeing 豫 first would suggest 予 is only a
+    // shorthand. A page for an old form (學) reaches its group through the old form.
+    expect((await dict.getRegionalForms("予")).map((g) => g.key)).toEqual([
+      "予",
+      "豫"
+    ]);
+    expect((await dict.getRegionalForms("學")).map((g) => g.key)).toEqual([
+      "學"
+    ]);
+    await expect(dict.getRegionalForms("あ")).resolves.toEqual([]);
   });
 
   test("builds the recursive component tree with intermediate nodes", async () => {

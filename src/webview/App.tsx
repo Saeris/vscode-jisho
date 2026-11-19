@@ -21,6 +21,7 @@ import { KanjiDetail } from "./views/KanjiDetail";
 import { MoreExamples } from "./views/MoreExamples";
 import { NameDetail } from "./views/NameDetail";
 import { RadicalPicker } from "./views/RadicalPicker";
+import { RegionalForms } from "./views/RegionalForms";
 import { ComponentTree } from "./views/ComponentTree";
 import { SearchResults } from "./views/SearchResults";
 import { StrokeOrder } from "./views/StrokeOrder";
@@ -118,6 +119,9 @@ export const App = (): React.ReactElement => {
           literal={view.literal}
           onOpenKanji={(literal) => send({ type: "openKanji", literal })}
         />
+      ) : null}
+      {view.name === "regionalForms" ? (
+        <RegionalForms literal={view.literal} />
       ) : null}
       {view.name === "strokeOrder" ? (
         <StrokeOrder

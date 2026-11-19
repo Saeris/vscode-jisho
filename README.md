@@ -32,12 +32,14 @@ An offline Japanese dictionary in your sidebar. Look up a word, read a kanji, or
     - [Conjugations](#conjugations)
   - [Searching for Kanji](#searching-for-kanji)
     - [Stroke order](#stroke-order)
+    - [Regional forms](#regional-forms)
   - [Finding a character you cannot type](#finding-a-character-you-cannot-type)
     - [By its radicals](#by-its-radicals)
     - [By drawing it](#by-drawing-it)
   - [Browsing](#browsing)
     - [Vocabulary](#vocabulary)
     - [Kanji](#kanji)
+    - [Regional differences](#regional-differences)
     - [Kana](#kana)
   - [Working in the editor](#working-in-the-editor)
     - [Color Japanese by part of speech](#color-japanese-by-part-of-speech)
@@ -240,7 +242,33 @@ Drag the scrubber to move through the strokes one at a time, or let it play. The
 
 Below the player is a chart of the whole character, one frame per stroke, for when you want to see the order at a glance rather than watch it.
 
-<br clear="left" />
+For a jōyō kanji that China, Hong Kong or Taiwan writes differently, buttons above the player choose whose order to play. China writes 右 with the same shape as Japan but in another order, so the two have separate drawings. Where a region has no drawing, the page says so instead of showing another region's order.
+
+<br clear="left" /><br/>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-forms-dark.png" />
+  <img align="right" hspace="12" width="42%" alt="The regional forms of 学: the forms 学 and 學 overlaid in two inks, then a chart with one row per form. 学 is written in China and Japan, U+5B66, 8 strokes; 學 in Hong Kong, Taiwan and as Japan's old form, U+5B78, 16 strokes. Each row names the lists the form is on. Below, Details: Wiktionary's note that 学 is simplified from 學, then Japan's reading, frequency rank and meaning." src="docs/images/regional-forms-light.png" />
+</picture>
+
+### Regional forms
+
+A kanji is not always written the way Japan writes it. China simplified many characters, Hong Kong and Taiwan keep traditional forms, and Japan changed some of its own forms in its postwar reform. Sometimes the difference is a different character with its own code point, as with 学 and 學. Sometimes it is one code point drawn differently: China, Hong Kong, Taiwan and Japan each draw 返 their own way.
+
+When other regions write a kanji differently, its page has a **Regional forms** link, after **Stroke order** and **Component tree**. Select it to open the view:
+
+- The forms are overlaid in one place, each in its own ink, so the strokes they share pile up and the strokes only one form has stand out. Rest the pointer on them to fan them apart and light each form in turn, or drag across them to pull them apart.
+- **Separate** sets the forms side by side, each labelled with the regions that write it. **Outline** shows only their outlines.
+- Below, each form has a row: the regions that write it, its code point, its stroke count, and the official character lists it is on. Select a form to copy it.
+- **Details** starts with **Across languages**, how the forms relate, such as 学 being simplified from 學. Then it has an entry for **Japanese** and one for **Chinese**, each with up to three parts:
+  - **Pronunciation and frequency** gives each region's reading of its form, Japan's under Japanese and the Mandarin and Cantonese readings under Chinese, and how common the form is in that region. Each rank names the texts it was counted in, because the four regions' ranks come from different kinds of text and do not compare directly. Rest the pointer on **Mandarin** or **Cantonese** to see how its tones are written: Cantonese readings are in Jyutping, where the small number after a syllable is its tone.
+  - **Meaning** gives the kanji's meanings under Japanese, and the first meanings English Wiktionary gives it under Chinese, so you can see where a meaning has moved: 湯 is "broth; soup" in Chinese, and "hot or boiling water", its everyday meaning in Japanese, is marked literary.
+  - **Etymology** quotes English Wiktionary. Under Japanese, it says where each Japanese word written with the kanji came from, by its reading: for 国, くに is from Old Japanese and こく from Middle Chinese. Under Chinese, it says where the shape came from.
+- Each quote links to the Wiktionary page it is from. Select a kanji in a quote to open its page.
+
+Where Japan wrote the kanji differently before the reform, that form appears as **Japan's old form**. Each form is drawn in a font for its region, so the differences you see are the regions' own.
+
+<br clear="right" />
 
 ## Finding a character you cannot type
 
@@ -330,6 +358,22 @@ The grid fits far more on screen than a list would, which suits browsing a level
 Each tile carries a short meaning under the character, so the set is scannable without opening anything.
 
 Selecting a tile opens that character's page.
+
+<br clear="right" /><br />
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/regional-browse-dark.png" />
+  <img align="right" hspace="12" width="42%" alt="The Regional differences list, filtered to characters Japan alone writes differently. Each row overlays the forms in two inks, then shows the Japanese form above JP and the form China, Hong Kong and Taiwan share above CN HK TW." src="docs/images/regional-browse-light.png" />
+</picture>
+
+### Regional differences
+
+**Regional differences**, below the Kanji tab's lists, lists every character that [Regional forms](#regional-forms) covers: its forms overlaid, then each form with the regions that write it.
+
+- Search by character, reading or code point (`U+5B66`). Readings match without their tone marks, and Japanese readings can be typed in kana or romaji, so `gaku` finds 学.
+- **Filters** chooses how the regions differ, such as **Japan alone differs**, which official lists the character is on, a stroke range, and the order: frequency, stroke count or code point, each in one region.
+
+Selecting a row opens its **Regional forms**.
 
 <br clear="right" /><br />
 
@@ -508,6 +552,10 @@ Jisho is built on open dictionary projects whose licences require attribution. F
 - **[Example sentences][tatoeba]**: from [Tatoeba][tatoeba], under [CC BY 2.0 FR][cc-by-fr].
 - **[AnimCJK][animcjk]**: stroke-order drawings, © FM&SH, under the [Arphic Public License][apl] (kanji) and [LGPL v3][lgpl] (kana).
 - **[KanjiCanvas][kanjicanvas]** and **[perfect-freehand][perfect-freehand]**: handwriting recognition and drawing, MIT.
+- **Regional forms**: the method of [hanji][hanji] (MIT); variant tables from [OpenCC][opencc] (Apache 2.0); glyph comparison from the character maps of [Source Han][source-han] (SIL OFL); character lists, stroke counts and readings from [Unihan][unihan] (Unicode License) and, for Taiwan, [CNS 11643][cns11643] (Open Government Data License 1.0).
+- **Regional frequency**: China, [Jun Da's Modern Chinese Character Frequency List][jun-da] (© Jun Da, used with credit); Hong Kong, [words.hk][words-hk] (public domain); Taiwan, the [National Academy for Educational Research][naer] (open data, with credit); Japan, [kanji-frequency][kanji-frequency] (CC BY 4.0).
+- **Regional notes and meanings in Chinese**: quoted from [English Wiktionary][wiktionary] by its contributors, under [CC BY-SA 4.0][cc-by-sa], through [Wiktextract][wiktextract] ([kaikki.org][kaikki]).
+- **[Noto Sans CJK][noto-cjk]**: the region fonts, © Adobe, under the [SIL Open Font License][ofl], renamed Jisho Sans.
 
 ## Contributing
 
@@ -542,6 +590,20 @@ Extension source released under the [MIT license][license] © [Drake Costa][pers
 [lgpl]: https://www.gnu.org/licenses/lgpl-3.0.html
 [kanjicanvas]: http://github.com/asdfjkl/kanjicanvas
 [perfect-freehand]: https://github.com/steveruizok/perfect-freehand
+[hanji]: https://github.com/sxzz/hanji
+[opencc]: https://github.com/BYVoid/OpenCC
+[source-han]: https://github.com/adobe-fonts/source-han-sans
+[unihan]: https://www.unicode.org/charts/unihan.html
+[cns11643]: https://www.cns11643.gov.tw/
+[noto-cjk]: https://github.com/notofonts/noto-cjk
+[ofl]: https://openfontlicense.org/
+[jun-da]: https://lingua.mtsu.edu/chinese-computing/statistics/
+[words-hk]: https://words.hk/faiman/analysis/
+[naer]: https://teric.naer.edu.tw/wSite/ct?ctNode=645&mp=teric_b&xItem=2068770
+[kanji-frequency]: https://github.com/scriptin/kanji-frequency
+[wiktionary]: https://en.wiktionary.org/
+[wiktextract]: https://github.com/tatuylonen/wiktextract
+[kaikki]: https://kaikki.org/
 [cc-by-sa]: https://creativecommons.org/licenses/by-sa/4.0/
 [issues]: https://github.com/Saeris/vscode-jisho/issues
 [license]: ./LICENSE.md

@@ -20,7 +20,9 @@ import {
   fillSearch,
   hoverEditorWord,
   jishoFrame,
+  leaveKanjiTabAtRoot,
   openJishoSidebar,
+  openRegionalDifferences,
   returnToSearch
 } from "../webview";
 import {
@@ -443,6 +445,53 @@ test("capture: the kanji page", async () => {
     await expect(frame.getByText("On", { exact: true }).first()).toBeVisible();
     return sidebar(win);
   });
+});
+
+test("capture: regional forms", async () => {
+  // 学 rather than a rarer character: the reader knows it, and its row for 學 shows the old form.
+  const win = vscode!.window;
+  await captureBothThemes(vscode!, "regional-forms", async () => {
+    const frame = await jishoFrame(win);
+    await returnToSearch(frame);
+    await fillSearch(frame, "学");
+    await frame
+      .locator('[role="listbox"][aria-label="Kanji results"] [role="option"]')
+      .first()
+      .click();
+    await frame
+      .getByRole("button", { name: "Regional forms", exact: true })
+      .click();
+    await expect(
+      frame.getByRole("img", { name: /^Overlaid: 学 \(China and Japan\), 學/u })
+    ).toBeVisible();
+    await expect(frame.getByText("2 forms", { exact: true })).toBeVisible();
+    // The view opens under the pointer that pressed the summary, which leaves the stack fanned and
+    // lit. The listing shows it at rest, so the pointer moves off it first.
+    await frame.getByRole("heading", { name: /regional forms/u }).hover();
+    return sidebar(win);
+  });
+});
+
+test("capture: regional differences", async () => {
+  // Filtered to "Japan alone differs" with the filters open: the shot shows how the list is
+  // narrowed as well as what a row holds. Left at the Kanji tab's root afterwards, where the
+  // Kanji browse capture expects to find its lists.
+  const win = vscode!.window;
+  await captureBothThemes(vscode!, "regional-browse", async () => {
+    const frame = await jishoFrame(win);
+    await openRegionalDifferences(frame);
+    await frame.getByRole("button", { name: /^Filters/u }).click();
+    await frame.getByRole("radio", { name: "Two forms" }).click();
+    await frame.getByRole("radio", { name: "Japan alone differs" }).click();
+    await expect(
+      frame
+        .getByRole("listbox", { name: "Regional differences" })
+        .getByRole("option")
+        .first()
+    ).toBeVisible();
+    return sidebar(win);
+  });
+  await leaveKanjiTabAtRoot(await jishoFrame(win));
 });
 
 test("capture: stroke order, mid-animation", async () => {

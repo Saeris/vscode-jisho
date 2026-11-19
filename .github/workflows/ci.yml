@@ -114,8 +114,9 @@ jobs:
       # The host bundle, so `scripts/__tests__/packaging.spec.ts` has something to inspect. That
       # spec checks the bundle requires nothing the extension host cannot resolve — the failure that
       # shipped 0.2.0 unable to activate — and it can only ask that question of a built artifact.
-      - name: Build the extension host bundle
-        run: vp run build:onig-wasm && vp pack
+      # The webview bundle too, so it can check that the region fonts' URLs resolve (spec 22).
+      - name: Build the extension bundles
+        run: vp run build:onig-wasm && vp pack && vp build
 
       - run: vp test
 

@@ -300,6 +300,44 @@ export const openKanjiResult = async (
     .click();
 };
 
+/** The Kanji tab's root crumb, shown while the tab is inside a list. */
+const kanjiRootCrumb = (frame: FrameLocator): Locator =>
+  frame.locator('ol li [role="link"]:visible').filter({ hasText: "Kanji" });
+
+/**
+ * Open the Kanji tab's "Regional differences" list (spec 22, phase 7), from wherever the tab was
+ * left. The tab keeps its drill level, like Vocab (see `openBrowseTab`), so it may be inside a list
+ * already; going to its root first also starts the list's filters over.
+ */
+export const openRegionalDifferences = async (
+  frame: FrameLocator
+): Promise<void> => {
+  await returnToSearch(frame);
+  await frame
+    .getByRole("tablist", { name: "Sections" })
+    .getByRole("tab", { name: "Kanji" })
+    .click();
+  const root = kanjiRootCrumb(frame);
+  if (await root.isVisible().catch(() => false)) await root.click();
+  await frame.getByRole("button", { name: "Regional differences" }).click();
+};
+
+/** Leave the Kanji tab at its root, where the specs after this one expect its lists. */
+export const leaveKanjiTabAtRoot = async (
+  frame: FrameLocator
+): Promise<void> => {
+  await returnToSearch(frame);
+  await frame
+    .getByRole("tablist", { name: "Sections" })
+    .getByRole("tab", { name: "Kanji" })
+    .click();
+  const root = kanjiRootCrumb(frame);
+  if (await root.isVisible().catch(() => false)) await root.click();
+  await expect(
+    frame.getByRole("button", { name: "Regional differences" })
+  ).toBeVisible();
+};
+
 /**
  * Run a Jisho command through the palette. Focus must already be outside the webview.
  *

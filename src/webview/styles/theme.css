@@ -36,6 +36,18 @@
      Overridden below on light grounds; see there for why one formula could not serve both. */
   --jisho-inflection: oklch(from var(--jisho-fg) l 0.14 60);
 
+  /* The regional-forms inks (spec 22): one per distinct form, in the overprint and its chart. Five
+     hues of one lightness and chroma, so no form looks heavier than another. Fixed, not derived
+     from the foreground: at a dark theme's foreground lightness blue clips out of sRGB (above);
+     L 0.74 C 0.13 keeps all five inside. Light grounds have their own values below. The first two
+     are orange and blue, the pair most colour-vision deficiencies still tell apart, because two
+     forms is the common case; red against green would be the worst pair. */
+  --jisho-ink-0: oklch(0.74 0.13 60);
+  --jisho-ink-1: oklch(0.74 0.13 255);
+  --jisho-ink-2: oklch(0.74 0.13 325);
+  --jisho-ink-3: oklch(0.74 0.13 145);
+  --jisho-ink-4: oklch(0.74 0.13 25);
+
   --jisho-radius: 4px;
   --jisho-gap: 8px;
 }
@@ -56,6 +68,16 @@
  */
 body.vscode-light {
   --jisho-inflection: oklch(0.48 0.115 55);
+}
+
+/* The regional inks on a light ground: darker, at a chroma all five hues reach at L 0.55. */
+body.vscode-light,
+body.vscode-high-contrast-light {
+  --jisho-ink-0: oklch(0.55 0.11 60);
+  --jisho-ink-1: oklch(0.55 0.11 255);
+  --jisho-ink-2: oklch(0.55 0.11 325);
+  --jisho-ink-3: oklch(0.55 0.11 145);
+  --jisho-ink-4: oklch(0.55 0.11 25);
 }
 
 html,

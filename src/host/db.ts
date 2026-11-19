@@ -6,6 +6,7 @@
 import { DisposableStore, SqliteStore } from "./store";
 import { radicalLookup, type RadicalLookup } from "./queries/radicals";
 import { getComponentTree, getKanji } from "./queries/kanji";
+import { browseRegionalGroups, getRegionalGroups } from "./queries/regional";
 import { getMoreExamples, getWord } from "./queries/words";
 import {
   kanjiResults,
@@ -30,6 +31,7 @@ import type {
   MoreExamplesDto,
   PartOfSpeech,
   RadicalLookupDto,
+  RegionalGroupDto,
   SearchResultDto,
   WordDetailDto
 } from "../shared/messages";
@@ -207,6 +209,15 @@ export class Dictionary {
 
   async getComponentTree(literal: string): Promise<ComponentTreeDto | null> {
     return getComponentTree(this.#store, literal);
+  }
+
+  async getRegionalForms(literal: string): Promise<RegionalGroupDto[]> {
+    return getRegionalGroups(this.#store, literal);
+  }
+
+  /** Every regional group, for the "Regional differences" list (spec 22, phase 7). */
+  async browseRegional(): Promise<RegionalGroupDto[]> {
+    return browseRegionalGroups(this.#store);
   }
 
   /**

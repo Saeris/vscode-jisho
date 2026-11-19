@@ -17,6 +17,8 @@ AnimCJK upstream (pinned SHA, svgsJa + svgsJaKana)
 
 Kana (#55) come from a **separate upstream directory** — `svgsJaKana`, not `svgsJa`, which 404s for あ — and land in a separate output directory because they carry a **different licence**. One folder holding both would need one licence file that is wrong for half its contents. The host tries both directories in turn, so callers never classify a character.
 
+China's and Taiwan's drawings for the jōyō kanji they write differently come from AnimCJK's `svgsZhHans` and `svgsZhHant` sets, through the same `transform`, by `scripts/build-regional-strokes.ts` into `assets/hans-svgs/` and `assets/hant-svgs/` (Arphic PL). `assets/regional-strokes.json` beside them records which set draws each region's form, including where a region shares another's drawing because the glyph and the stroke order match ([spec 22](specs/22-regional-forms.md), phase 4).
+
 Only single code points get a drawing: a digraph (きゃ) is two, the host serves by one-code-point filename, and upstream has no combined file either. The Kana chart makes digraph cells inert to match.
 
 The SVGs ship as **files in the extension package**, not rows in `jisho.db`. They used to live in a `stroke_svgs` table because `assets/**` is `.vscodeignore`d and the downloaded database was the only delivery vehicle — but that meant `build:strokes` (regenerates files) and `build:data` (ingested them) had to be run _together_, and forgetting the second step left the extension rendering stale SVGs while every file-reading test passed. Files-in-package removes the sync step entirely and decouples stroke fixes from dictionary releases.

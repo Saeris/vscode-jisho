@@ -1,5 +1,13 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { kanjiQuery, strokeSvgQuery } from "../queries";
+import {
+  ToggleButton,
+  ToggleButtonGroup,
+  type Selection
+} from "react-aria-components";
+import type { RegionalDrawingDto } from "../../shared/messages";
+import { kanjiQuery, regionalStrokesQuery, strokeSvgQuery } from "../queries";
+import { COLUMN_LANGS, asWritten, columnNames } from "../regionalForms";
 import { DetailView } from "../components/DetailView";
 import { StrokeChart } from "../components/StrokeChart";
 import { StrokePlayer } from "../components/StrokePlayer";
@@ -33,6 +41,8 @@ export const StrokeOrder = ({
   onFindByPart
 }: StrokeOrderProps): React.ReactElement => {
   const query = useQuery(strokeSvgQuery(literal));
+  // The kanji's regional drawings (spec 22, phase 4); one or none means there is nothing to choose.
+  const regional = useQuery(regionalStrokesQuery(literal)).data ?? [];
   const queryClient = useQueryClient();
 
   // A part is a kanji in its own right (頁) or a radical-only shape (⻌). Route by which detail
@@ -54,14 +64,79 @@ export const StrokeOrder = ({
         </h1>
       }
     >
-      {(svg) => (
-        <StrokeBody
-          svg={svg}
-          literal={literal}
-          onOpenPart={(part) => void openPart(part)}
-        />
-      )}
+      {(svg) =>
+        regional.length > 1 ? (
+          <RegionalStrokes
+            drawings={regional}
+            onOpenPart={(part) => void openPart(part)}
+          />
+        ) : (
+          <StrokeBody
+            svg={svg}
+            literal={literal}
+            onOpenPart={(part) => void openPart(part)}
+          />
+        )
+      }
     </DetailView>
+  );
+};
+
+/**
+ * Stroke order by region: one choice per distinct drawing, labelled with the regions it shows,
+ * Japan's first. A form with no drawing says so, rather than borrowing another region's order,
+ * because a different order is exactly what the reader is checking (spec 22).
+ */
+const RegionalStrokes = ({
+  drawings,
+  onOpenPart
+}: {
+  drawings: RegionalDrawingDto[];
+  onOpenPart: (literal: string) => void;
+}): React.ReactElement => {
+  const [chosen, setChosen] = useState(0);
+  // The caller passes two or more drawings; `chosen` is always one of their indexes.
+  const drawing = drawings[chosen];
+  return (
+    <>
+      <ToggleButtonGroup
+        aria-label="Whose stroke order"
+        className={styles.regions}
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={new Set([String(chosen)])}
+        onSelectionChange={(keys: Selection) => {
+          if (keys === "all") return;
+          const next = Number(keys.values().next().value);
+          if (Number.isInteger(next)) setChosen(next);
+        }}
+      >
+        {drawings.map((option, index) => (
+          <ToggleButton
+            key={`${option.char}-${option.columns.join("")}`}
+            id={String(index)}
+            className={styles.region}
+          >
+            {columnNames(option.columns)}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+      {drawing.svg ? (
+        <StrokeBody
+          svg={drawing.svg}
+          literal={drawing.char}
+          onOpenPart={onOpenPart}
+        />
+      ) : (
+        <p className={styles.status}>
+          There is no stroke-order drawing for{" "}
+          <span lang={COLUMN_LANGS[drawing.columns[0] ?? 3]}>
+            {drawing.char}
+          </span>{" "}
+          {asWritten(drawing.columns)}.
+        </p>
+      )}
+    </>
   );
 };
 

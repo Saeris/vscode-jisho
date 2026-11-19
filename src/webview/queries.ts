@@ -12,12 +12,15 @@ import type {
   NameResultDto,
   RadicalLookupDto,
   RecentSearchDto,
+  RegionalDrawingDto,
+  RegionalGroupDto,
   SearchResultDto,
   SegmentDto,
   WordDetailDto
 } from "../shared/messages";
 import {
   browse,
+  browseRegional,
   kanjiList,
   browseCounts,
   getAbout,
@@ -25,6 +28,8 @@ import {
   getMoreExamples,
   getName,
   getComponentTree,
+  getRegionalForms,
+  getRegionalStrokes,
   getRecentSearches,
   getStrokeSvg,
   getWord,
@@ -128,6 +133,46 @@ export const componentTreeQuery = (
   queryOptions({
     queryKey: ["componentTree", literal],
     queryFn: async () => (await getComponentTree(literal)).tree
+  });
+
+/** A kanji's regional forms (spec 22): the kanji page's summary and the view share one fetch. */
+export const regionalFormsQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<RegionalGroupDto[], Error, RegionalGroupDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["regionalForms", literal],
+    queryFn: async () => (await getRegionalForms(literal)).groups
+  });
+
+/**
+ * Every regional group, for the "Regional differences" list (spec 22, phase 7). Fetched once: it
+ * changes only when the dictionary is replaced, and the list filters it in memory.
+ */
+export const regionalBrowseQuery = (): ReturnType<
+  typeof queryOptions<RegionalGroupDto[], Error, RegionalGroupDto[], string[]>
+> =>
+  queryOptions({
+    queryKey: ["regionalBrowse"],
+    queryFn: async () => (await browseRegional()).groups,
+    staleTime: Infinity
+  });
+
+/** Stroke order by region (spec 22, phase 4): the kanji group's drawings, Japan's first. */
+export const regionalStrokesQuery = (
+  literal: string
+): ReturnType<
+  typeof queryOptions<
+    RegionalDrawingDto[],
+    Error,
+    RegionalDrawingDto[],
+    string[]
+  >
+> =>
+  queryOptions({
+    queryKey: ["regionalStrokes", literal],
+    queryFn: async () => (await getRegionalStrokes(literal)).drawings
   });
 
 export const wordQuery = (
